@@ -30,7 +30,7 @@ import com.cooper.wheellog.compose.screens.ChartScreen
 import com.cooper.wheellog.compose.screens.DashboardScreen
 import com.cooper.wheellog.compose.screens.MetricDetailScreen
 import com.cooper.wheellog.compose.screens.RidesScreen
-import com.cooper.wheellog.compose.screens.AutoConnectScreen
+import com.cooper.wheellog.compose.screens.AutoConnectContent
 import com.cooper.wheellog.compose.screens.ScanScreen
 import com.cooper.wheellog.compose.screens.TripDetailScreen
 import com.cooper.wheellog.compose.screens.WheelSettingsScreen
@@ -98,7 +98,7 @@ fun AppNavigation(viewModel: WheelViewModel) {
                         onNavigateToWheelSettings = { navController.navigate("wheel_settings") }
                     )
                 } else if (isAutoConnecting) {
-                    AutoConnectScreen(onCancel = { viewModel.disconnect() })
+                    AutoConnectContent(onCancel = { viewModel.disconnect() })
                 } else {
                     ScanScreen(viewModel = viewModel)
                 }

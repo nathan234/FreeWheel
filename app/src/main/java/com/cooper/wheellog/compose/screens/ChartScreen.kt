@@ -52,6 +52,17 @@ import com.cooper.wheellog.compose.components.rememberChartMarker
 import androidx.compose.material3.FilterChip
 import com.cooper.wheellog.core.utils.DisplayUtils
 
+// CROSS-PLATFORM SYNC: This screen mirrors iosApp/WheelLog/Views/TelemetryChartView.swift.
+// When adding, removing, or reordering sections, update the counterpart.
+//
+// Shared sections (in order):
+//  1. Time range picker: 5 min / 1 hr / 24 hr
+//  2. Metric toggle chips: Speed, GPS, Current, Power, Temperature
+//  3. Main telemetry chart (multi-series, overlaid)
+//  4. Voltage chart (single series, below main chart)
+//  5. Empty state when no samples
+//  Note: Android uses Vico charts; iOS uses Swift Charts with gesture annotation overlay
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChartScreen(

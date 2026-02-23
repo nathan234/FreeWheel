@@ -58,8 +58,20 @@ import com.cooper.wheellog.core.domain.CommonLabels
 import com.cooper.wheellog.core.domain.ScanLabels
 import com.cooper.wheellog.core.utils.DisplayUtils
 
+// CROSS-PLATFORM SYNC: This screen mirrors iosApp/WheelLog/Views/ScanView.swift.
+// When adding, removing, or reordering sections, update the counterpart.
+//
+// Shared sections (in order):
+//  1. Auto-reconnect overlay (Android: separate AutoConnectContent; iOS: inline in ScanView)
+//  2. Header with app name
+//  3. Scan button with pulse animation
+//  4. Device list: "My Wheels" section (saved devices)
+//  5. Device list: "New Devices" section (unsaved, swipe-to-delete to forget)
+//  6. Empty state with demo mode button
+//  Note: iOS has additional simulator-specific test UI buttons
+
 @Composable
-fun AutoConnectScreen(onCancel: () -> Unit) {
+fun AutoConnectContent(onCancel: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()

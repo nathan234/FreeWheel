@@ -1,6 +1,18 @@
 import SwiftUI
 import WheelLogCore
 
+// CROSS-PLATFORM SYNC: This view mirrors app/.../compose/screens/ScanScreen.kt.
+// When adding, removing, or reordering sections, update the counterpart.
+//
+// Shared sections (in order):
+//  1. Auto-reconnect overlay (Android: separate AutoConnectContent; iOS: inline in ScanView)
+//  2. Header with app name
+//  3. Scan button with pulse animation
+//  4. Device list: "My Wheels" section (saved devices)
+//  5. Device list: "New Devices" section (unsaved, swipe-to-delete to forget)
+//  6. Empty state with demo mode button
+//  Note: iOS has additional simulator-specific test UI buttons
+
 struct ScanView: View {
     @EnvironmentObject var wheelManager: WheelManager
     @State private var scanPulse = false

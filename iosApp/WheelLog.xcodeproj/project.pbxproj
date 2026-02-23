@@ -24,7 +24,7 @@
 		B1000001221F0000000016 /* RideStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000001221F0000000006 /* RideStore.swift */; };
 		B1000001221F0000000017 /* TelemetryBuffer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000001221F0000000007 /* TelemetryBuffer.swift */; };
 		E1000001221F000000001E /* TelemetryHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1000001221F000000000E /* TelemetryHistory.swift */; };
-		B1000001221F0000000018 /* ChartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000001221F0000000008 /* ChartView.swift */; };
+		B1000001221F0000000018 /* TelemetryChartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000001221F0000000008 /* TelemetryChartView.swift */; };
 		B1000001221F0000000019 /* RidesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000001221F0000000009 /* RidesView.swift */; };
 		B1000001221F000000001A /* SmartBmsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000001221F000000000A /* SmartBmsView.swift */; };
 		C1000001221F000000001B /* GaugeTileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1000001221F000000000B /* GaugeTileView.swift */; };
@@ -54,7 +54,7 @@
 		B1000001221F0000000006 /* RideStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RideStore.swift; sourceTree = "<group>"; };
 		B1000001221F0000000007 /* TelemetryBuffer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelemetryBuffer.swift; sourceTree = "<group>"; };
 		E1000001221F000000000E /* TelemetryHistory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelemetryHistory.swift; sourceTree = "<group>"; };
-		B1000001221F0000000008 /* ChartView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChartView.swift; sourceTree = "<group>"; };
+		B1000001221F0000000008 /* TelemetryChartView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelemetryChartView.swift; sourceTree = "<group>"; };
 		B1000001221F0000000009 /* RidesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RidesView.swift; sourceTree = "<group>"; };
 		B1000001221F000000000A /* SmartBmsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartBmsView.swift; sourceTree = "<group>"; };
 		C1000001221F000000000B /* GaugeTileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GaugeTileView.swift; sourceTree = "<group>"; };
@@ -136,7 +136,7 @@
 				A1000001221F0000000018 /* SpeedGaugeView.swift */,
 				A1000001221F0000000019 /* ConnectionBanner.swift */,
 				A1000001221F000000001C /* SettingsView.swift */,
-				B1000001221F0000000008 /* ChartView.swift */,
+				B1000001221F0000000008 /* TelemetryChartView.swift */,
 				G1000001221F0000000010 /* ChartHelpers.swift */,
 				B1000001221F0000000009 /* RidesView.swift */,
 				B1000001221F000000000A /* SmartBmsView.swift */,
@@ -256,7 +256,7 @@
 				B1000001221F0000000016 /* RideStore.swift in Sources */,
 				B1000001221F0000000017 /* TelemetryBuffer.swift in Sources */,
 				E1000001221F000000001E /* TelemetryHistory.swift in Sources */,
-				B1000001221F0000000018 /* ChartView.swift in Sources */,
+				B1000001221F0000000018 /* TelemetryChartView.swift in Sources */,
 				B1000001221F0000000019 /* RidesView.swift in Sources */,
 				B1000001221F000000001A /* SmartBmsView.swift in Sources */,
 				C1000001221F000000001B /* GaugeTileView.swift in Sources */,

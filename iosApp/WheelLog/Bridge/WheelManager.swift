@@ -69,13 +69,13 @@ class WheelManager: ObservableObject {
     }
     @Published var alarmFactor1: Double = {
         let v = UserDefaults.standard.double(forKey: PreferenceKeys.shared.ALARM_FACTOR_1)
-        return v == 0 ? 80 : v
+        return v == 0 ? Double(PreferenceDefaults.shared.ALARM_FACTOR_1) : v
     }() {
         didSet { UserDefaults.standard.set(alarmFactor1, forKey: PreferenceKeys.shared.ALARM_FACTOR_1) }
     }
     @Published var alarmFactor2: Double = {
         let v = UserDefaults.standard.double(forKey: PreferenceKeys.shared.ALARM_FACTOR_2)
-        return v == 0 ? 95 : v
+        return v == 0 ? Double(PreferenceDefaults.shared.ALARM_FACTOR_2) : v
     }() {
         didSet { UserDefaults.standard.set(alarmFactor2, forKey: PreferenceKeys.shared.ALARM_FACTOR_2) }
     }

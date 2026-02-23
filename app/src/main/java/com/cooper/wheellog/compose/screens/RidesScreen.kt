@@ -50,6 +50,18 @@ import com.cooper.wheellog.core.utils.DisplayUtils
 import com.cooper.wheellog.core.utils.PlatformDateFormatter
 import java.io.File
 
+// CROSS-PLATFORM SYNC: This screen mirrors iosApp/WheelLog/Views/RidesView.swift.
+// When adding, removing, or reordering sections, update the counterpart.
+//
+// Shared sections (in order):
+//  1. Title header
+//  2. Empty state with icon and message
+//  3. Ride list with swipe-to-delete
+//  4. Ride row: friendly date, duration | distance, max speed | avg speed
+//  5. Ride row (optional): power | energy stats
+//  6. Share button per ride
+//  Note: Android navigates to TripDetailScreen on tap; iOS uses NavigationLink
+
 @Composable
 fun RidesScreen(
     viewModel: WheelViewModel,

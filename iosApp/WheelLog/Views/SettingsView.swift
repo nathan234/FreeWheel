@@ -1,6 +1,22 @@
 import SwiftUI
 import WheelLogCore
 
+// CROSS-PLATFORM SYNC: This view mirrors app/.../compose/screens/SettingsScreen.kt.
+// When adding, removing, or reordering sections, update the counterpart.
+//
+// Shared sections (in order):
+//  1. Units: MPH toggle, Fahrenheit toggle
+//  2. Alarms: Enable toggle, action picker, PWM-based toggle
+//  3. PWM thresholds (if PWM-based): Factor 1, Factor 2
+//  4. Pre-warnings (iOS only): Warning Speed, Warning PWM, Warning Period
+//  5. Speed alarms (if not PWM-based): Alarm 1/2/3 speed + battery thresholds
+//  6. Other alarms: Current, Phase Current, Temperature, Motor Temp, Battery, Wheel Alarm
+//  7. Logging: Auto-start, Include GPS
+//  8. Connection: Auto Reconnect, Show Unknown Devices
+//  9. Wheel settings (config-driven, when connected)
+// 10. About: Version, GitHub link
+// 11. Close App button
+
 struct SettingsView: View {
     @EnvironmentObject var wheelManager: WheelManager
 

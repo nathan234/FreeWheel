@@ -11,7 +11,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -37,6 +37,18 @@ import com.cooper.wheellog.compose.components.SectionCard
 import com.cooper.wheellog.core.domain.ControlSpec
 import com.cooper.wheellog.core.domain.SettingsCommandId
 import com.cooper.wheellog.core.domain.WheelSettingsConfig
+
+// CROSS-PLATFORM SYNC: This screen mirrors iosApp/WheelLog/Views/WheelSettingsView.swift.
+// When adding, removing, or reordering sections, update the counterpart.
+//
+// Shared sections (in order):
+//  1. Top bar with back button
+//  2. Dynamic sections from WheelSettingsConfig.sections(wheelType)
+//  3. Control rendering: Toggle, Segmented, Picker, Slider, DangerousButton, DangerousToggle
+//  4. Confirmation dialogs for dangerous actions (calibrate, power off, lock)
+//  5. Empty state when no settings available for wheel type
+//  Note: iOS has reusable WheelSettingsContent component embedded in SettingsView;
+//        Android has standalone WheelSettingsScreen + SectionCard component
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -68,7 +80,7 @@ fun WheelSettingsScreen(viewModel: WheelViewModel, onBack: () -> Unit) {
 
     Scaffold(
         topBar = {
-            CenterAlignedTopAppBar(
+            TopAppBar(
                 title = { Text(DashboardLabels.WHEEL_SETTINGS) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {

@@ -190,6 +190,10 @@ When `use_compose_ui` is true, `WheelData` is never initialized and legacy Koin 
 | BLE UUIDs & detection | `core/src/commonMain/.../ble/{BleUuids,WheelTypeDetector}.kt` |
 | Utils (formatting, platform) | `core/src/commonMain/.../utils/{ByteUtils,DisplayUtils,StringUtil,Lock,Logger}.kt` |
 | Telemetry buffer | `core/src/commonMain/.../telemetry/TelemetryBuffer.kt` |
+| Telemetry file I/O | `core/src/commonMain/.../telemetry/TelemetryFileIO.kt` |
+| Preference keys & defaults | `core/src/commonMain/.../domain/{PreferenceKeys,PreferenceDefaults}.kt` |
+| Ride logging (CSV) | `core/src/commonMain/.../logging/{CsvFormatter,CsvParser,RideLogger,RideMetadata}.kt` |
+| Demo data provider | `core/src/commonMain/.../service/DemoDataProvider.kt` |
 | **Platform Implementations** | |
 | Android BLE | `core/src/androidMain/.../service/BleManager.android.kt` |
 | iOS BLE | `core/src/iosMain/.../service/BleManager.ios.kt` |
@@ -207,12 +211,12 @@ When `use_compose_ui` is true, `WheelData` is never initialized and legacy Koin 
 | Main bridge (orchestrator) | `iosApp/WheelLog/Bridge/WheelManager.swift` |
 | StateFlow → @Published | `iosApp/WheelLog/Bridge/StateFlowObserver.swift` |
 | Alarm bridge | `iosApp/WheelLog/Bridge/AlarmManager.swift` |
-| Auto-reconnect | `iosApp/WheelLog/Bridge/AutoReconnectManager.swift` |
 | Background mode | `iosApp/WheelLog/Bridge/BackgroundManager.swift` |
 | Location tracking | `iosApp/WheelLog/Bridge/LocationManager.swift` |
 | Ride logging bridge | `iosApp/WheelLog/Bridge/RideLogger.swift` |
 | Ride storage (iOS-only) | `iosApp/WheelLog/Bridge/RideStore.swift` |
 | Telemetry bridge | `iosApp/WheelLog/Bridge/TelemetryBuffer.swift` |
+| Telemetry history | `iosApp/WheelLog/Bridge/TelemetryHistory.swift` |
 | SwiftUI views | `iosApp/WheelLog/Views/*.swift` |
 
 ## iOS Bridge Architecture
@@ -220,6 +224,34 @@ When `use_compose_ui` is true, `WheelData` is never initialized and legacy Koin 
 `WheelConnectionManagerHelper.kt` (in iosMain) provides Swift-friendly wrappers around the KMP `WheelConnectionManager`. It exposes convenience methods that Swift can call without dealing with Kotlin coroutines directly.
 
 On the Swift side, `WheelManager.swift` is the main orchestrator. It owns the KMP manager instance and coordinates the other Bridge files. `StateFlowObserver` polls KMP StateFlows on a timer and publishes changes to SwiftUI via `@Published` properties.
+
+## Logging Architecture
+
+The logging module (`core/src/commonMain/.../logging/`) handles ride CSV recording:
+
+- **CsvFormatter** — Formats `WheelState` into CSV rows matching legacy WheelLog format. Supports optional GPS columns (6 extra columns inserted after time).
+- **CsvParser** — Parses CSV files back into `TelemetrySample` lists. Dynamically reads header to handle both GPS and non-GPS layouts. Downsamples to 3600 points for chart rendering.
+- **RideLogger** — Main recording engine. Throttles writes to 1Hz (1000ms minimum between samples). Tracks metadata during recording: max/avg speed, max current/power/PWM, energy consumption.
+- **RideMetadata** — Data class with computed ride stats (duration, distance, energy, peaks).
+- **FileWriter** — `expect`/`actual` class for platform I/O (BufferedWriter on JVM, NSFileHandle on iOS).
+- **FormatUtils** — `expect`/`actual` functions for `formatFixed()` and `formatTimestamp()`.
+
+CSV column order (without GPS): `date,time,speed,voltage,phase_current,current,power,torque,pwm,battery_level,distance,totaldistance,system_temp,temp2,tilt,roll,mode,alert`
+
+## Expect/Actual Pattern
+
+KMP uses `expect`/`actual` declarations for platform-specific implementations. Each `expect` in commonMain has corresponding `actual` implementations in androidMain and iosMain:
+
+| Expect Declaration | Android Actual | iOS Actual | Purpose |
+|---|---|---|---|
+| `Lock` class | `ReentrantLock` | `NSRecursiveLock` | Thread-safe state access |
+| `Logger` object | `android.util.Log` | `NSLog` | Platform logging |
+| `FileWriter` class | `BufferedWriter` | `NSFileHandle` | CSV file I/O |
+| `formatFixed()` / `formatTimestamp()` | `String.format` / `SimpleDateFormat` | `NSString.stringWithFormat` / `NSDateFormatter` | Number/date formatting |
+| `PlatformDateFormatter` object | `SimpleDateFormat` | `NSDateFormatter` | Date display formatting |
+| `BleManager` / `BleConnection` | Blessed library | CoreBluetooth | BLE communication |
+| `PlatformTelemetryFileIO` class | `File` I/O | `NSFileManager` | Telemetry file storage |
+| `currentTimeMillis()` | `System.currentTimeMillis()` | `NSDate().timeIntervalSince1970 * 1000` | Platform clock |
 
 ## Major Dependencies
 

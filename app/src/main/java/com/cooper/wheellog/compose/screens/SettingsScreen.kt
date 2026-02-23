@@ -55,10 +55,27 @@ import com.cooper.wheellog.compose.components.SectionCard
 import com.cooper.wheellog.compose.components.StatRow
 import com.cooper.wheellog.core.domain.AppConstants
 import com.cooper.wheellog.core.domain.ControlSpec
+import com.cooper.wheellog.core.domain.PreferenceDefaults
 import com.cooper.wheellog.core.domain.PreferenceKeys
 import com.cooper.wheellog.core.domain.SettingsCommandId
 import com.cooper.wheellog.core.domain.WheelSettingsConfig
 import com.cooper.wheellog.core.utils.DisplayUtils
+
+// CROSS-PLATFORM SYNC: This screen mirrors iosApp/WheelLog/Views/SettingsView.swift.
+// When adding, removing, or reordering sections, update the counterpart.
+//
+// Shared sections (in order):
+//  1. Units: MPH toggle, Fahrenheit toggle
+//  2. Alarms: Enable toggle, action picker, PWM-based toggle
+//  3. PWM thresholds (if PWM-based): Factor 1, Factor 2
+//  4. Speed alarms (if not PWM-based): Alarm 1/2/3 speed
+//  5. Other alarms: Current, Phase Current, Temperature, Motor Temp, Battery, Wheel Alarm
+//  6. Connection: Auto Reconnect, Show Unknown Devices
+//  7. Logging: Auto-start, Include GPS
+//  8. Wheel settings (config-driven, when connected)
+//  9. About: Version, GitHub link
+// 10. Close App button
+//  Note: iOS has additional PWM pre-warning section; alarm battery thresholds per speed alarm
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -66,8 +83,8 @@ fun SettingsScreen(viewModel: WheelViewModel) {
     val appConfig = viewModel.appConfig
     val wheelState by viewModel.wheelState.collectAsState()
     val connectionState by viewModel.connectionState.collectAsState()
-    val useMph = viewModel.getGlobalBool(PreferenceKeys.USE_MPH, false)
-    val useFahrenheit = viewModel.getGlobalBool(PreferenceKeys.USE_FAHRENHEIT, false)
+    val useMph = viewModel.getGlobalBool(PreferenceKeys.USE_MPH, PreferenceDefaults.USE_MPH)
+    val useFahrenheit = viewModel.getGlobalBool(PreferenceKeys.USE_FAHRENHEIT, PreferenceDefaults.USE_FAHRENHEIT)
     val context = LocalContext.current
 
     // Wheel settings config-driven state
@@ -119,8 +136,8 @@ fun SettingsScreen(viewModel: WheelViewModel) {
         }
 
         // Alarms section
-        val alarmsEnabled = viewModel.getPerWheelBool(PreferenceKeys.ALARMS_ENABLED, false)
-        val pwmBasedAlarms = viewModel.getPerWheelBool(PreferenceKeys.ALTERED_ALARMS, true)
+        val alarmsEnabled = viewModel.getPerWheelBool(PreferenceKeys.ALARMS_ENABLED, PreferenceDefaults.ALARMS_ENABLED)
+        val pwmBasedAlarms = viewModel.getPerWheelBool(PreferenceKeys.ALTERED_ALARMS, PreferenceDefaults.PWM_BASED_ALARMS)
         SettingsSection(title = SettingsLabels.SECTION_ALARMS) {
             SettingsToggle(
                 label = SettingsLabels.ENABLE_ALARMS,
@@ -188,8 +205,8 @@ fun SettingsScreen(viewModel: WheelViewModel) {
                 HorizontalDivider()
 
                 if (pwmBasedAlarms) {
-                    val alarmFactor1 = viewModel.getPerWheelInt(PreferenceKeys.ALARM_FACTOR_1, 80)
-                    val alarmFactor2 = viewModel.getPerWheelInt(PreferenceKeys.ALARM_FACTOR_2, 95)
+                    val alarmFactor1 = viewModel.getPerWheelInt(PreferenceKeys.ALARM_FACTOR_1, PreferenceDefaults.ALARM_FACTOR_1)
+                    val alarmFactor2 = viewModel.getPerWheelInt(PreferenceKeys.ALARM_FACTOR_2, PreferenceDefaults.ALARM_FACTOR_2)
                     AlarmSlider(
                         label = SettingsLabels.ALARM_FACTOR_1,
                         value = alarmFactor1.toFloat(),
@@ -207,9 +224,9 @@ fun SettingsScreen(viewModel: WheelViewModel) {
                         onValueChange = { viewModel.setPerWheelInt(PreferenceKeys.ALARM_FACTOR_2, it.toInt()) }
                     )
                 } else {
-                    val alarm1Speed = viewModel.getPerWheelInt(PreferenceKeys.ALARM_1_SPEED, 29)
-                    val alarm2Speed = viewModel.getPerWheelInt(PreferenceKeys.ALARM_2_SPEED, 0)
-                    val alarm3Speed = viewModel.getPerWheelInt(PreferenceKeys.ALARM_3_SPEED, 0)
+                    val alarm1Speed = viewModel.getPerWheelInt(PreferenceKeys.ALARM_1_SPEED, PreferenceDefaults.ALARM_1_SPEED)
+                    val alarm2Speed = viewModel.getPerWheelInt(PreferenceKeys.ALARM_2_SPEED, PreferenceDefaults.ALARM_2_SPEED)
+                    val alarm3Speed = viewModel.getPerWheelInt(PreferenceKeys.ALARM_3_SPEED, PreferenceDefaults.ALARM_3_SPEED)
                     AlarmSlider(
                         label = SettingsLabels.ALARM_1_SPEED,
                         value = alarm1Speed.toFloat(),
@@ -236,9 +253,11 @@ fun SettingsScreen(viewModel: WheelViewModel) {
                     )
                 }
 
-                val alarmCurrent = viewModel.getPerWheelInt(PreferenceKeys.ALARM_CURRENT, 0)
-                val alarmTemperature = viewModel.getPerWheelInt(PreferenceKeys.ALARM_TEMPERATURE, 0)
-                val alarmBattery = viewModel.getPerWheelInt(PreferenceKeys.ALARM_BATTERY, 0)
+                val alarmCurrent = viewModel.getPerWheelInt(PreferenceKeys.ALARM_CURRENT, PreferenceDefaults.ALARM_CURRENT)
+                val alarmPhaseCurrent = viewModel.getPerWheelInt(PreferenceKeys.ALARM_PHASE_CURRENT, PreferenceDefaults.ALARM_PHASE_CURRENT)
+                val alarmTemperature = viewModel.getPerWheelInt(PreferenceKeys.ALARM_TEMPERATURE, PreferenceDefaults.ALARM_TEMPERATURE)
+                val alarmMotorTemperature = viewModel.getPerWheelInt(PreferenceKeys.ALARM_MOTOR_TEMPERATURE, PreferenceDefaults.ALARM_MOTOR_TEMPERATURE)
+                val alarmBattery = viewModel.getPerWheelInt(PreferenceKeys.ALARM_BATTERY, PreferenceDefaults.ALARM_BATTERY)
                 AlarmSlider(
                     label = SettingsLabels.CURRENT_ALARM,
                     value = alarmCurrent.toFloat(),
@@ -246,6 +265,14 @@ fun SettingsScreen(viewModel: WheelViewModel) {
                     displayValue = alarmCurrent,
                     unit = "A",
                     onValueChange = { viewModel.setPerWheelInt(PreferenceKeys.ALARM_CURRENT, it.toInt()) }
+                )
+                AlarmSlider(
+                    label = SettingsLabels.PHASE_CURRENT_ALARM,
+                    value = alarmPhaseCurrent.toFloat(),
+                    range = 0f..400f,
+                    displayValue = alarmPhaseCurrent,
+                    unit = "A",
+                    onValueChange = { viewModel.setPerWheelInt(PreferenceKeys.ALARM_PHASE_CURRENT, it.toInt()) }
                 )
                 AlarmSlider(
                     label = SettingsLabels.TEMPERATURE_ALARM,
@@ -256,12 +283,25 @@ fun SettingsScreen(viewModel: WheelViewModel) {
                     onValueChange = { viewModel.setPerWheelInt(PreferenceKeys.ALARM_TEMPERATURE, it.toInt()) }
                 )
                 AlarmSlider(
+                    label = SettingsLabels.MOTOR_TEMP_ALARM,
+                    value = alarmMotorTemperature.toFloat(),
+                    range = 0f..200f,
+                    displayValue = displayTemperature(alarmMotorTemperature, useFahrenheit),
+                    unit = if (useFahrenheit) "\u00B0F" else "\u00B0C",
+                    onValueChange = { viewModel.setPerWheelInt(PreferenceKeys.ALARM_MOTOR_TEMPERATURE, it.toInt()) }
+                )
+                AlarmSlider(
                     label = SettingsLabels.BATTERY_ALARM,
                     value = alarmBattery.toFloat(),
                     range = 0f..100f,
                     displayValue = alarmBattery,
                     unit = "%",
                     onValueChange = { viewModel.setPerWheelInt(PreferenceKeys.ALARM_BATTERY, it.toInt()) }
+                )
+                SettingsToggle(
+                    label = SettingsLabels.WHEEL_ALARM,
+                    checked = viewModel.getPerWheelBool(PreferenceKeys.ALARM_WHEEL, PreferenceDefaults.ALARM_WHEEL),
+                    onCheckedChange = { viewModel.setPerWheelBool(PreferenceKeys.ALARM_WHEEL, it) }
                 )
 
                 Text(
@@ -277,7 +317,7 @@ fun SettingsScreen(viewModel: WheelViewModel) {
         SettingsSection(title = SettingsLabels.SECTION_CONNECTION) {
             SettingsToggle(
                 label = SettingsLabels.AUTO_RECONNECT,
-                checked = viewModel.getGlobalBool(PreferenceKeys.USE_RECONNECT, false),
+                checked = viewModel.getGlobalBool(PreferenceKeys.USE_RECONNECT, PreferenceDefaults.USE_RECONNECT),
                 onCheckedChange = { viewModel.setGlobalBool(PreferenceKeys.USE_RECONNECT, it) }
             )
             Text(
@@ -286,19 +326,25 @@ fun SettingsScreen(viewModel: WheelViewModel) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 4.dp)
             )
+            HorizontalDivider()
+            SettingsToggle(
+                label = SettingsLabels.SHOW_UNKNOWN_DEVICES,
+                checked = viewModel.getGlobalBool(PreferenceKeys.SHOW_UNKNOWN_DEVICES, PreferenceDefaults.SHOW_UNKNOWN_DEVICES),
+                onCheckedChange = { viewModel.setGlobalBool(PreferenceKeys.SHOW_UNKNOWN_DEVICES, it) }
+            )
         }
 
         // Logging section
         SettingsSection(title = SettingsLabels.SECTION_LOGGING) {
             SettingsToggle(
                 label = SettingsLabels.AUTO_START_LOGGING,
-                checked = viewModel.getGlobalBool(PreferenceKeys.AUTO_LOG, false),
+                checked = viewModel.getGlobalBool(PreferenceKeys.AUTO_LOG, PreferenceDefaults.AUTO_LOG),
                 onCheckedChange = { viewModel.setGlobalBool(PreferenceKeys.AUTO_LOG, it) }
             )
             HorizontalDivider()
             SettingsToggle(
                 label = SettingsLabels.INCLUDE_GPS,
-                checked = viewModel.getGlobalBool(PreferenceKeys.LOG_LOCATION_DATA, false),
+                checked = viewModel.getGlobalBool(PreferenceKeys.LOG_LOCATION_DATA, PreferenceDefaults.LOG_LOCATION_DATA),
                 onCheckedChange = { viewModel.setGlobalBool(PreferenceKeys.LOG_LOCATION_DATA, it) }
             )
             Text(

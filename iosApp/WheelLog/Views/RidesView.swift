@@ -1,6 +1,18 @@
 import SwiftUI
 import WheelLogCore
 
+// CROSS-PLATFORM SYNC: This view mirrors app/.../compose/screens/RidesScreen.kt.
+// When adding, removing, or reordering sections, update the counterpart.
+//
+// Shared sections (in order):
+//  1. Title header
+//  2. Empty state with icon and message
+//  3. Ride list with swipe-to-delete
+//  4. Ride row: friendly date, duration | distance, max speed | avg speed
+//  5. Ride row (optional): power | energy stats
+//  6. Share button per ride (iOS: ShareLink; Android: share Intent)
+//  Note: Android navigates to TripDetailScreen on tap; iOS uses NavigationLink
+
 struct RidesView: View {
     @EnvironmentObject var wheelManager: WheelManager
 

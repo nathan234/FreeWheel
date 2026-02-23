@@ -1,6 +1,18 @@
 import SwiftUI
 import WheelLogCore
 
+// CROSS-PLATFORM SYNC: This view mirrors app/.../compose/screens/WheelSettingsScreen.kt.
+// When adding, removing, or reordering sections, update the counterpart.
+//
+// Shared sections (in order):
+//  1. Top bar with back button (WheelSettingsView only; WheelSettingsContent is embedded)
+//  2. Dynamic sections from WheelSettingsConfig.sections(wheelType)
+//  3. Control rendering: Toggle, Segmented, Picker, Slider, DangerousButton, DangerousToggle
+//  4. Confirmation dialogs for dangerous actions (calibrate, power off, lock)
+//  5. Empty state when no settings available for wheel type
+//  Note: iOS has reusable WheelSettingsContent embedded in SettingsView;
+//        Android has standalone WheelSettingsScreen + SectionCard component
+
 // MARK: - Embeddable Wheel Settings Content
 
 struct WheelSettingsContent: View {
