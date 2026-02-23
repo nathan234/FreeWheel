@@ -165,6 +165,44 @@ data class WheelState(
         return "$brand $label"
     }
 
+    // ==================== Sub-state Views ====================
+    // These methods extract focused sub-states for granular StateFlow emission.
+    // WheelConnectionManager emits these selectively — only when the relevant
+    // sub-state changes — so UI only recomposes for fields it observes.
+
+    /** Extract telemetry fields (high-frequency, changes every BLE notification). */
+    fun toTelemetryState() = TelemetryState(
+        speed = speed, voltage = voltage, current = current, phaseCurrent = phaseCurrent,
+        power = power, temperature = temperature, temperature2 = temperature2,
+        batteryLevel = batteryLevel, totalDistance = totalDistance, wheelDistance = wheelDistance,
+        output = output, calculatedPwm = calculatedPwm, angle = angle, roll = roll,
+        torque = torque, motorPower = motorPower, cpuTemp = cpuTemp, imuTemp = imuTemp,
+        cpuLoad = cpuLoad, speedLimit = speedLimit, currentLimit = currentLimit,
+        fanStatus = fanStatus, chargingStatus = chargingStatus, wheelAlarm = wheelAlarm,
+        alert = alert, timestamp = timestamp
+    )
+
+    /** Extract settings fields (rare updates, only when wheel reports new settings). */
+    fun toSettingsState() = WheelSettingsState(
+        inMiles = inMiles, pedalsMode = pedalsMode, speedAlarms = speedAlarms,
+        rollAngle = rollAngle, tiltBackSpeed = tiltBackSpeed, lightMode = lightMode,
+        ledMode = ledMode, cutoutAngle = cutoutAngle, beeperVolume = beeperVolume,
+        maxSpeed = maxSpeed, pedalTilt = pedalTilt, pedalSensitivity = pedalSensitivity,
+        rideMode = rideMode, fancierMode = fancierMode, speakerVolume = speakerVolume,
+        mute = mute, handleButton = handleButton, drl = drl,
+        lightBrightness = lightBrightness, transportMode = transportMode,
+        goHomeMode = goHomeMode, fanQuiet = fanQuiet
+    )
+
+    /** Extract identity fields (set once per connection). */
+    fun toIdentity() = WheelIdentity(
+        wheelType = wheelType, name = name, model = model, modeStr = modeStr,
+        version = version, serialNumber = serialNumber, btName = btName
+    )
+
+    /** Extract BMS fields (periodic updates). */
+    fun toBmsState() = BmsState(bms1 = bms1, bms2 = bms2)
+
     companion object {
         /** Use [ByteUtils.KM_TO_MILES_MULTIPLIER] directly. Kept for backward compatibility. */
         const val KM_TO_MILES = ByteUtils.KM_TO_MILES_MULTIPLIER

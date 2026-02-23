@@ -3,6 +3,10 @@ package com.cooper.wheellog.core.service
 import com.cooper.wheellog.core.ble.DiscoveredServices
 import com.cooper.wheellog.core.ble.WheelConnectionInfo
 import com.cooper.wheellog.core.ble.WheelTypeDetector
+import com.cooper.wheellog.core.domain.BmsState
+import com.cooper.wheellog.core.domain.TelemetryState
+import com.cooper.wheellog.core.domain.WheelIdentity
+import com.cooper.wheellog.core.domain.WheelSettingsState
 import com.cooper.wheellog.core.domain.WheelState
 import com.cooper.wheellog.core.domain.WheelType
 import com.cooper.wheellog.core.protocol.DecoderConfig
@@ -11,6 +15,7 @@ import com.cooper.wheellog.core.protocol.WheelDecoder
 import com.cooper.wheellog.core.protocol.WheelDecoderFactory
 import com.cooper.wheellog.core.domain.SettingsCommandId
 import com.cooper.wheellog.core.utils.Logger
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -41,21 +46,29 @@ import kotlinx.coroutines.launch
  * ```
  */
 class WheelConnectionManager(
-    private val bleManager: BleManager,
+    private val bleManager: BleManagerPort,
     private val decoderFactory: WheelDecoderFactory,
-    private val scope: CoroutineScope
+    private val scope: CoroutineScope,
+    private val dispatcher: CoroutineDispatcher = Dispatchers.Default
 ) {
     private val _wheelState = MutableStateFlow(WheelState())
     private val _connectionState = MutableStateFlow<ConnectionState>(ConnectionState.Disconnected)
+
+    // Granular sub-state flows — emitted selectively when the relevant sub-state changes.
+    // UI components can observe these to avoid recomposition on irrelevant field changes.
+    private val _telemetryState = MutableStateFlow(TelemetryState())
+    private val _settingsState = MutableStateFlow(WheelSettingsState())
+    private val _identityState = MutableStateFlow(WheelIdentity())
+    private val _bmsState = MutableStateFlow(BmsState())
 
     private var currentDecoder: WheelDecoder? = null
     private var decoderConfig = DecoderConfig()
     private var connectionInfo: WheelConnectionInfo? = null
 
     private val wheelTypeDetector = WheelTypeDetector()
-    private val keepAliveTimer = KeepAliveTimer(scope)
-    private val dataTimeoutTracker = DataTimeoutTracker(scope)
-    private val commandScheduler = CommandScheduler(scope)
+    private val keepAliveTimer = KeepAliveTimer(scope, dispatcher)
+    private val dataTimeoutTracker = DataTimeoutTracker(scope, dispatcher)
+    private val commandScheduler = CommandScheduler(scope, dispatcher)
 
     // Track last data time for timeout detection
     private var lastDataReceivedTime: Long = 0
@@ -69,6 +82,26 @@ class WheelConnectionManager(
      * Current connection state as an observable flow.
      */
     val connectionState: StateFlow<ConnectionState> = _connectionState.asStateFlow()
+
+    /**
+     * Telemetry sub-state (speed, voltage, current, etc.). Updated on every BLE notification.
+     */
+    val telemetryState: StateFlow<TelemetryState> = _telemetryState.asStateFlow()
+
+    /**
+     * Settings sub-state (pedals mode, light mode, etc.). Updated rarely.
+     */
+    val settingsState: StateFlow<WheelSettingsState> = _settingsState.asStateFlow()
+
+    /**
+     * Identity sub-state (wheel type, model, serial, etc.). Set once per connection.
+     */
+    val identityState: StateFlow<WheelIdentity> = _identityState.asStateFlow()
+
+    /**
+     * BMS sub-state (battery pack snapshots). Updated periodically.
+     */
+    val bmsState: StateFlow<BmsState> = _bmsState.asStateFlow()
 
     /**
      * Whether the keep-alive timer is running.
@@ -98,9 +131,9 @@ class WheelConnectionManager(
         _connectionState.value = ConnectionState.Connecting(address)
 
         try {
-            val connection = bleManager.connect(address)
+            val success = bleManager.connect(address)
 
-            if (connection.isSuccess) {
+            if (success) {
                 _connectionState.value = ConnectionState.DiscoveringServices(address)
 
                 // If wheel type is known, set up decoder immediately
@@ -113,7 +146,7 @@ class WheelConnectionManager(
 
             } else {
                 _connectionState.value = ConnectionState.Failed(
-                    error = connection.exceptionOrNull()?.message ?: "Unknown error",
+                    error = "Connection failed",
                     address = address
                 )
             }
@@ -135,6 +168,10 @@ class WheelConnectionManager(
 
         bleManager.disconnect()
         _wheelState.value = WheelState()
+        _telemetryState.value = TelemetryState()
+        _settingsState.value = WheelSettingsState()
+        _identityState.value = WheelIdentity()
+        _bmsState.value = BmsState()
         _connectionState.value = ConnectionState.Disconnected
     }
 
@@ -183,13 +220,18 @@ class WheelConnectionManager(
             return
         }
 
-        val result = decoder.decode(data, _wheelState.value, decoderConfig)
+        val oldState = _wheelState.value
+        val result = decoder.decode(data, oldState, decoderConfig)
         if (result == null) {
             Logger.d("WheelConnectionManager", "decode() returned null for ${data.size} bytes (decoder=${decoder.wheelType})")
             return
         }
 
-        _wheelState.value = result.newState
+        val newState = result.newState
+        _wheelState.value = newState
+
+        // Emit granular sub-state flows only when the relevant sub-state changes
+        emitGranularStates(oldState, newState)
 
         // Send any response commands
         if (result.commands.isNotEmpty()) {
@@ -226,7 +268,9 @@ class WheelConnectionManager(
     fun onServicesDiscovered(services: DiscoveredServices, deviceName: String?) {
         Logger.d("WheelConnectionManager", "onServicesDiscovered: deviceName=$deviceName, services=${services.serviceUuids()}")
         if (!deviceName.isNullOrBlank()) {
-            _wheelState.value = _wheelState.value.copy(btName = deviceName)
+            val oldState = _wheelState.value
+            _wheelState.value = oldState.copy(btName = deviceName)
+            emitGranularStates(oldState, _wheelState.value)
         }
 
         val result = wheelTypeDetector.detect(services, deviceName)
@@ -265,7 +309,7 @@ class WheelConnectionManager(
      */
     fun onWheelTypeDetected(wheelType: WheelType) {
         setupDecoder(wheelType)
-        _wheelState.value = _wheelState.value.copy(wheelType = wheelType)
+        // setupDecoder already sets wheelType and emits granular states
 
         // Update connection info if we don't have it
         if (connectionInfo == null) {
@@ -395,7 +439,9 @@ class WheelConnectionManager(
     private fun setupDecoder(wheelType: WheelType) {
         currentDecoder?.reset()
         currentDecoder = decoderFactory.createDecoder(wheelType)
-        _wheelState.value = _wheelState.value.copy(wheelType = wheelType)
+        val oldState = _wheelState.value
+        _wheelState.value = oldState.copy(wheelType = wheelType)
+        emitGranularStates(oldState, _wheelState.value)
 
         // Send init commands
         currentDecoder?.getInitCommands()?.let { commands ->
@@ -453,20 +499,46 @@ class WheelConnectionManager(
             else -> null
         }
     }
+
+    /**
+     * Compare old and new WheelState, emitting only the sub-state flows that changed.
+     * This avoids triggering observers for fields that didn't change.
+     */
+    private fun emitGranularStates(oldState: WheelState, newState: WheelState) {
+        val newTelemetry = newState.toTelemetryState()
+        if (newTelemetry != _telemetryState.value) {
+            _telemetryState.value = newTelemetry
+        }
+
+        val newSettings = newState.toSettingsState()
+        if (newSettings != _settingsState.value) {
+            _settingsState.value = newSettings
+        }
+
+        val newIdentity = newState.toIdentity()
+        if (newIdentity != _identityState.value) {
+            _identityState.value = newIdentity
+        }
+
+        val newBms = newState.toBmsState()
+        if (newBms != _bmsState.value) {
+            _bmsState.value = newBms
+        }
+    }
 }
 
 /**
- * Platform-specific BLE manager interface.
- * Implement this using expect/actual for each platform.
+ * Platform-specific BLE manager.
+ * Implements [BleManagerPort] via expect/actual for each platform.
  */
-expect class BleManager {
-    val connectionState: StateFlow<ConnectionState>
+expect class BleManager : BleManagerPort {
+    override val connectionState: StateFlow<ConnectionState>
 
-    suspend fun connect(address: String): Result<BleConnection>
-    suspend fun disconnect()
-    suspend fun write(data: ByteArray): Boolean
-    suspend fun startScan(onDeviceFound: (BleDevice) -> Unit)
-    suspend fun stopScan()
+    override suspend fun connect(address: String): Boolean
+    override suspend fun disconnect()
+    override suspend fun write(data: ByteArray): Boolean
+    override suspend fun startScan(onDeviceFound: (BleDevice) -> Unit)
+    override suspend fun stopScan()
 }
 
 /**

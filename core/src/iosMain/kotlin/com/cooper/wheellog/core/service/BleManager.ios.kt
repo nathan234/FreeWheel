@@ -38,7 +38,7 @@ import platform.posix.memcpy
  * - `UIBackgroundModes` with `bluetooth-central` for background operation
  */
 @OptIn(ExperimentalForeignApi::class)
-actual class BleManager {
+actual class BleManager : BleManagerPort {
     private val _connectionState = MutableStateFlow<ConnectionState>(ConnectionState.Disconnected)
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
@@ -60,7 +60,7 @@ actual class BleManager {
     private var scanCallback: ((BleDevice) -> Unit)? = null
 
     // Connection continuation for suspend function (protected by continuationLock)
-    private var connectionContinuation: CancellableContinuation<Result<BleConnection>>? = null
+    private var connectionContinuation: CancellableContinuation<Boolean>? = null
     private val continuationLock = Lock()
 
     // Track which services have completed characteristic discovery
@@ -74,7 +74,7 @@ actual class BleManager {
     private var centralDelegate: CBCentralManagerDelegateImpl? = null
     private var peripheralDelegate: CBPeripheralDelegateImpl? = null
 
-    actual val connectionState: StateFlow<ConnectionState>
+    actual override val connectionState: StateFlow<ConnectionState>
         get() = _connectionState.asStateFlow()
 
     /**
@@ -122,7 +122,7 @@ actual class BleManager {
         this.writeCharUuid = writeCharUuid
     }
 
-    actual suspend fun connect(address: String): Result<BleConnection> {
+    actual override suspend fun connect(address: String): Boolean {
         val central = centralManager ?: run {
             initialize()
             centralManager!!
@@ -130,7 +130,7 @@ actual class BleManager {
 
         // Check if Bluetooth is powered on
         if (central.state != CBManagerStatePoweredOn) {
-            return Result.failure(IllegalStateException("Bluetooth is not powered on. State: ${central.state}"))
+            throw IllegalStateException("Bluetooth is not powered on. State: ${central.state}")
         }
 
         _connectionState.value = ConnectionState.Connecting(address)
@@ -152,9 +152,7 @@ actual class BleManager {
             } else {
                 // Peripheral not found, need to scan
                 continuationLock.withLock {
-                    connectionContinuation?.resume(
-                        Result.failure(Exception("Peripheral not found: $address"))
-                    ) {}
+                    connectionContinuation?.resume(false) {}
                     connectionContinuation = null
                 }
             }
@@ -168,7 +166,7 @@ actual class BleManager {
         }
     }
 
-    actual suspend fun disconnect() {
+    actual override suspend fun disconnect() {
         serviceDiscoveryTimeoutJob?.cancel()
         serviceDiscoveryTimeoutJob = null
         currentPeripheral?.let { peripheral ->
@@ -182,7 +180,7 @@ actual class BleManager {
         _connectionState.value = ConnectionState.Disconnected
     }
 
-    actual suspend fun write(data: ByteArray): Boolean {
+    actual override suspend fun write(data: ByteArray): Boolean {
         val peripheral = currentPeripheral ?: return false
         val characteristic = writeCharacteristic ?: return false
 
@@ -221,7 +219,7 @@ actual class BleManager {
         return true
     }
 
-    actual suspend fun startScan(onDeviceFound: (BleDevice) -> Unit) {
+    actual override suspend fun startScan(onDeviceFound: (BleDevice) -> Unit) {
         val central = centralManager ?: run {
             initialize()
             centralManager!!
@@ -238,7 +236,7 @@ actual class BleManager {
         central.scanForPeripheralsWithServices(serviceUUIDs = null, options = null)
     }
 
-    actual suspend fun stopScan() {
+    actual override suspend fun stopScan() {
         centralManager?.stopScan()
         scanCallback = null
         if (_connectionState.value is ConnectionState.Scanning) {
@@ -342,9 +340,7 @@ actual class BleManager {
             )
             centralManager?.cancelPeripheralConnection(peripheral)
             continuationLock.withLock {
-                connectionContinuation?.resume(
-                    Result.failure(Exception("Service discovery timed out"))
-                ) {}
+                connectionContinuation?.resume(false) {}
                 connectionContinuation = null
             }
         }
@@ -365,7 +361,7 @@ actual class BleManager {
         _connectionState.value = ConnectionState.Failed(error = errorMessage, address = peripheral.identifier.UUIDString)
 
         continuationLock.withLock {
-            connectionContinuation?.resume(Result.failure(Exception(errorMessage))) {}
+            connectionContinuation?.resume(false) {}
             connectionContinuation = null
         }
     }
@@ -399,9 +395,7 @@ actual class BleManager {
                 address = peripheral.identifier.UUIDString
             )
             continuationLock.withLock {
-                connectionContinuation?.resume(
-                    Result.failure(Exception(error.localizedDescription ?: "Service discovery failed"))
-                ) {}
+                connectionContinuation?.resume(false) {}
                 connectionContinuation = null
             }
             return
@@ -423,9 +417,7 @@ actual class BleManager {
                 address = address
             )
             continuationLock.withLock {
-                connectionContinuation?.resume(
-                    Result.failure(Exception("No supported services found"))
-                ) {}
+                connectionContinuation?.resume(false) {}
                 connectionContinuation = null
             }
             return
@@ -498,7 +490,7 @@ actual class BleManager {
         )
 
         continuationLock.withLock {
-            connectionContinuation?.resume(Result.success(BleConnection(peripheral))) {}
+            connectionContinuation?.resume(true) {}
             connectionContinuation = null
         }
     }

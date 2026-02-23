@@ -3,6 +3,10 @@ package com.cooper.wheellog.core.service
 import com.cooper.wheellog.core.alarm.AlarmChecker
 import com.cooper.wheellog.core.alarm.AlarmConfig
 import com.cooper.wheellog.core.alarm.AlarmResult
+import com.cooper.wheellog.core.domain.BmsState
+import com.cooper.wheellog.core.domain.TelemetryState
+import com.cooper.wheellog.core.domain.WheelIdentity
+import com.cooper.wheellog.core.domain.WheelSettingsState
 import com.cooper.wheellog.core.domain.WheelState
 import com.cooper.wheellog.core.protocol.DecoderConfig
 import com.cooper.wheellog.core.protocol.DefaultWheelDecoderFactory
@@ -10,9 +14,18 @@ import com.cooper.wheellog.core.domain.SettingsCommandId
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 
 private val demoScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+
+/**
+ * Handle for cancelling a Flow observation started from Swift.
+ * Call [close] to stop collecting and free resources.
+ */
+class FlowObservation(private val scope: CoroutineScope) {
+    fun close() { scope.cancel() }
+}
 
 /**
  * iOS helper for WheelConnectionManager.
@@ -62,6 +75,24 @@ object WheelConnectionManagerHelper {
      */
     fun isConnected(manager: WheelConnectionManager): Boolean {
         return manager.connectionState.value.isConnected
+    }
+
+    // MARK: - Granular Sub-state Getters
+
+    fun getTelemetryState(manager: WheelConnectionManager): TelemetryState {
+        return manager.telemetryState.value
+    }
+
+    fun getSettingsState(manager: WheelConnectionManager): WheelSettingsState {
+        return manager.settingsState.value
+    }
+
+    fun getIdentityState(manager: WheelConnectionManager): WheelIdentity {
+        return manager.identityState.value
+    }
+
+    fun getBmsState(manager: WheelConnectionManager): BmsState {
+        return manager.bmsState.value
     }
 
     fun sendBeep(manager: WheelConnectionManager) {
@@ -392,6 +423,66 @@ object WheelConnectionManagerHelper {
             is AutoConnectManager.ReconnectState.Waiting -> state.nextRetryMs
             else -> 0
         }
+    }
+
+    // MARK: - Flow Observers
+    //
+    // These methods launch coroutines that collect Kotlin StateFlows and invoke
+    // Swift callbacks on the main thread (Dispatchers.Main = main dispatch queue).
+    // Return a FlowObservation handle — call close() to stop collecting.
+
+    fun observeWheelState(manager: WheelConnectionManager, onChange: (WheelState) -> Unit): FlowObservation {
+        val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+        scope.launch { manager.wheelState.collect { onChange(it) } }
+        return FlowObservation(scope)
+    }
+
+    fun observeConnectionState(manager: WheelConnectionManager, onChange: (ConnectionState) -> Unit): FlowObservation {
+        val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+        scope.launch { manager.connectionState.collect { onChange(it) } }
+        return FlowObservation(scope)
+    }
+
+    fun observeTelemetryState(manager: WheelConnectionManager, onChange: (TelemetryState) -> Unit): FlowObservation {
+        val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+        scope.launch { manager.telemetryState.collect { onChange(it) } }
+        return FlowObservation(scope)
+    }
+
+    fun observeSettingsState(manager: WheelConnectionManager, onChange: (WheelSettingsState) -> Unit): FlowObservation {
+        val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+        scope.launch { manager.settingsState.collect { onChange(it) } }
+        return FlowObservation(scope)
+    }
+
+    fun observeIdentityState(manager: WheelConnectionManager, onChange: (WheelIdentity) -> Unit): FlowObservation {
+        val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+        scope.launch { manager.identityState.collect { onChange(it) } }
+        return FlowObservation(scope)
+    }
+
+    fun observeBmsState(manager: WheelConnectionManager, onChange: (BmsState) -> Unit): FlowObservation {
+        val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+        scope.launch { manager.bmsState.collect { onChange(it) } }
+        return FlowObservation(scope)
+    }
+
+    fun observeAutoConnecting(manager: AutoConnectManager, onChange: (Boolean) -> Unit): FlowObservation {
+        val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+        scope.launch { manager.isAutoConnecting.collect { onChange(it) } }
+        return FlowObservation(scope)
+    }
+
+    fun observeReconnectState(manager: AutoConnectManager, onChange: (AutoConnectManager.ReconnectState) -> Unit): FlowObservation {
+        val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+        scope.launch { manager.reconnectState.collect { onChange(it) } }
+        return FlowObservation(scope)
+    }
+
+    fun observeDemoState(provider: DemoDataProvider, onChange: (WheelState) -> Unit): FlowObservation {
+        val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+        scope.launch { provider.wheelState.collect { onChange(it) } }
+        return FlowObservation(scope)
     }
 
     // MARK: - Demo Data Provider

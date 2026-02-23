@@ -205,10 +205,13 @@ class WheelManager: ObservableObject {
     private var lastConnectedAddress: String?
     private var previousConnectionState: ConnectionStateWrapper = .disconnected
 
-    // MARK: - Polling Timers
+    // MARK: - Flow Observers
 
-    private var statePollingTimer: Timer?
-    private var demoPollingTimer: Timer?
+    private var wheelStateObserver: FlowObservation?
+    private var connectionStateObserver: FlowObservation?
+    private var autoConnectingObserver: FlowObservation?
+    private var reconnectStateObserver: FlowObservation?
+    private var demoStateObserver: FlowObservation?
 
     // MARK: - Initialization
 
@@ -238,7 +241,7 @@ class WheelManager: ObservableObject {
         Task { @MainActor in
             self.setupKmpComponents()
             self.setupAlarmCallbacks()
-            self.startPolling()
+            self.startObserving()
             self.backgroundManager.requestNotificationPermission()
 
             self.startupScan()
@@ -269,10 +272,11 @@ class WheelManager: ObservableObject {
     }
 
     deinit {
-        statePollingTimer?.invalidate()
-        statePollingTimer = nil
-        demoPollingTimer?.invalidate()
-        demoPollingTimer = nil
+        wheelStateObserver?.close()
+        connectionStateObserver?.close()
+        autoConnectingObserver?.close()
+        reconnectStateObserver?.close()
+        demoStateObserver?.close()
         WheelConnectionManagerHelper.shared.stopDemo(provider: demoProvider)
     }
 
@@ -336,13 +340,13 @@ class WheelManager: ObservableObject {
             guard let self = self else { return }
             WheelConnectionManagerHelper.shared.startDemo(provider: self.demoProvider)
             self.connectionState = .connected(address: AppConstants.shared.DEMO_DEVICE_ADDRESS, wheelName: AppConstants.shared.DEMO_WHEEL_NAME)
-            self.startDemoPolling()
+            self.startDemoObserving()
         }
     }
 
     func stopMockMode() {
-        demoPollingTimer?.invalidate()
-        demoPollingTimer = nil
+        demoStateObserver?.close()
+        demoStateObserver = nil
         WheelConnectionManagerHelper.shared.stopDemo(provider: demoProvider)
         isMockMode = false
         connectionState = .disconnected
@@ -350,35 +354,31 @@ class WheelManager: ObservableObject {
         telemetryBuffer.clear()
     }
 
-    private func startDemoPolling() {
-        demoPollingTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+    private func startDemoObserving() {
+        demoStateObserver = WheelConnectionManagerHelper.shared.observeDemoState(provider: demoProvider) { [weak self] state in
             Task { @MainActor in
-                self?.pollDemoState()
+                self?.handleDemoStateUpdate(state)
             }
         }
     }
 
-    private func pollDemoState() {
-        let kmpState = WheelConnectionManagerHelper.shared.getDemoState(provider: demoProvider)
-        let newWheelState = kmpState
-        guard newWheelState != wheelState else { return }
-
-        wheelState = newWheelState
+    private func handleDemoStateUpdate(_ kmpState: WheelState) {
+        guard kmpState != wheelState else { return }
+        wheelState = kmpState
 
         // Feed telemetry buffer and history for chart view
         let gpsSpeed = ByteUtils.shared.metersPerSecondToKmh(speedMs: max(0, locationManager.currentLocation?.speed ?? 0))
-        let demoSample = WheelLogCore.TelemetrySample.companion.fromWheelState(
+        let sample = WheelLogCore.TelemetrySample.companion.fromWheelState(
             state: kmpState,
             timestampMs: Int64(Date().timeIntervalSince1970 * 1000),
             gpsSpeedKmh: gpsSpeed
         )
-        telemetryBuffer.addSampleIfNeeded(sample: demoSample)
-        telemetryHistory.addSample(demoSample)
+        telemetryBuffer.addSampleIfNeeded(sample: sample)
+        telemetryHistory.addSample(sample)
 
         // Check alarms via KMP
-        let kmpAlarmState = WheelConnectionManagerHelper.shared.getDemoState(provider: demoProvider)
         let alarmConfig = buildAlarmConfig()
-        alarmManager.checkAlarms(state: kmpAlarmState, config: alarmConfig, enabled: alarmsEnabled, action: alarmAction)
+        alarmManager.checkAlarms(state: kmpState, config: alarmConfig, enabled: alarmsEnabled, action: alarmAction)
         activeAlarms = alarmManager.activeAlarms
     }
 
@@ -431,102 +431,100 @@ class WheelManager: ObservableObject {
         return bytes
     }
 
-    // MARK: - Polling
+    // MARK: - Flow Observation
 
-    private func startPolling() {
-        // Poll wheel state and connection state at 20Hz
-        statePollingTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
+    private func startObserving() {
+        guard let cm = connectionManager else { return }
+        let helper = WheelConnectionManagerHelper.shared
+
+        // Observe wheel state — handles telemetry side-effects (alarms, logging, buffer)
+        wheelStateObserver = helper.observeWheelState(manager: cm) { [weak self] state in
             Task { @MainActor in
-                self?.pollState()
+                guard let self = self, !self.isMockMode else { return }
+                self.handleWheelStateUpdate(state)
+            }
+        }
+
+        // Observe connection state — handles state transitions, scanning flag
+        connectionStateObserver = helper.observeConnectionState(manager: cm) { [weak self] kmpState in
+            Task { @MainActor in
+                guard let self = self, !self.isMockMode, !self.isTestMode else { return }
+                let newState = ConnectionStateWrapper(from: kmpState)
+                guard newState != self.connectionState else { return }
+                self.handleConnectionStateChange(from: self.connectionState, to: newState)
+                self.connectionState = newState
+
+                // Update scanning state
+                if case .scanning = newState {
+                    self.isScanning = true
+                } else if self.isScanning {
+                    self.isScanning = false
+                }
+            }
+        }
+
+        // Observe auto-connect manager state
+        if let acm = autoConnectManager {
+            autoConnectingObserver = helper.observeAutoConnecting(manager: acm) { [weak self] value in
+                Task { @MainActor in
+                    self?.isAutoConnecting = value.boolValue
+                }
+            }
+
+            reconnectStateObserver = helper.observeReconnectState(manager: acm) { [weak self] kmpState in
+                Task { @MainActor in
+                    guard let self = self else { return }
+                    let helper = WheelConnectionManagerHelper.shared
+                    if helper.isReconnectIdle(state: kmpState) {
+                        self.reconnectState = .idle
+                    } else if helper.isReconnectWaiting(state: kmpState) {
+                        self.reconnectState = .waiting(
+                            attempt: Int(helper.reconnectAttemptNumber(state: kmpState)),
+                            nextRetryMs: helper.reconnectNextRetryMs(state: kmpState)
+                        )
+                    } else if helper.isReconnectAttempting(state: kmpState) {
+                        self.reconnectState = .attempting(
+                            attempt: Int(helper.reconnectAttemptNumber(state: kmpState))
+                        )
+                    }
+                }
             }
         }
     }
 
-    private func pollState() {
-        guard !isMockMode else { return }  // Demo mode uses its own polling timer
-        guard let cm = connectionManager else { return }
+    /// Handle a new WheelState emission from the KMP flow.
+    /// Runs all telemetry side-effects: unit sync, alarms, logging, telemetry buffer.
+    private func handleWheelStateUpdate(_ newWheelState: WheelState) {
+        guard newWheelState != wheelState else { return }
+        syncUnitsFromWheel(newWheelState)
+        wheelState = newWheelState
 
-        // In test mode, only poll wheel state (not connection state)
-        if isTestMode {
-            let kmpWheelState = WheelConnectionManagerHelper.shared.getWheelState(manager: cm)
-            let newWheelState = kmpWheelState
-            if newWheelState != wheelState {
-                syncUnitsFromWheel(newWheelState)
-                wheelState = newWheelState
-            }
-            return
-        }
-
-        // Poll connection state using iOS helper
-        let kmpConnectionState = WheelConnectionManagerHelper.shared.getConnectionState(manager: cm)
-        let newState = ConnectionStateWrapper(from: kmpConnectionState)
-        if newState != connectionState {
-            handleConnectionStateChange(from: connectionState, to: newState)
-            connectionState = newState
-        }
-
-        // Poll wheel state using iOS helper
-        let kmpWheelState = WheelConnectionManagerHelper.shared.getWheelState(manager: cm)
-        let newWheelState = kmpWheelState
-        if newWheelState != wheelState {
-            syncUnitsFromWheel(newWheelState)
-            wheelState = newWheelState
-        }
-
-        // Update scanning state
-        if case .scanning = connectionState {
-            isScanning = true
-        } else if isScanning && connectionState != .scanning {
-            isScanning = false
-        }
-
-        // Feature 1: Check alarms when connected via KMP
+        // Check alarms when connected
         if connectionState.isConnected {
-            let kmpAlarmState = WheelConnectionManagerHelper.shared.getWheelState(manager: cm)
             let alarmConfig = buildAlarmConfig()
-            alarmManager.checkAlarms(state: kmpAlarmState, config: alarmConfig, enabled: alarmsEnabled, action: alarmAction)
+            alarmManager.checkAlarms(state: newWheelState, config: alarmConfig, enabled: alarmsEnabled, action: alarmAction)
             activeAlarms = alarmManager.activeAlarms
         }
 
-        // Feature 3: Write ride log sample
+        // Write ride log sample
         if isLogging {
             rideLogger.writeSample(
-                state: kmpWheelState,
+                state: newWheelState,
                 location: locationManager.currentLocation,
                 includeGPS: logGPS
             )
         }
 
-        // Feature 6: Telemetry buffer sampling + history
+        // Telemetry buffer + history
         if connectionState.isConnected {
-            let gpsSpeedPoll = ByteUtils.shared.metersPerSecondToKmh(speedMs: max(0, locationManager.currentLocation?.speed ?? 0))
-            let telSample = WheelLogCore.TelemetrySample.companion.fromWheelState(
-                state: kmpWheelState,
+            let gpsSpeed = ByteUtils.shared.metersPerSecondToKmh(speedMs: max(0, locationManager.currentLocation?.speed ?? 0))
+            let sample = WheelLogCore.TelemetrySample.companion.fromWheelState(
+                state: newWheelState,
                 timestampMs: Int64(Date().timeIntervalSince1970 * 1000),
-                gpsSpeedKmh: gpsSpeedPoll
+                gpsSpeedKmh: gpsSpeed
             )
-            telemetryBuffer.addSampleIfNeeded(sample: telSample)
-            telemetryHistory.addSample(telSample)
-        }
-
-        // Feature 2: Update reconnect state + auto-connect from shared KMP manager
-        if let acm = autoConnectManager {
-            let helper = WheelConnectionManagerHelper.shared
-            isAutoConnecting = helper.getIsAutoConnecting(manager: acm)
-
-            let kmpReconnectState = helper.getReconnectState(manager: acm)
-            if helper.isReconnectIdle(state: kmpReconnectState) {
-                reconnectState = .idle
-            } else if helper.isReconnectWaiting(state: kmpReconnectState) {
-                reconnectState = .waiting(
-                    attempt: Int(helper.reconnectAttemptNumber(state: kmpReconnectState)),
-                    nextRetryMs: helper.reconnectNextRetryMs(state: kmpReconnectState)
-                )
-            } else if helper.isReconnectAttempting(state: kmpReconnectState) {
-                reconnectState = .attempting(
-                    attempt: Int(helper.reconnectAttemptNumber(state: kmpReconnectState))
-                )
-            }
+            telemetryBuffer.addSampleIfNeeded(sample: sample)
+            telemetryHistory.addSample(sample)
         }
     }
 

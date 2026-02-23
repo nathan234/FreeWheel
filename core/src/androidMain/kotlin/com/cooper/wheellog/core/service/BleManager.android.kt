@@ -53,7 +53,7 @@ import kotlin.coroutines.resume
  * bleManager.setPeripheral(existingPeripheral)
  * ```
  */
-actual class BleManager {
+actual class BleManager : BleManagerPort {
     private val _connectionState = MutableStateFlow<ConnectionState>(ConnectionState.Disconnected)
     private var central: BluetoothCentralManager? = null
     private var currentPeripheral: BluetoothPeripheral? = null
@@ -61,7 +61,7 @@ actual class BleManager {
     private var readCharacteristic: BluetoothGattCharacteristic? = null
 
     // Connection continuation (protected by continuationLock)
-    private var connectionContinuation: CancellableContinuation<Result<BleConnection>>? = null
+    private var connectionContinuation: CancellableContinuation<Boolean>? = null
     private val continuationLock = Lock()
 
     // Callback for data received from the wheel
@@ -76,7 +76,7 @@ actual class BleManager {
     // Disconnect tracking
     private var disconnectRequested = false
 
-    actual val connectionState: StateFlow<ConnectionState>
+    actual override val connectionState: StateFlow<ConnectionState>
         get() = _connectionState.asStateFlow()
 
     // ==================== Central Manager Callback ====================
@@ -103,7 +103,7 @@ actual class BleManager {
 
             // Resume connection continuation
             continuationLock.withLock {
-                connectionContinuation?.resume(Result.success(BleConnection(peripheral))) {}
+                connectionContinuation?.resume(true) {}
                 connectionContinuation = null
             }
         }
@@ -113,9 +113,7 @@ actual class BleManager {
             _connectionState.value = ConnectionState.Failed(error = "Connection failed: $status", address = peripheral.address)
 
             continuationLock.withLock {
-                connectionContinuation?.resume(
-                    Result.failure(Exception("Connection failed: $status"))
-                ) {}
+                connectionContinuation?.resume(false) {}
                 connectionContinuation = null
             }
         }
@@ -270,9 +268,9 @@ actual class BleManager {
 
     // ==================== Connection ====================
 
-    actual suspend fun connect(address: String): Result<BleConnection> {
-        val manager = central ?: return Result.failure(
-            IllegalStateException("BleManager not initialized. Call initialize() first.")
+    actual override suspend fun connect(address: String): Boolean {
+        val manager = central ?: throw IllegalStateException(
+            "BleManager not initialized. Call initialize() first."
         )
 
         disconnectRequested = false
@@ -312,7 +310,7 @@ actual class BleManager {
         manager.autoConnectPeripheral(peripheral, peripheralCallback)
     }
 
-    actual suspend fun disconnect() {
+    actual override suspend fun disconnect() {
         disconnectRequested = true
         currentPeripheral?.let { peripheral ->
             central?.cancelConnection(peripheral)
@@ -325,7 +323,7 @@ actual class BleManager {
 
     // ==================== Write ====================
 
-    actual suspend fun write(data: ByteArray): Boolean {
+    actual override suspend fun write(data: ByteArray): Boolean {
         val peripheral = currentPeripheral ?: return false
         val characteristic = writeCharacteristic ?: return false
 
@@ -399,14 +397,14 @@ actual class BleManager {
 
     // ==================== Scanning ====================
 
-    actual suspend fun startScan(onDeviceFound: (BleDevice) -> Unit) {
+    actual override suspend fun startScan(onDeviceFound: (BleDevice) -> Unit) {
         val manager = central ?: return
         scanDeviceFoundCallback = onDeviceFound
         _connectionState.value = ConnectionState.Scanning
         manager.scanForPeripherals()
     }
 
-    actual suspend fun stopScan() {
+    actual override suspend fun stopScan() {
         central?.stopScan()
         scanDeviceFoundCallback = null
         if (_connectionState.value is ConnectionState.Scanning) {
