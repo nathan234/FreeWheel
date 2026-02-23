@@ -24,7 +24,7 @@ class StateFlowObserver<T: Equatable>: ObservableObject {
                 }
             }
         }
-        RunLoop.current.add(timer!, forMode: .common)
+        if let t = timer { RunLoop.current.add(t, forMode: .common) }
     }
 
     deinit {
@@ -55,7 +55,7 @@ class StateFlowObserverAny<T>: ObservableObject {
                 }
             }
         }
-        RunLoop.current.add(timer!, forMode: .common)
+        if let t = timer { RunLoop.current.add(t, forMode: .common) }
     }
 
     deinit {

@@ -27,6 +27,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.cooper.wheellog.core.domain.SpeedDisplayMode
 import com.cooper.wheellog.core.telemetry.ColorZone
 import com.cooper.wheellog.core.telemetry.MetricType
 import java.util.Locale
@@ -34,8 +35,6 @@ import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.min
 import kotlin.math.sin
-
-enum class SpeedDisplayMode { WHEEL, GPS, BOTH }
 
 private val GPS_CYAN = Color(0xFF00BCD4)
 

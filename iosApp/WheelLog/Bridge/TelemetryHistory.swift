@@ -28,7 +28,7 @@ class TelemetryHistoryBridge: ObservableObject {
             .replacingOccurrences(of: ":", with: "_")
             .replacingOccurrences(of: "/", with: "_")
 
-        let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        guard let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else { return }
         let telemetryDir = supportDir.appendingPathComponent("telemetry", isDirectory: true)
 
         // Ensure directory exists

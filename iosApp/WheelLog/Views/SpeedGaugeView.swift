@@ -1,10 +1,28 @@
 import SwiftUI
+import WheelLogCore
 
-enum SpeedDisplayMode: Int, CaseIterable {
-    case wheel = 0
-    case gps = 1
-    case both = 2
+/// Maps KMP SpeedDisplayMode to Swift-friendly Int raw values for UserDefaults persistence.
+extension WheelLogCore.SpeedDisplayMode {
+    static func fromRawValue(_ rawValue: Int) -> WheelLogCore.SpeedDisplayMode? {
+        switch rawValue {
+        case 0: return .wheel
+        case 1: return .gps
+        case 2: return .both
+        default: return nil
+        }
+    }
+
+    var rawValue: Int {
+        switch self {
+        case .wheel: return 0
+        case .gps: return 1
+        case .both: return 2
+        default: return 0
+        }
+    }
 }
+
+typealias SpeedDisplayMode = WheelLogCore.SpeedDisplayMode
 
 private let gpsCyan = Color(red: 0, green: 0.737, blue: 0.831) // #00BCD4
 
@@ -28,6 +46,7 @@ struct SpeedGaugeView: View {
         switch mode {
         case .wheel, .both: return speed
         case .gps: return gpsSpeed
+        default: return speed
         }
     }
 
@@ -43,6 +62,8 @@ struct SpeedGaugeView: View {
             if speedProgress < 0.5 { return .green }
             if speedProgress < 0.75 { return .orange }
             return .red
+        default:
+            return .green
         }
     }
 
@@ -104,6 +125,10 @@ struct SpeedGaugeView: View {
                         Text(gpsSpeed > 0 ? String(format: "GPS %.1f", gpsSpeed) : "GPS \u{2014}")
                             .font(.system(size: size * 0.06, weight: .medium))
                             .foregroundColor(gpsCyan)
+                    default:
+                        Text(String(format: "%.1f", speed))
+                            .font(.system(size: size * 0.18, weight: .bold, design: .rounded))
+                            .foregroundColor(arcColor)
                     }
 
                     Text(unitLabel)

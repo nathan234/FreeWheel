@@ -4,7 +4,7 @@ import WheelLogCore
 /// Convenience accessor for KMP BmsSnapshot cells (KotlinArray<KotlinDouble> → [Double]).
 extension BmsSnapshot {
     var cellValues: [Double] {
-        (0..<Int(cellNum)).map { (cells.get(index: Int32($0))!).doubleValue }
+        (0..<Int(cellNum)).map { cells.get(index: Int32($0))?.doubleValue ?? 0.0 }
     }
 }
 

@@ -30,7 +30,7 @@ class WheelManager: ObservableObject {
     }
     @Published var isLightOn: Bool = false
 
-    @Published var speedDisplayMode: SpeedDisplayMode = SpeedDisplayMode(rawValue: UserDefaults.standard.integer(forKey: PreferenceKeys.shared.SPEED_DISPLAY_MODE)) ?? .wheel {
+    @Published var speedDisplayMode: SpeedDisplayMode = SpeedDisplayMode.fromRawValue(UserDefaults.standard.integer(forKey: PreferenceKeys.shared.SPEED_DISPLAY_MODE)) ?? .wheel {
         didSet { UserDefaults.standard.set(speedDisplayMode.rawValue, forKey: PreferenceKeys.shared.SPEED_DISPLAY_MODE) }
     }
 
@@ -291,7 +291,8 @@ class WheelManager: ObservableObject {
         }
 
         // Create shared auto-connect manager
-        autoConnectManager = WheelConnectionManagerHelper.shared.createAutoConnectManager(manager: connectionManager!)
+        guard let cm = connectionManager else { return }
+        autoConnectManager = WheelConnectionManagerHelper.shared.createAutoConnectManager(manager: cm)
 
         // Wire service discovery to connection manager
         bleManager?.setServicesDiscoveredCallback { [weak self] services, deviceName in
@@ -328,13 +329,13 @@ class WheelManager: ObservableObject {
 
     func startMockMode() {
         isMockMode = true
-        connectionState = .connecting(address: "DEMO-DEVICE")
+        connectionState = .connecting(address: AppConstants.shared.DEMO_DEVICE_ADDRESS)
 
         // Brief delay to simulate connection
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
             guard let self = self else { return }
             WheelConnectionManagerHelper.shared.startDemo(provider: self.demoProvider)
-            self.connectionState = .connected(address: "DEMO-DEVICE", wheelName: "Demo Wheel")
+            self.connectionState = .connected(address: AppConstants.shared.DEMO_DEVICE_ADDRESS, wheelName: AppConstants.shared.DEMO_WHEEL_NAME)
             self.startDemoPolling()
         }
     }

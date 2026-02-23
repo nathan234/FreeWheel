@@ -105,38 +105,8 @@ object StringUtil {
 
     /**
      * Format a double to a string with specified decimal places.
-     * This is a multiplatform-compatible alternative to String.format().
+     * Delegates to [ByteUtils.formatDecimal] for a single canonical implementation.
      */
-    fun formatDecimal(value: Double, decimals: Int): String {
-        val factor = pow10(decimals)
-        val rounded = (value * factor).roundToInt().toDouble() / factor
-        val str = rounded.toString()
-
-        // Ensure we have the right number of decimal places
-        val dotIndex = str.indexOf('.')
-        return if (dotIndex == -1) {
-            if (decimals > 0) {
-                "$str.${"0".repeat(decimals)}"
-            } else {
-                str
-            }
-        } else {
-            val currentDecimals = str.length - dotIndex - 1
-            when {
-                decimals == 0 -> str.substring(0, dotIndex)  // No decimals - remove the dot
-                currentDecimals < decimals -> str + "0".repeat(decimals - currentDecimals)
-                currentDecimals > decimals -> str.substring(0, dotIndex + decimals + 1)
-                else -> str
-            }
-        }
-    }
-
-    /**
-     * Simple power of 10 calculation for formatting.
-     */
-    private fun pow10(n: Int): Int {
-        var result = 1
-        repeat(n) { result *= 10 }
-        return result
-    }
+    fun formatDecimal(value: Double, decimals: Int): String =
+        ByteUtils.formatDecimal(value, decimals)
 }

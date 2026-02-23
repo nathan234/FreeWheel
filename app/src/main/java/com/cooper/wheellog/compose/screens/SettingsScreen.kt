@@ -51,6 +51,7 @@ import com.cooper.wheellog.compose.WheelViewModel
 import com.cooper.wheellog.core.domain.AlarmAction
 import com.cooper.wheellog.core.domain.CommonLabels
 import com.cooper.wheellog.core.domain.SettingsLabels
+import com.cooper.wheellog.compose.components.DangerousActionDialog
 import com.cooper.wheellog.compose.components.SectionCard
 import com.cooper.wheellog.compose.components.StatRow
 import com.cooper.wheellog.core.domain.AppConstants
@@ -443,50 +444,19 @@ fun SettingsScreen(viewModel: WheelViewModel) {
     }
 
     // Confirmation dialog for dangerous wheel settings actions
-    pendingAction?.let { action ->
-        when (action) {
-            is ControlSpec.DangerousButton -> {
-                AlertDialog(
-                    onDismissRequest = { pendingAction = null },
-                    title = { Text(action.confirmTitle) },
-                    text = { Text(action.confirmMessage) },
-                    confirmButton = {
-                        TextButton(
-                            onClick = {
-                                viewModel.executeWheelCommand(action.commandId)
-                                pendingAction = null
-                            },
-                            colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFFF44336))
-                        ) { Text(CommonLabels.CONFIRM) }
-                    },
-                    dismissButton = {
-                        TextButton(onClick = { pendingAction = null }) { Text(CommonLabels.CANCEL) }
-                    }
-                )
-            }
-            is ControlSpec.DangerousToggle -> {
-                AlertDialog(
-                    onDismissRequest = { pendingAction = null },
-                    title = { Text(action.confirmTitle) },
-                    text = { Text(action.confirmMessage) },
-                    confirmButton = {
-                        TextButton(
-                            onClick = {
-                                toggleStates[action.commandId] = true
-                                viewModel.executeWheelCommand(action.commandId, boolValue = true)
-                                pendingAction = null
-                            },
-                            colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFFF44336))
-                        ) { Text(CommonLabels.CONFIRM) }
-                    },
-                    dismissButton = {
-                        TextButton(onClick = { pendingAction = null }) { Text(CommonLabels.CANCEL) }
-                    }
-                )
-            }
-            else -> { pendingAction = null }
+    DangerousActionDialog(
+        pendingAction = pendingAction,
+        onDismiss = { pendingAction = null },
+        onConfirmButton = { commandId ->
+            viewModel.executeWheelCommand(commandId)
+            pendingAction = null
+        },
+        onConfirmToggle = { commandId ->
+            toggleStates[commandId] = true
+            viewModel.executeWheelCommand(commandId, boolValue = true)
+            pendingAction = null
         }
-    }
+    )
 }
 
 @Composable

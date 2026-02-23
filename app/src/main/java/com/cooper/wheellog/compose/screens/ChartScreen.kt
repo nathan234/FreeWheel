@@ -47,9 +47,9 @@ import com.cooper.wheellog.compose.components.POWER_COLOR
 import com.cooper.wheellog.compose.components.TEMP_COLOR
 import com.cooper.wheellog.compose.components.VOLTAGE_COLOR
 import com.cooper.wheellog.compose.components.ToggleChip
+import com.cooper.wheellog.compose.components.TimeRangePicker
 import com.cooper.wheellog.compose.components.VicoLineChart
 import com.cooper.wheellog.compose.components.rememberChartMarker
-import androidx.compose.material3.FilterChip
 import com.cooper.wheellog.core.utils.DisplayUtils
 
 // CROSS-PLATFORM SYNC: This screen mirrors iosApp/WheelLog/Views/TelemetryChartView.swift.
@@ -99,20 +99,10 @@ fun ChartScreen(
                 .verticalScroll(rememberScrollState())
         ) {
             // Time range picker
-            LazyRow(
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                for (range in ChartTimeRange.entries) {
-                    item {
-                        FilterChip(
-                            selected = selectedRange == range,
-                            onClick = { viewModel.setChartTimeRange(range) },
-                            label = { Text(range.label) }
-                        )
-                    }
-                }
-            }
+            TimeRangePicker(
+                selected = selectedRange,
+                onSelect = { viewModel.setChartTimeRange(it) }
+            )
 
             // Toggle chips
             LazyRow(

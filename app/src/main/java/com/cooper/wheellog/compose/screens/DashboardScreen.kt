@@ -50,7 +50,7 @@ import com.cooper.wheellog.compose.WheelViewModel
 import com.cooper.wheellog.compose.components.AlarmBanner
 import com.cooper.wheellog.compose.components.ConnectionBanner
 import com.cooper.wheellog.compose.components.GaugeTile
-import com.cooper.wheellog.compose.components.SpeedDisplayMode
+import com.cooper.wheellog.core.domain.SpeedDisplayMode
 import com.cooper.wheellog.compose.components.SpeedGauge
 import com.cooper.wheellog.compose.components.StatRow
 import com.cooper.wheellog.core.domain.CommonLabels

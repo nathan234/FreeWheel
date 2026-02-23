@@ -9,8 +9,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -18,7 +16,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -28,11 +25,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.cooper.wheellog.compose.WheelViewModel
 import com.cooper.wheellog.core.domain.CommonLabels
 import com.cooper.wheellog.core.domain.DashboardLabels
+import com.cooper.wheellog.compose.components.DangerousActionDialog
 import com.cooper.wheellog.compose.components.SectionCard
 import com.cooper.wheellog.core.domain.ControlSpec
 import com.cooper.wheellog.core.domain.SettingsCommandId
@@ -140,49 +137,18 @@ fun WheelSettingsScreen(viewModel: WheelViewModel, onBack: () -> Unit) {
         }
 
         // Confirmation dialog
-        pendingAction?.let { action ->
-            when (action) {
-                is ControlSpec.DangerousButton -> {
-                    AlertDialog(
-                        onDismissRequest = { pendingAction = null },
-                        title = { Text(action.confirmTitle) },
-                        text = { Text(action.confirmMessage) },
-                        confirmButton = {
-                            TextButton(
-                                onClick = {
-                                    viewModel.executeWheelCommand(action.commandId)
-                                    pendingAction = null
-                                },
-                                colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFFF44336))
-                            ) { Text(CommonLabels.CONFIRM) }
-                        },
-                        dismissButton = {
-                            TextButton(onClick = { pendingAction = null }) { Text(CommonLabels.CANCEL) }
-                        }
-                    )
-                }
-                is ControlSpec.DangerousToggle -> {
-                    AlertDialog(
-                        onDismissRequest = { pendingAction = null },
-                        title = { Text(action.confirmTitle) },
-                        text = { Text(action.confirmMessage) },
-                        confirmButton = {
-                            TextButton(
-                                onClick = {
-                                    toggleStates[action.commandId] = true
-                                    viewModel.executeWheelCommand(action.commandId, boolValue = true)
-                                    pendingAction = null
-                                },
-                                colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFFF44336))
-                            ) { Text(CommonLabels.CONFIRM) }
-                        },
-                        dismissButton = {
-                            TextButton(onClick = { pendingAction = null }) { Text(CommonLabels.CANCEL) }
-                        }
-                    )
-                }
-                else -> { pendingAction = null }
+        DangerousActionDialog(
+            pendingAction = pendingAction,
+            onDismiss = { pendingAction = null },
+            onConfirmButton = { commandId ->
+                viewModel.executeWheelCommand(commandId)
+                pendingAction = null
+            },
+            onConfirmToggle = { commandId ->
+                toggleStates[commandId] = true
+                viewModel.executeWheelCommand(commandId, boolValue = true)
+                pendingAction = null
             }
-        }
+        )
     }
 }

@@ -153,7 +153,7 @@ struct DashboardView: View {
                         label: MetricType.temperature.label,
                         value: String(format: "%.0f", tempDisplay),
                         unit: tempUnit,
-                        progress: tempC / 80.0,
+                        progress: tempC / Double(MetricType.temperature.maxValue),
                         color: tileColor(metric: .temperature, value: tempC),
                         sparklineData: sparkline(metric: .temperature),
                         action: { selectedMetric = "temperature" }

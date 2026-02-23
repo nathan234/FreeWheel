@@ -58,7 +58,7 @@ struct TelemetryChartView: View {
     }
 
     private func displaySpeed(_ kmh: Double) -> Double {
-        DisplayUtils.shared.convertSpeed(kmh: kmh, useMph: wheelManager.useMph)
+        displaySpeed(kmh, useMph: wheelManager.useMph)
     }
 
     private var speedUnit: String {
@@ -66,7 +66,7 @@ struct TelemetryChartView: View {
     }
 
     private func displayTemp(_ celsius: Double) -> Double {
-        DisplayUtils.shared.convertTemp(celsius: celsius, useFahrenheit: wheelManager.useFahrenheit)
+        displayTemp(celsius, useFahrenheit: wheelManager.useFahrenheit)
     }
 
     private var tempUnit: String {

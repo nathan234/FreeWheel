@@ -184,7 +184,7 @@ When `use_compose_ui` is true, `WheelData` is never initialized and legacy Koin 
 | **KMP Core** | |
 | Protocol decoders | `core/src/commonMain/.../protocol/*.kt` |
 | Connection manager | `core/src/commonMain/.../service/WheelConnectionManager.kt` |
-| Wheel state & types | `core/src/commonMain/.../domain/{WheelState,WheelType,SmartBms}.kt` |
+| Wheel state & types | `core/src/commonMain/.../domain/{WheelState,WheelType,SmartBms,SpeedDisplayMode}.kt` |
 | Settings config | `core/src/commonMain/.../domain/{WheelSettingsConfig,ControlSpec}.kt` |
 | Alarm logic | `core/src/commonMain/.../alarm/AlarmChecker.kt` |
 | BLE UUIDs & detection | `core/src/commonMain/.../ble/{BleUuids,WheelTypeDetector}.kt` |
@@ -205,7 +205,7 @@ When `use_compose_ui` is true, `WheelData` is never initialized and legacy Koin 
 | Decoder mode enum | `app/src/main/.../kmp/DecoderMode.kt` |
 | ViewModel | `app/src/main/.../compose/WheelViewModel.kt` |
 | Compose screens | `app/src/main/.../compose/screens/*.kt` |
-| Compose components | `app/src/main/.../compose/components/*.kt` |
+| Compose components | `app/src/main/.../compose/components/*.kt` (incl. `DangerousActionDialog`, `TimeRangePicker`) |
 | Legacy hybrid screens | `app/src/main/.../compose/legacy/*.kt` |
 | **iOS App** | |
 | Main bridge (orchestrator) | `iosApp/WheelLog/Bridge/WheelManager.swift` |
@@ -217,7 +217,7 @@ When `use_compose_ui` is true, `WheelData` is never initialized and legacy Koin 
 | Ride storage (iOS-only) | `iosApp/WheelLog/Bridge/RideStore.swift` |
 | Telemetry bridge | `iosApp/WheelLog/Bridge/TelemetryBuffer.swift` |
 | Telemetry history | `iosApp/WheelLog/Bridge/TelemetryHistory.swift` |
-| SwiftUI views | `iosApp/WheelLog/Views/*.swift` |
+| SwiftUI views | `iosApp/WheelLog/Views/*.swift` (incl. `ViewHelpers.swift` shared unit helpers) |
 
 ## iOS Bridge Architecture
 
@@ -361,6 +361,17 @@ Comparison tests verify KMP decoders produce identical results to the legacy Jav
 | NZ | - | Y |
 | IM1 | Y | Y |
 | IM2 | Y | - |
+
+| Unpacker | Unit Test |
+|----------|:---------:|
+| GotwayUnpacker | Y |
+| NinebotUnpacker | Y |
+| InMotionUnpacker | Y |
+| InMotionV2Unpacker | Y |
+
+| Service | Unit Test |
+|---------|:---------:|
+| DemoDataProvider | Y |
 
 ### iOS Testing on Simulator
 

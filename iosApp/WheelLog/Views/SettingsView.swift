@@ -223,7 +223,9 @@ struct SettingsView: View {
                     Text(appVersion)
                         .foregroundColor(.secondary)
                 }
-                Link(SettingsLabels.shared.GITHUB_REPOSITORY, destination: URL(string: AppConstants.shared.GITHUB_REPO_URL)!)
+                if let url = URL(string: AppConstants.shared.GITHUB_REPO_URL) {
+                    Link(SettingsLabels.shared.GITHUB_REPOSITORY, destination: url)
+                }
             }
 
             // MARK: - Close App
@@ -269,11 +271,11 @@ struct SettingsView: View {
     // MARK: - Unit Conversion Helpers
 
     private func displaySpeed(_ kmh: Double) -> Double {
-        DisplayUtils.shared.convertSpeed(kmh: kmh, useMph: wheelManager.useMph)
+        displaySpeed(kmh, useMph: wheelManager.useMph)
     }
 
     private func displayTemperature(_ celsius: Double) -> Double {
-        DisplayUtils.shared.convertTemp(celsius: celsius, useFahrenheit: wheelManager.useFahrenheit)
+        displayTemp(celsius, useFahrenheit: wheelManager.useFahrenheit)
     }
 
     private var appVersion: String {

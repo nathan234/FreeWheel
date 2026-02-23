@@ -135,7 +135,7 @@ class AlarmManager: ObservableObject {
             let player = AVAudioPlayerNode()
             engine.attach(player)
 
-            let format = AVAudioFormat(standardFormatWithSampleRate: 44100, channels: 1)!
+            guard let format = AVAudioFormat(standardFormatWithSampleRate: 44100, channels: 1) else { return }
             engine.connect(player, to: engine.mainMixerNode, format: format)
             try engine.start()
 

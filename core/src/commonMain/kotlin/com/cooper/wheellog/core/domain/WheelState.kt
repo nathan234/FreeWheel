@@ -1,5 +1,7 @@
 package com.cooper.wheellog.core.domain
 
+import com.cooper.wheellog.core.utils.ByteUtils
+
 /**
  * Immutable data class representing the current state of an electric unicycle.
  * All values use internal units (typically 1/100 for precision).
@@ -119,7 +121,7 @@ data class WheelState(
     val speedKmh: Double get() = speed / 100.0
 
     /** Speed in mph */
-    val speedMph: Double get() = speedKmh * KM_TO_MILES
+    val speedMph: Double get() = speedKmh * ByteUtils.KM_TO_MILES_MULTIPLIER
 
     /** Voltage in V */
     val voltageV: Double get() = voltage / 100.0
@@ -164,7 +166,8 @@ data class WheelState(
     }
 
     companion object {
-        const val KM_TO_MILES = 0.62137119223733
+        /** Use [ByteUtils.KM_TO_MILES_MULTIPLIER] directly. Kept for backward compatibility. */
+        const val KM_TO_MILES = ByteUtils.KM_TO_MILES_MULTIPLIER
 
         /** Creates a default empty WheelState. Useful from Swift/ObjC where default-parameter constructors aren't available. */
         fun empty(): WheelState = WheelState()
