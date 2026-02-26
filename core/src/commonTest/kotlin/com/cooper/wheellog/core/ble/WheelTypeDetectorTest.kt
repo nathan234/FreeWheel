@@ -532,6 +532,68 @@ class WheelTypeDetectorTest {
         assertEquals(WheelType.NINEBOT_Z, detected.wheelType)
     }
 
+    // ==================== InMotion V2 Name Detection ====================
+
+    @Test
+    fun `detect InMotion V2 from V11 device name`() {
+        val services = DiscoveredServices(
+            services = listOf(
+                DiscoveredService(
+                    uuid = "0000ffe0-0000-1000-8000-00805f9b34fb",
+                    characteristics = listOf("0000ffe1-0000-1000-8000-00805f9b34fb")
+                )
+            )
+        )
+
+        val result = detector.detect(services, "V11-ABC123")
+
+        assertTrue(result is WheelTypeDetector.DetectionResult.Detected)
+        val detected = result as WheelTypeDetector.DetectionResult.Detected
+        assertEquals(WheelType.INMOTION_V2, detected.wheelType)
+        assertEquals(BleUuids.InMotionV2.SERVICE, detected.readServiceUuid)
+        assertEquals(WheelTypeDetector.Confidence.HIGH, detected.confidence)
+    }
+
+    @Test
+    fun `detect InMotion V2 from various model names`() {
+        val services = DiscoveredServices(
+            services = listOf(
+                DiscoveredService(
+                    uuid = "0000ffe0-0000-1000-8000-00805f9b34fb",
+                    characteristics = listOf("0000ffe1-0000-1000-8000-00805f9b34fb")
+                )
+            )
+        )
+
+        val inmotionNames = listOf("V11Y-001", "V12HS", "V13-PRO", "V14-50S", "V9-MyWheel", "P6-Test", "InMotion-V99")
+        for (name in inmotionNames) {
+            val result = detector.detect(services, name)
+            assertTrue(
+                result is WheelTypeDetector.DetectionResult.Detected &&
+                    result.wheelType == WheelType.INMOTION_V2,
+                "Expected INMOTION_V2 for name '$name' but got $result"
+            )
+        }
+    }
+
+    @Test
+    fun `detect InMotion V2 from INMOTION keyword in name`() {
+        val services = DiscoveredServices(
+            services = listOf(
+                DiscoveredService(
+                    uuid = "0000ffe0-0000-1000-8000-00805f9b34fb",
+                    characteristics = listOf("0000ffe1-0000-1000-8000-00805f9b34fb")
+                )
+            )
+        )
+
+        val result = detector.detect(services, "INMOTION-P6")
+
+        assertTrue(result is WheelTypeDetector.DetectionResult.Detected)
+        val detected = result as WheelTypeDetector.DetectionResult.Detected
+        assertEquals(WheelType.INMOTION_V2, detected.wheelType)
+    }
+
     @Test
     fun `device name matching is case-insensitive`() {
         val services = DiscoveredServices(

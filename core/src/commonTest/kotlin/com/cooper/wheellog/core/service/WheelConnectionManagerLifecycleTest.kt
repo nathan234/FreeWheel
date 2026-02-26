@@ -15,6 +15,7 @@ import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -408,22 +409,17 @@ class WheelConnectionManagerLifecycleTest {
     // ==================== Keep-Alive ====================
 
     @Test
-    fun `keep-alive starts when decoder is ready with non-zero interval`() = runTest {
+    fun `keep-alive starts when decoder has non-zero interval`() = runTest {
         val decoder = FakeDecoder(keepAliveIntervalMs = 100L)
         val factory = FakeDecoderFactory(decoder)
         val manager = createManager(decoder = decoder, factory = factory)
 
         manager.connect("AA:BB:CC:DD:EE:FF")
         manager.onWheelTypeDetected(WheelType.INMOTION_V2)
-        advanceUntilIdle()
+        // Keep-alive starts immediately in setupDecoder for polling decoders
+        runCurrent()
 
-        decoder.decodeResult = DecodedData(
-            newState = WheelState(speed = 100, name = "V12")
-        )
-        decoder.ready = true
-        manager.onDataReceived(byteArrayOf(0x01))
-
-        assertTrue(manager.isKeepAliveRunning.value, "Keep-alive should be running")
+        assertTrue(manager.isKeepAliveRunning.value, "Keep-alive should be running after setupDecoder")
 
         // Clean up timer coroutine
         manager.disconnect()
@@ -459,15 +455,11 @@ class WheelConnectionManagerLifecycleTest {
 
         manager.connect("AA:BB:CC:DD:EE:FF")
         manager.onWheelTypeDetected(WheelType.INMOTION_V2)
-        advanceUntilIdle()
+        // Keep-alive timer starts immediately in setupDecoder; process launches without
+        // advancing time (avoids infinite timer loop in advanceUntilIdle)
+        runCurrent()
 
-        decoder.decodeResult = DecodedData(
-            newState = WheelState(speed = 100, name = "V12")
-        )
-        decoder.ready = true
-        manager.onDataReceived(byteArrayOf(0x01))
-
-        // Clear init command writes
+        // Clear any writes from init commands
         fakeBle.clearWrittenData()
 
         // Advance past initial delay (50ms) + one interval (50ms) + extra

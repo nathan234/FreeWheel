@@ -176,6 +176,20 @@ class WheelTypeDetector {
                 )
             }
 
+            // InMotion V2 patterns (before Gotway to avoid conflicts with names like "MASTER")
+            name.startsWith("V11") || name.startsWith("V12") || name.startsWith("V13") ||
+            name.startsWith("V14") || name.startsWith("V9") || name.startsWith("P6") ||
+            name.contains("INMOTION") -> {
+                DetectionResult.Detected(
+                    wheelType = WheelType.INMOTION_V2,
+                    readServiceUuid = BleUuids.InMotionV2.SERVICE,
+                    readCharacteristicUuid = BleUuids.InMotionV2.READ_CHARACTERISTIC,
+                    writeServiceUuid = BleUuids.InMotionV2.SERVICE,
+                    writeCharacteristicUuid = BleUuids.InMotionV2.WRITE_CHARACTERISTIC,
+                    confidence = Confidence.HIGH
+                )
+            }
+
             // Gotway/Begode patterns
             name.contains("GOTWAY") ||
             name.startsWith("GW") ||

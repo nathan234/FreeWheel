@@ -250,9 +250,6 @@ class WheelConnectionManager(
                 address = address,
                 wheelName = result.newState.displayName
             )
-
-            // Start keep-alive timer now that we're fully connected
-            startKeepAliveTimer()
         } else if (!decoder.isReady()) {
             Logger.d("WheelConnectionManager", "Decoded OK but isReady()=false (decoder=${decoder.wheelType})")
         }
@@ -451,6 +448,11 @@ class WheelConnectionManager(
                 }
             }
         }
+
+        // Start keep-alive immediately so polling decoders (InMotion V2) can
+        // request live data without waiting for isReady(). Safe for non-polling
+        // decoders because startKeepAliveTimer() exits early when intervalMs <= 0.
+        startKeepAliveTimer()
     }
 
     private fun startKeepAliveTimer() {

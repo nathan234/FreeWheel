@@ -30,11 +30,9 @@ import kotlin.math.roundToInt
  *   0x02 = Serial number
  *   0x06 = Software/hardware versions
  *
- * Keep-alive state machine (implicit, via getKeepAliveCommand):
- *   !modelDetected       → request car type (Flag.INITIAL, Command.MAIN_INFO, 0x01)
- *   serial empty         → request serial   (Flag.INITIAL, Command.MAIN_INFO, 0x02)
- *   version empty        → request versions (Flag.INITIAL, Command.MAIN_INFO, 0x06)
- *   fully initialized    → request live data (Flag.DEFAULT, Command.REAL_TIME_INFO)
+ * Keep-alive sends REAL_TIME_INFO on every tick, interleaving init retries on every
+ * 4th tick until model/serial/version are resolved. This ensures live data flows
+ * immediately even if the wheel doesn't respond to INITIAL handshake messages.
  *
  * Response bit: Response frames have command byte OR'd with 0x80
  * (e.g., SETTINGS 0x20 → response 0xA0). Mask with 0x7F to get the base command.
@@ -53,6 +51,8 @@ class InMotionV2Decoder : WheelDecoder {
     private var serialNumber = ""
     private var version = ""
     private var isModelDetected = false
+    private var hasReceivedTelemetry = false
+    private var keepAliveCounter = 0
 
     /**
      * InMotion V2 wheel models.
@@ -69,6 +69,7 @@ class InMotionV2Decoder : WheelDecoder {
         V14s(92, "InMotion V14 50S", 120, 32),
         V12S(111, "InMotion V12S", 120, 20),
         V9(121, "InMotion V9", 120, 20),
+        P6(101, "InMotion P6", 150, 32),
         UNKNOWN(0, "InMotion Unknown", 100, 20);
 
         companion object {
@@ -262,8 +263,6 @@ class InMotionV2Decoder : WheelDecoder {
      * Process settings data.
      */
     private fun processSettings(message: Message, currentState: WheelState): FrameResult? {
-        // Settings are parsed but don't update WheelState directly
-        // They would typically update app configuration
         return when (model) {
             Model.V11 -> parseSettingsV11(message.data, currentState)
             Model.V11Y -> parseSettingsV11y(message.data, currentState)
@@ -272,7 +271,7 @@ class InMotionV2Decoder : WheelDecoder {
             Model.V14g, Model.V14s -> parseSettingsV14(message.data, currentState)
             Model.V9 -> parseSettingsV9(message.data, currentState)
             Model.V12S -> parseSettingsV12S(message.data, currentState)
-            else -> null
+            else -> parseSettingsV13V14(message.data, currentState)
         }
     }
 
@@ -329,7 +328,7 @@ class InMotionV2Decoder : WheelDecoder {
      * Process real-time telemetry info.
      */
     private fun processRealTimeInfo(message: Message, currentState: WheelState): FrameResult? {
-        return when (model) {
+        val result = when (model) {
             Model.V11 -> {
                 if (protoVer < 2) {
                     parseRealTimeInfoV11(message.data, currentState)
@@ -343,8 +342,12 @@ class InMotionV2Decoder : WheelDecoder {
             Model.V14g, Model.V14s -> parseRealTimeInfoV14(message.data, currentState)
             Model.V9 -> parseRealTimeInfoV9(message.data, currentState)
             Model.V12S -> parseRealTimeInfoV12S(message.data, currentState)
-            else -> null
+            else -> parseRealTimeInfoGeneric(message.data, currentState)
         }
+        if (result?.hasNewData == true) {
+            hasReceivedTelemetry = true
+        }
+        return result
     }
 
     // ==================== V11 Parsing ====================
@@ -694,6 +697,69 @@ class InMotionV2Decoder : WheelDecoder {
         return parseRealTimeInfoV11y(data, currentState)
     }
 
+    // ==================== Generic Fallback Parsing ====================
+
+    /**
+     * Generic fallback parser for unknown models.
+     * Uses the V14/V11Y layout (newest known format) to extract universally common fields.
+     * This ensures new/unknown wheels get at least basic telemetry (voltage, current, speed, PWM).
+     */
+    private fun parseRealTimeInfoGeneric(data: ByteArray, currentState: WheelState): FrameResult? {
+        // Need at least enough data for the core fields (V14/V11Y layout)
+        if (data.size < 24) return null
+
+        val voltage = ByteUtils.shortFromBytesLE(data, 0)
+        val current = ByteUtils.signedShortFromBytesLE(data, 2)
+        val speed = ByteUtils.signedShortFromBytesLE(data, 8)
+        val torque = ByteUtils.signedShortFromBytesLE(data, 12)
+        val pwm = ByteUtils.signedShortFromBytesLE(data, 14)
+        val batPower = ByteUtils.signedShortFromBytesLE(data, 16)
+        val motPower = ByteUtils.signedShortFromBytesLE(data, 18)
+        val pitchAngle = ByteUtils.signedShortFromBytesLE(data, 20)
+        val rollAngle = if (data.size > 23) ByteUtils.signedShortFromBytesLE(data, 22) else 0
+
+        // Optional fields — only parse if data is long enough
+        val mileage = if (data.size > 29) ByteUtils.shortFromBytesLE(data, 28) * 10 else 0
+        val batLevel = if (data.size > 37) {
+            val b1 = ByteUtils.shortFromBytesLE(data, 34)
+            val b2 = ByteUtils.shortFromBytesLE(data, 36)
+            ((b1 + b2) / 200.0).roundToInt()
+        } else 0
+        val dynamicSpeedLimit = if (data.size > 41) ByteUtils.shortFromBytesLE(data, 40) else 0
+        val dynamicCurrentLimit = if (data.size > 51) ByteUtils.shortFromBytesLE(data, 50) else 0
+        val mosTemp = if (data.size > 58) decodeTemperature(data[58]) else 0
+        val motTemp = if (data.size > 59) decodeTemperature(data[59]) else 0
+        val cpuTemp = if (data.size > 62) decodeTemperature(data[62]) else 0
+        val imuTemp = if (data.size > 63) decodeTemperature(data[63]) else 0
+
+        val displayName = if (model != Model.UNKNOWN) model.displayName else "InMotion Unknown"
+
+        return FrameResult(
+            state = currentState.copy(
+                voltage = voltage,
+                current = current,
+                speed = speed,
+                torque = torque / 100.0,
+                motorPower = motPower.toDouble(),
+                power = batPower * 100,
+                wheelDistance = mileage.toLong(),
+                batteryLevel = batLevel,
+                temperature = mosTemp * 100,
+                temperature2 = motTemp * 100,
+                angle = pitchAngle / 100.0,
+                roll = rollAngle / 100.0,
+                speedLimit = if (dynamicSpeedLimit > 0) dynamicSpeedLimit / 100.0 else currentState.speedLimit,
+                currentLimit = if (dynamicCurrentLimit > 0) dynamicCurrentLimit / 100.0 else currentState.currentLimit,
+                cpuTemp = cpuTemp,
+                imuTemp = imuTemp,
+                output = pwm,
+                model = displayName,
+                wheelType = WheelType.INMOTION_V2
+            ),
+            hasNewData = true
+        )
+    }
+
     // ==================== Settings Parsing ====================
 
     private fun parseSettingsV11(data: ByteArray, currentState: WheelState): FrameResult? {
@@ -1024,7 +1090,9 @@ class InMotionV2Decoder : WheelDecoder {
         }.trim()
     }
 
-    override fun isReady(): Boolean = stateLock.withLock { isModelDetected && version.isNotEmpty() }
+    override fun isReady(): Boolean = stateLock.withLock {
+        hasReceivedTelemetry || (isModelDetected && version.isNotEmpty())
+    }
 
     override fun reset() = stateLock.withLock {
         unpacker.reset()
@@ -1033,6 +1101,8 @@ class InMotionV2Decoder : WheelDecoder {
         serialNumber = ""
         version = ""
         isModelDetected = false
+        hasReceivedTelemetry = false
+        keepAliveCounter = 0
     }
 
     override fun buildCommand(command: WheelCommand): List<WheelCommand> {
@@ -1127,16 +1197,28 @@ class InMotionV2Decoder : WheelDecoder {
     }
 
     override fun getKeepAliveCommand(): WheelCommand = stateLock.withLock {
-        // State machine: retry init requests until responses arrive (mirrors legacy stateCon)
-        when {
+        keepAliveCounter++
+        val needsInit = !isModelDetected || serialNumber.isEmpty() || version.isEmpty()
+        if (needsInit && keepAliveCounter % 4 == 0) {
+            // Retry whichever init step is still pending
+            getNextInitRetryCommand()
+        } else {
+            // Always request live data — this is the primary keep-alive
+            WheelCommand.SendBytes(buildMessage(Flag.DEFAULT, Command.REAL_TIME_INFO, byteArrayOf()))
+        }
+    }
+
+    /**
+     * Returns the next init command that still needs a response.
+     */
+    private fun getNextInitRetryCommand(): WheelCommand {
+        return when {
             !isModelDetected ->
                 WheelCommand.SendBytes(buildMessage(Flag.INITIAL, Command.MAIN_INFO, byteArrayOf(0x01)))
             serialNumber.isEmpty() ->
                 WheelCommand.SendBytes(buildMessage(Flag.INITIAL, Command.MAIN_INFO, byteArrayOf(0x02)))
-            version.isEmpty() ->
-                WheelCommand.SendBytes(buildMessage(Flag.INITIAL, Command.MAIN_INFO, byteArrayOf(0x06)))
             else ->
-                WheelCommand.SendBytes(buildMessage(Flag.DEFAULT, Command.REAL_TIME_INFO, byteArrayOf()))
+                WheelCommand.SendBytes(buildMessage(Flag.INITIAL, Command.MAIN_INFO, byteArrayOf(0x06)))
         }
     }
 

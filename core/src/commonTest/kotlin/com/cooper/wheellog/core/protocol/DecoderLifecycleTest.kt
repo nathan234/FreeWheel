@@ -193,38 +193,43 @@ class DecoderLifecycleTest {
     // ==================== InMotionV2Decoder Lifecycle ====================
 
     @Test
-    fun `InMotionV2 getKeepAliveCommand returns car type request when model not detected`() {
+    fun `InMotionV2 getKeepAliveCommand sends REAL_TIME_INFO primarily with init retries on 4th tick`() {
         val decoder = InMotionV2Decoder()
-        val command = decoder.getKeepAliveCommand()
 
-        assertNotNull(command)
-        // Should request car type (MAIN_INFO with data 0x01)
-        val bytes = (command as WheelCommand.SendBytes).data
-        // Verify it's a valid InMotionV2 message (starts with AA AA)
-        assertEquals(0xAA.toByte(), bytes[0])
-        assertEquals(0xAA.toByte(), bytes[1])
-        // Flags should be INITIAL (0x11)
-        assertEquals(0x11.toByte(), bytes[2])
+        // First 3 ticks should send REAL_TIME_INFO (DEFAULT flag 0x14)
+        for (i in 1..3) {
+            val command = decoder.getKeepAliveCommand()
+            assertNotNull(command)
+            val bytes = (command as WheelCommand.SendBytes).data
+            assertEquals(0xAA.toByte(), bytes[0])
+            assertEquals(0xAA.toByte(), bytes[1])
+            assertEquals(0x14.toByte(), bytes[2], "Tick $i should send REAL_TIME_INFO (DEFAULT flag)")
+        }
+
+        // 4th tick should send init retry (INITIAL flag 0x11) since model not detected
+        val initCommand = decoder.getKeepAliveCommand()
+        assertNotNull(initCommand)
+        val initBytes = (initCommand as WheelCommand.SendBytes).data
+        assertEquals(0x11.toByte(), initBytes[2], "4th tick should send init retry (INITIAL flag)")
     }
 
     @Test
-    fun `InMotionV2 getKeepAliveCommand returns serial request after model detected`() {
+    fun `InMotionV2 getKeepAliveCommand retries serial after model detected`() {
         val decoder = InMotionV2Decoder()
 
         // Feed a car type response to set isModelDetected = true
-        // Car type message: flags=0x11, command=0x02 (MAIN_INFO), data=[0x01, mainSeries, series=8, type=1, ...]
-        // Build a raw frame: AA AA 11 07 02 01 00 08 01 00 00 [checksum]
         val carTypeFrame = buildIM2Frame(0x11, 0x02, byteArrayOf(0x01, 0x00, 0x08, 0x01, 0x00, 0x00))
-
         decoder.decode(carTypeFrame, defaultState, defaultConfig)
 
+        // Advance to 4th tick to trigger init retry
+        repeat(3) { decoder.getKeepAliveCommand() }
         val command = decoder.getKeepAliveCommand()
         assertNotNull(command)
         val bytes = (command as WheelCommand.SendBytes).data
         assertEquals(0xAA.toByte(), bytes[0])
         assertEquals(0xAA.toByte(), bytes[1])
-        // After model detected, should request serial (MAIN_INFO with data 0x02)
-        assertEquals(0x11.toByte(), bytes[2]) // INITIAL flag
+        // After model detected, init retry should request serial (INITIAL flag)
+        assertEquals(0x11.toByte(), bytes[2])
     }
 
     @Test

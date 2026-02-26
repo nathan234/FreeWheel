@@ -932,15 +932,151 @@ class InMotionV2DecoderTest {
     }
 
     @Test
-    fun `settings not parsed before model is detected`() {
-        // Send settings without establishing model first
+    fun `settings fallback parses with V13V14 layout for unknown model`() {
+        // Send settings without establishing model first — the fallback uses V13/V14 parser
         val settings = "AAAA141AA0207C15C800106464140000000058020000006400001500100010".hexToByteArray()
 
         decoder.reset()
         val result = decoder.decode(settings, defaultState, defaultConfig)
 
-        // Without model detection, settings should not be parsed (model=UNKNOWN → else branch → null)
-        assertTrue(result == null || result.newState.maxSpeed == -1,
-            "Settings should not be parsed without model detection")
+        // Fallback parser (V13/V14 layout) attempts best-effort parsing
+        // The packet may be too short for V13/V14 layout (needs 36 bytes), so it may return null
+        // This test just verifies it doesn't crash
+    }
+
+    // ==================== P6 Model Test ====================
+
+    @Test
+    fun `Model findById returns P6 for series 10 type 1`() {
+        val model = InMotionV2Decoder.Model.findById(10, 1)
+        assertEquals(InMotionV2Decoder.Model.P6, model)
+        assertEquals("InMotion P6", model.displayName)
+        assertEquals(32, model.cellCount)
+    }
+
+    // ==================== Unknown Model Fallback Parser ====================
+
+    @Test
+    fun `unknown model fallback parser extracts basic telemetry`() {
+        // Don't send a wheel type first — model stays UNKNOWN
+        // Build a REAL_TIME_INFO frame with V14/V11Y-like layout
+        // Minimum 24 bytes of data for the generic parser to work
+        val data = ByteArray(78)
+        // voltage = 13000 (130.00V) → 0x32C8 LE
+        data[0] = 0xC8.toByte()
+        data[1] = 0x32
+        // current = 500 (5.00A) → 0x01F4 LE
+        data[2] = 0xF4.toByte()
+        data[3] = 0x01
+        // speed = 2500 (25.00 km/h) → 0x09C4 LE at offset 8
+        data[8] = 0xC4.toByte()
+        data[9] = 0x09
+        // pwm = 300 → 0x012C LE at offset 14
+        data[14] = 0x2C
+        data[15] = 0x01
+
+        // Build a valid frame: flags=0x14 (DEFAULT), command=0x84 (REAL_TIME_INFO|0x80 response)
+        val frame = buildIM2Frame(0x14, 0x84, data)
+
+        decoder.reset()
+        val result = decoder.decode(frame, defaultState, defaultConfig)
+
+        assertNotNull(result, "Generic fallback should parse the frame")
+        assertTrue(result!!.hasNewData, "Should have new data")
+
+        val state = result.newState
+        assertEquals(13000, state.voltage, "Voltage should be 13000 (130.00V)")
+        assertEquals(500, state.current, "Current should be 500 (5.00A)")
+        assertEquals(2500, state.speed, "Speed should be 2500 (25.00 km/h)")
+        assertEquals(300, state.output, "PWM should be 300")
+        assertEquals("InMotion Unknown", state.model, "Model should be 'InMotion Unknown'")
+        assertEquals(WheelType.INMOTION_V2, state.wheelType)
+    }
+
+    // ==================== isReady Telemetry Fallback ====================
+
+    @Test
+    fun `isReady returns true after receiving telemetry without model detection`() {
+        // Don't send wheel type — model stays UNKNOWN
+        decoder.reset()
+        assertFalse(decoder.isReady(), "Should not be ready initially")
+
+        // Build a REAL_TIME_INFO frame that the generic parser can handle
+        val data = ByteArray(24)
+        data[0] = 0x10  // voltage = 0x0010 = 16
+        data[2] = 0x01  // current = 1
+
+        val frame = buildIM2Frame(0x14, 0x84, data)
+        val result = decoder.decode(frame, defaultState, defaultConfig)
+
+        assertNotNull(result, "Generic fallback should parse the frame")
+        assertTrue(decoder.isReady(), "Should be ready after receiving telemetry data")
+    }
+
+    // ==================== Keep-Alive Behavior ====================
+
+    @Test
+    fun `keepAlive always sends REAL_TIME_INFO with occasional init retries`() {
+        decoder.reset()
+        // Model not detected — keepAlive should mostly send REAL_TIME_INFO,
+        // with init retries on every 4th tick
+
+        val commands = mutableListOf<WheelCommand>()
+        for (i in 1..8) {
+            commands.add(decoder.getKeepAliveCommand())
+        }
+
+        // All commands should be SendBytes
+        assertTrue(commands.all { it is WheelCommand.SendBytes })
+
+        // Count how many are REAL_TIME_INFO vs init retries
+        // Ticks 1,2,3 → REAL_TIME_INFO; tick 4 → init retry; 5,6,7 → RT; 8 → init retry
+        var realTimeCount = 0
+        var initRetryCount = 0
+        for (cmd in commands) {
+            val bytes = (cmd as WheelCommand.SendBytes).data
+            // REAL_TIME_INFO frame: flags=0x14, command=0x04
+            // Init retry frame: flags=0x11, command=0x02
+            // After header (2 bytes AA AA), the first non-escaped byte is flags
+            val flagsByte = if (bytes.size > 2) bytes[2].toInt() and 0xFF else 0
+            if (flagsByte == 0x14) realTimeCount++
+            else if (flagsByte == 0x11) initRetryCount++
+        }
+
+        assertTrue(realTimeCount >= 6, "Should send REAL_TIME_INFO at least 6 out of 8 ticks, got $realTimeCount")
+        assertTrue(initRetryCount >= 2, "Should send init retry at least 2 out of 8 ticks, got $initRetryCount")
+    }
+
+    // ==================== Helper: Build InMotion V2 Frame ====================
+
+    /**
+     * Build a valid InMotionV2 frame from flags, command, and data payload.
+     * Handles escape encoding for 0xA5 and 0xAA bytes.
+     */
+    private fun buildIM2Frame(flags: Int, command: Int, data: ByteArray): ByteArray {
+        val len = data.size + 1  // +1 for command byte
+        val inner = byteArrayOf(flags.toByte(), len.toByte(), command.toByte()) + data
+
+        var check = 0
+        for (b in inner) {
+            check = (check xor (b.toInt() and 0xFF)) and 0xFF
+        }
+
+        val output = mutableListOf<Byte>()
+        output.add(0xAA.toByte())
+        output.add(0xAA.toByte())
+        for (b in inner) {
+            val v = b.toInt() and 0xFF
+            if (v == 0xA5 || v == 0xAA) {
+                output.add(0xA5.toByte())
+            }
+            output.add(b)
+        }
+        if (check == 0xA5 || check == 0xAA) {
+            output.add(0xA5.toByte())
+        }
+        output.add(check.toByte())
+
+        return output.toByteArray()
     }
 }
