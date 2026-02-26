@@ -123,7 +123,12 @@ object WheelSettingsConfig {
         SettingsSection("Lighting", listOf(
             ControlSpec.Toggle("Headlight", SettingsCommandId.LIGHT_MODE),
             ControlSpec.Toggle("DRL", SettingsCommandId.DRL),
-            ControlSpec.Slider("Brightness", 0, 100, "%", 50, SettingsCommandId.LIGHT_BRIGHTNESS)
+            ControlSpec.Slider("Brightness", 0, 100, "%", 50, SettingsCommandId.LIGHT_BRIGHTNESS),
+            ControlSpec.Toggle("Auto Headlight", SettingsCommandId.AUTO_HEADLIGHT),
+            ControlSpec.Slider("Logo Light Brightness", 0, 100, "%", 50, SettingsCommandId.LOGO_LIGHT_BRIGHTNESS),
+            ControlSpec.Picker("Tail Light Mode", listOf("Off", "Highlight", "Hazard"), SettingsCommandId.TAIL_LIGHT_MODE),
+            ControlSpec.Picker("Turn Signal Mode", listOf("Off", "Always On", "Common", "Strobe", "Sync Tail"), SettingsCommandId.TURN_SIGNAL_MODE),
+            ControlSpec.Toggle("Light Effects", SettingsCommandId.LIGHT_EFFECT)
         )),
         SettingsSection("Ride", listOf(
             ControlSpec.Toggle("Handle Button", SettingsCommandId.HANDLE_BUTTON),
@@ -133,15 +138,45 @@ object WheelSettingsConfig {
             ControlSpec.Toggle("Transport Mode", SettingsCommandId.TRANSPORT_MODE),
             ControlSpec.Slider("Max Speed", 3, 60, "km/h", 30, SettingsCommandId.MAX_SPEED),
             ControlSpec.Slider("Pedal Tilt", -10, 10, "\u00B0", 0, SettingsCommandId.PEDAL_TILT),
-            ControlSpec.Slider("Pedal Sensitivity", 0, 100, "%", 50, SettingsCommandId.PEDAL_SENSITIVITY)
+            ControlSpec.Slider("Pedal Sensitivity", 0, 100, "%", 50, SettingsCommandId.PEDAL_SENSITIVITY),
+            ControlSpec.Toggle("One Pedal Mode", SettingsCommandId.ONE_PEDAL_MODE),
+            ControlSpec.Toggle("Cruise", SettingsCommandId.CRUISE),
+            ControlSpec.Slider("Turning Sensitivity", 0, 100, "%", 50, SettingsCommandId.TURNING_SENSITIVITY)
+        )),
+        SettingsSection("Berm Angle", listOf(
+            ControlSpec.Toggle("Berm Angle Mode", SettingsCommandId.BERM_ANGLE_MODE),
+            ControlSpec.Slider("Berm Angle", 0, 45, "\u00B0", 0, SettingsCommandId.BERM_ANGLE,
+                visibleWhen = SettingsCommandId.BERM_ANGLE_MODE)
+        )),
+        SettingsSection("Braking", listOf(
+            ControlSpec.Toggle("Speeding-Braking Feedback", SettingsCommandId.SPEEDING_BRAKING_MODE),
+            ControlSpec.Slider("Speeding-Braking Angle", 0, 45, "\u00B0", 0, SettingsCommandId.SPEEDING_BRAKING_ANGLE,
+                visibleWhen = SettingsCommandId.SPEEDING_BRAKING_MODE)
+        )),
+        SettingsSection("Audio", listOf(
+            ControlSpec.Slider("Speaker Volume", 0, 100, "", 50, SettingsCommandId.SPEAKER_VOLUME),
+            ControlSpec.Toggle("Mute", SettingsCommandId.MUTE),
+            ControlSpec.Toggle("Sound Wave", SettingsCommandId.SOUND_WAVE),
+            ControlSpec.Slider("Sound Wave Sensitivity", 0, 100, "%", 50, SettingsCommandId.SOUND_WAVE_SENSITIVITY,
+                visibleWhen = SettingsCommandId.SOUND_WAVE)
         )),
         SettingsSection("Thermal", listOf(
             ControlSpec.Toggle("Fan", SettingsCommandId.FAN),
             ControlSpec.Toggle("Fan Quiet Mode", SettingsCommandId.FAN_QUIET)
         )),
-        SettingsSection("Audio", listOf(
-            ControlSpec.Slider("Speaker Volume", 0, 100, "", 50, SettingsCommandId.SPEAKER_VOLUME),
-            ControlSpec.Toggle("Mute", SettingsCommandId.MUTE)
+        SettingsSection("Safety", listOf(
+            ControlSpec.Toggle("Safe Speed Limit (25 km/h)", SettingsCommandId.SAFE_SPEED_LIMIT),
+            ControlSpec.Toggle("Backward Overspeed Alert", SettingsCommandId.BACKWARD_OVERSPEED_ALERT),
+            ControlSpec.Toggle("Spin Kill", SettingsCommandId.SPIN_KILL),
+            ControlSpec.Toggle("Load Detect", SettingsCommandId.LOAD_DETECT)
+        )),
+        SettingsSection("Battery", listOf(
+            ControlSpec.Toggle("Two Battery Mode", SettingsCommandId.TWO_BATTERY_MODE),
+            ControlSpec.Toggle("Low Battery Safe Mode", SettingsCommandId.LOW_BATTERY_SAFE_MODE),
+            ControlSpec.Slider("Charge Limit", 50, 100, "%", 100, SettingsCommandId.CHARGE_LIMIT)
+        )),
+        SettingsSection("System", listOf(
+            ControlSpec.Slider("Standby Time", 1, 60, "min", 15, SettingsCommandId.STANDBY_TIME)
         )),
         SettingsSection("Dangerous Actions", listOf(
             lockToggle(),

@@ -268,6 +268,39 @@ sealed class WheelCommand {
 
     data class SetCutoutAngle(val angle: Int) : WheelCommand()
 
+    // --- InMotion V2 extended settings (command bytes TBD via BLE capture) ---
+
+    // Berm Angle
+    data class SetBermAngleMode(val enabled: Boolean) : WheelCommand()
+    data class SetBermAngle(val angle: Int) : WheelCommand()
+
+    // Ride Behavior
+    data class SetTurningSensitivity(val sensitivity: Int) : WheelCommand()
+    data class SetOnePedalMode(val enabled: Boolean) : WheelCommand()
+    data class SetSpeedingBrakingMode(val enabled: Boolean) : WheelCommand()
+    data class SetSpeedingBrakingAngle(val angle: Int) : WheelCommand()
+    data class SetSoundWave(val enabled: Boolean) : WheelCommand()
+    data class SetSoundWaveSensitivity(val sensitivity: Int) : WheelCommand()
+    data class SetSafeSpeedLimit(val enabled: Boolean) : WheelCommand()
+    data class SetBackwardOverspeedAlert(val enabled: Boolean) : WheelCommand()
+
+    // Lighting (extended)
+    data class SetTailLightMode(val mode: Int) : WheelCommand()
+    data class SetTurnSignalMode(val mode: Int) : WheelCommand()
+    data class SetLogoLightBrightness(val brightness: Int) : WheelCommand()
+    data class SetAutoHeadlight(val enabled: Boolean) : WheelCommand()
+    data class SetLightEffect(val enabled: Boolean) : WheelCommand()
+    data class SetLightEffectMode(val mode: Int) : WheelCommand()
+
+    // Battery & Safety
+    data class SetTwoBatteryMode(val enabled: Boolean) : WheelCommand()
+    data class SetLowBatterySafeMode(val enabled: Boolean) : WheelCommand()
+    data class SetSpinKill(val enabled: Boolean) : WheelCommand()
+    data class SetCruise(val enabled: Boolean) : WheelCommand()
+    data class SetLoadDetect(val enabled: Boolean) : WheelCommand()
+    data class SetStandbyTime(val minutes: Int) : WheelCommand()
+    data class SetChargeLimit(val percentage: Int) : WheelCommand()
+
     // --- BMS requests (Kingsong) ---
 
     /**

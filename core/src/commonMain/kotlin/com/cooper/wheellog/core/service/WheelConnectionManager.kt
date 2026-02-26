@@ -382,6 +382,30 @@ class WheelConnectionManager(
     suspend fun setPedalSensitivity(sensitivity: Int) { sendCommand(WheelCommand.SetPedalSensitivity(sensitivity)) }
     suspend fun setMilesMode(enabled: Boolean) { sendCommand(WheelCommand.SetMilesMode(enabled)) }
     suspend fun setCutoutAngle(angle: Int) { sendCommand(WheelCommand.SetCutoutAngle(angle)) }
+    // InMotion V2 extended settings
+    suspend fun setBermAngleMode(enabled: Boolean) { sendCommand(WheelCommand.SetBermAngleMode(enabled)) }
+    suspend fun setBermAngle(angle: Int) { sendCommand(WheelCommand.SetBermAngle(angle)) }
+    suspend fun setTurningSensitivity(sensitivity: Int) { sendCommand(WheelCommand.SetTurningSensitivity(sensitivity)) }
+    suspend fun setOnePedalMode(enabled: Boolean) { sendCommand(WheelCommand.SetOnePedalMode(enabled)) }
+    suspend fun setSpeedingBrakingMode(enabled: Boolean) { sendCommand(WheelCommand.SetSpeedingBrakingMode(enabled)) }
+    suspend fun setSpeedingBrakingAngle(angle: Int) { sendCommand(WheelCommand.SetSpeedingBrakingAngle(angle)) }
+    suspend fun setSoundWave(enabled: Boolean) { sendCommand(WheelCommand.SetSoundWave(enabled)) }
+    suspend fun setSoundWaveSensitivity(sensitivity: Int) { sendCommand(WheelCommand.SetSoundWaveSensitivity(sensitivity)) }
+    suspend fun setSafeSpeedLimit(enabled: Boolean) { sendCommand(WheelCommand.SetSafeSpeedLimit(enabled)) }
+    suspend fun setBackwardOverspeedAlert(enabled: Boolean) { sendCommand(WheelCommand.SetBackwardOverspeedAlert(enabled)) }
+    suspend fun setTailLightMode(mode: Int) { sendCommand(WheelCommand.SetTailLightMode(mode)) }
+    suspend fun setTurnSignalMode(mode: Int) { sendCommand(WheelCommand.SetTurnSignalMode(mode)) }
+    suspend fun setLogoLightBrightness(brightness: Int) { sendCommand(WheelCommand.SetLogoLightBrightness(brightness)) }
+    suspend fun setAutoHeadlight(enabled: Boolean) { sendCommand(WheelCommand.SetAutoHeadlight(enabled)) }
+    suspend fun setLightEffect(enabled: Boolean) { sendCommand(WheelCommand.SetLightEffect(enabled)) }
+    suspend fun setLightEffectMode(mode: Int) { sendCommand(WheelCommand.SetLightEffectMode(mode)) }
+    suspend fun setTwoBatteryMode(enabled: Boolean) { sendCommand(WheelCommand.SetTwoBatteryMode(enabled)) }
+    suspend fun setLowBatterySafeMode(enabled: Boolean) { sendCommand(WheelCommand.SetLowBatterySafeMode(enabled)) }
+    suspend fun setSpinKill(enabled: Boolean) { sendCommand(WheelCommand.SetSpinKill(enabled)) }
+    suspend fun setCruise(enabled: Boolean) { sendCommand(WheelCommand.SetCruise(enabled)) }
+    suspend fun setLoadDetect(enabled: Boolean) { sendCommand(WheelCommand.SetLoadDetect(enabled)) }
+    suspend fun setStandbyTime(minutes: Int) { sendCommand(WheelCommand.SetStandbyTime(minutes)) }
+    suspend fun setChargeLimit(percentage: Int) { sendCommand(WheelCommand.SetChargeLimit(percentage)) }
     suspend fun requestBmsData(bmsNum: Int, dataType: Int) { sendCommand(WheelCommand.RequestBmsData(bmsNum, dataType)) }
     suspend fun setKingsongAlarms(a1: Int, a2: Int, a3: Int, max: Int) { sendCommand(WheelCommand.SetKingsongAlarms(a1, a2, a3, max)) }
     suspend fun requestAlarmSettings() { sendCommand(WheelCommand.RequestAlarmSettings) }
@@ -428,6 +452,30 @@ class WheelConnectionManager(
             SettingsCommandId.POWER_OFF -> powerOff()
             SettingsCommandId.LOCK -> setLock(boolValue)
             SettingsCommandId.RESET_TRIP -> resetTrip()
+            // InMotion V2 extended settings
+            SettingsCommandId.BERM_ANGLE_MODE -> setBermAngleMode(boolValue)
+            SettingsCommandId.BERM_ANGLE -> setBermAngle(intValue)
+            SettingsCommandId.TURNING_SENSITIVITY -> setTurningSensitivity(intValue)
+            SettingsCommandId.ONE_PEDAL_MODE -> setOnePedalMode(boolValue)
+            SettingsCommandId.SPEEDING_BRAKING_MODE -> setSpeedingBrakingMode(boolValue)
+            SettingsCommandId.SPEEDING_BRAKING_ANGLE -> setSpeedingBrakingAngle(intValue)
+            SettingsCommandId.SOUND_WAVE -> setSoundWave(boolValue)
+            SettingsCommandId.SOUND_WAVE_SENSITIVITY -> setSoundWaveSensitivity(intValue)
+            SettingsCommandId.SAFE_SPEED_LIMIT -> setSafeSpeedLimit(boolValue)
+            SettingsCommandId.BACKWARD_OVERSPEED_ALERT -> setBackwardOverspeedAlert(boolValue)
+            SettingsCommandId.TAIL_LIGHT_MODE -> setTailLightMode(intValue)
+            SettingsCommandId.TURN_SIGNAL_MODE -> setTurnSignalMode(intValue)
+            SettingsCommandId.LOGO_LIGHT_BRIGHTNESS -> setLogoLightBrightness(intValue)
+            SettingsCommandId.AUTO_HEADLIGHT -> setAutoHeadlight(boolValue)
+            SettingsCommandId.LIGHT_EFFECT -> setLightEffect(boolValue)
+            SettingsCommandId.LIGHT_EFFECT_MODE -> setLightEffectMode(intValue)
+            SettingsCommandId.TWO_BATTERY_MODE -> setTwoBatteryMode(boolValue)
+            SettingsCommandId.LOW_BATTERY_SAFE_MODE -> setLowBatterySafeMode(boolValue)
+            SettingsCommandId.SPIN_KILL -> setSpinKill(boolValue)
+            SettingsCommandId.CRUISE -> setCruise(boolValue)
+            SettingsCommandId.LOAD_DETECT -> setLoadDetect(boolValue)
+            SettingsCommandId.STANDBY_TIME -> setStandbyTime(intValue)
+            SettingsCommandId.CHARGE_LIMIT -> setChargeLimit(intValue)
         }
     }
 

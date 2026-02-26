@@ -107,6 +107,31 @@ data class WheelState(
     val goHomeMode: Boolean = false,
     val fanQuiet: Boolean = false,
 
+    // InMotion V2 extended settings — populated by: IM2 only
+    val bermAngleMode: Boolean = false,
+    val bermAngle: Int = -1,            // degrees (-1=unknown)
+    val turningSensitivity: Int = -1,   // 0-100 (-1=unknown)
+    val onePedalMode: Boolean = false,
+    val speedingBrakingMode: Boolean = false,
+    val speedingBrakingAngle: Int = -1, // degrees (-1=unknown)
+    val soundWave: Boolean = false,
+    val soundWaveSensitivity: Int = -1, // 0-100 (-1=unknown)
+    val safeSpeedLimit: Boolean = false,
+    val backwardOverspeedAlert: Boolean = false,
+    val tailLightMode: Int = -1,        // enum: 0=off, 1=highlight, 2=hazard (-1=unknown)
+    val turnSignalMode: Int = -1,       // enum: 0=off, 1=always_on, 2=common, 3=strobe, 4=sync (-1=unknown)
+    val logoLightBrightness: Int = -1,  // 0-100 (-1=unknown)
+    val autoHeadlight: Boolean = false,
+    val lightEffect: Boolean = false,
+    val lightEffectMode: Int = -1,      // enum (-1=unknown)
+    val twoBatteryMode: Boolean = false,
+    val lowBatterySafeMode: Boolean = false,
+    val spinKill: Boolean = false,
+    val cruise: Boolean = false,
+    val loadDetect: Boolean = false,
+    val standbyTime: Int = -1,          // minutes (-1=unknown)
+    val chargeLimit: Int = -1,          // percentage (-1=unknown)
+
     // Error tracking
     val error: String = "",
     /** Alert string. Populated by: GW, IM1, IM2. */
@@ -191,7 +216,18 @@ data class WheelState(
         rideMode = rideMode, fancierMode = fancierMode, speakerVolume = speakerVolume,
         mute = mute, handleButton = handleButton, drl = drl,
         lightBrightness = lightBrightness, transportMode = transportMode,
-        goHomeMode = goHomeMode, fanQuiet = fanQuiet
+        goHomeMode = goHomeMode, fanQuiet = fanQuiet,
+        bermAngleMode = bermAngleMode, bermAngle = bermAngle,
+        turningSensitivity = turningSensitivity, onePedalMode = onePedalMode,
+        speedingBrakingMode = speedingBrakingMode, speedingBrakingAngle = speedingBrakingAngle,
+        soundWave = soundWave, soundWaveSensitivity = soundWaveSensitivity,
+        safeSpeedLimit = safeSpeedLimit, backwardOverspeedAlert = backwardOverspeedAlert,
+        tailLightMode = tailLightMode, turnSignalMode = turnSignalMode,
+        logoLightBrightness = logoLightBrightness, autoHeadlight = autoHeadlight,
+        lightEffect = lightEffect, lightEffectMode = lightEffectMode,
+        twoBatteryMode = twoBatteryMode, lowBatterySafeMode = lowBatterySafeMode,
+        spinKill = spinKill, cruise = cruise, loadDetect = loadDetect,
+        standbyTime = standbyTime, chargeLimit = chargeLimit
     )
 
     /** Extract identity fields (set once per connection). */

@@ -21,7 +21,19 @@ enum class SettingsCommandId {
     // Thermal
     FAN, FAN_QUIET,
     // Dangerous
-    CALIBRATE, POWER_OFF, LOCK, RESET_TRIP;
+    CALIBRATE, POWER_OFF, LOCK, RESET_TRIP,
+    // InMotion V2 extended
+    BERM_ANGLE_MODE, BERM_ANGLE,
+    TURNING_SENSITIVITY, ONE_PEDAL_MODE,
+    SPEEDING_BRAKING_MODE, SPEEDING_BRAKING_ANGLE,
+    SOUND_WAVE, SOUND_WAVE_SENSITIVITY,
+    SAFE_SPEED_LIMIT, BACKWARD_OVERSPEED_ALERT,
+    TAIL_LIGHT_MODE, TURN_SIGNAL_MODE,
+    LOGO_LIGHT_BRIGHTNESS, AUTO_HEADLIGHT,
+    LIGHT_EFFECT, LIGHT_EFFECT_MODE,
+    TWO_BATTERY_MODE, LOW_BATTERY_SAFE_MODE,
+    SPIN_KILL, CRUISE, LOAD_DETECT,
+    STANDBY_TIME, CHARGE_LIMIT;
 
     /** Read current int value from WheelState, or null if no readback. */
     fun readInt(state: WheelState): Int? = when (this) {
@@ -36,6 +48,16 @@ enum class SettingsCommandId {
         SPEAKER_VOLUME -> state.speakerVolume.takeIf { it >= 0 }
         BEEPER_VOLUME -> state.beeperVolume.takeIf { it >= 0 }
         LIGHT_BRIGHTNESS -> state.lightBrightness.takeIf { it >= 0 }
+        BERM_ANGLE -> state.bermAngle.takeIf { it >= 0 }
+        TURNING_SENSITIVITY -> state.turningSensitivity.takeIf { it >= 0 }
+        SPEEDING_BRAKING_ANGLE -> state.speedingBrakingAngle.takeIf { it >= 0 }
+        SOUND_WAVE_SENSITIVITY -> state.soundWaveSensitivity.takeIf { it >= 0 }
+        TAIL_LIGHT_MODE -> state.tailLightMode.takeIf { it >= 0 }
+        TURN_SIGNAL_MODE -> state.turnSignalMode.takeIf { it >= 0 }
+        LOGO_LIGHT_BRIGHTNESS -> state.logoLightBrightness.takeIf { it >= 0 }
+        LIGHT_EFFECT_MODE -> state.lightEffectMode.takeIf { it >= 0 }
+        STANDBY_TIME -> state.standbyTime.takeIf { it >= 0 }
+        CHARGE_LIMIT -> state.chargeLimit.takeIf { it >= 0 }
         else -> null
     }
 
@@ -50,6 +72,19 @@ enum class SettingsCommandId {
         TRANSPORT_MODE -> state.transportMode
         GO_HOME_MODE -> state.goHomeMode
         FAN_QUIET -> state.fanQuiet
+        BERM_ANGLE_MODE -> state.bermAngleMode
+        ONE_PEDAL_MODE -> state.onePedalMode
+        SPEEDING_BRAKING_MODE -> state.speedingBrakingMode
+        SOUND_WAVE -> state.soundWave
+        SAFE_SPEED_LIMIT -> state.safeSpeedLimit
+        BACKWARD_OVERSPEED_ALERT -> state.backwardOverspeedAlert
+        AUTO_HEADLIGHT -> state.autoHeadlight
+        LIGHT_EFFECT -> state.lightEffect
+        TWO_BATTERY_MODE -> state.twoBatteryMode
+        LOW_BATTERY_SAFE_MODE -> state.lowBatterySafeMode
+        SPIN_KILL -> state.spinKill
+        CRUISE -> state.cruise
+        LOAD_DETECT -> state.loadDetect
         else -> null
     }
 }

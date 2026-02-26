@@ -72,14 +72,19 @@ class WheelSettingsConfigTest {
     }
 
     @Test
-    fun `InMotionV2 has 5 sections - Lighting, Ride, Thermal, Audio, Dangerous`() {
+    fun `InMotionV2 has 10 sections`() {
         val sections = WheelSettingsConfig.sections(WheelType.INMOTION_V2)
-        assertEquals(5, sections.size)
+        assertEquals(10, sections.size)
         assertEquals("Lighting", sections[0].title)
         assertEquals("Ride", sections[1].title)
-        assertEquals("Thermal", sections[2].title)
-        assertEquals("Audio", sections[3].title)
-        assertEquals("Dangerous Actions", sections[4].title)
+        assertEquals("Berm Angle", sections[2].title)
+        assertEquals("Braking", sections[3].title)
+        assertEquals("Audio", sections[4].title)
+        assertEquals("Thermal", sections[5].title)
+        assertEquals("Safety", sections[6].title)
+        assertEquals("Battery", sections[7].title)
+        assertEquals("System", sections[8].title)
+        assertEquals("Dangerous Actions", sections[9].title)
     }
 
     @Test
@@ -180,7 +185,7 @@ class WheelSettingsConfigTest {
 
     @Test
     fun `InMotionV2 has Thermal section with Fan and Fan Quiet toggles`() {
-        val thermal = WheelSettingsConfig.sections(WheelType.INMOTION_V2)[2]
+        val thermal = WheelSettingsConfig.sections(WheelType.INMOTION_V2)[5]
         assertEquals("Thermal", thermal.title)
         assertEquals(2, thermal.controls.size)
 
@@ -195,7 +200,7 @@ class WheelSettingsConfigTest {
 
     @Test
     fun `InMotionV2 Dangerous has Lock toggle, Calibrate, Power Off`() {
-        val dangerous = WheelSettingsConfig.sections(WheelType.INMOTION_V2)[4]
+        val dangerous = WheelSettingsConfig.sections(WheelType.INMOTION_V2)[9]
         assertEquals("Dangerous Actions", dangerous.title)
         assertEquals(3, dangerous.controls.size)
 
@@ -245,23 +250,26 @@ class WheelSettingsConfigTest {
     }
 
     @Test
-    fun `InMotionV2 Ride has 8 controls including 5 toggles and 3 sliders`() {
+    fun `InMotionV2 Ride has 11 controls including 7 toggles and 4 sliders`() {
         val ride = WheelSettingsConfig.sections(WheelType.INMOTION_V2)[1]
-        assertEquals(8, ride.controls.size)
+        assertEquals(11, ride.controls.size)
 
         val toggles = ride.controls.filterIsInstance<ControlSpec.Toggle>()
-        assertEquals(5, toggles.size)
+        assertEquals(7, toggles.size)
         assertEquals(SettingsCommandId.HANDLE_BUTTON, toggles[0].commandId)
         assertEquals(SettingsCommandId.RIDE_MODE, toggles[1].commandId)
         assertEquals(SettingsCommandId.GO_HOME_MODE, toggles[2].commandId)
         assertEquals(SettingsCommandId.FANCIER_MODE, toggles[3].commandId)
         assertEquals(SettingsCommandId.TRANSPORT_MODE, toggles[4].commandId)
+        assertEquals(SettingsCommandId.ONE_PEDAL_MODE, toggles[5].commandId)
+        assertEquals(SettingsCommandId.CRUISE, toggles[6].commandId)
 
         val sliders = ride.controls.filterIsInstance<ControlSpec.Slider>()
-        assertEquals(3, sliders.size)
+        assertEquals(4, sliders.size)
         assertEquals(SettingsCommandId.MAX_SPEED, sliders[0].commandId)
         assertEquals(SettingsCommandId.PEDAL_TILT, sliders[1].commandId)
         assertEquals(SettingsCommandId.PEDAL_SENSITIVITY, sliders[2].commandId)
+        assertEquals(SettingsCommandId.TURNING_SENSITIVITY, sliders[3].commandId)
     }
 
     // ==================== Dangerous Actions Have Confirmation Messages ====================
@@ -479,10 +487,10 @@ class WheelSettingsConfigTest {
     // ==================== InMotionV2 Audio ====================
 
     @Test
-    fun `InMotionV2 Audio has Speaker Volume slider and Mute toggle`() {
-        val audio = WheelSettingsConfig.sections(WheelType.INMOTION_V2)[3]
+    fun `InMotionV2 Audio has Speaker Volume, Mute, Sound Wave, Sound Wave Sensitivity`() {
+        val audio = WheelSettingsConfig.sections(WheelType.INMOTION_V2)[4]
         assertEquals("Audio", audio.title)
-        assertEquals(2, audio.controls.size)
+        assertEquals(4, audio.controls.size)
 
         val volume = audio.controls[0] as ControlSpec.Slider
         assertEquals("Speaker Volume", volume.label)
@@ -492,22 +500,52 @@ class WheelSettingsConfigTest {
         val mute = audio.controls[1] as ControlSpec.Toggle
         assertEquals("Mute", mute.label)
         assertEquals(SettingsCommandId.MUTE, mute.commandId)
+
+        val soundWave = audio.controls[2] as ControlSpec.Toggle
+        assertEquals("Sound Wave", soundWave.label)
+        assertEquals(SettingsCommandId.SOUND_WAVE, soundWave.commandId)
+
+        val soundWaveSens = audio.controls[3] as ControlSpec.Slider
+        assertEquals("Sound Wave Sensitivity", soundWaveSens.label)
+        assertEquals(SettingsCommandId.SOUND_WAVE, soundWaveSens.visibleWhen)
     }
 
     // ==================== InMotionV2 Lighting ====================
 
     @Test
-    fun `InMotionV2 Lighting has Headlight, DRL, Brightness`() {
+    fun `InMotionV2 Lighting has 8 controls including extended lighting features`() {
         val lighting = WheelSettingsConfig.sections(WheelType.INMOTION_V2)[0]
-        assertEquals(3, lighting.controls.size)
+        assertEquals(8, lighting.controls.size)
 
-        assertTrue(lighting.controls[0] is ControlSpec.Toggle)
-        assertTrue(lighting.controls[1] is ControlSpec.Toggle)
+        // Original 3 controls
+        assertTrue(lighting.controls[0] is ControlSpec.Toggle) // Headlight
+        assertTrue(lighting.controls[1] is ControlSpec.Toggle) // DRL
 
         val brightness = lighting.controls[2] as ControlSpec.Slider
         assertEquals("Brightness", brightness.label)
         assertEquals(0, brightness.min)
         assertEquals(100, brightness.max)
         assertEquals("%", brightness.unit)
+
+        // Extended lighting controls
+        val autoHeadlight = lighting.controls[3] as ControlSpec.Toggle
+        assertEquals("Auto Headlight", autoHeadlight.label)
+        assertEquals(SettingsCommandId.AUTO_HEADLIGHT, autoHeadlight.commandId)
+
+        val logoBrightness = lighting.controls[4] as ControlSpec.Slider
+        assertEquals("Logo Light Brightness", logoBrightness.label)
+        assertEquals(SettingsCommandId.LOGO_LIGHT_BRIGHTNESS, logoBrightness.commandId)
+
+        val tailLight = lighting.controls[5] as ControlSpec.Picker
+        assertEquals("Tail Light Mode", tailLight.label)
+        assertEquals(listOf("Off", "Highlight", "Hazard"), tailLight.options)
+
+        val turnSignal = lighting.controls[6] as ControlSpec.Picker
+        assertEquals("Turn Signal Mode", turnSignal.label)
+        assertEquals(5, turnSignal.options.size)
+
+        val lightEffect = lighting.controls[7] as ControlSpec.Toggle
+        assertEquals("Light Effects", lightEffect.label)
+        assertEquals(SettingsCommandId.LIGHT_EFFECT, lightEffect.commandId)
     }
 }

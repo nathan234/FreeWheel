@@ -14,7 +14,10 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
-import kotlinx.coroutines.test.advanceUntilIdle
+// advanceUntilIdle removed — DataTimeoutTracker uses real clock (currentTimeMillis)
+// which never triggers under virtual time, causing advanceUntilIdle to loop forever.
+// Use runCurrent() instead: with UnconfinedTestDispatcher, launched coroutines run
+// eagerly so runCurrent() is sufficient to process init/response commands.
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlin.test.BeforeTest
@@ -134,7 +137,7 @@ class WheelConnectionManagerLifecycleTest {
         val manager = createManager()
         manager.connect("AA:BB:CC:DD:EE:FF")
         manager.onWheelTypeDetected(WheelType.KINGSONG)
-        advanceUntilIdle()
+        runCurrent()
 
         // Make decoder ready → Connected
         fakeDecoder.decodeResult = DecodedData(
@@ -255,7 +258,7 @@ class WheelConnectionManagerLifecycleTest {
         val manager = createManager()
         manager.connect("AA:BB:CC:DD:EE:FF")
         manager.onServicesDiscovered(kingsongServices, "KS-S18")
-        advanceUntilIdle()
+        runCurrent()
 
         assertTrue(
             fakeBle.writtenData.any { it.contentEquals(initData) },
@@ -277,7 +280,7 @@ class WheelConnectionManagerLifecycleTest {
         val manager = createManager()
         manager.connect("AA:BB:CC:DD:EE:FF")
         manager.onServicesDiscovered(kingsongServices, "KS-S18")
-        advanceUntilIdle()
+        runCurrent()
 
         assertTrue(fakeBle.writtenData.size >= 3, "Should have written at least 3 commands")
         // Find the init commands in order
@@ -294,7 +297,7 @@ class WheelConnectionManagerLifecycleTest {
         val manager = createManager()
         manager.connect("AA:BB:CC:DD:EE:FF")
         manager.onWheelTypeDetected(WheelType.KINGSONG)
-        advanceUntilIdle()
+        runCurrent()
 
         fakeDecoder.decodeResult = DecodedData(
             newState = WheelState(speed = 2500, voltage = 8400, batteryLevel = 85)
@@ -323,7 +326,7 @@ class WheelConnectionManagerLifecycleTest {
         val manager = createManager()
         manager.connect("AA:BB:CC:DD:EE:FF")
         manager.onWheelTypeDetected(WheelType.KINGSONG)
-        advanceUntilIdle()
+        runCurrent()
 
         // Set initial state via a decode
         fakeDecoder.decodeResult = DecodedData(
@@ -347,7 +350,7 @@ class WheelConnectionManagerLifecycleTest {
         val manager = createManager()
         manager.connect("AA:BB:CC:DD:EE:FF")
         manager.onWheelTypeDetected(WheelType.KINGSONG)
-        advanceUntilIdle()
+        runCurrent()
 
         fakeDecoder.decodeResult = DecodedData(
             newState = WheelState(speed = 2500, name = "KS-S18")
@@ -366,7 +369,7 @@ class WheelConnectionManagerLifecycleTest {
         val manager = createManager()
         manager.connect("AA:BB:CC:DD:EE:FF")
         manager.onWheelTypeDetected(WheelType.KINGSONG)
-        advanceUntilIdle()
+        runCurrent()
 
         fakeDecoder.decodeResult = DecodedData(
             newState = WheelState(speed = 2500)
@@ -386,7 +389,7 @@ class WheelConnectionManagerLifecycleTest {
         val manager = createManager()
         manager.connect("AA:BB:CC:DD:EE:FF")
         manager.onWheelTypeDetected(WheelType.KINGSONG)
-        advanceUntilIdle()
+        runCurrent()
 
         fakeDecoder.decodeResult = DecodedData(
             newState = WheelState(speed = 2500, name = "KS-S18")
@@ -431,7 +434,7 @@ class WheelConnectionManagerLifecycleTest {
         val manager = createManager()
         manager.connect("AA:BB:CC:DD:EE:FF")
         manager.onWheelTypeDetected(WheelType.KINGSONG)
-        advanceUntilIdle()
+        runCurrent()
 
         fakeDecoder.decodeResult = DecodedData(
             newState = WheelState(speed = 100, name = "KS-S18")
@@ -482,7 +485,7 @@ class WheelConnectionManagerLifecycleTest {
         val manager = createManager()
         manager.connect("AA:BB:CC:DD:EE:FF")
         manager.onWheelTypeDetected(WheelType.KINGSONG)
-        advanceUntilIdle()
+        runCurrent()
         fakeBle.clearWrittenData()
 
         // Decoder returns a response command (like KS 0xA4 → 0x98 acknowledgment)
@@ -492,7 +495,7 @@ class WheelConnectionManagerLifecycleTest {
         )
 
         manager.onDataReceived(byteArrayOf(0x01))
-        advanceUntilIdle()
+        runCurrent()
 
         assertTrue(
             fakeBle.writtenData.any { it.contentEquals(responseData) },
@@ -507,7 +510,7 @@ class WheelConnectionManagerLifecycleTest {
         val manager = createManager()
         manager.connect("AA:BB:CC:DD:EE:FF")
         manager.onWheelTypeDetected(WheelType.KINGSONG)
-        advanceUntilIdle()
+        runCurrent()
         fakeBle.clearWrittenData()
 
         fakeDecoder.decodeResult = DecodedData(
@@ -519,7 +522,7 @@ class WheelConnectionManagerLifecycleTest {
         )
 
         manager.onDataReceived(byteArrayOf(0x01))
-        advanceUntilIdle()
+        runCurrent()
 
         val respWrites = fakeBle.writtenData.filter {
             it.contentEquals(resp1) || it.contentEquals(resp2)
@@ -563,11 +566,11 @@ class WheelConnectionManagerLifecycleTest {
         val manager = createManager()
         manager.connect("AA:BB:CC:DD:EE:FF")
         manager.onWheelTypeDetected(WheelType.KINGSONG)
-        advanceUntilIdle()
+        runCurrent()
         fakeBle.clearWrittenData()
 
         manager.sendCommand(WheelCommand.Beep)
-        advanceUntilIdle()
+        runCurrent()
 
         assertTrue(
             fakeBle.writtenData.any { it.contentEquals(builtData) },
@@ -601,13 +604,13 @@ class WheelConnectionManagerLifecycleTest {
         val manager = createManager()
         manager.connect("AA:BB:CC:DD:EE:FF")
         manager.onWheelTypeDetected(WheelType.KINGSONG)
-        advanceUntilIdle()
+        runCurrent()
 
         assertFalse(fakeDecoder.resetCalled)
 
         // Change wheel type
         manager.onWheelTypeDetected(WheelType.VETERAN)
-        advanceUntilIdle()
+        runCurrent()
 
         assertTrue(fakeDecoder.resetCalled, "Previous decoder should be reset")
     }
