@@ -492,6 +492,7 @@ class InMotionV2Decoder : WheelDecoder {
                 cpuTemp = cpuTemp,
                 imuTemp = imuTemp,
                 output = pwm,
+                calculatedPwm = pwm / 10000.0,
                 modeStr = modeStr,
                 alert = alert,
                 model = model.displayName,
@@ -553,6 +554,7 @@ class InMotionV2Decoder : WheelDecoder {
                 cpuTemp = cpuTemp,
                 imuTemp = imuTemp,
                 output = pwm,
+                calculatedPwm = pwm / 10000.0,
                 modeStr = modeStr,
                 alert = alert,
                 model = model.displayName,
@@ -619,6 +621,7 @@ class InMotionV2Decoder : WheelDecoder {
                 cpuTemp = cpuTemp,
                 imuTemp = imuTemp,
                 output = pwm,
+                calculatedPwm = pwm / 10000.0,
                 model = displayName,
                 wheelType = WheelType.INMOTION_V2
             ),
