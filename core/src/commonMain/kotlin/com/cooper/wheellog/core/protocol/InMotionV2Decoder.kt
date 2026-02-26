@@ -330,18 +330,13 @@ class InMotionV2Decoder : WheelDecoder {
     private fun processRealTimeInfo(message: Message, currentState: WheelState): FrameResult? {
         val result = when (model) {
             Model.V11 -> {
-                if (protoVer < 2) {
-                    parseRealTimeInfoV11(message.data, currentState)
-                } else {
-                    parseRealTimeInfoV11_1_4(message.data, currentState)
-                }
+                if (protoVer < 2) parseRealTimeInfoV11Old(message.data, currentState)
+                else parseByLayout(Layouts.V11_1_4, message.data, currentState)
             }
-            Model.V11Y -> parseRealTimeInfoV11y(message.data, currentState)
-            Model.V12HS, Model.V12HT, Model.V12PRO -> parseRealTimeInfoV12(message.data, currentState)
-            Model.V13, Model.V13PRO -> parseRealTimeInfoV13(message.data, currentState)
-            Model.V14g, Model.V14s -> parseRealTimeInfoV14(message.data, currentState)
-            Model.V9 -> parseRealTimeInfoV9(message.data, currentState)
-            Model.V12S -> parseRealTimeInfoV12S(message.data, currentState)
+            Model.V11Y, Model.V9, Model.V12S -> parseByLayout(Layouts.EXTENDED, message.data, currentState)
+            Model.V12HS, Model.V12HT, Model.V12PRO -> parseByLayout(Layouts.V12, message.data, currentState)
+            Model.V13, Model.V13PRO -> parseByLayout(Layouts.V13, message.data, currentState)
+            Model.V14g, Model.V14s -> parseByLayout(Layouts.V14, message.data, currentState)
             else -> parseRealTimeInfoGeneric(message.data, currentState)
         }
         if (result?.hasNewData == true) {
@@ -350,9 +345,170 @@ class InMotionV2Decoder : WheelDecoder {
         return result
     }
 
-    // ==================== V11 Parsing ====================
+    // ==================== Layout-driven Real-Time Parsing ====================
 
-    private fun parseRealTimeInfoV11(data: ByteArray, currentState: WheelState): FrameResult? {
+    private enum class MileageType { SHORT_TIMES_10, INT_REV_LE }
+    private enum class BatLevelType { SINGLE_BYTE_MASKED, SHORT_DIV_100, DUAL_SHORT_AVG }
+
+    /**
+     * Describes the byte-offset layout for a model's real-time telemetry frame.
+     * Each field is the byte offset within the data payload.
+     */
+    private data class RealTimeLayout(
+        val minSize: Int,
+        val voltage: Int,
+        val current: Int,
+        val speed: Int,
+        val torque: Int,
+        val pwm: Int,
+        val batPower: Int,
+        val motPower: Int,
+        val pitchAngle: Int,
+        val rollAngle: Int,
+        val mileage: Int,
+        val batLevel: Int,
+        val speedLimit: Int,
+        val currentLimit: Int,
+        val mosTemp: Int,
+        val temp2: Int,
+        val cpuTemp: Int,
+        val imuTemp: Int,
+        val modeString: Int,
+        val error: Int,
+        val mileageType: MileageType,
+        val batLevelType: BatLevelType,
+        val liftedByteOffset: Int
+    )
+
+    private object Layouts {
+        val V11_1_4 = RealTimeLayout(
+            minSize = 57, voltage = 0, current = 2, speed = 4, torque = 6, pwm = 8,
+            batPower = 10, motPower = 12, pitchAngle = 16, rollAngle = 20,
+            mileage = 26, batLevel = 28, speedLimit = 34, currentLimit = 36,
+            mosTemp = 42, temp2 = 45, cpuTemp = 46, imuTemp = 47,
+            modeString = 56, error = 61,
+            mileageType = MileageType.SHORT_TIMES_10,
+            batLevelType = BatLevelType.SHORT_DIV_100,
+            liftedByteOffset = 1
+        )
+        val V12 = RealTimeLayout(
+            minSize = 60, voltage = 0, current = 2, speed = 4, torque = 6, pwm = 8,
+            batPower = 10, motPower = 12, pitchAngle = 16, rollAngle = 20,
+            mileage = 22, batLevel = 24, speedLimit = 30, currentLimit = 32,
+            mosTemp = 40, temp2 = 41, cpuTemp = 44, imuTemp = 45,
+            modeString = 54, error = 59,
+            mileageType = MileageType.SHORT_TIMES_10,
+            batLevelType = BatLevelType.SHORT_DIV_100,
+            liftedByteOffset = 1
+        )
+        val V13 = RealTimeLayout(
+            minSize = 77, voltage = 0, current = 2, speed = 8, torque = 18, pwm = 14,
+            batPower = 16, motPower = 22, pitchAngle = 6, rollAngle = 24,
+            mileage = 10, batLevel = 34, speedLimit = 40, currentLimit = 50,
+            mosTemp = 58, temp2 = 59, cpuTemp = 62, imuTemp = 63,
+            modeString = 74, error = 76,
+            mileageType = MileageType.INT_REV_LE,
+            batLevelType = BatLevelType.DUAL_SHORT_AVG,
+            liftedByteOffset = 1
+        )
+        val V14 = RealTimeLayout(
+            minSize = 78, voltage = 0, current = 2, speed = 8, torque = 12, pwm = 14,
+            batPower = 16, motPower = 18, pitchAngle = 20, rollAngle = 22,
+            mileage = 28, batLevel = 34, speedLimit = 40, currentLimit = 50,
+            mosTemp = 58, temp2 = 59, cpuTemp = 62, imuTemp = 63,
+            modeString = 74, error = 77,
+            mileageType = MileageType.SHORT_TIMES_10,
+            batLevelType = BatLevelType.DUAL_SHORT_AVG,
+            liftedByteOffset = 2
+        )
+        /** V11Y, V9, V12S — same offsets as V14 but standard lifted byte. */
+        val EXTENDED = RealTimeLayout(
+            minSize = 78, voltage = 0, current = 2, speed = 8, torque = 12, pwm = 14,
+            batPower = 16, motPower = 18, pitchAngle = 20, rollAngle = 22,
+            mileage = 28, batLevel = 34, speedLimit = 40, currentLimit = 50,
+            mosTemp = 58, temp2 = 59, cpuTemp = 62, imuTemp = 63,
+            modeString = 74, error = 77,
+            mileageType = MileageType.SHORT_TIMES_10,
+            batLevelType = BatLevelType.DUAL_SHORT_AVG,
+            liftedByteOffset = 1
+        )
+    }
+
+    /**
+     * Shared parser that reads telemetry fields according to a [RealTimeLayout].
+     */
+    private fun parseByLayout(layout: RealTimeLayout, data: ByteArray, currentState: WheelState): FrameResult? {
+        if (data.size < layout.minSize) return null
+
+        val voltage = ByteUtils.shortFromBytesLE(data, layout.voltage)
+        val current = ByteUtils.signedShortFromBytesLE(data, layout.current)
+        val speed = ByteUtils.signedShortFromBytesLE(data, layout.speed)
+        val torque = ByteUtils.signedShortFromBytesLE(data, layout.torque)
+        val pwm = ByteUtils.signedShortFromBytesLE(data, layout.pwm)
+        val batPower = ByteUtils.signedShortFromBytesLE(data, layout.batPower)
+        val motPower = ByteUtils.signedShortFromBytesLE(data, layout.motPower)
+        val pitchAngle = ByteUtils.signedShortFromBytesLE(data, layout.pitchAngle)
+        val rollAngle = ByteUtils.signedShortFromBytesLE(data, layout.rollAngle)
+
+        val mileage = when (layout.mileageType) {
+            MileageType.SHORT_TIMES_10 -> (ByteUtils.shortFromBytesLE(data, layout.mileage) * 10).toLong()
+            MileageType.INT_REV_LE -> ByteUtils.intFromBytesRevLE(data, layout.mileage)
+        }
+        val batLevel = when (layout.batLevelType) {
+            BatLevelType.SHORT_DIV_100 -> (ByteUtils.shortFromBytesLE(data, layout.batLevel) / 100.0).roundToInt()
+            BatLevelType.DUAL_SHORT_AVG -> {
+                val b1 = ByteUtils.shortFromBytesLE(data, layout.batLevel)
+                val b2 = ByteUtils.shortFromBytesLE(data, layout.batLevel + 2)
+                ((b1 + b2) / 200.0).roundToInt()
+            }
+            BatLevelType.SINGLE_BYTE_MASKED -> data[layout.batLevel].toInt() and 0x7F
+        }
+
+        val mosTemp = decodeTemperature(data[layout.mosTemp])
+        val temp2 = decodeTemperature(data[layout.temp2])
+        val cpuTemp = decodeTemperature(data[layout.cpuTemp])
+        val imuTemp = decodeTemperature(data[layout.imuTemp])
+        val speedLimit = ByteUtils.shortFromBytesLE(data, layout.speedLimit)
+        val currentLimit = ByteUtils.shortFromBytesLE(data, layout.currentLimit)
+        val modeStr = buildModeString(data, layout.modeString, layout.liftedByteOffset)
+        val alert = getErrorString(data, layout.error)
+
+        return FrameResult(
+            state = currentState.copy(
+                voltage = voltage,
+                current = current,
+                speed = speed,
+                torque = torque / 100.0,
+                motorPower = motPower.toDouble(),
+                power = batPower * 100,
+                wheelDistance = mileage,
+                batteryLevel = batLevel,
+                temperature = mosTemp * 100,
+                temperature2 = temp2 * 100,
+                angle = pitchAngle / 100.0,
+                roll = rollAngle / 100.0,
+                speedLimit = speedLimit / 100.0,
+                currentLimit = currentLimit / 100.0,
+                cpuTemp = cpuTemp,
+                imuTemp = imuTemp,
+                output = pwm,
+                modeStr = modeStr,
+                alert = alert,
+                model = model.displayName,
+                wheelType = WheelType.INMOTION_V2
+            ),
+            hasNewData = true,
+            news = alert.ifEmpty { null }
+        )
+    }
+
+    // ==================== V11 Old Protocol Parsing ====================
+
+    /**
+     * V11 old protocol (protoVer < 2): unique field order and conditional state offset.
+     * Not suitable for layout-driven parsing due to genuinely different structure.
+     */
+    private fun parseRealTimeInfoV11Old(data: ByteArray, currentState: WheelState): FrameResult? {
         if (data.size < 38) return null
 
         val voltage = ByteUtils.shortFromBytesLE(data, 0)
@@ -373,7 +529,7 @@ class InMotionV2Decoder : WheelDecoder {
         val imuTemp = decodeTemperature(data[35])
         val pwm = ByteUtils.shortFromBytesLE(data, 36)
 
-        // State data
+        // State data — conditional offset based on frame size
         val stateIndex = if (data.size < 49) 36 else 38
         val modeStr = buildModeString(data, stateIndex)
         val alert = getErrorString(data, stateIndex + 5)
@@ -405,296 +561,6 @@ class InMotionV2Decoder : WheelDecoder {
             hasNewData = true,
             news = alert.ifEmpty { null }
         )
-    }
-
-    private fun parseRealTimeInfoV11_1_4(data: ByteArray, currentState: WheelState): FrameResult? {
-        if (data.size < 57) return null
-
-        val voltage = ByteUtils.shortFromBytesLE(data, 0)
-        val current = ByteUtils.signedShortFromBytesLE(data, 2)
-        val speed = ByteUtils.signedShortFromBytesLE(data, 4)
-        val torque = ByteUtils.signedShortFromBytesLE(data, 6)
-        val pwm = ByteUtils.signedShortFromBytesLE(data, 8)
-        val batPower = ByteUtils.signedShortFromBytesLE(data, 10)
-        val motPower = ByteUtils.signedShortFromBytesLE(data, 12)
-        val pitchAngle = ByteUtils.signedShortFromBytesLE(data, 16)
-        val rollAngle = ByteUtils.signedShortFromBytesLE(data, 20)
-        val mileage = ByteUtils.shortFromBytesLE(data, 26) * 10
-        val batLevel = ByteUtils.shortFromBytesLE(data, 28)
-        val dynamicSpeedLimit = ByteUtils.shortFromBytesLE(data, 34)
-        val dynamicCurrentLimit = ByteUtils.shortFromBytesLE(data, 36)
-        val mosTemp = decodeTemperature(data[42])
-        val boardTemp = decodeTemperature(data[45])
-        val cpuTemp = decodeTemperature(data[46])
-        val imuTemp = decodeTemperature(data[47])
-
-        val modeStr = buildModeString(data, 56)
-        val alert = getErrorString(data, 61)
-
-        return FrameResult(
-            state = currentState.copy(
-                voltage = voltage,
-                current = current,
-                speed = speed,
-                torque = torque / 100.0,
-                motorPower = motPower.toDouble(),
-                power = batPower * 100,
-                wheelDistance = mileage.toLong(),
-                batteryLevel = (batLevel / 100.0).roundToInt(),
-                temperature = mosTemp * 100,
-                temperature2 = boardTemp * 100,
-                angle = pitchAngle / 100.0,
-                roll = rollAngle / 100.0,
-                speedLimit = dynamicSpeedLimit / 100.0,
-                currentLimit = dynamicCurrentLimit / 100.0,
-                cpuTemp = cpuTemp,
-                imuTemp = imuTemp,
-                output = pwm,
-                modeStr = modeStr,
-                alert = alert,
-                model = model.displayName,
-                wheelType = WheelType.INMOTION_V2
-            ),
-            hasNewData = true,
-            news = alert.ifEmpty { null }
-        )
-    }
-
-    // ==================== V12 Parsing ====================
-
-    private fun parseRealTimeInfoV12(data: ByteArray, currentState: WheelState): FrameResult? {
-        if (data.size < 60) return null
-
-        val voltage = ByteUtils.shortFromBytesLE(data, 0)
-        val current = ByteUtils.signedShortFromBytesLE(data, 2)
-        val speed = ByteUtils.signedShortFromBytesLE(data, 4)
-        val torque = ByteUtils.signedShortFromBytesLE(data, 6)
-        val pwm = ByteUtils.signedShortFromBytesLE(data, 8)
-        val batPower = ByteUtils.signedShortFromBytesLE(data, 10)
-        val motPower = ByteUtils.signedShortFromBytesLE(data, 12)
-        val pitchAngle = ByteUtils.signedShortFromBytesLE(data, 16)
-        val rollAngle = ByteUtils.signedShortFromBytesLE(data, 20)
-        val mileage = ByteUtils.shortFromBytesLE(data, 22) * 10
-        val batLevel = ByteUtils.shortFromBytesLE(data, 24)
-        val dynamicSpeedLimit = ByteUtils.shortFromBytesLE(data, 30)
-        val dynamicCurrentLimit = ByteUtils.shortFromBytesLE(data, 32)
-        val mosTemp = decodeTemperature(data[40])
-        val motTemp = decodeTemperature(data[41])
-        val cpuTemp = decodeTemperature(data[44])
-        val imuTemp = decodeTemperature(data[45])
-
-        val modeStr = buildModeString(data, 54)
-        val alert = getErrorString(data, 59)
-
-        return FrameResult(
-            state = currentState.copy(
-                voltage = voltage,
-                current = current,
-                speed = speed,
-                torque = torque / 100.0,
-                motorPower = motPower.toDouble(),
-                power = batPower * 100,
-                wheelDistance = mileage.toLong(),
-                batteryLevel = (batLevel / 100.0).roundToInt(),
-                temperature = mosTemp * 100,
-                temperature2 = motTemp * 100,
-                angle = pitchAngle / 100.0,
-                roll = rollAngle / 100.0,
-                speedLimit = dynamicSpeedLimit / 100.0,
-                currentLimit = dynamicCurrentLimit / 100.0,
-                cpuTemp = cpuTemp,
-                imuTemp = imuTemp,
-                output = pwm,
-                modeStr = modeStr,
-                alert = alert,
-                model = model.displayName,
-                wheelType = WheelType.INMOTION_V2
-            ),
-            hasNewData = true,
-            news = alert.ifEmpty { null }
-        )
-    }
-
-    // ==================== V13 Parsing ====================
-
-    private fun parseRealTimeInfoV13(data: ByteArray, currentState: WheelState): FrameResult? {
-        if (data.size < 77) return null
-
-        val voltage = ByteUtils.shortFromBytesLE(data, 0)
-        val current = ByteUtils.signedShortFromBytesLE(data, 2)
-        val pitchAngle = ByteUtils.signedShortFromBytesLE(data, 6)
-        val speed = ByteUtils.signedShortFromBytesLE(data, 8)
-        val mileage = ByteUtils.intFromBytesRevLE(data, 10)
-        val pwm = ByteUtils.signedShortFromBytesLE(data, 14)
-        val batPower = ByteUtils.signedShortFromBytesLE(data, 16)
-        val torque = ByteUtils.signedShortFromBytesLE(data, 18)
-        val motPower = ByteUtils.signedShortFromBytesLE(data, 22)
-        val rollAngle = ByteUtils.signedShortFromBytesLE(data, 24)
-        val batLevel1 = ByteUtils.shortFromBytesLE(data, 34)
-        val batLevel2 = ByteUtils.shortFromBytesLE(data, 36)
-        val dynamicSpeedLimit = ByteUtils.shortFromBytesLE(data, 40)
-        val dynamicCurrentLimit = ByteUtils.shortFromBytesLE(data, 50)
-        val mosTemp = decodeTemperature(data[58])
-        val motTemp = decodeTemperature(data[59])
-        val cpuTemp = decodeTemperature(data[62])
-        val imuTemp = decodeTemperature(data[63])
-
-        val modeStr = buildModeString(data, 74)
-        val alert = getErrorString(data, 76)
-
-        return FrameResult(
-            state = currentState.copy(
-                voltage = voltage,
-                current = current,
-                speed = speed,
-                torque = torque / 100.0,
-                motorPower = motPower.toDouble(),
-                power = batPower * 100,
-                wheelDistance = mileage,
-                batteryLevel = ((batLevel1 + batLevel2) / 200.0).roundToInt(),
-                temperature = mosTemp * 100,
-                temperature2 = motTemp * 100,
-                angle = pitchAngle / 100.0,
-                roll = rollAngle / 100.0,
-                speedLimit = dynamicSpeedLimit / 100.0,
-                currentLimit = dynamicCurrentLimit / 100.0,
-                cpuTemp = cpuTemp,
-                imuTemp = imuTemp,
-                output = pwm,
-                modeStr = modeStr,
-                alert = alert,
-                model = model.displayName,
-                wheelType = WheelType.INMOTION_V2
-            ),
-            hasNewData = true,
-            news = alert.ifEmpty { null }
-        )
-    }
-
-    // ==================== V14 Parsing ====================
-
-    private fun parseRealTimeInfoV14(data: ByteArray, currentState: WheelState): FrameResult? {
-        if (data.size < 78) return null
-
-        val voltage = ByteUtils.shortFromBytesLE(data, 0)
-        val current = ByteUtils.signedShortFromBytesLE(data, 2)
-        val speed = ByteUtils.signedShortFromBytesLE(data, 8)
-        val torque = ByteUtils.signedShortFromBytesLE(data, 12)
-        val pwm = ByteUtils.signedShortFromBytesLE(data, 14)
-        val batPower = ByteUtils.signedShortFromBytesLE(data, 16)
-        val motPower = ByteUtils.signedShortFromBytesLE(data, 18)
-        val pitchAngle = ByteUtils.signedShortFromBytesLE(data, 20)
-        val rollAngle = ByteUtils.signedShortFromBytesLE(data, 22)
-        val mileage = ByteUtils.shortFromBytesLE(data, 28) * 10
-        val batLevel1 = ByteUtils.shortFromBytesLE(data, 34)
-        val batLevel2 = ByteUtils.shortFromBytesLE(data, 36)
-        val dynamicSpeedLimit = ByteUtils.shortFromBytesLE(data, 40)
-        val dynamicCurrentLimit = ByteUtils.shortFromBytesLE(data, 50)
-        val mosTemp = decodeTemperature(data[58])
-        val motTemp = decodeTemperature(data[59])
-        val cpuTemp = decodeTemperature(data[62])
-        val imuTemp = decodeTemperature(data[63])
-
-        val modeStr = buildModeStringV14(data, 74)
-        val alert = getErrorString(data, 77)
-
-        return FrameResult(
-            state = currentState.copy(
-                voltage = voltage,
-                current = current,
-                speed = speed,
-                torque = torque / 100.0,
-                motorPower = motPower.toDouble(),
-                power = batPower * 100,
-                wheelDistance = mileage.toLong(),
-                batteryLevel = ((batLevel1 + batLevel2) / 200.0).roundToInt(),
-                temperature = mosTemp * 100,
-                temperature2 = motTemp * 100,
-                angle = pitchAngle / 100.0,
-                roll = rollAngle / 100.0,
-                speedLimit = dynamicSpeedLimit / 100.0,
-                currentLimit = dynamicCurrentLimit / 100.0,
-                cpuTemp = cpuTemp,
-                imuTemp = imuTemp,
-                output = pwm,
-                modeStr = modeStr,
-                alert = alert,
-                model = model.displayName,
-                wheelType = WheelType.INMOTION_V2
-            ),
-            hasNewData = true,
-            news = alert.ifEmpty { null }
-        )
-    }
-
-    // ==================== V11Y Parsing ====================
-
-    private fun parseRealTimeInfoV11y(data: ByteArray, currentState: WheelState): FrameResult? {
-        if (data.size < 78) return null
-
-        val voltage = ByteUtils.shortFromBytesLE(data, 0)
-        val current = ByteUtils.signedShortFromBytesLE(data, 2)
-        val speed = ByteUtils.signedShortFromBytesLE(data, 8)
-        val torque = ByteUtils.signedShortFromBytesLE(data, 12)
-        val pwm = ByteUtils.signedShortFromBytesLE(data, 14)
-        val batPower = ByteUtils.signedShortFromBytesLE(data, 16)
-        val motPower = ByteUtils.signedShortFromBytesLE(data, 18)
-        val pitchAngle = ByteUtils.signedShortFromBytesLE(data, 20)
-        val rollAngle = ByteUtils.signedShortFromBytesLE(data, 22)
-        val mileage = ByteUtils.shortFromBytesLE(data, 28) * 10
-        val batLevel1 = ByteUtils.shortFromBytesLE(data, 34)
-        val batLevel2 = ByteUtils.shortFromBytesLE(data, 36)
-        val dynamicSpeedLimit = ByteUtils.shortFromBytesLE(data, 40)
-        val dynamicCurrentLimit = ByteUtils.shortFromBytesLE(data, 50)
-        val mosTemp = decodeTemperature(data[58])
-        val motTemp = decodeTemperature(data[59])
-        val cpuTemp = decodeTemperature(data[62])
-        val imuTemp = decodeTemperature(data[63])
-
-        val modeStr = buildModeStringExtended(data, 74)
-        val alert = getErrorString(data, 77)
-
-        return FrameResult(
-            state = currentState.copy(
-                voltage = voltage,
-                current = current,
-                speed = speed,
-                torque = torque / 100.0,
-                motorPower = motPower.toDouble(),
-                power = batPower * 100,
-                wheelDistance = mileage.toLong(),
-                batteryLevel = ((batLevel1 + batLevel2) / 200.0).roundToInt(),
-                temperature = mosTemp * 100,
-                temperature2 = motTemp * 100,
-                angle = pitchAngle / 100.0,
-                roll = rollAngle / 100.0,
-                speedLimit = dynamicSpeedLimit / 100.0,
-                currentLimit = dynamicCurrentLimit / 100.0,
-                cpuTemp = cpuTemp,
-                imuTemp = imuTemp,
-                output = pwm,
-                modeStr = modeStr,
-                alert = alert,
-                model = model.displayName,
-                wheelType = WheelType.INMOTION_V2
-            ),
-            hasNewData = true,
-            news = alert.ifEmpty { null }
-        )
-    }
-
-    // ==================== V9 Parsing ====================
-
-    private fun parseRealTimeInfoV9(data: ByteArray, currentState: WheelState): FrameResult? {
-        // V9 uses same format as V11Y
-        return parseRealTimeInfoV11y(data, currentState)
-    }
-
-    // ==================== V12S Parsing ====================
-
-    private fun parseRealTimeInfoV12S(data: ByteArray, currentState: WheelState): FrameResult? {
-        // V12S uses same format as V11Y
-        return parseRealTimeInfoV11y(data, currentState)
     }
 
     // ==================== Generic Fallback Parsing ====================
@@ -962,56 +828,19 @@ class InMotionV2Decoder : WheelDecoder {
 
     /**
      * Build mode string from state data.
+     *
+     * @param liftedByteOffset byte offset from [index] where the lifted-state bit lives.
+     *   Standard (V11, V12, V13, V11Y, V9, V12S) = 1; V14 = 2.
      */
-    private fun buildModeString(data: ByteArray, index: Int): String {
-        if (data.size <= index + 1) return ""
+    private fun buildModeString(data: ByteArray, index: Int, liftedByteOffset: Int = 1): String {
+        if (data.size <= index + liftedByteOffset) return ""
 
         val stateByte = data[index].toInt() and 0xFF
-        val stateByte2 = data[index + 1].toInt() and 0xFF
+        val liftedByte = data[index + liftedByteOffset].toInt() and 0xFF
 
         val motState = (stateByte shr 6) and 0x01
         val chrgState = (stateByte shr 7) and 0x01
-        val liftedState = (stateByte2 shr 2) and 0x01
-
-        return buildString {
-            if (motState == 1) append("Active")
-            if (chrgState == 1) append(" Charging")
-            if (liftedState == 1) append(" Lifted")
-        }.trim()
-    }
-
-    /**
-     * Build mode string for V14 format.
-     */
-    private fun buildModeStringV14(data: ByteArray, index: Int): String {
-        if (data.size <= index + 2) return ""
-
-        val stateByte = data[index].toInt() and 0xFF
-        val stateByte3 = data[index + 2].toInt() and 0xFF
-
-        val motState = (stateByte shr 6) and 0x01
-        val chrgState = (stateByte shr 7) and 0x01
-        val liftedState = (stateByte3 shr 2) and 0x01
-
-        return buildString {
-            if (motState == 1) append("Active")
-            if (chrgState == 1) append(" Charging")
-            if (liftedState == 1) append(" Lifted")
-        }.trim()
-    }
-
-    /**
-     * Build mode string for extended format (V11Y, V9, V12S).
-     */
-    private fun buildModeStringExtended(data: ByteArray, index: Int): String {
-        if (data.size <= index + 2) return ""
-
-        val stateByte = data[index].toInt() and 0xFF
-        val stateByte2 = data[index + 1].toInt() and 0xFF
-
-        val motState = (stateByte shr 6) and 0x01
-        val chrgState = (stateByte shr 7) and 0x01
-        val liftedState = (stateByte2 shr 2) and 0x01
+        val liftedState = (liftedByte shr 2) and 0x01
 
         return buildString {
             if (motState == 1) append("Active")
@@ -1224,86 +1053,94 @@ class InMotionV2Decoder : WheelDecoder {
 
     // ==================== Message Building ====================
 
-    /**
-     * Build a message to send to the wheel.
-     */
-    private fun buildMessage(flags: Int, command: Int, data: ByteArray): ByteArray {
-        val buffer = mutableListOf<Byte>()
+    companion object {
+        /**
+         * Build a message to send to the wheel.
+         *
+         * Escape encoding: bytes 0xAA and 0xA5 in the payload and checksum
+         * are prefixed with 0xA5 to avoid being mistaken for frame headers.
+         */
+        fun buildMessage(flags: Int, command: Int, data: ByteArray): ByteArray {
+            val buffer = mutableListOf<Byte>()
 
-        // Add flags
-        buffer.add(flags.toByte())
-        // Add length (data length + 1 for command byte)
-        buffer.add((data.size + 1).toByte())
-        // Add command
-        buffer.add(command.toByte())
-        // Add data
-        buffer.addAll(data.toList())
+            // Add flags
+            buffer.add(flags.toByte())
+            // Add length (data length + 1 for command byte)
+            buffer.add((data.size + 1).toByte())
+            // Add command
+            buffer.add(command.toByte())
+            // Add data
+            buffer.addAll(data.toList())
 
-        // Calculate checksum
-        var check = 0
-        for (byte in buffer) {
-            check = (check xor (byte.toInt() and 0xFF)) and 0xFF
-        }
+            // Calculate checksum
+            var check = 0
+            for (byte in buffer) {
+                check = (check xor (byte.toInt() and 0xFF)) and 0xFF
+            }
 
-        // Build output with header and escape sequences
-        val output = mutableListOf<Byte>()
-        output.add(0xAA.toByte())
-        output.add(0xAA.toByte())
+            // Build output with header and escape sequences
+            val output = mutableListOf<Byte>()
+            output.add(0xAA.toByte())
+            output.add(0xAA.toByte())
 
-        for (byte in buffer) {
-            val b = byte.toInt() and 0xFF
-            if (b == 0xAA || b == 0xA5) {
+            for (byte in buffer) {
+                val b = byte.toInt() and 0xFF
+                if (b == 0xAA || b == 0xA5) {
+                    output.add(0xA5.toByte())
+                }
+                output.add(byte)
+            }
+
+            // Checksum must also be escaped
+            val checkByte = check and 0xFF
+            if (checkByte == 0xAA || checkByte == 0xA5) {
                 output.add(0xA5.toByte())
             }
-            output.add(byte)
+            output.add(check.toByte())
+
+            return output.toByteArray()
         }
 
-        output.add(check.toByte())
-
-        return output.toByteArray()
-    }
-
-    companion object {
         /**
          * Create a message for requesting car type.
          */
         fun getCarTypeMessage(): ByteArray {
-            return InMotionV2Decoder().buildMessage(Flag.INITIAL, Command.MAIN_INFO, byteArrayOf(0x01))
+            return buildMessage(Flag.INITIAL, Command.MAIN_INFO, byteArrayOf(0x01))
         }
 
         /**
          * Create a message for requesting serial number.
          */
         fun getSerialNumberMessage(): ByteArray {
-            return InMotionV2Decoder().buildMessage(Flag.INITIAL, Command.MAIN_INFO, byteArrayOf(0x02))
+            return buildMessage(Flag.INITIAL, Command.MAIN_INFO, byteArrayOf(0x02))
         }
 
         /**
          * Create a message for requesting versions.
          */
         fun getVersionsMessage(): ByteArray {
-            return InMotionV2Decoder().buildMessage(Flag.INITIAL, Command.MAIN_INFO, byteArrayOf(0x06))
+            return buildMessage(Flag.INITIAL, Command.MAIN_INFO, byteArrayOf(0x06))
         }
 
         /**
          * Create a message for requesting current settings.
          */
         fun getCurrentSettingsMessage(): ByteArray {
-            return InMotionV2Decoder().buildMessage(Flag.DEFAULT, Command.SETTINGS, byteArrayOf(0x20))
+            return buildMessage(Flag.DEFAULT, Command.SETTINGS, byteArrayOf(0x20))
         }
 
         /**
          * Create a message for requesting real-time data.
          */
         fun getRealTimeDataMessage(): ByteArray {
-            return InMotionV2Decoder().buildMessage(Flag.DEFAULT, Command.REAL_TIME_INFO, byteArrayOf())
+            return buildMessage(Flag.DEFAULT, Command.REAL_TIME_INFO, byteArrayOf())
         }
 
         /**
          * Create a message for requesting total stats.
          */
         fun getStatisticsMessage(): ByteArray {
-            return InMotionV2Decoder().buildMessage(Flag.DEFAULT, Command.TOTAL_STATS, byteArrayOf())
+            return buildMessage(Flag.DEFAULT, Command.TOTAL_STATS, byteArrayOf())
         }
 
         /**
@@ -1311,7 +1148,7 @@ class InMotionV2Decoder : WheelDecoder {
          */
         fun setLightMessage(on: Boolean): ByteArray {
             val enable: Byte = if (on) 1 else 0
-            return InMotionV2Decoder().buildMessage(Flag.DEFAULT, Command.CONTROL, byteArrayOf(0x50, enable))
+            return buildMessage(Flag.DEFAULT, Command.CONTROL, byteArrayOf(0x50, enable))
         }
 
         /**
@@ -1319,14 +1156,14 @@ class InMotionV2Decoder : WheelDecoder {
          */
         fun setLockMessage(locked: Boolean): ByteArray {
             val enable: Byte = if (locked) 1 else 0
-            return InMotionV2Decoder().buildMessage(Flag.DEFAULT, Command.CONTROL, byteArrayOf(0x31, enable))
+            return buildMessage(Flag.DEFAULT, Command.CONTROL, byteArrayOf(0x31, enable))
         }
 
         /**
          * Create a message to play a beep.
          */
         fun playBeepMessage(number: Int = 0x18): ByteArray {
-            return InMotionV2Decoder().buildMessage(
+            return buildMessage(
                 Flag.DEFAULT,
                 Command.CONTROL,
                 byteArrayOf(0x51, (number and 0xFF).toByte(), 0x01)

@@ -572,6 +572,76 @@ class InMotionV2DecoderTest {
         assertTrue(command is WheelCommand.SendBytes, "Keep-alive should be SendBytes")
     }
 
+    // ==================== Checksum Escaping ====================
+
+    @Test
+    fun `buildMessage escapes 0xAA checksum byte`() {
+        // Find a flags/command/data combo whose XOR checksum is 0xAA.
+        // flags=0x14, len=0x01, command=0x04 → XOR = 0x14 xor 0x01 xor 0x04 = 0x11
+        // We need checksum = 0xAA, so we need data that XORs with 0x11 to give 0xAA → 0xBB.
+        // flags=0x14, command=0x60, data=[0x51, 0x6B, 0x01]:
+        //   buffer = [0x14, 0x04, 0x60, 0x51, 0x6B, 0x01]
+        //   XOR = 0x14 xor 0x04 xor 0x60 xor 0x51 xor 0x6B xor 0x01 = ?
+        // Let's just brute-force a simple case: flags=0x11, command=0x02, data=[0xA9]
+        //   buffer = [0x11, 0x02, 0x02, 0xA9]
+        //   XOR = 0x11 xor 0x02 xor 0x02 xor 0xA9 = 0x11 xor 0xA9 = 0xB8. Not 0xAA.
+        // Use an explicit approach: build with known data and verify escaping.
+        // data=byteArrayOf(0xBB.toByte()), flags=0x14, command=0x60:
+        //   buffer = [0x14, 0x02, 0x60, 0xBB]
+        //   XOR = 0x14 xor 0x02 xor 0x60 xor 0xBB = 0x16 xor 0x60 xor 0xBB = 0x76 xor 0xBB = 0xCD. Not 0xAA.
+        // Let me just pick data that makes checksum = 0xAA:
+        // buffer = [flags, len, command, ...data]
+        // flags=0x14, command=0x04, data=[] → buffer = [0x14, 0x01, 0x04]
+        //   XOR = 0x14 xor 0x01 xor 0x04 = 0x11. Need 0xAA.
+        // flags=0x14, command=0x04, data=[0xBB] → buffer = [0x14, 0x02, 0x04, 0xBB]
+        //   XOR = 0x14 xor 0x02 xor 0x04 xor 0xBB = 0x16 xor 0x04 xor 0xBB = 0x12 xor 0xBB = 0xA9. Close!
+        // flags=0x14, command=0x04, data=[0xBA] → XOR = 0x14 xor 0x02 xor 0x04 xor 0xBA = 0x12 xor 0xBA = 0xA8.
+        // flags=0x14, command=0x04, data=[0xB8] → XOR = 0x12 xor 0xB8 = 0xAA. Yes!
+        val msg = InMotionV2Decoder.buildMessage(0x14, 0x04, byteArrayOf(0xB8.toByte()))
+        // Expected: AA AA 14 02 04 B8 A5 AA (checksum 0xAA escaped with 0xA5 prefix)
+        val expected = byteArrayOf(
+            0xAA.toByte(), 0xAA.toByte(),  // header
+            0x14, 0x02, 0x04,               // flags, len, command (none need escaping)
+            0xB8.toByte(),                  // data (no escaping needed)
+            0xA5.toByte(), 0xAA.toByte()   // checksum 0xAA, escaped
+        )
+        assertTrue(msg.contentEquals(expected),
+            "Checksum 0xAA must be escaped. Got: ${msg.joinToString(" ") { "%02X".format(it) }}")
+    }
+
+    @Test
+    fun `buildMessage escapes 0xA5 checksum byte`() {
+        // Need checksum = 0xA5.
+        // flags=0x14, command=0x04, data=[0xBD]:
+        //   XOR = 0x14 xor 0x02 xor 0x04 xor 0xBD = 0x12 xor 0xBD = 0xAF. Not 0xA5.
+        // flags=0x14, command=0x04, data=[0xB7]:
+        //   XOR = 0x12 xor 0xB7 = 0xA5. Yes!
+        val msg = InMotionV2Decoder.buildMessage(0x14, 0x04, byteArrayOf(0xB7.toByte()))
+        // Expected: AA AA 14 02 04 B7 A5 A5 (checksum 0xA5 escaped with 0xA5 prefix)
+        val expected = byteArrayOf(
+            0xAA.toByte(), 0xAA.toByte(),  // header
+            0x14, 0x02, 0x04,               // flags, len, command
+            0xB7.toByte(),                  // data
+            0xA5.toByte(), 0xA5.toByte()   // checksum 0xA5, escaped
+        )
+        assertTrue(msg.contentEquals(expected),
+            "Checksum 0xA5 must be escaped. Got: ${msg.joinToString(" ") { "%02X".format(it) }}")
+    }
+
+    @Test
+    fun `buildMessage does not escape normal checksum byte`() {
+        // flags=0x14, command=0x04, data=[] → checksum = 0x11 (no escaping needed)
+        val msg = InMotionV2Decoder.buildMessage(0x14, 0x04, byteArrayOf())
+        // Expected: AA AA 14 01 04 11 (no escape prefix)
+        val expected = byteArrayOf(
+            0xAA.toByte(), 0xAA.toByte(),
+            0x14, 0x01, 0x04,
+            0x11
+        )
+        assertTrue(msg.contentEquals(expected),
+            "Normal checksum should not be escaped. Got: ${msg.joinToString(" ") { "%02X".format(it) }}")
+    }
+
     // ==================== Static Message Builders ====================
 
     @Test
