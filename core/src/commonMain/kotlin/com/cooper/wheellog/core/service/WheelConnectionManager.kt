@@ -408,7 +408,7 @@ class WheelConnectionManager(
             SettingsCommandId.GO_HOME_MODE -> setGoHomeMode(boolValue)
             SettingsCommandId.FANCIER_MODE -> setFancierMode(boolValue)
             SettingsCommandId.TRANSPORT_MODE -> setTransportMode(boolValue)
-            SettingsCommandId.PEDAL_TILT -> setPedalTilt(intValue)
+            SettingsCommandId.PEDAL_TILT -> setPedalTilt(intValue * 10)
             SettingsCommandId.PEDAL_SENSITIVITY -> setPedalSensitivity(intValue)
             SettingsCommandId.MAX_SPEED -> setMaxSpeed(intValue)
             SettingsCommandId.LIMITED_MODE -> setLimitedMode(boolValue)

@@ -31,7 +31,7 @@ enum class SettingsCommandId {
         ROLL_ANGLE_MODE -> state.rollAngle.takeIf { it >= 0 }
         CUTOUT_ANGLE -> state.cutoutAngle.takeIf { it >= 0 }
         MAX_SPEED -> state.maxSpeed.takeIf { it >= 0 }
-        PEDAL_TILT -> state.pedalTilt.takeIf { it >= 0 }
+        PEDAL_TILT -> state.pedalTilt.takeIf { it >= 0 }?.let { it / 10 }
         PEDAL_SENSITIVITY -> state.pedalSensitivity.takeIf { it >= 0 }
         SPEAKER_VOLUME -> state.speakerVolume.takeIf { it >= 0 }
         BEEPER_VOLUME -> state.beeperVolume.takeIf { it >= 0 }

@@ -782,8 +782,8 @@ class InMotionV2DecoderTest {
         // Verify parsed settings
         // data[1..2] = 7C 15 → LE short = 0x157C = 5500 → /100 = 55
         assertEquals(55, state.maxSpeed, "Max speed should be 55 km/h")
-        // data[3..4] = C8 00 → LE signed short = 0x00C8 = 200
-        assertEquals(200, state.pedalTilt, "Pedal tilt should be 200 (20.0 degrees)")
+        // data[3..4] = C8 00 → LE signed short = 0x00C8 = 200 → /10 = 20 (1/10°, i.e. 2.0°)
+        assertEquals(20, state.pedalTilt, "Pedal tilt should be 20 (2.0 degrees)")
         // data[5] = 0x10: low nibble = 0 (driveMode=false), high nibble = 1 (fancier=true)
         assertFalse(state.rideMode, "Ride mode should be false (classic)")
         assertTrue(state.fancierMode, "Fancier mode should be true")
@@ -842,7 +842,7 @@ class InMotionV2DecoderTest {
         state = r2!!.newState
 
         assertEquals(70, state.maxSpeed, "Max speed should be 70 km/h")
-        assertEquals(-10, state.pedalTilt, "Pedal tilt should be -10")
+        assertEquals(-1, state.pedalTilt, "Pedal tilt should be -1 (wire -10 / 10)")
         assertTrue(state.rideMode, "Ride mode should be true (offroad)")
         assertTrue(state.fancierMode, "Fancier mode should be true")
         assertEquals(80, state.pedalSensitivity, "Sensitivity should be 80 (classSens since offroad)")
@@ -892,7 +892,7 @@ class InMotionV2DecoderTest {
         state = r2!!.newState
 
         assertEquals(60, state.maxSpeed, "Max speed should be 60 km/h")
-        assertEquals(5, state.pedalTilt, "Pedal tilt should be 5")
+        assertEquals(0, state.pedalTilt, "Pedal tilt should be 0 (wire 5 / 10)")
         assertFalse(state.rideMode, "Ride mode should be false (classic)")
         assertFalse(state.fancierMode, "Fancier mode should be false")
         assertEquals(40, state.pedalSensitivity, "Sensitivity should be 40 (comfSens since classic)")
@@ -939,7 +939,7 @@ class InMotionV2DecoderTest {
         state = r2!!.newState
 
         assertEquals(50, state.maxSpeed, "Max speed should be 50 km/h")
-        assertEquals(15, state.pedalTilt, "Pedal tilt should be 15")
+        assertEquals(1, state.pedalTilt, "Pedal tilt should be 1 (wire 15 / 10)")
         assertFalse(state.rideMode, "Ride mode should be false (classicMode=0)")
         assertTrue(state.fancierMode, "Fancier mode should be true")
         assertEquals(60, state.pedalSensitivity, "Sensitivity should be 60 (comfSens since classic)")

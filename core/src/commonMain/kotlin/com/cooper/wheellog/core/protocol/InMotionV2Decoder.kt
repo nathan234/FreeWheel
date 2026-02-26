@@ -637,7 +637,7 @@ class InMotionV2Decoder : WheelDecoder {
         if (data.size < i + 23) return null
 
         val speedLim = ByteUtils.shortFromBytesLE(data, i) / 100
-        val pedalTilt = ByteUtils.signedShortFromBytesLE(data, i + 2)
+        val pedalTilt = ByteUtils.signedShortFromBytesLE(data, i + 2) / 10
         val driveMode = (data[i + 4].toInt() and 0x0F) != 0  // low nibble
         val rideModeRaw = (data[i + 4].toInt() and 0xFF) shr 4  // high nibble
         val fancier = rideModeRaw != 0
@@ -687,7 +687,7 @@ class InMotionV2Decoder : WheelDecoder {
         if (data.size < 42) return null
 
         val speedLim = ByteUtils.shortFromBytesLE(data, 9) / 100
-        val pedalTilt = ByteUtils.signedShortFromBytesLE(data, 15)
+        val pedalTilt = ByteUtils.signedShortFromBytesLE(data, 15) / 10
         val classicMode = (data[19].toInt() and 0x01) != 0
         val fancier = ((data[19].toInt() shr 4) and 0x01) != 0
         val comfSens = data[20].toInt() and 0xFF
@@ -725,7 +725,7 @@ class InMotionV2Decoder : WheelDecoder {
         if (data.size < i + 35) return null
 
         val speedLim = ByteUtils.shortFromBytesLE(data, i) / 100
-        val pedalTilt = ByteUtils.signedShortFromBytesLE(data, i + 8)
+        val pedalTilt = ByteUtils.signedShortFromBytesLE(data, i + 8) / 10
         val offroad = (data[i + 10].toInt() and 0x01) != 0
         val fancier = ((data[i + 10].toInt() shr 4) and 0x01) != 0
         val comfSens = data[i + 11].toInt() and 0xFF
@@ -772,7 +772,7 @@ class InMotionV2Decoder : WheelDecoder {
         if (data.size < i + 35) return null
 
         val speedLim = ByteUtils.shortFromBytesLE(data, i) / 100
-        val pedalTilt = ByteUtils.signedShortFromBytesLE(data, i + 8)
+        val pedalTilt = ByteUtils.signedShortFromBytesLE(data, i + 8) / 10
         val offroad = (data[i + 10].toInt() and 0x01) != 0
         val fancier = ((data[i + 10].toInt() shr 4) and 0x01) != 0
         val comfSens = data[i + 11].toInt() and 0xFF
