@@ -37,7 +37,7 @@ class WheelService : Service() {
 
     var onLightToggleRequested: (() -> Unit)? = null
     var onLogToggleRequested: (() -> Unit)? = null
-    var onGpsSpeedUpdate: ((Float) -> Unit)? = null
+    var onGpsLocationUpdate: ((android.location.Location) -> Unit)? = null
 
     private var locationListener: LocationListener? = null
 
@@ -115,7 +115,7 @@ class WheelService : Service() {
 
         val lm = getSystemService(LocationManager::class.java) ?: return
         val listener = LocationListener { location ->
-            onGpsSpeedUpdate?.invoke(location.speed)
+            onGpsLocationUpdate?.invoke(location)
         }
         lm.requestLocationUpdates(
             LocationManager.GPS_PROVIDER,

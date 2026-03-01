@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.cooper.wheellog.AppConfig
 import com.cooper.wheellog.core.domain.WheelState
 import com.cooper.wheellog.core.utils.ByteUtils
+import com.cooper.wheellog.core.logging.GpsLocation
 import com.cooper.wheellog.core.logging.RideLogger
 import com.cooper.wheellog.core.telemetry.ChartTimeRange
 import com.cooper.wheellog.core.telemetry.PlatformTelemetryFileIO
@@ -111,7 +112,8 @@ class WheelViewModel(application: Application) : AndroidViewModel(application) {
     private val _chartTimeRange = MutableStateFlow(ChartTimeRange.FIVE_MINUTES)
     val chartTimeRange: StateFlow<ChartTimeRange> = _chartTimeRange.asStateFlow()
 
-    // GPS speed (m/s from FusedLocation, converted to km/h for display)
+    // GPS location (full location for ride logging, speed for display/telemetry)
+    private var _lastGpsLocation: android.location.Location? = null
     private val _gpsSpeedKmh = MutableStateFlow(0.0)
     val gpsSpeedKmh: StateFlow<Double> = _gpsSpeedKmh.asStateFlow()
 
@@ -236,7 +238,7 @@ class WheelViewModel(application: Application) : AndroidViewModel(application) {
 
         service.onLightToggleRequested = ::toggleLight
         service.onLogToggleRequested = ::toggleLogging
-        service.onGpsSpeedUpdate = ::updateGpsSpeed
+        service.onGpsLocationUpdate = ::updateGpsLocation
 
         stateCollectionJob = viewModelScope.launch {
             cm.wheelState.collect { _realWheelState.value = it }
@@ -274,7 +276,7 @@ class WheelViewModel(application: Application) : AndroidViewModel(application) {
         connectionCollectionJob = null
         autoConnectManager?.destroy()
         autoConnectManager = null
-        wheelService?.onGpsSpeedUpdate = null
+        wheelService?.onGpsLocationUpdate = null
         wheelService?.onLightToggleRequested = null
         wheelService?.onLogToggleRequested = null
         wheelService = null
@@ -581,7 +583,17 @@ class WheelViewModel(application: Application) : AndroidViewModel(application) {
         logSamplingJob = viewModelScope.launch {
             wheelState.collect { state ->
                 if (rideLogger.isLogging) {
-                    rideLogger.writeSample(state, null, System.currentTimeMillis())
+                    val gps = _lastGpsLocation?.let { loc ->
+                        GpsLocation(
+                            latitude = loc.latitude,
+                            longitude = loc.longitude,
+                            speedKmh = ByteUtils.metersPerSecondToKmh(loc.speed.toDouble()),
+                            altitude = loc.altitude,
+                            bearing = loc.bearing.toDouble(),
+                            cumulativeDistance = 0.0
+                        )
+                    }
+                    rideLogger.writeSample(state, gps, System.currentTimeMillis())
                 }
             }
         }
@@ -623,8 +635,9 @@ class WheelViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /** Call from Activity/Service when GPS location updates arrive. */
-    fun updateGpsSpeed(speedMs: Float) {
-        _gpsSpeedKmh.value = ByteUtils.metersPerSecondToKmh(speedMs.toDouble())
+    fun updateGpsLocation(location: android.location.Location) {
+        _lastGpsLocation = location
+        _gpsSpeedKmh.value = ByteUtils.metersPerSecondToKmh(location.speed.toDouble())
     }
 
     fun setChartTimeRange(range: ChartTimeRange) {
