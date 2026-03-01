@@ -15,12 +15,29 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
-private val demoScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+private var _demoScope: CoroutineScope? = null
+private val demoScope: CoroutineScope
+    get() {
+        val scope = _demoScope
+        if (scope == null || !scope.isActive) {
+            _demoScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+        }
+        return _demoScope!!
+    }
 
+private var _commandScope: CoroutineScope? = null
 /** Shared scope for fire-and-forget command sends. */
-private val commandScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+private val commandScope: CoroutineScope
+    get() {
+        val scope = _commandScope
+        if (scope == null || !scope.isActive) {
+            _commandScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+        }
+        return _commandScope!!
+    }
 
 /**
  * Handle for cancelling a Flow observation started from Swift.
@@ -35,6 +52,18 @@ class FlowObservation(private val scope: CoroutineScope) {
  * Handles CoroutineScope creation and provides Swift-friendly accessors.
  */
 object WheelConnectionManagerHelper {
+
+    /**
+     * Cancel the shared demoScope and commandScope.
+     * They are lazily recreated on next use.
+     * Call this when the app is backgrounded or the manager is torn down.
+     */
+    fun destroy() {
+        _demoScope?.cancel()
+        _demoScope = null
+        _commandScope?.cancel()
+        _commandScope = null
+    }
 
     /**
      * Create a WheelConnectionManager with default configuration.

@@ -2,8 +2,12 @@ package com.cooper.wheellog.core.service
 
 import com.cooper.wheellog.core.domain.WheelState
 import com.cooper.wheellog.core.domain.WheelType
+import com.cooper.wheellog.core.protocol.DecodedData
 import com.cooper.wheellog.core.protocol.DefaultWheelDecoderFactory
 import com.cooper.wheellog.core.protocol.DecoderConfig
+import com.cooper.wheellog.core.protocol.WheelCommand
+import com.cooper.wheellog.core.protocol.WheelDecoder
+import com.cooper.wheellog.core.protocol.WheelDecoderFactory
 import com.cooper.wheellog.core.protocol.hexToByteArray
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
@@ -427,6 +431,49 @@ class WheelConnectionManagerPipelineTest {
             manager.connectionState.value is ConnectionState.Connected,
             "Should reach Connected after recovery"
         )
+
+        manager.disconnect()
+    }
+
+    // ==================== Decode exception safety ====================
+
+    @Test
+    fun `decode exception does not crash and increments errors`() = runTest {
+        // Create a factory that returns a decoder which throws on decode()
+        val throwingFactory = object : WheelDecoderFactory {
+            override fun createDecoder(wheelType: WheelType): WheelDecoder? {
+                return object : WheelDecoder {
+                    override val wheelType = WheelType.KINGSONG
+                    override fun decode(data: ByteArray, currentState: WheelState, config: DecoderConfig): DecodedData? {
+                        throw RuntimeException("Simulated decoder crash")
+                    }
+                    override fun isReady(): Boolean = false
+                    override fun reset() {}
+                }
+            }
+            override fun supportedTypes() = listOf(WheelType.KINGSONG)
+        }
+
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val manager = WheelConnectionManager(fakeBle, throwingFactory, this, dispatcher)
+        manager.connect("AA:BB:CC:DD:EE:FF")
+        manager.onWheelTypeDetected(WheelType.KINGSONG)
+        runCurrent()
+
+        val stateBefore = manager.wheelState.value
+
+        // Feed data — decoder throws, but manager catches it
+        manager.onDataReceived(ksLiveDataPacket)
+
+        // Should not crash, errors should increment
+        assertTrue(
+            manager.consecutiveDecodeErrors.value > 0,
+            "Should increment decode errors on exception"
+        )
+
+        // State should be unchanged
+        assertEquals(stateBefore.voltage, manager.wheelState.value.voltage,
+            "State should not change when decoder throws")
 
         manager.disconnect()
     }

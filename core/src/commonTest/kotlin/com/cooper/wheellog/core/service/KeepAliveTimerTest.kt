@@ -95,6 +95,49 @@ class KeepAliveTimerTest {
     }
 
     @Test
+    fun `KeepAliveTimer restart uses interval as initial delay`() = runTest {
+        val timer = KeepAliveTimer(this, UnconfinedTestDispatcher(testScheduler))
+        var tickCount = 0
+
+        timer.start(intervalMs = 100) {
+            tickCount++
+        }
+
+        // Let it tick a few times
+        advanceTimeBy(250)
+        val ticksBeforeRestart = tickCount
+        assertTrue(ticksBeforeRestart >= 2, "Expected at least 2 ticks before restart")
+
+        // Restart — should wait one full interval before first tick
+        timer.restart()
+
+        // Immediately after restart, no new tick
+        val ticksRightAfterRestart = timer.tickCount.value
+        advanceTimeBy(50)
+        assertEquals(ticksRightAfterRestart, timer.tickCount.value,
+            "Should not tick within interval after restart")
+
+        // After interval, should tick
+        advanceTimeBy(60)
+        assertTrue(timer.tickCount.value >= 1, "Should tick after interval delay")
+
+        timer.stop()
+    }
+
+    @Test
+    fun `KeepAliveTimer concurrent start and stop does not crash`() = runTest {
+        val timer = KeepAliveTimer(this, UnconfinedTestDispatcher(testScheduler))
+
+        // Rapidly start/stop without crash
+        repeat(20) {
+            timer.start(intervalMs = 10) {}
+            timer.stop()
+        }
+
+        assertFalse(timer.isRunning.value)
+    }
+
+    @Test
     fun `DataTimeoutTracker initial state is not timed out`() = runTest {
         val tracker = DataTimeoutTracker(this, UnconfinedTestDispatcher(testScheduler))
 
@@ -134,6 +177,19 @@ class KeepAliveTimerTest {
         assertTrue(tracker.timeSinceLastDataMs() < 100)
 
         tracker.stop()
+    }
+
+    @Test
+    fun `DataTimeoutTracker concurrent start stop does not crash`() = runTest {
+        val tracker = DataTimeoutTracker(this, UnconfinedTestDispatcher(testScheduler))
+
+        repeat(20) {
+            tracker.start(timeoutMs = 100) {}
+            tracker.onDataReceived()
+            tracker.stop()
+        }
+
+        assertFalse(tracker.isTimedOut.value)
     }
 
     @Test

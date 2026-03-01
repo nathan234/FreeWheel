@@ -1,6 +1,7 @@
 package com.cooper.wheellog.core.service
 
 import com.cooper.wheellog.core.utils.Logger
+import kotlin.concurrent.Volatile
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -48,7 +49,7 @@ class AutoConnectManager(
 
     private var reconnectJob: Job? = null
 
-    private var observerJob: Job? = null
+    @Volatile private var observerJob: Job? = null
 
     init {
         // Observe connection state to clear flags on terminal states

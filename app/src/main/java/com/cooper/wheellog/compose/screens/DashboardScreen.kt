@@ -175,11 +175,13 @@ fun DashboardScreen(
         val buffer = viewModel.telemetryBuffer
         val tileModifier = Modifier.weight(1f)
 
-        // Helper to get sparkline data (last 20 points)
-        fun sparkline(metric: MetricType): List<Float> {
-            val vals = buffer.valuesFor(metric)
-            return vals.takeLast(20).map { it.toFloat() }
-        }
+        // Memoized sparkline data — only recomputes when samples list changes
+        val speedSparkline = remember(samples) { buffer.valuesFor(MetricType.SPEED).takeLast(20).map { it.toFloat() } }
+        val batterySparkline = remember(samples) { buffer.valuesFor(MetricType.BATTERY).takeLast(20).map { it.toFloat() } }
+        val powerSparkline = remember(samples) { buffer.valuesFor(MetricType.POWER).takeLast(20).map { it.toFloat() } }
+        val pwmSparkline = remember(samples) { buffer.valuesFor(MetricType.PWM).takeLast(20).map { it.toFloat() } }
+        val tempSparkline = remember(samples) { buffer.valuesFor(MetricType.TEMPERATURE).takeLast(20).map { it.toFloat() } }
+        val gpsSparkline = remember(samples) { buffer.valuesFor(MetricType.GPS_SPEED).takeLast(20).map { it.toFloat() } }
 
         // Helper to get color for a metric value
         fun tileColor(metric: MetricType, value: Double): Color {
@@ -206,7 +208,7 @@ fun DashboardScreen(
                 unit = speedUnit,
                 progress = (speedVal / maxSpeed).toFloat(),
                 color = tileColor(MetricType.SPEED, wheelState.speedKmh),
-                sparklineData = sparkline(MetricType.SPEED),
+                sparklineData = speedSparkline,
                 onClick = { onNavigateToMetric("speed") },
                 modifier = tileModifier
             )
@@ -217,7 +219,7 @@ fun DashboardScreen(
                 unit = "%",
                 progress = (batteryVal / MetricType.BATTERY.maxValue).toFloat(),
                 color = tileColor(MetricType.BATTERY, batteryVal),
-                sparklineData = sparkline(MetricType.BATTERY),
+                sparklineData = batterySparkline,
                 onClick = { onNavigateToMetric("battery") },
                 modifier = tileModifier
             )
@@ -238,7 +240,7 @@ fun DashboardScreen(
                 unit = "W",
                 progress = if (powerMax > 0) (kotlin.math.abs(powerVal) / powerMax).toFloat() else 0f,
                 color = tileColor(MetricType.POWER, kotlin.math.abs(powerVal)),
-                sparklineData = sparkline(MetricType.POWER),
+                sparklineData = powerSparkline,
                 onClick = { onNavigateToMetric("power") },
                 modifier = tileModifier
             )
@@ -249,7 +251,7 @@ fun DashboardScreen(
                 unit = "%",
                 progress = (pwmVal / MetricType.PWM.maxValue).toFloat(),
                 color = tileColor(MetricType.PWM, pwmVal),
-                sparklineData = sparkline(MetricType.PWM),
+                sparklineData = pwmSparkline,
                 onClick = { onNavigateToMetric("pwm") },
                 modifier = tileModifier
             )
@@ -271,7 +273,7 @@ fun DashboardScreen(
                 unit = tempUnit,
                 progress = (tempC / MetricType.TEMPERATURE.maxValue).toFloat(),
                 color = tileColor(MetricType.TEMPERATURE, tempC),
-                sparklineData = sparkline(MetricType.TEMPERATURE),
+                sparklineData = tempSparkline,
                 onClick = { onNavigateToMetric("temperature") },
                 modifier = tileModifier
             )
@@ -283,7 +285,7 @@ fun DashboardScreen(
                 unit = speedUnit,
                 progress = (gpsVal / maxSpeed).toFloat(),
                 color = tileColor(MetricType.GPS_SPEED, gpsSpeed),
-                sparklineData = sparkline(MetricType.GPS_SPEED),
+                sparklineData = gpsSparkline,
                 onClick = { onNavigateToMetric("gps_speed") },
                 modifier = tileModifier
             )

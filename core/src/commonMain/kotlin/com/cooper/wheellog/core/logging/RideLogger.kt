@@ -1,6 +1,7 @@
 package com.cooper.wheellog.core.logging
 
 import com.cooper.wheellog.core.domain.WheelState
+import com.cooper.wheellog.core.utils.Logger
 
 /**
  * Cross-platform ride logger that writes CSV files matching the legacy WheelLog format.
@@ -103,7 +104,11 @@ class RideLogger(private val fileWriter: FileWriter = FileWriter()) {
         val gpsData = if (includeGps) gps else null
 
         val row = CsvFormatter.row(dateTime, state, tripDistance, gpsData)
-        fileWriter.writeLine(row)
+        try {
+            fileWriter.writeLine(row)
+        } catch (e: Exception) {
+            Logger.e("RideLogger", "Failed to write sample", e)
+        }
     }
 
     /**

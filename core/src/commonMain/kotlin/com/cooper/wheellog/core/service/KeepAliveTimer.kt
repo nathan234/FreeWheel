@@ -1,6 +1,8 @@
 package com.cooper.wheellog.core.service
 
+import com.cooper.wheellog.core.utils.Lock
 import com.cooper.wheellog.core.utils.Logger
+import com.cooper.wheellog.core.utils.withLock
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -26,6 +28,7 @@ class KeepAliveTimer(
     private val scope: CoroutineScope,
     private val dispatcher: CoroutineDispatcher = Dispatchers.Default
 ) {
+    private val lock = Lock()
     private var timerJob: Job? = null
     private var intervalMs: Long = 0
     private var onTick: (suspend () -> Unit)? = null
@@ -47,11 +50,44 @@ class KeepAliveTimer(
         intervalMs: Long,
         initialDelayMs: Long = 0,
         onTick: suspend () -> Unit
-    ) {
-        stop()
+    ) = lock.withLock {
+        stop_internal()
 
-        if (intervalMs <= 0) return
+        if (intervalMs <= 0) return@withLock
 
+        start_internal(intervalMs, initialDelayMs, onTick)
+    }
+
+    /**
+     * Stop the keep-alive timer.
+     */
+    fun stop() = lock.withLock {
+        stop_internal()
+    }
+
+    /** Internal stop — caller must hold [lock]. */
+    private fun stop_internal() {
+        timerJob?.cancel()
+        timerJob = null
+        _isRunning.value = false
+        onTick = null
+    }
+
+    /**
+     * Restart the timer with the same settings.
+     * Uses interval as initial delay to avoid double-tick on restart.
+     */
+    fun restart() = lock.withLock {
+        val callback = onTick ?: return@withLock
+        val interval = intervalMs
+        if (interval > 0) {
+            stop_internal()
+            start_internal(interval, interval, callback)
+        }
+    }
+
+    /** Internal start — caller must hold [lock]. */
+    private fun start_internal(intervalMs: Long, initialDelayMs: Long, onTick: suspend () -> Unit) {
         this.intervalMs = intervalMs
         this.onTick = onTick
         _tickCount.value = 0
@@ -78,28 +114,6 @@ class KeepAliveTimer(
     }
 
     /**
-     * Stop the keep-alive timer.
-     */
-    fun stop() {
-        timerJob?.cancel()
-        timerJob = null
-        _isRunning.value = false
-        onTick = null
-    }
-
-    /**
-     * Restart the timer with the same settings.
-     * Useful after a reconnection.
-     */
-    fun restart() {
-        val callback = onTick ?: return
-        val interval = intervalMs
-        if (interval > 0) {
-            start(interval, 0, callback)
-        }
-    }
-
-    /**
      * Get the current interval in milliseconds.
      */
     fun getIntervalMs(): Long = intervalMs
@@ -115,6 +129,7 @@ class DataTimeoutTracker(
     private val scope: CoroutineScope,
     private val dispatcher: CoroutineDispatcher = Dispatchers.Default
 ) {
+    private val lock = Lock()
     private var timeoutJob: Job? = null
     private var lastDataTime: Long = 0
     private var timeoutMs: Long = DEFAULT_TIMEOUT_MS
@@ -135,8 +150,8 @@ class DataTimeoutTracker(
     fun start(
         timeoutMs: Long = DEFAULT_TIMEOUT_MS,
         onTimeout: suspend () -> Unit
-    ) {
-        stop()
+    ) = lock.withLock {
+        stop_internal()
 
         this.timeoutMs = timeoutMs
         lastDataTime = currentTimeMillis()
@@ -146,7 +161,7 @@ class DataTimeoutTracker(
             while (isActive) {
                 delay(1000) // Check every second
 
-                val elapsed = currentTimeMillis() - lastDataTime
+                val elapsed = currentTimeMillis() - lock.withLock { lastDataTime }
                 if (elapsed > timeoutMs) {
                     if (!_isTimedOut.value) {
                         _isTimedOut.value = true
@@ -167,7 +182,12 @@ class DataTimeoutTracker(
     /**
      * Stop monitoring for timeout.
      */
-    fun stop() {
+    fun stop() = lock.withLock {
+        stop_internal()
+    }
+
+    /** Internal stop — caller must hold [lock]. */
+    private fun stop_internal() {
         timeoutJob?.cancel()
         timeoutJob = null
         _isTimedOut.value = false
@@ -176,7 +196,7 @@ class DataTimeoutTracker(
     /**
      * Call this when data is received to reset the timeout.
      */
-    fun onDataReceived() {
+    fun onDataReceived() = lock.withLock {
         lastDataTime = currentTimeMillis()
         _isTimedOut.value = false
     }
@@ -184,8 +204,8 @@ class DataTimeoutTracker(
     /**
      * Get the time since last data in milliseconds.
      */
-    fun timeSinceLastDataMs(): Long {
-        return currentTimeMillis() - lastDataTime
+    fun timeSinceLastDataMs(): Long = lock.withLock {
+        currentTimeMillis() - lastDataTime
     }
 }
 

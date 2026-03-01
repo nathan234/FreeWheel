@@ -69,6 +69,8 @@ actual class BleManager : BleManagerPort {
     private var expectedServiceCount: Int = 0
     // Timeout job for service/characteristic discovery phase
     private var serviceDiscoveryTimeoutJob: Job? = null
+    // Guard against completeServiceDiscovery being called twice (timeout + callback race)
+    private var serviceDiscoveryCompleted: Boolean = false
 
     // Delegate instances (prevent garbage collection)
     private var centralDelegate: CBCentralManagerDelegateImpl? = null
@@ -135,6 +137,8 @@ actual class BleManager : BleManagerPort {
 
         _connectionState.value = ConnectionState.Connecting(address)
 
+        serviceDiscoveryCompleted = false
+
         return suspendCancellableCoroutine { continuation ->
             continuationLock.withLock {
                 connectionContinuation = continuation
@@ -151,6 +155,10 @@ actual class BleManager : BleManagerPort {
                 central.connectPeripheral(peripheral, options = null)
             } else {
                 // Peripheral not found, need to scan
+                _connectionState.value = ConnectionState.Failed(
+                    error = "Peripheral not found",
+                    address = address
+                )
                 continuationLock.withLock {
                     connectionContinuation?.resume(false) {}
                     connectionContinuation = null
@@ -177,6 +185,7 @@ actual class BleManager : BleManagerPort {
         readCharacteristic = null
         discoveredServiceUuids.clear()
         expectedServiceCount = 0
+        serviceDiscoveryCompleted = false
         _connectionState.value = ConnectionState.Disconnected
     }
 
@@ -455,6 +464,9 @@ actual class BleManager : BleManagerPort {
      * Called from both the cache-hit fast path and the normal discovery callback path.
      */
     private fun completeServiceDiscovery(peripheral: CBPeripheral) {
+        if (serviceDiscoveryCompleted) return
+        serviceDiscoveryCompleted = true
+
         serviceDiscoveryTimeoutJob?.cancel()
         serviceDiscoveryTimeoutJob = null
 

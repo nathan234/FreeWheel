@@ -22,6 +22,11 @@ class TelemetryBuffer(
     /** Dynamic max for metrics with maxValue == 0 (e.g., Power) */
     private val _dynamicMax = mutableMapOf<MetricType, Double>()
 
+    companion object {
+        /** Pre-computed set of metrics with dynamic max (maxValue == 0.0). */
+        private val DYNAMIC_METRICS = MetricType.entries.filter { it.maxValue == 0.0 }
+    }
+
     /**
      * Add a sample if enough time has elapsed since the last one.
      * Returns true if the sample was added.
@@ -38,14 +43,12 @@ class TelemetryBuffer(
         val cutoff = sample.timestampMs - maxAgeMs
         _samples.removeAll { it.timestampMs < cutoff }
 
-        // Update dynamic maxes
-        for (metric in MetricType.entries) {
-            if (metric.maxValue == 0.0) {
-                val value = kotlin.math.abs(metric.extractValue(sample))
-                val current = _dynamicMax[metric] ?: 0.0
-                if (value > current) {
-                    _dynamicMax[metric] = value
-                }
+        // Update dynamic maxes (only for metrics with maxValue == 0.0)
+        for (metric in DYNAMIC_METRICS) {
+            val value = kotlin.math.abs(metric.extractValue(sample))
+            val current = _dynamicMax[metric] ?: 0.0
+            if (value > current) {
+                _dynamicMax[metric] = value
             }
         }
 

@@ -15,6 +15,7 @@ import com.cooper.wheellog.core.protocol.WheelDecoder
 import com.cooper.wheellog.core.protocol.WheelDecoderFactory
 import com.cooper.wheellog.core.domain.SettingsCommandId
 import com.cooper.wheellog.core.utils.Logger
+import kotlin.concurrent.Volatile
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -63,9 +64,9 @@ class WheelConnectionManager(
 
     private val _consecutiveDecodeErrors = MutableStateFlow(0)
 
-    private var currentDecoder: WheelDecoder? = null
-    private var decoderConfig = DecoderConfig()
-    private var connectionInfo: WheelConnectionInfo? = null
+    @Volatile private var currentDecoder: WheelDecoder? = null
+    @Volatile private var decoderConfig = DecoderConfig()
+    @Volatile private var connectionInfo: WheelConnectionInfo? = null
 
     private val wheelTypeDetector = WheelTypeDetector()
     private val keepAliveTimer = KeepAliveTimer(scope, dispatcher)
@@ -236,7 +237,13 @@ class WheelConnectionManager(
         }
 
         val oldState = _wheelState.value
-        val result = decoder.decode(data, oldState, decoderConfig)
+        val result = try {
+            decoder.decode(data, oldState, decoderConfig)
+        } catch (e: Exception) {
+            Logger.e("WheelConnectionManager", "decode() threw for ${data.size} bytes (decoder=${decoder.wheelType})", e)
+            _consecutiveDecodeErrors.value++
+            return
+        }
         if (result == null) {
             _consecutiveDecodeErrors.value++
             Logger.d("WheelConnectionManager", "decode() returned null for ${data.size} bytes (decoder=${decoder.wheelType})")
@@ -557,13 +564,18 @@ class WheelConnectionManager(
     }
 
     private fun startDataTimeoutMonitor(address: String) {
-        dataTimeoutTracker.start(
-            timeoutMs = DataTimeoutTracker.DEFAULT_TIMEOUT_MS
-        ) {
+        // Proportional timeout: 40x the keep-alive interval, minimum 10 seconds.
+        // This gives ~10s for wheel-initiated protocols (KS/GW/VT) and proportional
+        // timeouts for polling protocols (IM2/NZ at 25ms → 10s, IM1 at 250ms → 10s).
+        val decoder = currentDecoder
+        val keepAliveMs = decoder?.keepAliveIntervalMs ?: 0L
+        val timeoutMs = maxOf(keepAliveMs * 40, 10_000L)
+
+        dataTimeoutTracker.start(timeoutMs = timeoutMs) {
             // Data timeout occurred - connection may be lost
             _connectionState.value = ConnectionState.ConnectionLost(
                 address = address,
-                reason = "No data received for ${DataTimeoutTracker.DEFAULT_TIMEOUT_MS / 1000} seconds"
+                reason = "No data received for ${timeoutMs / 1000} seconds"
             )
             // Don't stop timers — keep-alive must continue so polling wheels
             // can recover when signal returns. The timeout tracker continues

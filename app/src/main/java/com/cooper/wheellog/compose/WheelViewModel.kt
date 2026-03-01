@@ -105,7 +105,7 @@ class WheelViewModel(application: Application) : AndroidViewModel(application) {
     val telemetryBuffer = TelemetryBuffer()
 
     // Persistent telemetry history (24h, downsampled)
-    private var telemetryHistory: TelemetryHistory? = null
+    @Volatile private var telemetryHistory: TelemetryHistory? = null
     private val telemetryFileIO = PlatformTelemetryFileIO()
 
     // Chart time range selection
