@@ -16,6 +16,11 @@ data class WheelSettingsState(
     val ledMode: Int = -1,
     val cutoutAngle: Int = -1,
     val beeperVolume: Int = -1,
+    // Begode extended settings
+    val weakMagnetism: Int = -1,
+    val extendedRollAngle: Int = -1,
+    val powerAlarm: Int = -1,
+    val plateProtection: Boolean = false,
     val maxSpeed: Int = -1,
     val pedalTilt: Int = -1,
     val pedalSensitivity: Int = -1,

@@ -39,10 +39,17 @@ object WheelSettingsConfig {
         SettingsSection("Ride", listOf(
             ControlSpec.Segmented("Pedals Mode", listOf("Hard", "Medium", "Soft"), SettingsCommandId.PEDALS_MODE),
             ControlSpec.Segmented("Roll Angle", listOf("Low", "Medium", "High"), SettingsCommandId.ROLL_ANGLE_MODE),
-            ControlSpec.Slider("Cutout Angle", 45, 90, "°", 70, SettingsCommandId.CUTOUT_ANGLE, step = 5)
+            ControlSpec.Slider("Cutout Angle", 45, 90, "\u00B0", 70, SettingsCommandId.CUTOUT_ANGLE, step = 5),
+            ControlSpec.Slider("Pedal Tilt", 0, 9, "", 5, SettingsCommandId.PEDAL_TILT),
+            ControlSpec.Slider("Weak Magnetism", 0, 6, "", 0, SettingsCommandId.WEAK_MAGNETISM),
+            ControlSpec.Slider("Extended Roll Angle", 0, 9, "", 5, SettingsCommandId.EXTENDED_ROLL_ANGLE)
         )),
         SettingsSection("Audio", listOf(
             ControlSpec.Slider("Beeper Volume", 1, 9, "", 5, SettingsCommandId.BEEPER_VOLUME)
+        )),
+        SettingsSection("Safety", listOf(
+            ControlSpec.Toggle("Plate Protection", SettingsCommandId.PLATE_PROTECTION),
+            ControlSpec.Slider("Power Alarm", 50, 90, "%", 70, SettingsCommandId.POWER_ALARM)
         )),
         SettingsSection("Dangerous Actions", listOf(
             calibrateButton()

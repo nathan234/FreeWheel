@@ -33,7 +33,9 @@ enum class SettingsCommandId {
     LIGHT_EFFECT, LIGHT_EFFECT_MODE,
     TWO_BATTERY_MODE, LOW_BATTERY_SAFE_MODE,
     SPIN_KILL, CRUISE, LOAD_DETECT,
-    STANDBY_TIME, CHARGE_LIMIT;
+    STANDBY_TIME, CHARGE_LIMIT,
+    // Begode extended settings
+    WEAK_MAGNETISM, EXTENDED_ROLL_ANGLE, POWER_ALARM, PLATE_PROTECTION;
 
     /** Read current int value from WheelState, or null if no readback. */
     fun readInt(state: WheelState): Int? = when (this) {
@@ -58,6 +60,9 @@ enum class SettingsCommandId {
         LIGHT_EFFECT_MODE -> state.lightEffectMode.takeIf { it >= 0 }
         STANDBY_TIME -> state.standbyTime.takeIf { it >= 0 }
         CHARGE_LIMIT -> state.chargeLimit.takeIf { it >= 0 }
+        WEAK_MAGNETISM -> state.weakMagnetism.takeIf { it >= 0 }
+        EXTENDED_ROLL_ANGLE -> state.extendedRollAngle.takeIf { it >= 0 }
+        POWER_ALARM -> state.powerAlarm.takeIf { it >= 0 }
         else -> null
     }
 
@@ -85,6 +90,7 @@ enum class SettingsCommandId {
         SPIN_KILL -> state.spinKill
         CRUISE -> state.cruise
         LOAD_DETECT -> state.loadDetect
+        PLATE_PROTECTION -> state.plateProtection
         else -> null
     }
 }

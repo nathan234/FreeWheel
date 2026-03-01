@@ -268,6 +268,13 @@ sealed class WheelCommand {
 
     data class SetCutoutAngle(val angle: Int) : WheelCommand()
 
+    // --- Begode extended settings ---
+
+    data class SetWeakMagnetism(val level: Int) : WheelCommand()
+    data class SetExtendedRollAngle(val level: Int) : WheelCommand()
+    data class SetPowerAlarm(val percentage: Int) : WheelCommand()
+    data class SetPlateProtection(val enabled: Boolean) : WheelCommand()
+
     // --- InMotion V2 extended settings (command bytes TBD via BLE capture) ---
 
     // Berm Angle

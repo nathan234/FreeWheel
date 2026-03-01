@@ -382,6 +382,11 @@ class WheelConnectionManager(
     suspend fun setPedalSensitivity(sensitivity: Int) { sendCommand(WheelCommand.SetPedalSensitivity(sensitivity)) }
     suspend fun setMilesMode(enabled: Boolean) { sendCommand(WheelCommand.SetMilesMode(enabled)) }
     suspend fun setCutoutAngle(angle: Int) { sendCommand(WheelCommand.SetCutoutAngle(angle)) }
+    // Begode extended settings
+    suspend fun setWeakMagnetism(level: Int) { sendCommand(WheelCommand.SetWeakMagnetism(level)) }
+    suspend fun setExtendedRollAngle(level: Int) { sendCommand(WheelCommand.SetExtendedRollAngle(level)) }
+    suspend fun setPowerAlarm(percentage: Int) { sendCommand(WheelCommand.SetPowerAlarm(percentage)) }
+    suspend fun setPlateProtection(enabled: Boolean) { sendCommand(WheelCommand.SetPlateProtection(enabled)) }
     // InMotion V2 extended settings
     suspend fun setBermAngleMode(enabled: Boolean) { sendCommand(WheelCommand.SetBermAngleMode(enabled)) }
     suspend fun setBermAngle(angle: Int) { sendCommand(WheelCommand.SetBermAngle(angle)) }
@@ -476,6 +481,11 @@ class WheelConnectionManager(
             SettingsCommandId.LOAD_DETECT -> setLoadDetect(boolValue)
             SettingsCommandId.STANDBY_TIME -> setStandbyTime(intValue)
             SettingsCommandId.CHARGE_LIMIT -> setChargeLimit(intValue)
+            // Begode extended settings
+            SettingsCommandId.WEAK_MAGNETISM -> setWeakMagnetism(intValue)
+            SettingsCommandId.EXTENDED_ROLL_ANGLE -> setExtendedRollAngle(intValue)
+            SettingsCommandId.POWER_ALARM -> setPowerAlarm(intValue)
+            SettingsCommandId.PLATE_PROTECTION -> setPlateProtection(boolValue)
         }
     }
 

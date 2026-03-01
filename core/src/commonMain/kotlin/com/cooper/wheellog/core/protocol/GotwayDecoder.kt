@@ -720,6 +720,46 @@ class GotwayDecoder : WheelDecoder {
                     WheelCommand.SendDelayed("y".encodeToByteArray(), 300)
                 )
             }
+            is WheelCommand.SetPedalTilt -> {
+                // executeCommand multiplies slider value by 10 (IM2 convention: 1/10 degree)
+                // Gotway uses raw 0-9 values, so divide back by 10
+                val param = byteArrayOf((((command.angle / 10) % 10) + 0x30).toByte())
+                listOf(
+                    WheelCommand.SendBytes("W".encodeToByteArray()),
+                    WheelCommand.SendDelayed("U".encodeToByteArray(), 100),
+                    WheelCommand.SendDelayed(param, 100)
+                )
+            }
+            is WheelCommand.SetWeakMagnetism -> {
+                val param = byteArrayOf(((command.level % 7) + 0x30).toByte())
+                listOf(
+                    WheelCommand.SendBytes("W".encodeToByteArray()),
+                    WheelCommand.SendDelayed("C".encodeToByteArray(), 100),
+                    WheelCommand.SendDelayed(param, 100)
+                )
+            }
+            is WheelCommand.SetExtendedRollAngle -> {
+                val param = byteArrayOf(((command.level % 10) + 0x30).toByte())
+                listOf(
+                    WheelCommand.SendBytes("W".encodeToByteArray()),
+                    WheelCommand.SendDelayed("R".encodeToByteArray(), 100),
+                    WheelCommand.SendDelayed(param, 100)
+                )
+            }
+            is WheelCommand.SetPowerAlarm -> {
+                val hhh = byteArrayOf(((command.percentage / 10) + 0x30).toByte())
+                val lll = byteArrayOf(((command.percentage % 10) + 0x30).toByte())
+                listOf(
+                    WheelCommand.SendBytes("W".encodeToByteArray()),
+                    WheelCommand.SendDelayed("P".encodeToByteArray(), 100),
+                    WheelCommand.SendDelayed(hhh, 100),
+                    WheelCommand.SendDelayed(lll, 100)
+                )
+            }
+            is WheelCommand.SetPlateProtection -> {
+                val cmd = if (command.enabled) "x" else "e"
+                listOf(WheelCommand.SendBytes(cmd.encodeToByteArray()))
+            }
             is WheelCommand.SetMaxSpeed -> {
                 if (command.speed != 0) {
                     val hhh = byteArrayOf(((command.speed / 10) + 0x30).toByte())

@@ -20,13 +20,14 @@ class WheelSettingsConfigTest {
     }
 
     @Test
-    fun `Gotway has 4 sections - Lighting, Ride, Audio, Dangerous`() {
+    fun `Gotway has 5 sections - Lighting, Ride, Audio, Safety, Dangerous`() {
         val sections = WheelSettingsConfig.sections(WheelType.GOTWAY)
-        assertEquals(4, sections.size)
+        assertEquals(5, sections.size)
         assertEquals("Lighting", sections[0].title)
         assertEquals("Ride", sections[1].title)
         assertEquals("Audio", sections[2].title)
-        assertEquals("Dangerous Actions", sections[3].title)
+        assertEquals("Safety", sections[3].title)
+        assertEquals("Dangerous Actions", sections[4].title)
     }
 
     @Test
@@ -130,9 +131,9 @@ class WheelSettingsConfigTest {
     }
 
     @Test
-    fun `Gotway Ride section has Cutout Angle slider 45-90`() {
+    fun `Gotway Ride section has 6 controls including Cutout Angle slider 45-90`() {
         val ride = WheelSettingsConfig.sections(WheelType.GOTWAY)[1]
-        assertEquals(3, ride.controls.size)
+        assertEquals(6, ride.controls.size)
         val cutout = ride.controls[2] as ControlSpec.Slider
         assertEquals("Cutout Angle", cutout.label)
         assertEquals(45, cutout.min)
@@ -141,6 +142,43 @@ class WheelSettingsConfigTest {
         assertEquals(70, cutout.defaultValue)
         assertEquals(SettingsCommandId.CUTOUT_ANGLE, cutout.commandId)
         assertEquals(5, cutout.step)
+
+        val pedalTilt = ride.controls[3] as ControlSpec.Slider
+        assertEquals("Pedal Tilt", pedalTilt.label)
+        assertEquals(0, pedalTilt.min)
+        assertEquals(9, pedalTilt.max)
+        assertEquals(SettingsCommandId.PEDAL_TILT, pedalTilt.commandId)
+
+        val weakMag = ride.controls[4] as ControlSpec.Slider
+        assertEquals("Weak Magnetism", weakMag.label)
+        assertEquals(0, weakMag.min)
+        assertEquals(6, weakMag.max)
+        assertEquals(SettingsCommandId.WEAK_MAGNETISM, weakMag.commandId)
+
+        val extRoll = ride.controls[5] as ControlSpec.Slider
+        assertEquals("Extended Roll Angle", extRoll.label)
+        assertEquals(0, extRoll.min)
+        assertEquals(9, extRoll.max)
+        assertEquals(SettingsCommandId.EXTENDED_ROLL_ANGLE, extRoll.commandId)
+    }
+
+    @Test
+    fun `Gotway Safety section has Plate Protection toggle and Power Alarm slider`() {
+        val safety = WheelSettingsConfig.sections(WheelType.GOTWAY)[3]
+        assertEquals("Safety", safety.title)
+        assertEquals(2, safety.controls.size)
+
+        val plateProtection = safety.controls[0] as ControlSpec.Toggle
+        assertEquals("Plate Protection", plateProtection.label)
+        assertEquals(SettingsCommandId.PLATE_PROTECTION, plateProtection.commandId)
+
+        val powerAlarm = safety.controls[1] as ControlSpec.Slider
+        assertEquals("Power Alarm", powerAlarm.label)
+        assertEquals(50, powerAlarm.min)
+        assertEquals(90, powerAlarm.max)
+        assertEquals("%", powerAlarm.unit)
+        assertEquals(70, powerAlarm.defaultValue)
+        assertEquals(SettingsCommandId.POWER_ALARM, powerAlarm.commandId)
     }
 
     @Test
@@ -432,7 +470,7 @@ class WheelSettingsConfigTest {
     }
 
     @Test
-    fun `Gotway settings map covers all Begode app settings with existing commands`() {
+    fun `Gotway settings map covers all Begode app settings`() {
         // Begode app screenshot settings → our WheelSettingsConfig controls
         val sections = WheelSettingsConfig.sections(WheelType.GOTWAY)
         val allCommands = sections.flatMap { s -> s.controls.map { it.commandId } }
@@ -444,6 +482,12 @@ class WheelSettingsConfigTest {
         assertTrue(SettingsCommandId.LIGHT_MODE in allCommands, "Light Mode")
         assertTrue(SettingsCommandId.LED_MODE in allCommands, "LED setting")
         assertTrue(SettingsCommandId.BEEPER_VOLUME in allCommands, "Volume setting")
+        // New Begode extended settings
+        assertTrue(SettingsCommandId.PEDAL_TILT in allCommands, "Pedal Tilt (Angle 5)")
+        assertTrue(SettingsCommandId.WEAK_MAGNETISM in allCommands, "Weak Magnetism")
+        assertTrue(SettingsCommandId.EXTENDED_ROLL_ANGLE in allCommands, "Extended Roll Angle (Angle 10)")
+        assertTrue(SettingsCommandId.PLATE_PROTECTION in allCommands, "Plate Protection")
+        assertTrue(SettingsCommandId.POWER_ALARM in allCommands, "Power Alarm")
     }
 
     // ==================== Gotway Light Mode Options Match iOS ====================

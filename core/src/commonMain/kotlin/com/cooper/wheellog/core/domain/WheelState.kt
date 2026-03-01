@@ -92,6 +92,12 @@ data class WheelState(
     val cutoutAngle: Int = -1,      // degrees (45-90, -1=unknown; readback from FRAME_07 bytes 4-5)
     val beeperVolume: Int = -1,     // 0-9 (-1=unknown; readback from FRAME_00 byte 17)
 
+    // Begode extended settings — populated by: GW only
+    val weakMagnetism: Int = -1,          // 0-6 (-1=unknown)
+    val extendedRollAngle: Int = -1,      // 0-9 (-1=unknown)
+    val powerAlarm: Int = -1,             // 50-90% (-1=unknown)
+    val plateProtection: Boolean = false,
+
     // InMotionV2 settings reported via BLE — populated by: IM2 only
     val maxSpeed: Int = -1,         // km/h (-1=unknown)
     val pedalTilt: Int = -1,        // 1/10 degree (-1=unknown)
@@ -212,6 +218,8 @@ data class WheelState(
         inMiles = inMiles, pedalsMode = pedalsMode, speedAlarms = speedAlarms,
         rollAngle = rollAngle, tiltBackSpeed = tiltBackSpeed, lightMode = lightMode,
         ledMode = ledMode, cutoutAngle = cutoutAngle, beeperVolume = beeperVolume,
+        weakMagnetism = weakMagnetism, extendedRollAngle = extendedRollAngle,
+        powerAlarm = powerAlarm, plateProtection = plateProtection,
         maxSpeed = maxSpeed, pedalTilt = pedalTilt, pedalSensitivity = pedalSensitivity,
         rideMode = rideMode, fancierMode = fancierMode, speakerVolume = speakerVolume,
         mute = mute, handleButton = handleButton, drl = drl,
