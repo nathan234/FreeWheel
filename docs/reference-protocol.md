@@ -145,6 +145,29 @@ ESP32-S3 (protocol firmware)
 VESC motor controller
 ```
 
+### Firmware Language: Rust
+
+The reference firmware targets Rust via Espressif's official `esp-idf-hal` / `esp-idf-svc`
+crates. Rationale:
+
+- **BLE GATT server**: `esp-idf-svc::bt` wraps the Bluedroid stack with type-safe callbacks
+  instead of raw C function pointers.
+- **TLV encoding**: Rust enums + `#[repr(u16)]` field IDs + zero-cost byte-slice abstractions
+  are a natural fit for the frame format. No manual buffer management.
+- **VESC UART**: `esp-idf-hal::uart` for hardware, existing Rust VESC UART crates for
+  the protocol layer.
+- **Safety**: No manual memory management for frame buffers, subscription lists, or capability
+  tables — the main sources of bugs in embedded C BLE stacks.
+- **Community fit**: Strong overlap between custom EUC firmware builders and Rust embedded
+  enthusiasts. More likely to attract contributors than C.
+
+Known friction: BLE bindings in `esp-idf-svc` cover GATT server/client but some edge
+cases (MTU negotiation, connection parameter updates) may need occasional unsafe FFI
+into the underlying C ESP-IDF. Not a dealbreaker.
+
+Estimated size: ~2-4K lines of Rust (comparable to C, slightly more verbose with explicit
+error handling but less boilerplate for data structures).
+
 ### Bill of Materials
 
 - **ESP32-S3-DevKitC** (~$8): BLE 5.0, UART, CAN (via SN65HVD230 transceiver)
@@ -177,12 +200,12 @@ VESC motor controller
 - [ ] Unit tests with synthetic frames
 - [ ] Wire into `WheelType.REFERENCE`, factory, detector (dedicated BLE service UUID)
 
-### Phase 2: ESP32 Firmware
+### Phase 2: ESP32 Firmware (Rust)
 
-- [ ] Scaffold ESP-IDF project (or Arduino framework)
-- [ ] BLE GATT server with dedicated service UUID
+- [ ] Scaffold `esp-idf-hal` project with `cargo` + `espflash` toolchain
+- [ ] BLE GATT server with dedicated service UUID (`esp-idf-svc::bt`)
 - [ ] Capability exchange handler
-- [ ] VESC UART comm library (read telemetry, write config)
+- [ ] VESC UART comm module (`esp-idf-hal::uart` + VESC packet protocol)
 - [ ] Telemetry subscription engine (configurable push rate)
 - [ ] Settings read/write proxying to VESC
 
