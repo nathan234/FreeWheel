@@ -96,6 +96,8 @@ class WheelConnectionManagerLifecycleTest {
             ConnectionState.DiscoveringServices("AA:BB:CC:DD:EE:FF"),
             manager.connectionState.value
         )
+
+        manager.disconnect()
     }
 
     @Test
@@ -170,6 +172,8 @@ class WheelConnectionManagerLifecycleTest {
         assertNotNull(manager.getCurrentDecoder())
         assertEquals(WheelType.KINGSONG, fakeFactory.lastCreatedType)
         assertEquals(WheelType.KINGSONG, manager.wheelState.value.wheelType)
+
+        manager.disconnect()
     }
 
     @Test
@@ -181,6 +185,8 @@ class WheelConnectionManagerLifecycleTest {
 
         assertNotNull(manager.getCurrentDecoder())
         assertEquals(WheelType.INMOTION_V2, fakeFactory.lastCreatedType)
+
+        manager.disconnect()
     }
 
     @Test
@@ -202,6 +208,8 @@ class WheelConnectionManagerLifecycleTest {
             manager.connectionState.value is ConnectionState.Failed,
             "Expected Failed, got ${manager.connectionState.value}"
         )
+
+        manager.disconnect()
     }
 
     @Test
@@ -222,6 +230,8 @@ class WheelConnectionManagerLifecycleTest {
 
         assertNotNull(manager.getCurrentDecoder())
         assertEquals(WheelType.GOTWAY_VIRTUAL, fakeFactory.lastCreatedType)
+
+        manager.disconnect()
     }
 
     @Test
@@ -232,6 +242,8 @@ class WheelConnectionManagerLifecycleTest {
         manager.onServicesDiscovered(kingsongServices, "KS-S18")
 
         assertEquals("KS-S18", manager.wheelState.value.btName)
+
+        manager.disconnect()
     }
 
     // ==================== onWheelTypeDetected ====================
@@ -246,6 +258,8 @@ class WheelConnectionManagerLifecycleTest {
         assertNotNull(manager.getCurrentDecoder())
         assertEquals(WheelType.VETERAN, fakeFactory.lastCreatedType)
         assertEquals(WheelType.VETERAN, manager.wheelState.value.wheelType)
+
+        manager.disconnect()
     }
 
     // ==================== Init Commands ====================
@@ -264,6 +278,8 @@ class WheelConnectionManagerLifecycleTest {
             fakeBle.writtenData.any { it.contentEquals(initData) },
             "Init command data should be written to BLE. Written: ${fakeBle.writtenData.size} commands"
         )
+
+        manager.disconnect()
     }
 
     @Test
@@ -288,6 +304,8 @@ class WheelConnectionManagerLifecycleTest {
             it.contentEquals(cmd1) || it.contentEquals(cmd2) || it.contentEquals(cmd3)
         }
         assertEquals(3, initWrites.size)
+
+        manager.disconnect()
     }
 
     // ==================== Data Received ====================
@@ -308,6 +326,8 @@ class WheelConnectionManagerLifecycleTest {
         assertEquals(2500, manager.wheelState.value.speed)
         assertEquals(8400, manager.wheelState.value.voltage)
         assertEquals(85, manager.wheelState.value.batteryLevel)
+
+        manager.disconnect()
     }
 
     @Test
@@ -319,6 +339,8 @@ class WheelConnectionManagerLifecycleTest {
         manager.onDataReceived(byteArrayOf(0x01))
 
         assertEquals(0, manager.wheelState.value.speed)
+
+        manager.disconnect()
     }
 
     @Test
@@ -341,6 +363,8 @@ class WheelConnectionManagerLifecycleTest {
 
         // State should be unchanged
         assertEquals(2500, manager.wheelState.value.speed)
+
+        manager.disconnect()
     }
 
     // ==================== Decoder Ready → Connected ====================
@@ -362,6 +386,8 @@ class WheelConnectionManagerLifecycleTest {
         val state = manager.connectionState.value
         assertTrue(state is ConnectionState.Connected, "Expected Connected, got $state")
         assertEquals("AA:BB:CC:DD:EE:FF", (state as ConnectionState.Connected).address)
+
+        manager.disconnect()
     }
 
     @Test
@@ -382,6 +408,8 @@ class WheelConnectionManagerLifecycleTest {
             manager.connectionState.value is ConnectionState.Connected,
             "Should not be Connected when decoder is not ready"
         )
+
+        manager.disconnect()
     }
 
     @Test
@@ -407,6 +435,8 @@ class WheelConnectionManagerLifecycleTest {
 
         assertTrue(manager.connectionState.value === firstState,
             "Connected state should not be re-emitted")
+
+        manager.disconnect()
     }
 
     // ==================== Keep-Alive ====================
@@ -444,6 +474,8 @@ class WheelConnectionManagerLifecycleTest {
 
         assertFalse(manager.isKeepAliveRunning.value,
             "Keep-alive should NOT run for zero interval")
+
+        manager.disconnect()
     }
 
     @Test
@@ -501,6 +533,8 @@ class WheelConnectionManagerLifecycleTest {
             fakeBle.writtenData.any { it.contentEquals(responseData) },
             "Response command should be written to BLE"
         )
+
+        manager.disconnect()
     }
 
     @Test
@@ -528,6 +562,8 @@ class WheelConnectionManagerLifecycleTest {
             it.contentEquals(resp1) || it.contentEquals(resp2)
         }
         assertEquals(2, respWrites.size, "Both response commands should be written")
+
+        manager.disconnect()
     }
 
     // ==================== Config ====================
@@ -556,6 +592,8 @@ class WheelConnectionManagerLifecycleTest {
             fakeBle.writtenData.any { it.contentEquals(data) },
             "SendBytes should write directly"
         )
+
+        manager.disconnect()
     }
 
     @Test
@@ -576,6 +614,8 @@ class WheelConnectionManagerLifecycleTest {
             fakeBle.writtenData.any { it.contentEquals(builtData) },
             "Built command should be written. Written: ${fakeBle.writtenData.size}"
         )
+
+        manager.disconnect()
     }
 
     // ==================== Connection Info ====================
@@ -595,6 +635,8 @@ class WheelConnectionManagerLifecycleTest {
         val info = manager.getConnectionInfo()
         assertNotNull(info)
         assertEquals(WheelType.KINGSONG, info.wheelType)
+
+        manager.disconnect()
     }
 
     // ==================== Decoder Reset on Type Change ====================
@@ -613,6 +655,8 @@ class WheelConnectionManagerLifecycleTest {
         runCurrent()
 
         assertTrue(fakeDecoder.resetCalled, "Previous decoder should be reset")
+
+        manager.disconnect()
     }
 }
 

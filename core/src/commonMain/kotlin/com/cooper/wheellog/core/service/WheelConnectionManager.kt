@@ -541,7 +541,9 @@ class WheelConnectionManager(
                 address = address,
                 reason = "No data received for ${DataTimeoutTracker.DEFAULT_TIMEOUT_MS / 1000} seconds"
             )
-            stopTimers()
+            // Don't stop timers — keep-alive must continue so polling wheels
+            // can recover when signal returns. The timeout tracker continues
+            // monitoring and will naturally reset via onDataReceived().
         }
     }
 

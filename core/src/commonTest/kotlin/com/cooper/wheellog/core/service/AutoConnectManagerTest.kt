@@ -183,8 +183,8 @@ class AutoConnectManagerTest {
         assertEquals(1, (state2 as AutoConnectManager.ReconnectState.Attempting).attempt)
         assertEquals(1, connectCalls.size)
 
-        // After settle time (3s): should be waiting for attempt 2
-        advanceTimeBy(3_000)
+        // After settle time (10s): should be waiting for attempt 2
+        advanceTimeBy(10_000)
         runCurrent()
         val state3 = manager.reconnectState.value
         assertTrue(state3 is AutoConnectManager.ReconnectState.Waiting, "Expected Waiting but got $state3")
@@ -197,7 +197,7 @@ class AutoConnectManagerTest {
         assertEquals(2, connectCalls.size)
 
         // After settle: attempt 3
-        advanceTimeBy(3_000)
+        advanceTimeBy(10_000)
         runCurrent()
         val state5 = manager.reconnectState.value
         assertTrue(state5 is AutoConnectManager.ReconnectState.Waiting, "Expected Waiting but got $state5")
@@ -221,7 +221,7 @@ class AutoConnectManagerTest {
         assertEquals(1, connectCalls.size)
 
         // Settle
-        advanceTimeBy(3_000)
+        advanceTimeBy(10_000)
         runCurrent()
 
         // Second attempt also after 500ms (reuses last)

@@ -123,7 +123,7 @@ class DataTimeoutTracker(
     val isTimedOut: StateFlow<Boolean> = _isTimedOut.asStateFlow()
 
     companion object {
-        const val DEFAULT_TIMEOUT_MS = 15_000L // 15 seconds
+        const val DEFAULT_TIMEOUT_MS = 60_000L // 60 seconds
     }
 
     /**
@@ -148,15 +148,17 @@ class DataTimeoutTracker(
 
                 val elapsed = currentTimeMillis() - lastDataTime
                 if (elapsed > timeoutMs) {
-                    _isTimedOut.value = true
-                    try {
-                        onTimeout()
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
-                        Logger.e("DataTimeoutTracker", "Error in timeout callback", e)
+                    if (!_isTimedOut.value) {
+                        _isTimedOut.value = true
+                        try {
+                            onTimeout()
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            Logger.e("DataTimeoutTracker", "Error in timeout callback", e)
+                        }
                     }
-                    break
+                    // Continue monitoring — onDataReceived() resets _isTimedOut
                 }
             }
         }

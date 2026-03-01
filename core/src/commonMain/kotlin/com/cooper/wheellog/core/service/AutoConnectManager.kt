@@ -182,6 +182,6 @@ class AutoConnectManager(
         val DEFAULT_BACKOFF = listOf(2_000L, 4_000L, 8_000L, 16_000L, 30_000L)
 
         /** Time to wait after a reconnect attempt to see if connection succeeds */
-        private const val RECONNECT_SETTLE_MS = 3_000L
+        private const val RECONNECT_SETTLE_MS = 10_000L
     }
 }

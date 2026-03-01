@@ -335,8 +335,8 @@ class WheelConnectionManagerTest {
     // ==================== DataTimeoutTracker Additional Tests ====================
 
     @Test
-    fun `DataTimeoutTracker DEFAULT_TIMEOUT_MS is 15 seconds`() {
-        assertEquals(15_000L, DataTimeoutTracker.DEFAULT_TIMEOUT_MS)
+    fun `DataTimeoutTracker DEFAULT_TIMEOUT_MS is 60 seconds`() {
+        assertEquals(60_000L, DataTimeoutTracker.DEFAULT_TIMEOUT_MS)
     }
 
     @Test
