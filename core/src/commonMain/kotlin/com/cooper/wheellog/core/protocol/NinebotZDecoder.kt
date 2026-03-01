@@ -789,9 +789,9 @@ class NinebotZDecoder : WheelDecoder {
 
     override val keepAliveIntervalMs: Long = 125L
 
-    override fun getKeepAliveCommand(): WheelCommand? {
+    override fun getKeepAliveCommand(): WheelCommand? = stateLock.withLock {
         // Return the appropriate command based on connection state
-        return when (connectionState) {
+        when (connectionState) {
             NinebotZConnectionState.INIT ->
                 WheelCommand.SendBytes(CANMessage.getBleVersion(gamma))
             NinebotZConnectionState.WAIT_KEY ->
@@ -960,7 +960,7 @@ class NinebotZDecoder : WheelDecoder {
      * Enable or disable BMS reading mode.
      * When enabled, the decoder will request BMS data during keep-alive cycles.
      */
-    fun setBmsReadingMode(enabled: Boolean) {
+    fun setBmsReadingMode(enabled: Boolean) = stateLock.withLock {
         bmsReadingMode = enabled
         if (enabled && connectionState == NinebotZConnectionState.READY) {
             connectionState = NinebotZConnectionState.BMS1_SN
@@ -975,12 +975,12 @@ class NinebotZDecoder : WheelDecoder {
     /**
      * Get the current gamma encryption key.
      */
-    fun getGamma(): ByteArray = gamma.copyOf()
+    fun getGamma(): ByteArray = stateLock.withLock { gamma.copyOf() }
 
     /**
      * Set the gamma encryption key (used when restoring state).
      */
-    fun setGamma(newGamma: ByteArray) {
+    fun setGamma(newGamma: ByteArray) = stateLock.withLock {
         if (newGamma.size == 16) {
             gamma = newGamma.copyOf()
         }

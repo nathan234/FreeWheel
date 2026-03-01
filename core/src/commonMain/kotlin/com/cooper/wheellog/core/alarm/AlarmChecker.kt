@@ -42,6 +42,14 @@ class AlarmChecker {
     private var wheelAlarmExecutingUntil: Long = 0
     private var lastPreWarningTime: Long = 0
 
+    // Hysteresis: once a speed/PWM alarm triggers, it stays active until
+    // the value drops below (threshold - hysteresis) to prevent rapid on/off
+    // flickering when the value oscillates near the threshold.
+    private var speedAlarmActive: Boolean = false
+    private var speedAlarmThreshold: Double = 0.0
+    private var pwmAlarmActive: Boolean = false
+    private var pwmAlarmThreshold: Double = 0.0
+
     // Throttle durations in milliseconds
     companion object {
         private const val SPEED_ALARM_COOLDOWN_MS = 170L
@@ -49,6 +57,11 @@ class AlarmChecker {
         private const val TEMPERATURE_ALARM_COOLDOWN_MS = 570L
         private const val BATTERY_ALARM_COOLDOWN_MS = 970L
         private const val WHEEL_ALARM_COOLDOWN_MS = 170L
+
+        /** Speed must drop this much below threshold before alarm clears (km/h) */
+        private const val SPEED_HYSTERESIS_KMH = 1.0
+        /** PWM must drop this much below threshold before alarm clears (0.0-1.0) */
+        private const val PWM_HYSTERESIS = 0.02
     }
 
     /**
@@ -103,6 +116,10 @@ class AlarmChecker {
         batteryAlarmExecutingUntil = 0
         wheelAlarmExecutingUntil = 0
         lastPreWarningTime = 0
+        speedAlarmActive = false
+        speedAlarmThreshold = 0.0
+        pwmAlarmActive = false
+        pwmAlarmThreshold = 0.0
     }
 
     /**
@@ -135,12 +152,17 @@ class AlarmChecker {
         val factor1 = config.alarmFactor1 / 100.0
         val factor2 = config.alarmFactor2 / 100.0
 
-        if (pwm > factor1) {
+        // Use hysteresis: once active, alarm stays until PWM drops below (threshold - hysteresis)
+        val effectiveThreshold = if (pwmAlarmActive) factor1 - PWM_HYSTERESIS else factor1
+
+        if (pwm > effectiveThreshold) {
             // Calculate tone duration based on how far into alarm zone
             val toneDuration = ((200 * (pwm - factor1) / (factor2 - factor1)).roundToInt())
                 .coerceIn(20, 200)
 
             speedAlarmExecutingUntil = currentTimeMs + SPEED_ALARM_COOLDOWN_MS
+            pwmAlarmActive = true
+            pwmAlarmThreshold = factor1
 
             return SpeedCheckResult(
                 alarm = TriggeredAlarm(
@@ -155,6 +177,8 @@ class AlarmChecker {
 
         // Reset speed alarm state
         speedAlarmExecutingUntil = 0
+        pwmAlarmActive = false
+        pwmAlarmThreshold = 0.0
 
         // Check for pre-warning
         val preWarning = checkPreWarning(state, config, currentTimeMs)
@@ -199,9 +223,15 @@ class AlarmChecker {
         val speed = state.speedKmh
         val battery = state.batteryLevel
 
+        // Apply hysteresis: once a speed alarm is active, require speed to drop
+        // further below the threshold before clearing it
+        val hysteresis = if (speedAlarmActive) SPEED_HYSTERESIS_KMH else 0.0
+
         // Check alarm 3 (most severe) first
-        if (checkSpeedBatteryThreshold(speed, battery, config.alarm3Speed, config.alarm3Battery)) {
+        if (checkSpeedBatteryThreshold(speed, battery, config.alarm3Speed, config.alarm3Battery, hysteresis)) {
             speedAlarmExecutingUntil = currentTimeMs + SPEED_ALARM_COOLDOWN_MS
+            speedAlarmActive = true
+            speedAlarmThreshold = config.alarm3Speed.toDouble()
             return SpeedCheckResult(
                 alarm = TriggeredAlarm(
                     type = AlarmType.SPEED3,
@@ -214,8 +244,10 @@ class AlarmChecker {
         }
 
         // Check alarm 2
-        if (checkSpeedBatteryThreshold(speed, battery, config.alarm2Speed, config.alarm2Battery)) {
+        if (checkSpeedBatteryThreshold(speed, battery, config.alarm2Speed, config.alarm2Battery, hysteresis)) {
             speedAlarmExecutingUntil = currentTimeMs + SPEED_ALARM_COOLDOWN_MS
+            speedAlarmActive = true
+            speedAlarmThreshold = config.alarm2Speed.toDouble()
             return SpeedCheckResult(
                 alarm = TriggeredAlarm(
                     type = AlarmType.SPEED2,
@@ -228,8 +260,10 @@ class AlarmChecker {
         }
 
         // Check alarm 1
-        if (checkSpeedBatteryThreshold(speed, battery, config.alarm1Speed, config.alarm1Battery)) {
+        if (checkSpeedBatteryThreshold(speed, battery, config.alarm1Speed, config.alarm1Battery, hysteresis)) {
             speedAlarmExecutingUntil = currentTimeMs + SPEED_ALARM_COOLDOWN_MS
+            speedAlarmActive = true
+            speedAlarmThreshold = config.alarm1Speed.toDouble()
             return SpeedCheckResult(
                 alarm = TriggeredAlarm(
                     type = AlarmType.SPEED1,
@@ -243,6 +277,8 @@ class AlarmChecker {
 
         // No speed alarm
         speedAlarmExecutingUntil = 0
+        speedAlarmActive = false
+        speedAlarmThreshold = 0.0
         return SpeedCheckResult(alarm = null, preWarning = null)
     }
 
@@ -250,12 +286,13 @@ class AlarmChecker {
         speed: Double,
         battery: Int,
         alarmSpeed: Int,
-        alarmBattery: Int
+        alarmBattery: Int,
+        hysteresis: Double = 0.0
     ): Boolean {
         return alarmSpeed > 0 &&
                 alarmBattery > 0 &&
                 battery <= alarmBattery &&
-                speed >= alarmSpeed
+                speed >= alarmSpeed - hysteresis
     }
 
     private fun checkCurrentAlarm(

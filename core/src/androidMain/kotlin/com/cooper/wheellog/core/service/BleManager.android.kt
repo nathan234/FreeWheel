@@ -243,6 +243,8 @@ actual class BleManager : BleManagerPort {
         ) {
             if (status == GattStatus.SUCCESS) {
                 onDataReceivedCallback?.invoke(value)
+            } else {
+                Logger.w("BleManager", "Characteristic update failed: $status (${characteristic.uuid})")
             }
         }
 

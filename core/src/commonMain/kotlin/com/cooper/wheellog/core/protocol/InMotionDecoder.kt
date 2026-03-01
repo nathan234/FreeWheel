@@ -424,6 +424,7 @@ class InMotionDecoder : WheelDecoder {
          */
         fun parseFastInfoMessage(model: Model, currentState: WheelState, config: DecoderConfig): FastInfoResult? {
             val exData = this.exData ?: return null
+            if (exData.size < 76) return null  // Need at least 76 bytes (largest offset: 72 + 4)
 
             val angle = ByteUtils.intFromBytesLE(exData, 0) / 65536.0
             var roll = ByteUtils.intFromBytesLE(exData, 72) / 90.0

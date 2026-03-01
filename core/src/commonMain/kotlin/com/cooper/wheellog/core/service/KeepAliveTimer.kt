@@ -202,6 +202,10 @@ class CommandScheduler(
     private val pendingJobs = mutableListOf<Job>()
     private val lock = com.cooper.wheellog.core.utils.Lock()
 
+    companion object {
+        private const val MAX_PENDING_JOBS = 100
+    }
+
     /**
      * Schedule a command to be executed after a delay.
      *
@@ -222,9 +226,13 @@ class CommandScheduler(
 
         lock.lock()
         try {
-            pendingJobs.add(job)
-            // Clean up completed jobs
+            // Clean up completed jobs before adding
             pendingJobs.removeAll { !it.isActive }
+            if (pendingJobs.size >= MAX_PENDING_JOBS) {
+                Logger.w("CommandScheduler", "Job queue full (${pendingJobs.size}), dropping oldest")
+                pendingJobs.removeFirst().cancel()
+            }
+            pendingJobs.add(job)
         } finally {
             lock.unlock()
         }
@@ -248,8 +256,12 @@ class CommandScheduler(
 
         lock.lock()
         try {
-            pendingJobs.add(job)
             pendingJobs.removeAll { !it.isActive }
+            if (pendingJobs.size >= MAX_PENDING_JOBS) {
+                Logger.w("CommandScheduler", "Job queue full (${pendingJobs.size}), dropping oldest")
+                pendingJobs.removeFirst().cancel()
+            }
+            pendingJobs.add(job)
         } finally {
             lock.unlock()
         }

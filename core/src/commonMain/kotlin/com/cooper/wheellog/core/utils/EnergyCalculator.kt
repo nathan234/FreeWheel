@@ -70,7 +70,9 @@ class EnergyCalculator {
      * @return Energy in Wh, or 0.0 if no recent data
      */
     fun getPowerHour(currentTimeMs: Long): Double = lock.withLock {
-        // Return cached value if still valid
+        pruneOldSamplesInternal(currentTimeMs)
+
+        // Return cached value if still valid (check after prune)
         if (currentTimeMs - cachedPowerHourTime < CACHE_DURATION_MS) {
             return@withLock cachedPowerHour
         }
@@ -78,8 +80,6 @@ class EnergyCalculator {
         if (!isDataFreshInternal(currentTimeMs)) {
             return@withLock cachedPowerHour
         }
-
-        pruneOldSamplesInternal(currentTimeMs)
 
         if (samples.size < 2) {
             return@withLock 0.0

@@ -63,15 +63,23 @@ class WheelService : Service() {
 
         // Wire BLE data to connection manager (mirrors WheelManager.swift)
         bleManager.setDataReceivedCallback { data ->
-            connectionManager.onDataReceived(data)
+            try {
+                connectionManager.onDataReceived(data)
+            } catch (e: Exception) {
+                com.cooper.wheellog.core.utils.Logger.e("WheelService", "Error in onDataReceived", e)
+            }
         }
         bleManager.setServicesDiscoveredCallback { services, deviceName ->
-            connectionManager.onServicesDiscovered(services, deviceName)
-            connectionManager.getConnectionInfo()?.let { info ->
-                bleManager.configureForWheel(
-                    info.readServiceUuid, info.readCharacteristicUuid,
-                    info.writeServiceUuid, info.writeCharacteristicUuid
-                )
+            try {
+                connectionManager.onServicesDiscovered(services, deviceName)
+                connectionManager.getConnectionInfo()?.let { info ->
+                    bleManager.configureForWheel(
+                        info.readServiceUuid, info.readCharacteristicUuid,
+                        info.writeServiceUuid, info.writeCharacteristicUuid
+                    )
+                }
+            } catch (e: Exception) {
+                com.cooper.wheellog.core.utils.Logger.e("WheelService", "Error in onServicesDiscovered", e)
             }
         }
 

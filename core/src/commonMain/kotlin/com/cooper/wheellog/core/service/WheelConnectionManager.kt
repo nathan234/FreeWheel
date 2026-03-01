@@ -129,6 +129,11 @@ class WheelConnectionManager(
      */
     suspend fun connect(address: String, wheelType: WheelType? = null) {
         _connectionState.value = ConnectionState.Connecting(address)
+        _wheelState.value = WheelState()
+        _telemetryState.value = TelemetryState()
+        _settingsState.value = WheelSettingsState()
+        _identityState.value = WheelIdentity()
+        _bmsState.value = BmsState()
 
         try {
             val success = bleManager.connect(address)
@@ -228,14 +233,19 @@ class WheelConnectionManager(
         }
 
         val newState = result.newState
+
+        // Guard against concurrent disconnect — if decoder was cleared, skip state emission
+        if (currentDecoder == null) return
+
         _wheelState.value = newState
 
         // Emit granular sub-state flows only when the relevant sub-state changes
         emitGranularStates(oldState, newState)
 
-        // Send any response commands
+        // Send any response commands via commandScheduler so they are
+        // cancelled on disconnect along with all other pending commands.
         if (result.commands.isNotEmpty()) {
-            scope.launch {
+            commandScheduler.scheduleSequence {
                 result.commands.forEach { cmd ->
                     sendCommand(cmd)
                 }
@@ -498,9 +508,10 @@ class WheelConnectionManager(
         _wheelState.value = oldState.copy(wheelType = wheelType)
         emitGranularStates(oldState, _wheelState.value)
 
-        // Send init commands
+        // Send init commands via commandScheduler so they are
+        // cancelled on disconnect along with all other pending commands.
         currentDecoder?.getInitCommands()?.let { commands ->
-            scope.launch {
+            commandScheduler.scheduleSequence {
                 commands.forEach { cmd ->
                     sendCommand(cmd)
                 }

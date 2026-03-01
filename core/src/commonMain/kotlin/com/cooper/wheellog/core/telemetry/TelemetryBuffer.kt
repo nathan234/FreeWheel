@@ -1,5 +1,7 @@
 package com.cooper.wheellog.core.telemetry
 
+import com.cooper.wheellog.core.utils.withLock
+
 /**
  * Thread-safe ring buffer for telemetry samples.
  * Shared across Android and iOS via KMP.
@@ -11,7 +13,9 @@ class TelemetryBuffer(
     private val maxAgeMs: Long = 60_000
 ) {
     private val _samples = mutableListOf<TelemetrySample>()
-    val samples: List<TelemetrySample> get() = _samples.toList()
+    private val lock = com.cooper.wheellog.core.utils.Lock()
+
+    val samples: List<TelemetrySample> get() = lock.withLock { _samples.toList() }
 
     private var lastSampleTimeMs: Long? = null
 
@@ -22,10 +26,10 @@ class TelemetryBuffer(
      * Add a sample if enough time has elapsed since the last one.
      * Returns true if the sample was added.
      */
-    fun addSampleIfNeeded(sample: TelemetrySample): Boolean {
+    fun addSampleIfNeeded(sample: TelemetrySample): Boolean = lock.withLock {
         val last = lastSampleTimeMs
         if (last != null && sample.timestampMs - last < sampleIntervalMs) {
-            return false
+            return@withLock false
         }
         lastSampleTimeMs = sample.timestampMs
         _samples.add(sample)
@@ -45,25 +49,25 @@ class TelemetryBuffer(
             }
         }
 
-        return true
+        true
     }
 
-    fun clear() {
+    fun clear() = lock.withLock {
         _samples.clear()
         lastSampleTimeMs = null
         _dynamicMax.clear()
     }
 
     /** Extract a series of values for the given metric from all buffered samples. */
-    fun valuesFor(metric: MetricType): List<Double> {
-        return _samples.map { metric.extractValue(it) }
+    fun valuesFor(metric: MetricType): List<Double> = lock.withLock {
+        _samples.map { metric.extractValue(it) }
     }
 
     /** Compute min/max/avg statistics for a metric across all buffered samples. */
-    fun statsFor(metric: MetricType): MetricStats {
-        val values = valuesFor(metric)
-        if (values.isEmpty()) return MetricStats(0.0, 0.0, 0.0)
-        return MetricStats(
+    fun statsFor(metric: MetricType): MetricStats = lock.withLock {
+        val values = _samples.map { metric.extractValue(it) }
+        if (values.isEmpty()) return@withLock MetricStats(0.0, 0.0, 0.0)
+        MetricStats(
             min = values.min(),
             max = values.max(),
             avg = values.average()
@@ -71,11 +75,11 @@ class TelemetryBuffer(
     }
 
     /** Get the effective max value for a metric (static or dynamic). */
-    fun effectiveMax(metric: MetricType): Double {
-        if (metric.maxValue > 0.0) return metric.maxValue
+    fun effectiveMax(metric: MetricType): Double = lock.withLock {
+        if (metric.maxValue > 0.0) return@withLock metric.maxValue
         // Dynamic: use tracked max, with a sensible minimum
         val tracked = _dynamicMax[metric] ?: 0.0
-        return if (tracked > 0.0) tracked * 1.2 else 1000.0
+        if (tracked > 0.0) tracked * 1.2 else 1000.0
     }
 }
 

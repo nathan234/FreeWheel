@@ -215,8 +215,39 @@ data class BmsSnapshot(
 
     override fun hashCode(): Int {
         var result = serialNumber.hashCode()
-        result = 31 * result + voltage.hashCode()
+        result = 31 * result + versionNumber.hashCode()
+        result = 31 * result + factoryCap
+        result = 31 * result + actualCap
+        result = 31 * result + fullCycles
+        result = 31 * result + chargeCount
+        result = 31 * result + mfgDateStr.hashCode()
+        result = 31 * result + status
+        result = 31 * result + remCap
+        result = 31 * result + remPerc
         result = 31 * result + current.hashCode()
+        result = 31 * result + voltage.hashCode()
+        result = 31 * result + semiVoltage1.hashCode()
+        result = 31 * result + semiVoltage2.hashCode()
+        result = 31 * result + temp1.hashCode()
+        result = 31 * result + temp2.hashCode()
+        result = 31 * result + temp3.hashCode()
+        result = 31 * result + temp4.hashCode()
+        result = 31 * result + temp5.hashCode()
+        result = 31 * result + temp6.hashCode()
+        result = 31 * result + tempMos.hashCode()
+        result = 31 * result + tempMosEnv.hashCode()
+        result = 31 * result + temp1Env.hashCode()
+        result = 31 * result + temp2Env.hashCode()
+        result = 31 * result + humidity1Env.hashCode()
+        result = 31 * result + humidity2Env.hashCode()
+        result = 31 * result + balanceMap
+        result = 31 * result + health
+        result = 31 * result + minCell.hashCode()
+        result = 31 * result + maxCell.hashCode()
+        result = 31 * result + cellDiff.hashCode()
+        result = 31 * result + avgCell.hashCode()
+        result = 31 * result + minCellNum
+        result = 31 * result + maxCellNum
         result = 31 * result + cellNum
         result = 31 * result + cells.contentHashCode()
         return result

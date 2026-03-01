@@ -19,6 +19,9 @@ import kotlinx.coroutines.launch
 
 private val demoScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
+/** Shared scope for fire-and-forget command sends. */
+private val commandScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+
 /**
  * Handle for cancelling a Flow observation started from Swift.
  * Call [close] to stop collecting and free resources.
@@ -96,19 +99,19 @@ object WheelConnectionManagerHelper {
     }
 
     fun sendBeep(manager: WheelConnectionManager) {
-        CoroutineScope(Dispatchers.Main).launch {
+        commandScope.launch {
             manager.wheelBeep()
         }
     }
 
     fun sendToggleLight(manager: WheelConnectionManager, enabled: Boolean) {
-        CoroutineScope(Dispatchers.Main).launch {
+        commandScope.launch {
             manager.toggleLight(enabled)
         }
     }
 
     fun sendSetPedalsMode(manager: WheelConnectionManager, mode: Int) {
-        CoroutineScope(Dispatchers.Main).launch {
+        commandScope.launch {
             manager.setPedalsMode(mode)
         }
     }
@@ -116,49 +119,49 @@ object WheelConnectionManagerHelper {
     // MARK: - Lighting
 
     fun sendSetLightMode(manager: WheelConnectionManager, mode: Int) {
-        CoroutineScope(Dispatchers.Main).launch {
+        commandScope.launch {
             manager.setLightMode(mode)
         }
     }
 
     fun sendSetLed(manager: WheelConnectionManager, enabled: Boolean) {
-        CoroutineScope(Dispatchers.Main).launch {
+        commandScope.launch {
             manager.setLed(enabled)
         }
     }
 
     fun sendSetLedMode(manager: WheelConnectionManager, mode: Int) {
-        CoroutineScope(Dispatchers.Main).launch {
+        commandScope.launch {
             manager.setLedMode(mode)
         }
     }
 
     fun sendSetStrobeMode(manager: WheelConnectionManager, mode: Int) {
-        CoroutineScope(Dispatchers.Main).launch {
+        commandScope.launch {
             manager.setStrobeMode(mode)
         }
     }
 
     fun sendSetTailLight(manager: WheelConnectionManager, enabled: Boolean) {
-        CoroutineScope(Dispatchers.Main).launch {
+        commandScope.launch {
             manager.setTailLight(enabled)
         }
     }
 
     fun sendSetDrl(manager: WheelConnectionManager, enabled: Boolean) {
-        CoroutineScope(Dispatchers.Main).launch {
+        commandScope.launch {
             manager.setDrl(enabled)
         }
     }
 
     fun sendSetLedColor(manager: WheelConnectionManager, value: Int, ledNum: Int) {
-        CoroutineScope(Dispatchers.Main).launch {
+        commandScope.launch {
             manager.setLedColor(value, ledNum)
         }
     }
 
     fun sendSetLightBrightness(manager: WheelConnectionManager, value: Int) {
-        CoroutineScope(Dispatchers.Main).launch {
+        commandScope.launch {
             manager.setLightBrightness(value)
         }
     }
@@ -166,49 +169,49 @@ object WheelConnectionManagerHelper {
     // MARK: - Speed & Alarms
 
     fun sendSetMaxSpeed(manager: WheelConnectionManager, speed: Int) {
-        CoroutineScope(Dispatchers.Main).launch {
+        commandScope.launch {
             manager.setMaxSpeed(speed)
         }
     }
 
     fun sendSetAlarmSpeed(manager: WheelConnectionManager, speed: Int, num: Int) {
-        CoroutineScope(Dispatchers.Main).launch {
+        commandScope.launch {
             manager.setAlarmSpeed(speed, num)
         }
     }
 
     fun sendSetAlarmEnabled(manager: WheelConnectionManager, enabled: Boolean, num: Int) {
-        CoroutineScope(Dispatchers.Main).launch {
+        commandScope.launch {
             manager.setAlarmEnabled(enabled, num)
         }
     }
 
     fun sendSetLimitedMode(manager: WheelConnectionManager, enabled: Boolean) {
-        CoroutineScope(Dispatchers.Main).launch {
+        commandScope.launch {
             manager.setLimitedMode(enabled)
         }
     }
 
     fun sendSetLimitedSpeed(manager: WheelConnectionManager, speed: Int) {
-        CoroutineScope(Dispatchers.Main).launch {
+        commandScope.launch {
             manager.setLimitedSpeed(speed)
         }
     }
 
     fun sendSetAlarmMode(manager: WheelConnectionManager, mode: Int) {
-        CoroutineScope(Dispatchers.Main).launch {
+        commandScope.launch {
             manager.setAlarmMode(mode)
         }
     }
 
     fun sendSetKingsongAlarms(manager: WheelConnectionManager, a1: Int, a2: Int, a3: Int, max: Int) {
-        CoroutineScope(Dispatchers.Main).launch {
+        commandScope.launch {
             manager.setKingsongAlarms(a1, a2, a3, max)
         }
     }
 
     fun sendRequestAlarmSettings(manager: WheelConnectionManager) {
-        CoroutineScope(Dispatchers.Main).launch {
+        commandScope.launch {
             manager.requestAlarmSettings()
         }
     }
@@ -216,43 +219,43 @@ object WheelConnectionManagerHelper {
     // MARK: - Ride Modes
 
     fun sendSetHandleButton(manager: WheelConnectionManager, enabled: Boolean) {
-        CoroutineScope(Dispatchers.Main).launch {
+        commandScope.launch {
             manager.setHandleButton(enabled)
         }
     }
 
     fun sendSetBrakeAssist(manager: WheelConnectionManager, enabled: Boolean) {
-        CoroutineScope(Dispatchers.Main).launch {
+        commandScope.launch {
             manager.setBrakeAssist(enabled)
         }
     }
 
     fun sendSetTransportMode(manager: WheelConnectionManager, enabled: Boolean) {
-        CoroutineScope(Dispatchers.Main).launch {
+        commandScope.launch {
             manager.setTransportMode(enabled)
         }
     }
 
     fun sendSetRideMode(manager: WheelConnectionManager, enabled: Boolean) {
-        CoroutineScope(Dispatchers.Main).launch {
+        commandScope.launch {
             manager.setRideMode(enabled)
         }
     }
 
     fun sendSetGoHomeMode(manager: WheelConnectionManager, enabled: Boolean) {
-        CoroutineScope(Dispatchers.Main).launch {
+        commandScope.launch {
             manager.setGoHomeMode(enabled)
         }
     }
 
     fun sendSetFancierMode(manager: WheelConnectionManager, enabled: Boolean) {
-        CoroutineScope(Dispatchers.Main).launch {
+        commandScope.launch {
             manager.setFancierMode(enabled)
         }
     }
 
     fun sendSetRollAngleMode(manager: WheelConnectionManager, mode: Int) {
-        CoroutineScope(Dispatchers.Main).launch {
+        commandScope.launch {
             manager.setRollAngleMode(mode)
         }
     }
@@ -260,19 +263,19 @@ object WheelConnectionManagerHelper {
     // MARK: - Audio
 
     fun sendSetMute(manager: WheelConnectionManager, enabled: Boolean) {
-        CoroutineScope(Dispatchers.Main).launch {
+        commandScope.launch {
             manager.setMute(enabled)
         }
     }
 
     fun sendSetSpeakerVolume(manager: WheelConnectionManager, volume: Int) {
-        CoroutineScope(Dispatchers.Main).launch {
+        commandScope.launch {
             manager.setSpeakerVolume(volume)
         }
     }
 
     fun sendSetBeeperVolume(manager: WheelConnectionManager, volume: Int) {
-        CoroutineScope(Dispatchers.Main).launch {
+        commandScope.launch {
             manager.setBeeperVolume(volume)
         }
     }
@@ -280,13 +283,13 @@ object WheelConnectionManagerHelper {
     // MARK: - Thermal
 
     fun sendSetFanQuiet(manager: WheelConnectionManager, enabled: Boolean) {
-        CoroutineScope(Dispatchers.Main).launch {
+        commandScope.launch {
             manager.setFanQuiet(enabled)
         }
     }
 
     fun sendSetFan(manager: WheelConnectionManager, enabled: Boolean) {
-        CoroutineScope(Dispatchers.Main).launch {
+        commandScope.launch {
             manager.setFan(enabled)
         }
     }
@@ -294,13 +297,13 @@ object WheelConnectionManagerHelper {
     // MARK: - Pedal Tuning
 
     fun sendSetPedalTilt(manager: WheelConnectionManager, angle: Int) {
-        CoroutineScope(Dispatchers.Main).launch {
+        commandScope.launch {
             manager.setPedalTilt(angle)
         }
     }
 
     fun sendSetPedalSensitivity(manager: WheelConnectionManager, sensitivity: Int) {
-        CoroutineScope(Dispatchers.Main).launch {
+        commandScope.launch {
             manager.setPedalSensitivity(sensitivity)
         }
     }
@@ -308,31 +311,31 @@ object WheelConnectionManagerHelper {
     // MARK: - System
 
     fun sendCalibrate(manager: WheelConnectionManager) {
-        CoroutineScope(Dispatchers.Main).launch {
+        commandScope.launch {
             manager.calibrate()
         }
     }
 
     fun sendPowerOff(manager: WheelConnectionManager) {
-        CoroutineScope(Dispatchers.Main).launch {
+        commandScope.launch {
             manager.powerOff()
         }
     }
 
     fun sendSetLock(manager: WheelConnectionManager, locked: Boolean) {
-        CoroutineScope(Dispatchers.Main).launch {
+        commandScope.launch {
             manager.setLock(locked)
         }
     }
 
     fun sendResetTrip(manager: WheelConnectionManager) {
-        CoroutineScope(Dispatchers.Main).launch {
+        commandScope.launch {
             manager.resetTrip()
         }
     }
 
     fun sendSetMilesMode(manager: WheelConnectionManager, enabled: Boolean) {
-        CoroutineScope(Dispatchers.Main).launch {
+        commandScope.launch {
             manager.setMilesMode(enabled)
         }
     }
@@ -340,7 +343,7 @@ object WheelConnectionManagerHelper {
     // MARK: - Generic Command Dispatch
 
     fun executeCommand(manager: WheelConnectionManager, commandId: SettingsCommandId, intValue: Int = 0, boolValue: Boolean = false) {
-        CoroutineScope(Dispatchers.Main).launch {
+        commandScope.launch {
             manager.executeCommand(commandId, intValue, boolValue)
         }
     }

@@ -326,14 +326,18 @@ class KingsongDecoder : WheelDecoder {
     }
 
     private fun processExtendedBmsPacket(data: ByteArray, bms: SmartBms) {
-        val cells = data[21].toInt() and 0xFF
+        if (data.size < 23) return  // Minimum: 21 (cell count) + 2 bytes
+        val cells = (data[21].toInt() and 0xFF).coerceAtMost(SmartBms.MAX_CELLS)
 
-        // Read cell voltages
+        // Read cell voltages — bounds-check both source (data) and destination (bms.cells)
+        val cellDataEnd = 22 + cells * 2
+        if (data.size < cellDataEnd + 1) return
         for (i in 0 until cells) {
             bms.cells[i] = ByteUtils.getInt2R(data, 22 + i * 2) / 1000.0
         }
 
         val offset = 23 + cells * 2
+        if (data.size < offset + 16) return  // Need at least 8 temp values (16 bytes)
         val nTemp = data[offset - 1].toInt() and 0xFF
 
         // Read temperatures
@@ -347,6 +351,7 @@ class KingsongDecoder : WheelDecoder {
         bms.tempMosEnv = (ByteUtils.getInt2R(data, offset + 14) - 2730) / 10.0
 
         val offset2 = offset + nTemp * 2
+        if (data.size < offset2 + 22) return  // Need remaining fields (22 bytes)
         bms.current = ByteUtils.getInt2R(data, offset2) / 100.0
         bms.voltage = ByteUtils.getInt2R(data, offset2 + 2) / 100.0
         bms.remPerc = ByteUtils.getInt2R(data, offset2 + 4) / 10

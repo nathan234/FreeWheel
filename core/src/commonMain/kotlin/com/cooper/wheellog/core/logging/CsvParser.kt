@@ -1,6 +1,7 @@
 package com.cooper.wheellog.core.logging
 
 import com.cooper.wheellog.core.telemetry.TelemetrySample
+import com.cooper.wheellog.core.utils.Logger
 import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toInstant
@@ -63,8 +64,8 @@ object CsvParser {
                     pwmPercent = pwmIdx?.let { cols.getOrNull(it)?.toDoubleOrNull() } ?: 0.0,
                     gpsSpeedKmh = gpsSpeedIdx?.let { cols.getOrNull(it)?.toDoubleOrNull() } ?: 0.0,
                 ))
-            } catch (_: Exception) {
-                // Skip malformed rows
+            } catch (e: Exception) {
+                Logger.w("CsvParser", "Skipping malformed row: ${e.message}")
             }
         }
 
