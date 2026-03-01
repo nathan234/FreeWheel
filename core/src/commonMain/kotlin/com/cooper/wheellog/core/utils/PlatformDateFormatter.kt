@@ -11,4 +11,10 @@ expect object PlatformDateFormatter {
      * or "Jan 5, 2024, 3:15 PM" for dates in a different year.
      */
     fun formatFriendlyDate(epochMs: Long): String
+
+    /**
+     * Format a timestamp as a ride log filename (without extension).
+     * Uses format "yyyy_MM_dd_HH_mm_ss".
+     */
+    fun formatRideFilename(epochMs: Long): String
 }

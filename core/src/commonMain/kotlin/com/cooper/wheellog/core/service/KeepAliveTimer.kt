@@ -2,6 +2,7 @@ package com.cooper.wheellog.core.service
 
 import com.cooper.wheellog.core.utils.Lock
 import com.cooper.wheellog.core.utils.Logger
+import com.cooper.wheellog.core.utils.currentTimeMillis
 import com.cooper.wheellog.core.utils.withLock
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -312,9 +313,3 @@ class CommandScheduler(
         }
     }
 }
-
-/**
- * Platform-agnostic current time function.
- * Returns current time in milliseconds.
- */
-expect fun currentTimeMillis(): Long

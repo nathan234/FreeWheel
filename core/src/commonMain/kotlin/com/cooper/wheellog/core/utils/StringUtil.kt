@@ -97,6 +97,13 @@ object StringUtil {
     }
 
     /**
+     * Sanitize a BLE address for use in filenames by replacing
+     * colons and slashes with underscores.
+     */
+    fun sanitizeAddress(address: String): String =
+        address.replace(":", "_").replace("/", "_")
+
+    /**
      * Pad a number with leading zero if less than 10.
      */
     private fun padZero(value: Int): String {

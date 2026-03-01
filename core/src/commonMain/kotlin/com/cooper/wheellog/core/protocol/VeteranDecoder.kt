@@ -5,6 +5,7 @@ import com.cooper.wheellog.core.domain.WheelState
 import com.cooper.wheellog.core.domain.WheelType
 import com.cooper.wheellog.core.utils.ByteUtils
 import com.cooper.wheellog.core.utils.Lock
+import com.cooper.wheellog.core.utils.currentTimeMillis
 import com.cooper.wheellog.core.utils.withLock
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -493,8 +494,3 @@ class VeteranDecoder : WheelDecoder {
         private const val WAITING_TIME = 100L
     }
 }
-
-/**
- * Platform-specific current time function.
- */
-expect fun currentTimeMillis(): Long

@@ -3,7 +3,7 @@ package com.cooper.wheellog.core.util
 import com.cooper.wheellog.core.domain.AlarmType
 import com.cooper.wheellog.core.domain.WheelState
 import com.cooper.wheellog.core.domain.WheelType
-import com.cooper.wheellog.core.service.currentTimeMillis
+import com.cooper.wheellog.core.utils.currentTimeMillis
 import com.cooper.wheellog.core.telemetry.MetricType
 import com.cooper.wheellog.core.utils.DisplayUtils
 import com.cooper.wheellog.core.utils.PlatformDateFormatter

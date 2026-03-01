@@ -15,6 +15,7 @@ import com.cooper.wheellog.core.protocol.WheelDecoder
 import com.cooper.wheellog.core.protocol.WheelDecoderFactory
 import com.cooper.wheellog.core.domain.SettingsCommandId
 import com.cooper.wheellog.core.utils.Logger
+import com.cooper.wheellog.core.utils.currentTimeMillis
 import kotlin.concurrent.Volatile
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope

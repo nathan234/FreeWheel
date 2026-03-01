@@ -6,6 +6,8 @@ import androidx.lifecycle.viewModelScope
 import com.cooper.wheellog.AppConfig
 import com.cooper.wheellog.core.domain.WheelState
 import com.cooper.wheellog.core.utils.ByteUtils
+import com.cooper.wheellog.core.utils.PlatformDateFormatter
+import com.cooper.wheellog.core.utils.StringUtil
 import com.cooper.wheellog.core.logging.GpsLocation
 import com.cooper.wheellog.core.logging.RideLogger
 import com.cooper.wheellog.core.telemetry.ChartTimeRange
@@ -38,9 +40,6 @@ import com.cooper.wheellog.data.TripRepository
 import android.content.Context
 import androidx.preference.PreferenceManager
 import java.io.File
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -537,8 +536,7 @@ class WheelViewModel(application: Application) : AndroidViewModel(application) {
         val app = getApplication<Application>()
         val ridesDir = File(app.getExternalFilesDir(null), "rides")
         ridesDir.mkdirs()
-        val sdf = SimpleDateFormat("yyyy_MM_dd_HH_mm_ss", Locale.US)
-        val fileName = "${sdf.format(Date())}.csv"
+        val fileName = "${PlatformDateFormatter.formatRideFilename(System.currentTimeMillis())}.csv"
         val filePath = File(ridesDir, fileName).absolutePath
         val includeGps = getGlobalBool(PreferenceKeys.LOG_LOCATION_DATA, false)
 
@@ -657,7 +655,7 @@ class WheelViewModel(application: Application) : AndroidViewModel(application) {
         if (address == "demo") return
         // Save current history if switching wheels
         telemetryHistory?.save()
-        val sanitized = address.replace(":", "_").replace("/", "_")
+        val sanitized = StringUtil.sanitizeAddress(address)
         val dir = File(getApplication<Application>().filesDir, "telemetry")
         val path = File(dir, "$sanitized.csv").absolutePath
         val history = TelemetryHistory(telemetryFileIO)

@@ -43,4 +43,11 @@ actual object PlatformDateFormatter {
             }
         }
     }
+
+    actual fun formatRideFilename(epochMs: Long): String {
+        val date = NSDate.dateWithTimeIntervalSince1970(epochMs / 1000.0)
+        val formatter = NSDateFormatter()
+        formatter.dateFormat = "yyyy_MM_dd_HH_mm_ss"
+        return formatter.stringFromDate(date)
+    }
 }

@@ -40,4 +40,9 @@ actual object PlatformDateFormatter {
         yesterday.add(Calendar.DAY_OF_YEAR, -1)
         return isSameDay(yesterday, then)
     }
+
+    actual fun formatRideFilename(epochMs: Long): String {
+        val sdf = SimpleDateFormat("yyyy_MM_dd_HH_mm_ss", Locale.US)
+        return sdf.format(Date(epochMs))
+    }
 }
