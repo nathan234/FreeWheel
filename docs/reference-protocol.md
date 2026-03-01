@@ -221,6 +221,80 @@ error handling but less boilerplate for data structures).
 - [ ] Open-source ESP32 firmware repo
 - [ ] Engage Floatwheel / VESC EUC community for adoption feedback
 
+## Berm Angle on VESC
+
+No VESC firmware currently has a direct "berm angle" feature like InMotion's. The closest
+analog is **Turn Tilt** in the [Float Package](https://pev.dev/t/float-package-start-here/742)
+and its fork [Refloat](https://github.com/lukash/refloat/releases), but these are
+Onewheel-oriented (single-axis balance), not EUC:
+
+- **InMotion berm angle**: Allows the EUC to lean into banked turns up to a configurable
+  max angle, suppressing the gyro's instinct to correct back to vertical.
+- **Float/Refloat Turn Tilt**: Compensates for yaw-induced pitch artifacts when carving —
+  when the board turns, roll gets coupled into pitch, causing nose-dip. Turn Tilt
+  counteracts this. Not the same thing.
+
+For an EUC on VESC, berm angle would need to be implemented in the balance loop — detect
+sustained yaw rotation (from gyro) and relax the roll correction proportionally up to the
+configured limit. Estimated ~50-100 lines in the balance controller. Nobody's done it yet
+for VESC EUC firmware because the VESC EUC scene is still small.
+
+In our reference protocol, berm angle is just two self-describing settings fields:
+```
+{ field_id: 0x010A, type: bool,  name: "berm_angle_mode" }
+{ field_id: 0x010B, type: int32, scale: 1, unit: "deg", min: 0, max: 45, name: "berm_angle" }
+```
+
+## IMU Sensor Drift Mitigation
+
+Sensor drift is a well-solved problem with multiple layers. The reference firmware should
+implement all of these:
+
+### 1. Gyro Bias Calibration at Startup
+
+Sample gyro for 1-2 seconds while stationary, average the readings, subtract as offset.
+VESC's [IMU Calibration Wizard](https://pev.dev/t/wiki-imu-calibration-wizard-guide-vesc-tool-6-02/699)
+already does this.
+
+### 2. Complementary / Mahony AHRS Filter
+
+Fuse gyro (fast, drifts) with accelerometer (slow, noisy but absolute reference to gravity).
+Classic complementary filter:
+```
+angle = alpha * (angle + gyro_rate * dt) + (1 - alpha) * accel_angle
+```
+VESC uses a [Mahony AHRS filter](https://github.com/vedderb/bldc/blob/master/imu/imu.c)
+which is a more sophisticated version — tracks orientation as a quaternion with proportional
++ integral error correction from accelerometer/magnetometer.
+
+### 3. Per-Axis Mahony KP Tuning
+
+Key insight from [Refloat](https://github.com/lukash/refloat/releases): high KP on pitch
+(fast balance correction), low KP on roll (prevents turn artifacts from coupling into
+balance). When the board rotates in yaw, roll gets projected onto pitch — high roll KP
+causes this coupling to linger, making the nose dip during turns. Lower roll KP reduces
+this "drift" during carving.
+
+Expose these as configurable protocol fields:
+```
+{ field_id: 0x0110, type: int32, scale: 1000, name: "mahony_kp_pitch" }
+{ field_id: 0x0111, type: int32, scale: 1000, name: "mahony_kp_roll" }
+```
+
+### 4. Temperature Compensation
+
+Gyro bias drifts with temperature. Sample bias periodically during known-stationary
+moments (detected via accelerometer magnitude near 1g) and update the offset. More
+important for long rides where board temperature changes significantly.
+
+### What We Get for Free
+
+Layers 1-3 are essentially free — VESC's IMU code already implements Mahony AHRS. The
+reference firmware just needs to:
+- Expose the KP parameters as configurable fields in the protocol
+- Run the existing VESC IMU calibration on startup
+- Optionally add temperature-aware bias tracking (layer 4)
+
 ## Open Questions
 
 - Should the protocol support BMS cell voltage reporting? (Many wheels expose per-cell
