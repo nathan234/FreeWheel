@@ -23,7 +23,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -69,8 +69,8 @@ fun ChartScreen(
     viewModel: WheelViewModel,
     onBack: () -> Unit
 ) {
-    val samples by viewModel.chartSamples.collectAsState()
-    val selectedRange by viewModel.chartTimeRange.collectAsState()
+    val samples by viewModel.chartSamples.collectAsStateWithLifecycle()
+    val selectedRange by viewModel.chartTimeRange.collectAsStateWithLifecycle()
     val useMph = viewModel.appConfig.useMph
     val useFahrenheit = viewModel.appConfig.useFahrenheit
 

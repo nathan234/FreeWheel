@@ -61,6 +61,8 @@ class WheelConnectionManager(
     private val _identityState = MutableStateFlow(WheelIdentity())
     private val _bmsState = MutableStateFlow(BmsState())
 
+    private val _consecutiveDecodeErrors = MutableStateFlow(0)
+
     private var currentDecoder: WheelDecoder? = null
     private var decoderConfig = DecoderConfig()
     private var connectionInfo: WheelConnectionInfo? = null
@@ -104,6 +106,12 @@ class WheelConnectionManager(
     val bmsState: StateFlow<BmsState> = _bmsState.asStateFlow()
 
     /**
+     * Count of consecutive null decode() returns. Resets to 0 on each successful decode.
+     * Useful for diagnostics — a sustained high value indicates persistent decode failures.
+     */
+    val consecutiveDecodeErrors: StateFlow<Int> = _consecutiveDecodeErrors.asStateFlow()
+
+    /**
      * Whether the keep-alive timer is running.
      */
     val isKeepAliveRunning: StateFlow<Boolean> = keepAliveTimer.isRunning
@@ -134,6 +142,7 @@ class WheelConnectionManager(
         _settingsState.value = WheelSettingsState()
         _identityState.value = WheelIdentity()
         _bmsState.value = BmsState()
+        _consecutiveDecodeErrors.value = 0
 
         try {
             val success = bleManager.connect(address)
@@ -177,6 +186,7 @@ class WheelConnectionManager(
         _settingsState.value = WheelSettingsState()
         _identityState.value = WheelIdentity()
         _bmsState.value = BmsState()
+        _consecutiveDecodeErrors.value = 0
         _connectionState.value = ConnectionState.Disconnected
     }
 
@@ -228,9 +238,12 @@ class WheelConnectionManager(
         val oldState = _wheelState.value
         val result = decoder.decode(data, oldState, decoderConfig)
         if (result == null) {
+            _consecutiveDecodeErrors.value++
             Logger.d("WheelConnectionManager", "decode() returned null for ${data.size} bytes (decoder=${decoder.wheelType})")
             return
         }
+
+        _consecutiveDecodeErrors.value = 0
 
         val newState = result.newState
 

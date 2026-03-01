@@ -11,7 +11,7 @@ package com.cooper.wheellog.core.protocol
  *
  * Total frame size = length + 6 (header + length byte + data + CRC)
  */
-class NinebotUnpacker : Unpacker {
+internal class NinebotUnpacker : Unpacker {
 
     private enum class State {
         UNKNOWN,

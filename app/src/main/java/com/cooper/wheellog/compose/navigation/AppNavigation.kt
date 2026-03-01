@@ -12,7 +12,7 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -87,8 +87,8 @@ fun AppNavigation(viewModel: WheelViewModel) {
             modifier = Modifier.padding(innerPadding)
         ) {
             composable(Screen.Devices.route) {
-                val connectionState by viewModel.connectionState.collectAsState()
-                val isAutoConnecting by viewModel.isAutoConnecting.collectAsState()
+                val connectionState by viewModel.connectionState.collectAsStateWithLifecycle()
+                val isAutoConnecting by viewModel.isAutoConnecting.collectAsStateWithLifecycle()
                 if (connectionState.isConnected) {
                     DashboardScreen(
                         viewModel = viewModel,

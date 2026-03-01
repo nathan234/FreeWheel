@@ -9,7 +9,7 @@ package com.cooper.wheellog.core.protocol
  * 3. Retrieve the frame via [getBuffer]
  * 4. Call [reset] to prepare for the next frame
  */
-interface Unpacker {
+internal interface Unpacker {
     /**
      * Add a byte to the unpacker.
      * @param c The byte value (0-255)

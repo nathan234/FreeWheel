@@ -41,7 +41,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -100,10 +100,10 @@ fun AutoConnectContent(onCancel: () -> Unit) {
 
 @Composable
 fun ScanScreen(viewModel: WheelViewModel) {
-    val isScanning by viewModel.isScanning.collectAsState()
-    val devices by viewModel.discoveredDevices.collectAsState()
-    val connectionState by viewModel.connectionState.collectAsState()
-    val savedAddresses by viewModel.savedAddresses.collectAsState()
+    val isScanning by viewModel.isScanning.collectAsStateWithLifecycle()
+    val devices by viewModel.discoveredDevices.collectAsStateWithLifecycle()
+    val connectionState by viewModel.connectionState.collectAsStateWithLifecycle()
+    val savedAddresses by viewModel.savedAddresses.collectAsStateWithLifecycle()
     val hasDevices = devices.isNotEmpty()
     val connectingAddress = connectionState.connectingAddress
     val failedAddress = connectionState.failedAddress

@@ -127,6 +127,8 @@ dependencies {
     implementation "androidx.lifecycle:lifecycle-viewmodel-compose:$lifecycle_version"
     // Lifecycles only (without ViewModel or LiveData)
     implementation "androidx.lifecycle:lifecycle-runtime-ktx:$lifecycle_version"
+    // Lifecycle-aware state collection for Compose
+    implementation "androidx.lifecycle:lifecycle-runtime-compose:$lifecycle_version"
     // database
     implementation "androidx.room:room-runtime:$room_version"
     ksp "androidx.room:room-compiler:$room_version"

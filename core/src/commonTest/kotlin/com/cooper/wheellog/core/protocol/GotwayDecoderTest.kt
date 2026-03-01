@@ -1710,6 +1710,117 @@ class GotwayDecoderTest {
         assertEquals(-1, result.newState.beeperVolume)
     }
 
+    // ==================== BMS Cell Accumulation (Frame 0x02/0x03) ====================
+
+    /**
+     * Build a BMS cell voltage frame (type 0x02 for BMS1, 0x03 for BMS2).
+     *
+     * Cell voltages are stored as BE shorts at positions (i+1)*2 for i=0..7.
+     * pNum at buff[19] determines which set of 8 cells: cellNum = i + pNum * 8.
+     */
+    private fun buildBmsCellFrame(frameType: Int, pNum: Int, cells: List<Int>): ByteArray {
+        val frame = ByteArray(24)
+        frame[0] = 0x55
+        frame[1] = 0xAA.toByte()
+        for (i in cells.indices.take(8)) {
+            val offset = 2 + i * 2
+            frame[offset] = ((cells[i] shr 8) and 0xFF).toByte()
+            frame[offset + 1] = (cells[i] and 0xFF).toByte()
+        }
+        frame[18] = frameType.toByte()
+        frame[19] = pNum.toByte()
+        frame[20] = 0x5A; frame[21] = 0x5A; frame[22] = 0x5A; frame[23] = 0x5A
+        return frame
+    }
+
+    @Test
+    fun `BMS frame 0x02 accumulates cells for bms1`() {
+        val freshDecoder = GotwayDecoder()
+        initDecoder(freshDecoder)
+
+        // pNum=0 → cells 0-7
+        val cells0 = listOf(4200, 4190, 4180, 4170, 4160, 4150, 4140, 4130)
+        val bmsFrame = buildBmsCellFrame(0x02, pNum = 0, cells0)
+        // BMS frames return null
+        val bmsResult = freshDecoder.decode(bmsFrame, WheelState(), config)
+        assertNull(bmsResult)
+
+        // Need a live data frame to see BMS data in the result
+        val liveFrame = buildLiveDataFrame()
+        val result = freshDecoder.decode(liveFrame, WheelState(), config)
+        assertNotNull(result)
+
+        val snapshot = result.newState.bms1
+        assertNotNull(snapshot)
+        assertEquals(4.200, snapshot.cells[0], 0.001)
+        assertEquals(4.190, snapshot.cells[1], 0.001)
+        assertEquals(4.130, snapshot.cells[7], 0.001)
+    }
+
+    @Test
+    fun `BMS frame 0x03 accumulates cells for bms2`() {
+        val freshDecoder = GotwayDecoder()
+        initDecoder(freshDecoder)
+
+        val cells0 = listOf(4100, 4090, 4080, 4070, 4060, 4050, 4040, 4030)
+        val bmsFrame = buildBmsCellFrame(0x03, pNum = 0, cells0)
+        freshDecoder.decode(bmsFrame, WheelState(), config)
+
+        val liveFrame = buildLiveDataFrame()
+        val result = freshDecoder.decode(liveFrame, WheelState(), config)
+        assertNotNull(result)
+
+        val snapshot = result.newState.bms2
+        assertNotNull(snapshot)
+        assertEquals(4.100, snapshot.cells[0], 0.001)
+        assertEquals(4.030, snapshot.cells[7], 0.001)
+    }
+
+    @Test
+    fun `BMS cells accumulate across multiple pNums`() {
+        val freshDecoder = GotwayDecoder()
+        initDecoder(freshDecoder)
+
+        // pNum=0 → cells 0-7
+        val cells0 = listOf(4200, 4200, 4200, 4200, 4200, 4200, 4200, 4200)
+        freshDecoder.decode(buildBmsCellFrame(0x02, pNum = 0, cells0), WheelState(), config)
+
+        // pNum=1 → cells 8-15
+        val cells1 = listOf(4100, 4100, 4100, 4100, 4100, 4100, 4100, 4100)
+        freshDecoder.decode(buildBmsCellFrame(0x02, pNum = 1, cells1), WheelState(), config)
+
+        val liveFrame = buildLiveDataFrame()
+        val result = freshDecoder.decode(liveFrame, WheelState(), config)
+        assertNotNull(result)
+
+        val snapshot = result.newState.bms1!!
+        assertEquals(4.200, snapshot.cells[0], 0.001)
+        assertEquals(4.200, snapshot.cells[7], 0.001)
+        assertEquals(4.100, snapshot.cells[8], 0.001)
+        assertEquals(4.100, snapshot.cells[15], 0.001)
+    }
+
+    @Test
+    fun `BMS cell stats are computed after accumulation`() {
+        val freshDecoder = GotwayDecoder()
+        initDecoder(freshDecoder)
+
+        // Feed cells with a known min and max
+        val cells = listOf(4200, 4150, 4100, 4050, 4000, 3950, 3900, 3850)
+        freshDecoder.decode(buildBmsCellFrame(0x02, pNum = 0, cells), WheelState(), config)
+
+        val liveFrame = buildLiveDataFrame()
+        val result = freshDecoder.decode(liveFrame, WheelState(), config)
+        assertNotNull(result)
+
+        val snapshot = result.newState.bms1!!
+        assertEquals(4.200, snapshot.maxCell, 0.001)
+        assertEquals(3.850, snapshot.minCell, 0.001)
+        assertEquals(0.350, snapshot.cellDiff, 0.001)
+        assertEquals(1, snapshot.maxCellNum) // 1-indexed
+        assertEquals(8, snapshot.minCellNum)
+    }
+
     // ==================== Helpers ====================
 
     /**

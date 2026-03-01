@@ -29,7 +29,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateMapOf
@@ -82,8 +82,8 @@ import com.cooper.wheellog.core.utils.DisplayUtils
 @Composable
 fun SettingsScreen(viewModel: WheelViewModel) {
     val appConfig = viewModel.appConfig
-    val wheelState by viewModel.wheelState.collectAsState()
-    val connectionState by viewModel.connectionState.collectAsState()
+    val wheelState by viewModel.wheelState.collectAsStateWithLifecycle()
+    val connectionState by viewModel.connectionState.collectAsStateWithLifecycle()
     val useMph = viewModel.getGlobalBool(PreferenceKeys.USE_MPH, PreferenceDefaults.USE_MPH)
     val useFahrenheit = viewModel.getGlobalBool(PreferenceKeys.USE_FAHRENHEIT, PreferenceDefaults.USE_FAHRENHEIT)
     val context = LocalContext.current

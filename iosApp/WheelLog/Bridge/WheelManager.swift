@@ -583,6 +583,11 @@ class WheelManager: ObservableObject {
 
         // Detect connection lost → start auto-reconnect via shared manager
         if case .connectionLost(let address, _) = newState {
+            if backgroundManager.isInBackground {
+                let wheelName = wheelState.displayName
+                backgroundManager.postConnectionLostNotification(wheelName: wheelName)
+            }
+
             if autoReconnect {
                 if let acm = autoConnectManager {
                     WheelConnectionManagerHelper.shared.startReconnecting(manager: acm, address: address)

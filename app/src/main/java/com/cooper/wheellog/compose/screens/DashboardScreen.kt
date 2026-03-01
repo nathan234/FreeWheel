@@ -35,7 +35,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -88,14 +88,14 @@ fun DashboardScreen(
     onNavigateToMetric: (String) -> Unit = {},
     onNavigateToWheelSettings: () -> Unit = {}
 ) {
-    val wheelState by viewModel.wheelState.collectAsState()
-    val connectionState by viewModel.connectionState.collectAsState()
-    val activeAlarms by viewModel.activeAlarms.collectAsState()
-    val isDemo by viewModel.isDemo.collectAsState()
-    val isLogging by viewModel.isLogging.collectAsState()
-    val isLightOn by viewModel.isLightOn.collectAsState()
-    val samples by viewModel.telemetrySamples.collectAsState()
-    val gpsSpeed by viewModel.gpsSpeedKmh.collectAsState()
+    val wheelState by viewModel.wheelState.collectAsStateWithLifecycle()
+    val connectionState by viewModel.connectionState.collectAsStateWithLifecycle()
+    val activeAlarms by viewModel.activeAlarms.collectAsStateWithLifecycle()
+    val isDemo by viewModel.isDemo.collectAsStateWithLifecycle()
+    val isLogging by viewModel.isLogging.collectAsStateWithLifecycle()
+    val isLightOn by viewModel.isLightOn.collectAsStateWithLifecycle()
+    val samples by viewModel.telemetrySamples.collectAsStateWithLifecycle()
+    val gpsSpeed by viewModel.gpsSpeedKmh.collectAsStateWithLifecycle()
     val useMph = viewModel.getGlobalBool(PreferenceKeys.USE_MPH, false)
     val useFahrenheit = viewModel.getGlobalBool(PreferenceKeys.USE_FAHRENHEIT, false)
 

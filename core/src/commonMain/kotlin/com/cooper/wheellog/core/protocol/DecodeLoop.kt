@@ -36,7 +36,7 @@ data class FrameResult(
  *   returning a [FrameResult] or null if the frame is invalid/unrecognized
  * @return [DecodedData] if any frame was processed or state changed, null otherwise
  */
-inline fun decodeFrames(
+internal inline fun decodeFrames(
     data: ByteArray,
     unpacker: Unpacker,
     currentState: WheelState,

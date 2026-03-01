@@ -17,7 +17,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -50,7 +50,7 @@ import com.cooper.wheellog.core.domain.WheelSettingsConfig
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WheelSettingsScreen(viewModel: WheelViewModel, onBack: () -> Unit) {
-    val wheelState by viewModel.wheelState.collectAsState()
+    val wheelState by viewModel.wheelState.collectAsStateWithLifecycle()
     val sections = remember(wheelState.wheelType) {
         WheelSettingsConfig.sections(wheelState.wheelType)
     }

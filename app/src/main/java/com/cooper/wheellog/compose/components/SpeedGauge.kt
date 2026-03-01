@@ -30,6 +30,8 @@ import androidx.compose.ui.unit.sp
 import com.cooper.wheellog.core.domain.SpeedDisplayMode
 import com.cooper.wheellog.core.telemetry.ColorZone
 import com.cooper.wheellog.core.telemetry.MetricType
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import java.util.Locale
 import kotlin.math.PI
 import kotlin.math.cos
@@ -72,10 +74,17 @@ fun SpeedGauge(
     val textMeasurer = rememberTextMeasurer()
     val secondaryColor = MaterialTheme.colorScheme.onSurfaceVariant
 
+    val displaySpeed = when (mode) {
+        SpeedDisplayMode.WHEEL -> String.format(Locale.US, "%.1f", speed)
+        SpeedDisplayMode.GPS -> if (gpsSpeed > 0) String.format(Locale.US, "%.1f", gpsSpeed) else "\u2014"
+        SpeedDisplayMode.BOTH -> String.format(Locale.US, "%.1f", speed)
+    }
+
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .aspectRatio(1f),
+            .aspectRatio(1f)
+            .semantics { contentDescription = "Speed: $displaySpeed $unitLabel" },
         contentAlignment = Alignment.Center
     ) {
         Canvas(modifier = Modifier.fillMaxSize().padding(12.dp)) {

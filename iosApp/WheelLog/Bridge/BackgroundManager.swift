@@ -43,6 +43,27 @@ class BackgroundManager: ObservableObject {
         }
     }
 
+    // MARK: - Connection Lost Notification
+
+    func postConnectionLostNotification(wheelName: String) {
+        let content = UNMutableNotificationContent()
+        content.title = "WheelLog"
+        content.body = "Connection lost to \(wheelName)"
+        content.sound = .default
+
+        let request = UNNotificationRequest(
+            identifier: "connection_lost_\(Date().timeIntervalSince1970)",
+            content: content,
+            trigger: nil  // Deliver immediately
+        )
+
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error = error {
+                print("Notification error: \(error)")
+            }
+        }
+    }
+
     // MARK: - Background Task
 
     func beginBackgroundTask() {

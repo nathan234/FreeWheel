@@ -18,7 +18,7 @@ import kotlin.math.roundToInt
  * - Bytes 4+: Data payload
  * - Last 4 bytes: CRC32 (for newer firmware)
  */
-class VeteranUnpacker : Unpacker {
+internal class VeteranUnpacker : Unpacker {
 
     private enum class State {
         UNKNOWN,

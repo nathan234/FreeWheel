@@ -19,7 +19,7 @@ import com.cooper.wheellog.core.utils.withLock
  * The payload is XOR encrypted using a 16-byte gamma key obtained
  * during the connection handshake.
  */
-class NinebotZUnpacker : Unpacker {
+internal class NinebotZUnpacker : Unpacker {
 
     private enum class State {
         UNKNOWN,

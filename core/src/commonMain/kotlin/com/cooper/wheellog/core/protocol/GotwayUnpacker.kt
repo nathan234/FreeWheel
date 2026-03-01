@@ -13,7 +13,7 @@ import kotlin.math.min
  * - Byte 19: Footer byte (typically 18)
  * - Bytes 20-23: Footer (5A 5A 5A 5A)
  */
-class GotwayUnpacker : Unpacker {
+internal class GotwayUnpacker : Unpacker {
 
     private enum class State {
         UNKNOWN,

@@ -6,6 +6,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.cooper.wheellog.core.domain.BmsSnapshot
@@ -16,7 +17,7 @@ import com.cooper.wheellog.core.utils.DisplayUtils
  */
 @Composable
 fun SmartBmsScreen(viewModel: WheelViewModel) {
-    val state by viewModel.wheelState.collectAsState()
+    val state by viewModel.wheelState.collectAsStateWithLifecycle()
     SmartBmsContent(bms1 = state.bms1, bms2 = state.bms2)
 }
 
