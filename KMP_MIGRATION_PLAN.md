@@ -6,7 +6,7 @@ This document tracks the migration of WheelLog's core functionality to Kotlin Mu
 
 **Goal**: Extract protocol decoding and BLE communication into a shared KMP module (`core`) that can be used by both Android and iOS apps.
 
-**Branch**: `feature/kmp-migration`
+**Branch**: `main`
 
 ---
 
@@ -46,7 +46,7 @@ This document tracks the migration of WheelLog's core functionality to Kotlin Mu
 
 ---
 
-## Phase 3: BLE Layer 🔄 IN PROGRESS
+## Phase 3: BLE Layer ✅ COMPLETE
 
 ### 3.1 BLE UUIDs & Service Detection ✅
 - [x] Create `BleUuids.kt` with all manufacturer UUIDs
@@ -78,7 +78,7 @@ This document tracks the migration of WheelLog's core functionality to Kotlin Mu
 - [x] Characteristic discovery and notification subscription
 - [x] ByteArray <-> NSData conversion utilities
 - [x] Chunked write support for InMotion V1
-- [ ] Real device testing (requires iOS app scaffold)
+- [x] Real device testing
 
 ### 3.5 Keep-Alive Timer ✅
 - [x] Platform-agnostic timer abstraction (KeepAliveTimer)
@@ -100,27 +100,27 @@ This document tracks the migration of WheelLog's core functionality to Kotlin Mu
 
 ## Phase 4: Integration
 
-### 4.1 Android Integration 🔄 IN PROGRESS
+### 4.1 Android Integration ✅
 - [x] KmpWheelBridge for parallel decoding alongside existing adapters
 - [x] BluetoothService feeds data to KMP bridge
 - [x] Comparison utility to validate KMP vs legacy decoder output
-- [ ] WheelData adapter to use KMP WheelState (optional, if bridge works)
-- [ ] BluetoothService delegates writes to core BleManager
-- [ ] Maintain backward compatibility with existing UI
+- [x] Compose app with WheelService using KMP WheelConnectionManager directly
+- [x] WheelViewModel orchestrates KMP state, scanning, logging, alarms
+- [x] Decoder mode setting (Legacy / KMP / Both)
 
-### 4.2 iOS App Scaffold
-- [ ] Create iOS Xcode project
-- [ ] Add core module as dependency
-- [ ] Basic SwiftUI wheel display
-- [ ] BLE scanning and connection
+### 4.2 iOS App Scaffold ✅
+- [x] Create iOS Xcode project
+- [x] Add core module as dependency
+- [x] SwiftUI app with dashboard, charts, settings, ride history
+- [x] BLE scanning, connection, and background mode
 
 ---
 
 ## Phase 5: Advanced Features
 
-- [ ] Alarm handling
-- [ ] Trip statistics
-- [ ] PWM/power calculations
+- [x] Alarm handling (AlarmChecker + AlarmHandler with vibration/sound/notifications)
+- [x] Trip statistics (RideLogger CSV + TripRepository on Android, RideStore on iOS)
+- [x] PWM/power calculations (per-decoder output % and power factor)
 - [ ] Firmware update support (where applicable)
 
 ---
@@ -204,24 +204,28 @@ This document tracks the migration of WheelLog's core functionality to Kotlin Mu
 
 ## Current Status
 
-**Last Updated**: 2026-02-07
+**Last Updated**: 2026-03-02
 
 **Recent Commits**:
-- `84e2aac` Add keep-alive timer and complete WheelConnectionManager
-- `0966f78` Add InMotion and Ninebot decoders to KMP core module
-- `b21ba88` Add decoder verification tests for KMP core module
-- `3c4f1ea` Add Kotlin Multiplatform core module for iOS support
+- `cfd10db` Document lifecycle, persistence, entry flow, and test inventory in CLAUDE.md
+- `22ab3cc` Finalize ride recording on app close to preserve trip metadata
+- `c7ade99` Add EUC protocol quality assessment and update docs for Leaperkim CAN
+- `1c210c0` Consolidate duplicated utilities into KMP shared module
+- `4c93828` Improve thread safety, resilience, and performance across KMP core and apps
+- `f05cce8` Implement LeaperkimCanDecoder for CAN-over-BLE protocol
 
-**Completed in BLE Phase**:
-- [x] BleUuids.kt with all service/characteristic UUIDs
-- [x] WheelTypeDetector for wheel type detection from services
-- [x] WheelConnectionInfo for connection configuration
-- [x] Android BleManager with blessed-android integration
-- [x] KeepAliveTimer, DataTimeoutTracker, CommandScheduler
-- [x] Unit tests for timer components and WheelConnectionInfo
+**Completed**:
+- All 8 protocol decoders ported to KMP with ~1,436 unit tests
+- iOS app fully functional: dashboard, charts, settings, ride history, background mode
+- Android Compose app with WheelService, WheelViewModel, auto-reconnect
+- Alarm system (speed, current, temp, battery) on both platforms
+- Ride logging with CSV recording and trip persistence
+- Telemetry buffer (5-min rolling) and history (24h persistent per-wheel)
+- Wheel settings config defined once in KMP, rendered natively on both platforms
+- LeaperkimCan decoder for CAN-over-BLE protocol
 
 **Next Steps**:
-1. Implement iOS BleManager with CoreBluetooth
-2. Create iOS Xcode project scaffold
-3. Bridge Android app to use KMP WheelConnectionManager
-4. Add integration tests with real wheel connections
+1. Close remaining decoder parity gaps (see [decoder-parity.md](docs/decoder-parity.md))
+2. Firmware update support (where applicable)
+3. Wider device testing across wheel manufacturers
+4. Integration tests with real wheel connections

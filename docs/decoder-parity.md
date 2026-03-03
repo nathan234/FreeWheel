@@ -5,11 +5,14 @@ Updated after each migration pass.
 
 Legend: `[x]` = implemented, `[ ]` = known gap, `[n/a]` = intentionally skipped
 
+Gap priority: **[P1]** = affects real-world usage, **[P2]** = correctness/completeness, **[P3]** = minor/edge-case
+
 ---
 
 ## GotwayDecoder
 
 Legacy: `GotwayAdapter.java` | KMP: `GotwayDecoder.kt`
+Tests: `GotwayDecoderTest.kt` · `GotwayDecoderComparisonTest.kt` · `GotwayUnpackerTest.kt`
 
 ### Init & Identity
 - [x] Send V (firmware), b, N (name), b on connect
@@ -44,13 +47,14 @@ Legacy: `GotwayAdapter.java` | KMP: `GotwayDecoder.kt`
 - [x] Max speed (multi-step W/Y/digits sequence)
 
 ### Known Gaps
-- [ ] `lock_Changes` debounce counter (legacy has 3-frame debounce before confirming settings change)
+- [ ] **[P3]** `lock_Changes` debounce counter (legacy has 3-frame debounce before confirming settings change)
 
 ---
 
 ## KingsongDecoder
 
 Legacy: `KingsongAdapter.java` | KMP: `KingsongDecoder.kt`
+Tests: `KingsongDecoderTest.kt` · `KingsongDecoderComparisonTest.kt`
 
 ### Init & Identity
 - [x] Send 0x9B (name), 0x63 (serial, 100ms delay), 0x98 (alarms, 200ms delay) on connect
@@ -84,14 +88,15 @@ Legacy: `KingsongAdapter.java` | KMP: `KingsongDecoder.kt`
 - [x] BMS data request (serial/moreData/firmware)
 
 ### Known Gaps
-- [ ] Auto-request BMS serial (0xE1/0xE2) and firmware (0xE5/0xE6) when first BMS F1/F2 data arrives (legacy triggers these automatically)
-- [ ] 0xA4 response should also request BMS data for new wheels
+- [ ] **[P2]** Auto-request BMS serial (0xE1/0xE2) and firmware (0xE5/0xE6) when first BMS F1/F2 data arrives (legacy triggers these automatically)
+- [ ] **[P2]** 0xA4 response should also request BMS data for new wheels
 
 ---
 
 ## VeteranDecoder
 
 Legacy: `VeteranAdapter.java` | KMP: `VeteranDecoder.kt`
+Tests: `VeteranDecoderTest.kt` · `VeteranDecoderComparisonTest.kt`
 
 ### Init & Identity
 - [x] No init commands — data streaming starts immediately
@@ -125,6 +130,7 @@ Legacy: `VeteranAdapter.java` | KMP: `VeteranDecoder.kt`
 ## NinebotDecoder
 
 Legacy: `NinebotAdapter.java` | KMP: `NinebotDecoder.kt`
+Tests: `NinebotDecoderTest.kt` · `NinebotUnpackerTest.kt`
 
 ### Init & Identity
 - [x] Send serial number request on connect
@@ -143,14 +149,15 @@ Legacy: `NinebotAdapter.java` | KMP: `NinebotDecoder.kt`
 - [x] State-dependent: serial → version → live data requests
 
 ### Known Gaps
-- [ ] Key exchange (legacy requests actual key from KeyGenerator address; KMP starts with zero key — works but less secure)
-- [ ] Ninebot Mini angle data parsing (Param 0x61)
+- [ ] **[P1]** Key exchange (legacy requests actual key from KeyGenerator address; KMP starts with zero key — works but less secure)
+- [ ] **[P3]** Ninebot Mini angle data parsing (Param 0x61)
 
 ---
 
 ## NinebotZDecoder
 
 Legacy: `NinebotZAdapter.java` | KMP: `NinebotZDecoder.kt`
+Tests: `NinebotZDecoderTest.kt` · `NinebotZDecoderComparisonTest.kt`
 
 ### Init & Identity
 - [x] Send BLE version request on connect
@@ -174,14 +181,15 @@ Legacy: `NinebotZAdapter.java` | KMP: `NinebotZDecoder.kt`
 - [x] Lock/unlock
 
 ### Known Gaps
-- [ ] `settingRequest` / `settingCommandReady` two-phase command pattern (legacy sends a read-settings request, waits for response, then sends command)
-- [ ] Alarm settings request cycle after params3
+- [ ] **[P2]** `settingRequest` / `settingCommandReady` two-phase command pattern (legacy sends a read-settings request, waits for response, then sends command)
+- [ ] **[P2]** Alarm settings request cycle after params3
 
 ---
 
 ## InMotionDecoder (V1)
 
 Legacy: `InMotionAdapter.java` | KMP: `InMotionDecoder.kt`
+Tests: `InMotionDecoderTest.kt` · `InMotionDecoderComparisonTest.kt` · `InMotionUnpackerTest.kt`
 
 ### Init & Identity
 - [x] CAN frame parsing with header 0xAA 0xAA
@@ -202,15 +210,16 @@ Legacy: `InMotionAdapter.java` | KMP: `InMotionDecoder.kt`
 - [x] Power off
 
 ### Known Gaps
-- [ ] Password authentication (legacy retries 6 times with 6-digit PIN before wheel responds)
-- [ ] Slow data re-request (legacy re-requests slow data periodically to refresh settings)
-- [ ] Full model-specific speed calculation factors (20+ V1 models with different factors)
+- [ ] **[P1]** Password authentication (legacy retries 6 times with 6-digit PIN before wheel responds)
+- [ ] **[P2]** Slow data re-request (legacy re-requests slow data periodically to refresh settings)
+- [ ] **[P3]** Full model-specific speed calculation factors (20+ V1 models with different factors)
 
 ---
 
 ## InMotionV2Decoder
 
 Legacy: `InMotionAdapterV2.java` | KMP: `InMotionV2Decoder.kt`
+Tests: `InMotionV2DecoderTest.kt` · `InMotionV2UnpackerTest.kt`
 
 ### Init & Identity
 - [x] Send car type (0x01), serial (0x02), versions (0x06), settings, stats on connect
@@ -239,7 +248,7 @@ Legacy: `InMotionAdapterV2.java` | KMP: `InMotionV2Decoder.kt`
 - [x] Fan quiet, fan control, light brightness, max speed
 
 ### Known Gaps
-- [ ] Multi-stage shutdown (legacy sends 0x81 first, waits for ACK, then sends 0x82 — KMP sends single 0x81)
-- [ ] Light state debounce (legacy has `lightSwitchCounter` with 3-frame debounce)
-- [ ] `getUselessData` request in init sequence (legacy requests Something1 command, KMP skips it)
-- [ ] Battery real-time info request in keep-alive loop (legacy alternates between live data and battery requests)
+- [ ] **[P2]** Multi-stage shutdown (legacy sends 0x81 first, waits for ACK, then sends 0x82 — KMP sends single 0x81)
+- [ ] **[P3]** Light state debounce (legacy has `lightSwitchCounter` with 3-frame debounce)
+- [ ] **[P3]** `getUselessData` request in init sequence (legacy requests Something1 command, KMP skips it)
+- [ ] **[P2]** Battery real-time info request in keep-alive loop (legacy alternates between live data and battery requests)

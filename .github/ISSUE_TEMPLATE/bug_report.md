@@ -7,6 +7,9 @@ assignees: ''
 
 ---
 
+### App version
+<!-- e.g. 1.0.0 or commit hash -->
+
 ### Description
 <!-- A clear and concise description of what the bug is. -->
 
@@ -22,11 +25,14 @@ assignees: ''
 ### Screenshots
 <!-- If the issue is a visual issue, please include screenshots showing the problem if possible -->
 
-### Smartphone model and android version
-<!-- e.g. Realme XS10. Android version: 10 -->
+### Device and OS
+<!-- e.g. Pixel 8, Android 14 / iPhone 15, iOS 17.2 -->
 
 ### EUC model
 <!-- e.g. InMotion V12 -->
+
+### Decoder mode
+<!-- Android only: Legacy / KMP (Settings → Application Settings → Decoder Mode). iOS always uses KMP. -->
 
 ### Workaround
 <!-- Did you find any workaround for this issue? This can unblock other people while waiting for this issue to be resolved -->

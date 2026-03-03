@@ -48,6 +48,22 @@ Build from source: clone the repo and run `./gradlew :app:assembleDebug`, then i
 ### iOS
 Build from source with Xcode 15+. Open `iosApp/WheelLog.xcodeproj`, select your device/simulator, and build. Requires the KMP framework to be built first (see [Building](#building) below).
 
+> **Note**: BLE is not available on iOS Simulator. Use a physical device for wheel connectivity, or use the built-in [test mode](#ios-testing-on-simulator) to verify decoder functionality.
+
+## Quick Start
+
+```bash
+git clone https://github.com/GGorAA/Wheellog-Multiplatform.git
+cd Wheellog-Multiplatform
+./gradlew :core:testDebugUnitTest    # Run all KMP tests (~1,436 tests)
+./gradlew :app:assembleDebug         # Build Android APK
+```
+
+For iOS, also build the KMP framework before opening Xcode:
+```bash
+./gradlew :core:linkReleaseFrameworkIosSimulatorArm64
+```
+
 ## Architecture
 
 ```mermaid
@@ -119,13 +135,13 @@ BLE_I -.-> LOCK_I
 %% ---------- Android App ----------
 subgraph ANDROID["Android App"]
     direction TB
-    BRIDGE["KmpWheelBridge<br/>BluetoothService"]:::android
+    SVC["WheelService"]:::android
     VM["WheelViewModel"]:::android
     UI_A["Jetpack Compose UI"]:::android
 end
 
-STATE -->|"StateFlow"| BRIDGE
-BRIDGE --> VM --> UI_A
+STATE -->|"StateFlow"| SVC
+SVC --> VM --> UI_A
 
 %% ---------- iOS App ----------
 subgraph IOS_APP["iOS App"]
@@ -143,7 +159,7 @@ subgraph WEAR["WearOS"]
     WEARUI["DataClient (from phone)"]:::wear
 end
 
-BRIDGE -.->|"DataClient"| WEARUI
+VM -.->|"DataClient"| WEARUI
 ```
 
 ### Directory Structure
@@ -189,6 +205,9 @@ Logic that both platforms need lives in `core/src/commonMain/`. Platform UI code
 # Run all KMP unit tests
 ./gradlew :core:testDebugUnitTest
 
+# Run Android app tests
+./gradlew :app:testDebugUnitTest
+
 # Compile Android app
 ./gradlew :app:compileDebugKotlin
 
@@ -212,8 +231,9 @@ Before submitting a PR, run these in order:
 
 ```bash
 ./gradlew :core:testDebugUnitTest                        # 1. All KMP tests pass
-./gradlew :app:compileDebugKotlin                        # 2. Android compiles
-./gradlew :core:linkReleaseFrameworkIosSimulatorArm64    # 3. iOS framework builds
+./gradlew :app:testDebugUnitTest                         # 2. All Android app tests pass
+./gradlew :app:compileDebugKotlin                        # 3. Android compiles
+./gradlew :core:linkReleaseFrameworkIosSimulatorArm64    # 4. iOS framework builds
 ```
 
 For changes touching iOS Swift code, also run:
@@ -222,6 +242,15 @@ For changes touching iOS Swift code, also run:
 xcodebuild -project iosApp/WheelLog.xcodeproj -scheme WheelLog \
   -destination 'platform=iOS Simulator,name=iPhone 16 Pro' build
 ```
+
+## Troubleshooting
+
+| Problem | Solution |
+|---|---|
+| Gradle daemon OOM / build hangs | Add `org.gradle.jvmargs=-Xmx4g` to `gradle.properties` |
+| iOS framework link error | Run `./gradlew :core:linkReleaseFrameworkIosSimulatorArm64` before building in Xcode |
+| BLE not available on Simulator | Use a physical iOS device, or use the [test mode](#ios-testing-on-simulator) to verify decoders |
+| `JAVA_HOME` not set | Install JDK 17+ and set `JAVA_HOME` to the JDK path |
 
 ## Developing Features
 
