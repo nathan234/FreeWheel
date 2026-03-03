@@ -178,6 +178,35 @@ Files in `compose/legacy/` are hybrid screens rendered inside `MainActivity`.
 When `use_compose_ui` is true, `WheelData` is never initialized and legacy Koin modules
 (`notificationsModule`, `volumeKeyModule`) are not loaded.
 
+## Compose App Entry Flow
+
+Startup sequence for the Compose path:
+
+1. `ComposeActivity.onCreate()` → `setContent { AppNavigation(viewModel) }`
+2. `requestBlePermissions()` → checks/requests BLE + location + notification permissions
+3. All granted → `bindWheelService()` → starts `WheelService` as foreground service, binds with `BIND_AUTO_CREATE`
+4. `WheelService.onCreate()` → creates `BleManager`, `WheelConnectionManager(bleManager, DefaultWheelDecoderFactory(), serviceScope)`, wires BLE callbacks (`onDataReceived` → `connectionManager.onDataReceived()`, `onServicesDiscovered` → `connectionManager.onServicesDiscovered()`)
+5. `serviceConnection.onServiceConnected()` → `viewModel.attachService(service, cm, ble)` → pushes decoder config, creates `AutoConnectManager`, starts state/connection collection coroutines
+6. `viewModel.startupScan()` → scans for `appConfig.lastMac`, auto-connects when found
+
+A `bluetoothReceiver` in `ComposeActivity` re-binds the service when Bluetooth is toggled on.
+
+## WheelViewModel
+
+Central orchestrator for the Compose app (`AndroidViewModel`). Owns:
+
+- **Service binding lifecycle** — `attachService()`/`detachService()` wire the `WheelService` to ViewModel state flows
+- **Wheel state** — merges real state (`WheelConnectionManager.wheelState`) and demo state via `combine()`
+- **BLE scanning** — `startupScan()`, `startScan()`, `connect()`, device discovery
+- **Ride logging** — `RideLogger` for CSV recording, `TripRepository` for Room DB persistence
+- **Telemetry** — `TelemetryBuffer` (5-min rolling), `TelemetryHistory` (24h persistent per-wheel), `TelemetryFileIO`
+- **Alarm monitoring** — `AlarmChecker` + `AlarmHandler` with vibration/sound alerts
+- **Wheel profiles** — `WheelProfileStore` (SharedPreferences-backed, per-MAC settings)
+- **Decoder config propagation** — pref changes → `connectionManager.updateConfig()`
+- **Command execution** — beep, light toggle, pedals mode, generic `WheelCommand`
+- **Auto-connect / reconnect** — `AutoConnectManager` created on service attach, reconnects on `ConnectionLost`
+- **GPS location tracking** — coordinates forwarded to `RideLogger` for GPS-enabled CSV columns
+
 ## Key Files
 
 | Purpose | Path |
@@ -202,9 +231,14 @@ When `use_compose_ui` is true, `WheelData` is never initialized and legacy Koin 
 | Lock (Android/iOS) | `core/src/{androidMain,iosMain}/.../utils/Lock.{android,ios}.kt` |
 | Logger (Android/iOS) | `core/src/{androidMain,iosMain}/.../utils/Logger.{android,ios}.kt` |
 | **Android App** | |
+| Compose entry point | `app/src/main/.../compose/ComposeActivity.kt` |
+| Foreground BLE service | `app/src/main/.../compose/WheelService.kt` |
+| ViewModel | `app/src/main/.../compose/WheelViewModel.kt` |
+| Wheel profiles | `app/src/main/.../compose/WheelProfileStore.kt` |
+| Trip database | `app/src/main/.../data/{TripDatabase,TripDao,TripDataDbEntry}.kt` |
+| Trip repository | `app/src/main/.../data/TripRepository.kt` |
 | KMP bridge | `app/src/main/.../kmp/KmpWheelBridge.kt` |
 | Decoder mode enum | `app/src/main/.../kmp/DecoderMode.kt` |
-| ViewModel | `app/src/main/.../compose/WheelViewModel.kt` |
 | Compose screens | `app/src/main/.../compose/screens/*.kt` |
 | Compose components | `app/src/main/.../compose/components/*.kt` (incl. `DangerousActionDialog`, `TimeRangePicker`) |
 | Legacy hybrid screens | `app/src/main/.../compose/legacy/*.kt` |
@@ -225,6 +259,64 @@ When `use_compose_ui` is true, `WheelData` is never initialized and legacy Koin 
 `WheelConnectionManagerHelper.kt` (in iosMain) provides Swift-friendly wrappers around the KMP `WheelConnectionManager`. It exposes convenience methods that Swift can call without dealing with Kotlin coroutines directly.
 
 On the Swift side, `WheelManager.swift` is the main orchestrator. It owns the KMP manager instance and coordinates the other Bridge files. `StateFlowObserver` polls KMP StateFlows on a timer and publishes changes to SwiftUI via `@Published` properties.
+
+## App Lifecycle & Shutdown Paths
+
+### Android — 3 shutdown paths
+
+| Scenario | Entry point | Flow |
+|---|---|---|
+| User disconnect | `VM.disconnect()` | `stopLogging()` → `telemetryHistory.save()` → coroutine `cm.disconnect()` |
+| Menu exit | `VM.shutdownService()` | `stopLogging()` → `telemetryHistory.save()` → `WheelService.shutdown()` → `stopSelf()` → `onDestroy()` runs `runBlocking { disconnect() }` |
+| ViewModel destroyed | `VM.onCleared()` | `rideLogger.stop()` → `runBlocking(Dispatchers.IO) { tripRepository.insert(...) }` → `telemetryHistory.save()` |
+
+**`runBlocking` pattern**: Used in two places because coroutine scopes are already cancelled:
+- `onCleared()` — `viewModelScope` is cancelled, so `runBlocking(Dispatchers.IO)` guarantees the Room INSERT completes before the process exits
+- `WheelService.onDestroy()` — `serviceScope` is about to be cancelled, so `runBlocking` guarantees the GATT connection is released
+
+`shutdownService()` deliberately avoids coroutines — calling `finishAffinity()` immediately after would cancel the scope before the work runs.
+
+### iOS — 4 shutdown paths
+
+| Scenario | Entry point | Flow |
+|---|---|---|
+| User disconnect | `WheelManager.disconnect()` | `stopLogging()` → async `connectionManager.disconnect {}` → state reset in callback |
+| App termination | `willTerminateNotification` in `WheelLogApp.swift` | `stopLogging()` if logging active |
+| WheelManager dealloc | `WheelManager.deinit` | `MainActor.assumeIsolated { stopLogging() }` (only if on main thread) |
+| Connection lost/disconnected | `handleConnectionStateChange()` | `stopLogging()` → `telemetryHistory.save()` → `telemetryBuffer.clear()` |
+
+iOS also handles background transitions: `onEnterBackground()` saves telemetry history and begins a background task if connected.
+
+## Data Persistence
+
+| Component | Platform | Storage | Role |
+|---|---|---|---|
+| `TripDatabase` | Android | Room SQLite (`trip_database`, v2) | Singleton factory with migrations (v1→v2 adds distance/consumption columns) |
+| `TripDao` | Android | Room DAO | CRUD queries, unique constraint on `fileName`, `onConflict = IGNORE` for inserts |
+| `TripDataDbEntry` | Android | Room Entity | Trip record: stats, timing, ElectroClub sync fields (`ecId`, `ecUrl`, etc.) |
+| `TripRepository` | Android | Repository | `suspend` wrapper dispatching to `Dispatchers.IO` |
+| `RideStore` | iOS | JSON (`metadata.json`) + CSV in `Documents/rides/` | `@MainActor ObservableObject` with `@Published rides` array |
+| `RideLogger` | KMP shared | CSV file | Writes samples at 1Hz, produces `RideMetadata` on stop |
+
+### RideMetadata → TripDataDbEntry mapping
+
+When logging stops, `RideMetadata` (KMP) is converted to `TripDataDbEntry` (Room):
+
+| `RideMetadata` field | Conversion | `TripDataDbEntry` field |
+|---|---|---|
+| `fileName` | direct | `fileName: String` |
+| `startTimeMillis` | `/ 1000` → `toInt()` | `start: Int` (unix seconds) |
+| `durationSeconds` | `/ 60` → `toInt()` | `duration: Int` (minutes) |
+| `maxSpeedKmh` | `toFloat()` | `maxSpeed: Float` |
+| `avgSpeedKmh` | `toFloat()` | `avgSpeed: Float` |
+| `maxCurrentA` | `toFloat()` | `maxCurrent: Float` |
+| `maxPowerW` | `toFloat()` | `maxPower: Float` |
+| `maxPwmPercent` | `toFloat()` | `maxPwm: Float` |
+| `distanceMeters` | `toInt()` | `distance: Int` |
+| `consumptionWh` | `toFloat()` | `consumptionTotal: Float` |
+| `consumptionWhPerKm` | `toFloat()` | `consumptionByKm: Float` |
+
+On iOS, `RideMetadata` (KMP) is converted to `RideMetadata` (Swift struct in `RideStore.swift`) and serialized to JSON.
 
 ## Logging Architecture
 
@@ -273,6 +365,9 @@ KMP uses `expect`/`actual` declarations for platform-specific implementations. E
 ```bash
 # Run KMP tests
 ./gradlew :core:testDebugUnitTest
+
+# Run Android app tests
+./gradlew :app:testDebugUnitTest
 
 # Compile Android app
 ./gradlew :app:compileDebugKotlin
@@ -353,28 +448,30 @@ Comparison tests verify KMP decoders produce identical results to the legacy Jav
 
 ### Test Coverage
 
-| Decoder | Unit Test | Comparison Test |
-|---------|:---------:|:---------------:|
-| KS | - | Y |
-| GW | Y | Y |
-| VT | - | Y |
-| LK (CAN) | Y | - |
-| NB | Y | - |
-| NZ | - | Y |
-| IM1 | Y | Y |
-| IM2 | Y | - |
+**KMP Core Tests** (`core/src/commonTest/`) — ~1,436 tests across 49 test files:
 
-| Unpacker | Unit Test |
-|----------|:---------:|
-| GotwayUnpacker | Y |
-| LeaperkimCan CanUnpacker | (tested via decoder) |
-| NinebotUnpacker | Y |
-| InMotionUnpacker | Y |
-| InMotionV2Unpacker | Y |
+| Area | Key test files | Approx tests |
+|---|---|---:|
+| Protocol decoders | 8 decoder tests (KS, GW, VT, LK, NB, NZ, IM1, IM2) + AutoDetect, DecoderLifecycle, DecodeLoop, Factory, WheelCommand | ~670 |
+| Protocol unpackers | GotwayUnpacker, NinebotUnpacker, InMotionUnpacker, InMotionV2Unpacker | ~33 |
+| Decoder comparison | GW, KS, VT, NZ, IM1 comparison tests (verify parity with legacy Java decoders) | ~132 |
+| Service/Connection | WheelConnectionManager (3 files), AutoConnect, KeepAlive, ConnectionState, DemoData | ~175 |
+| Domain & Alarms | WheelState, WheelSettingsConfig, AlarmChecker, AlarmType, SmartBms | ~185 |
+| Telemetry & Logging | TelemetryBuffer/History/Sample/CsvSerializer, CsvFormatter/Parser, RideLogger/Metadata | ~116 |
+| BLE & Detection | BleUuids, WheelTypeDetector, WheelConnectionInfo | ~64 |
+| Utilities | ByteUtils, DisplayUtils, StringUtil | ~192 |
+| Alarms (vibration) | VibrationPatterns | ~14 |
 
-| Service | Unit Test |
-|---------|:---------:|
-| DemoDataProvider | Y |
+**Android App Tests** (`app/src/test/`) — ~283 tests across 22 test files:
+
+| Area | Key test files | Approx tests |
+|---|---|---:|
+| Legacy adapter parity | KS, GW, GW Virtual, VT, NZ, IM1, IM2 adapter tests | ~108 |
+| Utility parity | ByteUtils, StringUtil comparison; CommandParity, BmsParity, CsvParity | ~122 |
+| ViewModel | AutoConnect, Finalization | ~16 |
+| Alarm | AlarmHandler | ~10 |
+| Legacy domain | WheelData, RawData, ElectroClub, Calculator | ~21 |
+| Data | TripParser | ~1 |
 
 ### iOS Testing on Simulator
 
