@@ -24,9 +24,7 @@ class TelemetryHistoryBridge: ObservableObject {
         // Save any existing history first
         kmpHistory?.save()
 
-        let sanitized = address
-            .replacingOccurrences(of: ":", with: "_")
-            .replacingOccurrences(of: "/", with: "_")
+        let sanitized = StringUtil.shared.sanitizeAddress(address: address)
 
         guard let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else { return }
         let telemetryDir = supportDir.appendingPathComponent("telemetry", isDirectory: true)

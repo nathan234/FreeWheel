@@ -18,6 +18,10 @@ class AlarmManager: ObservableObject {
     private var audioEngine: AVAudioEngine?
     private var playerNode: AVAudioPlayerNode?
 
+    // Throttle — suppress repeated alarm of the same type within 500ms
+    private var lastFiredAt: [AlarmType: TimeInterval] = [:]
+    private static let throttleInterval: TimeInterval = 0.5
+
     // Haptics
     private let heavyImpact = UIImpactFeedbackGenerator(style: .heavy)
     private let notificationFeedback = UINotificationFeedbackGenerator()
@@ -50,17 +54,25 @@ class AlarmManager: ObservableObject {
     func reset() {
         WheelConnectionManagerHelper.shared.resetAlarmChecker(checker: kmpChecker)
         activeAlarms = []
+        lastFiredAt = [:]
     }
 
     // MARK: - Process Result
 
     private func processAlarmResult(_ result: AlarmResult, action: WheelLogCore.AlarmAction) {
+        let now = Date().timeIntervalSince1970
         var newActive: Set<AlarmType> = []
 
         for alarm in result.triggeredAlarms {
             newActive.insert(alarm.type)
 
-            // Fire platform effects for each triggered alarm
+            // Throttle: skip if same alarm type fired within 500ms
+            if let last = lastFiredAt[alarm.type],
+               (now - last) < Self.throttleInterval {
+                continue
+            }
+            lastFiredAt[alarm.type] = now
+
             fireAlarm(
                 type: alarm.type,
                 action: action,
