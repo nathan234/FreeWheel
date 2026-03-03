@@ -278,6 +278,18 @@ class WheelManager: ObservableObject {
         reconnectStateObserver?.close()
         demoStateObserver?.close()
         WheelConnectionManagerHelper.shared.stopDemo(provider: demoProvider)
+
+        // Finalize ride recording if still active
+        if Thread.isMainThread {
+            MainActor.assumeIsolated {
+                if isLogging {
+                    if let metadata = rideLogger.stopLogging(currentDistance: wheelState.totalDistanceKm) {
+                        rideStore.addRide(metadata)
+                    }
+                    isLogging = false
+                }
+            }
+        }
     }
 
     private func setupKmpComponents() {

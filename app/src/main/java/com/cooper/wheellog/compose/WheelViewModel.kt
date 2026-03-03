@@ -47,7 +47,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 
 class WheelViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -213,6 +215,34 @@ class WheelViewModel(application: Application) : AndroidViewModel(application) {
     override fun onCleared() {
         super.onCleared()
         prefs.unregisterOnSharedPreferenceChangeListener(prefChangeListener)
+        if (rideLogger.isLogging) {
+            logSamplingJob?.cancel()
+            logSamplingJob = null
+            val state = wheelState.value
+            val metadata = rideLogger.stop(System.currentTimeMillis(), state.totalDistance)
+            _isLogging.value = false
+            if (metadata != null) {
+                // viewModelScope is cancelled, so use runBlocking for this single INSERT
+                runBlocking(Dispatchers.IO) {
+                    tripRepository.insertNewData(
+                        TripDataDbEntry(
+                            fileName = metadata.fileName,
+                            start = (metadata.startTimeMillis / 1000).toInt(),
+                            duration = (metadata.durationSeconds / 60).toInt(),
+                            maxSpeed = metadata.maxSpeedKmh.toFloat(),
+                            avgSpeed = metadata.avgSpeedKmh.toFloat(),
+                            maxCurrent = metadata.maxCurrentA.toFloat(),
+                            maxPower = metadata.maxPowerW.toFloat(),
+                            maxPwm = metadata.maxPwmPercent.toFloat(),
+                            distance = metadata.distanceMeters.toInt(),
+                            consumptionTotal = metadata.consumptionWh.toFloat(),
+                            consumptionByKm = metadata.consumptionWhPerKm.toFloat()
+                        )
+                    )
+                }
+            }
+            telemetryHistory?.save()
+        }
     }
 
     // --- Service binding ---

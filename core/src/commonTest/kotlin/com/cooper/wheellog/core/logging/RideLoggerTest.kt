@@ -317,6 +317,43 @@ class RideLoggerTest {
         assertEquals(0.0, metadata.consumptionWhPerKm, 0.01)
     }
 
+    // ==================== Double-Stop Idempotency ====================
+
+    @Test
+    fun `double stop after active logging returns null the second time`() {
+        val logger = RideLogger()
+        val tmpPath = createTempPath()
+        logger.start(tmpPath, withGps = false, currentTimeMs = 0)
+        logger.writeSample(WheelState(speed = 2500), null, 1000)
+
+        val first = logger.stop(5000)
+        assertNotNull(first)
+        assertFalse(logger.isLogging)
+
+        val second = logger.stop(6000)
+        assertNull(second)
+        assertFalse(logger.isLogging)
+    }
+
+    @Test
+    fun `can start a new session after double stop`() {
+        val logger = RideLogger()
+
+        // First session
+        logger.start(createTempPath(), withGps = false, currentTimeMs = 0)
+        logger.writeSample(WheelState(speed = 2000), null, 1000)
+        assertNotNull(logger.stop(2000))
+        assertNull(logger.stop(3000)) // double stop
+
+        // Second session should work normally
+        assertTrue(logger.start(createTempPath(), withGps = false, currentTimeMs = 10000))
+        assertTrue(logger.isLogging)
+        logger.writeSample(WheelState(speed = 3000), null, 11000)
+        val metadata = logger.stop(12000)
+        assertNotNull(metadata)
+        assertEquals(30.0, metadata.maxSpeedKmh, 0.01)
+    }
+
     // ==================== Helpers ====================
 
     private var tempCounter = 0

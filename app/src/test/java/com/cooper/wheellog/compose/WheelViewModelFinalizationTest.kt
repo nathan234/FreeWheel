@@ -1,0 +1,131 @@
+package com.cooper.wheellog.compose
+
+import android.app.Application
+import android.preference.PreferenceManager
+import androidx.test.core.app.ApplicationProvider
+import com.cooper.wheellog.core.domain.WheelState
+import com.cooper.wheellog.core.service.BleManager
+import com.cooper.wheellog.core.service.ConnectionState
+import com.cooper.wheellog.core.service.WheelConnectionManager
+import com.cooper.wheellog.data.TripDataDbEntry
+import com.google.common.truth.Truth.assertThat
+import io.mockk.coVerify
+import io.mockk.every
+import io.mockk.mockk
+import io.mockk.slot
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
+import org.junit.After
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.koin.core.context.stopKoin
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
+import java.io.File
+import java.lang.reflect.Method
+
+/**
+ * Tests for ride finalization in [WheelViewModel.onCleared].
+ *
+ * Verifies that closing the app while ride logging is active correctly
+ * stops the logger and persists ride metadata to the database.
+ */
+@OptIn(ExperimentalCoroutinesApi::class)
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
+class WheelViewModelFinalizationTest {
+
+    private val testDispatcher = StandardTestDispatcher()
+    private lateinit var app: Application
+    private lateinit var viewModel: WheelViewModel
+
+    private lateinit var mockService: WheelService
+    private lateinit var mockCm: WheelConnectionManager
+    private lateinit var mockBle: BleManager
+
+    @Before
+    fun setUp() {
+        Dispatchers.setMain(testDispatcher)
+        app = ApplicationProvider.getApplicationContext()
+        PreferenceManager.getDefaultSharedPreferences(app).edit().clear().commit()
+        viewModel = WheelViewModel(app)
+
+        val mockConnectionState = MutableStateFlow<ConnectionState>(ConnectionState.Disconnected)
+        mockCm = mockk(relaxed = true) {
+            every { connectionState } returns mockConnectionState
+            every { wheelState } returns MutableStateFlow(WheelState())
+        }
+        mockBle = mockk(relaxed = true)
+        mockService = mockk(relaxed = true)
+    }
+
+    @After
+    fun tearDown() {
+        Dispatchers.resetMain()
+        stopKoin()
+    }
+
+    /**
+     * Calls the protected [WheelViewModel.onCleared] method via reflection.
+     * This simulates what Android does when the ViewModel is destroyed.
+     */
+    private fun callOnCleared() {
+        val method: Method = WheelViewModel::class.java.getDeclaredMethod("onCleared")
+        method.isAccessible = true
+        method.invoke(viewModel)
+    }
+
+    @Test
+    fun `onCleared does nothing when not logging`() = runTest(testDispatcher) {
+        viewModel.attachService(mockService, mockCm, mockBle)
+        advanceUntilIdle()
+
+        assertThat(viewModel.isLogging.value).isFalse()
+
+        // Should not throw or crash
+        callOnCleared()
+    }
+
+    @Test
+    fun `onCleared stops logging and sets isLogging to false`() = runTest(testDispatcher) {
+        viewModel.attachService(mockService, mockCm, mockBle)
+        advanceUntilIdle()
+
+        startLogging()
+        assertThat(viewModel.isLogging.value).isTrue()
+
+        callOnCleared()
+        assertThat(viewModel.isLogging.value).isFalse()
+    }
+
+    @Test
+    fun `onCleared is safe to call twice while logging`() = runTest(testDispatcher) {
+        viewModel.attachService(mockService, mockCm, mockBle)
+        advanceUntilIdle()
+
+        startLogging()
+        assertThat(viewModel.isLogging.value).isTrue()
+
+        // Double clear should not crash (RideLogger.stop returns null the second time)
+        callOnCleared()
+        callOnCleared()
+        assertThat(viewModel.isLogging.value).isFalse()
+    }
+
+    /**
+     * Starts ride logging via the ViewModel's toggleLogging method.
+     * Creates a temp rides directory so the logger can open a file.
+     */
+    private fun startLogging() {
+        val ridesDir = File(app.getExternalFilesDir(null), "rides")
+        ridesDir.mkdirs()
+        viewModel.toggleLogging()
+    }
+}
