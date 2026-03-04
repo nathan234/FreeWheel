@@ -48,16 +48,16 @@ jobs:
           cache: gradle
 
       - name: Compile Android app
-        run: ./gradlew :app:compileDebugKotlin
+        run: ./gradlew :freewheel:compileDebugKotlin
 
       - name: Build debug APK
-        run: ./gradlew :app:assembleDebug
+        run: ./gradlew :freewheel:assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: app-debug
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: freewheel-debug
+          path: freewheel/build/outputs/apk/debug/freewheel-debug.apk
           retention-days: 14
 
   ios-framework:

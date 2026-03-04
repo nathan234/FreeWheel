@@ -16,7 +16,7 @@ kotlin {
         iosSimulatorArm64()
     ).forEach { iosTarget ->
         iosTarget.binaries.framework {
-            baseName = "WheelLogCore"
+            baseName = "FreeWheelCore"
             isStatic = true
         }
     }
@@ -47,7 +47,7 @@ kotlin {
 }
 
 android {
-    namespace = "com.cooper.wheellog.core"
+    namespace = "org.freewheel.core"
     compileSdk = 35
 
     defaultConfig {

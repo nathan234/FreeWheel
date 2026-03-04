@@ -1,6 +1,0 @@
-<resources>
-    <declare-styleable name="MultiSelectPreference">
-        <attr name="entries"/>
-        <attr name="defaultValue"/>
-    </declare-styleable>
-</resources>

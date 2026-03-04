@@ -3,7 +3,9 @@
 An opinionated comparison of the eight manufacturer protocols implemented in
 `core/protocol/`, based on what the decoder code reveals about each manufacturer's
 firmware engineering. This is the perspective of someone who has read and worked on
-every decoder in detail — not a product review.
+every decoder in detail — not a product review. See also [decoder-parity.md](decoder-parity.md) for
+legacy parity status and [reference-protocol.md](reference-protocol.md) for the open protocol spec
+this assessment motivates.
 
 ## Brand / Protocol Relationships
 
@@ -80,7 +82,7 @@ meaningless.
 ### Undocumented fields
 
 Frame byte 17 contains beeper volume (0-9). Neither Begode's documentation, the legacy
-WheelLog codebase, nor any upstream community project had this documented. We discovered
+FreeWheel codebase, nor any upstream community project had this documented. We discovered
 it via BLE PacketLogger capture by comparing frames before and after volume writes. The
 ATT summary view in PacketLogger truncates notifications to 16 bytes — the field only
 appears in the full L2CAP/ACL hex dump, which may explain why it went unnoticed.

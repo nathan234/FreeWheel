@@ -27,7 +27,7 @@ android {
     kotlinOptions {
         jvmTarget = JavaVersion.VERSION_17.toString()
     }
-    namespace 'com.wheellog.shared'
+    namespace 'org.freewheel.shared'
 }
 
 dependencies {

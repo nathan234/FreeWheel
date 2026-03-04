@@ -1,5 +1,9 @@
 # Reference EUC BLE Protocol
 
+See [reference-implementation-plan.md](reference-implementation-plan.md) for the concrete hardware/software
+phasing, and [protocol-quality-assessment.md](protocol-quality-assessment.md) for the analysis of existing
+protocols that motivates this design.
+
 ## Goal
 
 Design and implement an open, self-describing BLE protocol for electric unicycles,
@@ -211,7 +215,7 @@ error handling but less boilerplate for data structures).
 
 ### Phase 3: Integration + Demo
 
-- [ ] End-to-end test: VESC dev board + ESP32 + WheelLog app
+- [ ] End-to-end test: VESC dev board + ESP32 + FreeWheel app
 - [ ] Benchmark: latency, throughput, BLE packet efficiency vs existing protocols
 - [ ] Document setup for Floatwheel / custom VESC builds
 

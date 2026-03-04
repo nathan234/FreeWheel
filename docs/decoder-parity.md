@@ -1,7 +1,7 @@
 # Decoder Parity Checklist
 
 Tracks which legacy Android adapter behaviors have been replicated in the KMP decoders.
-Updated after each migration pass.
+Updated after each migration pass. See also [protocol-quality-assessment.md](protocol-quality-assessment.md) for protocol quality comparison and [CLAUDE.md](../CLAUDE.md) for decoder architecture.
 
 Legend: `[x]` = implemented, `[ ]` = known gap, `[n/a]` = intentionally skipped
 

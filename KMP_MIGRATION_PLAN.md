@@ -1,6 +1,6 @@
-# WheelLog KMP Migration Plan
+# FreeWheel KMP Migration Plan
 
-This document tracks the migration of WheelLog's core functionality to Kotlin Multiplatform for iOS support.
+This document tracks the migration of FreeWheel's core functionality to Kotlin Multiplatform for iOS support. See also [CLAUDE.md](CLAUDE.md) for detailed architecture and [README.md](README.md) for build commands.
 
 ## Overview
 
@@ -101,12 +101,10 @@ This document tracks the migration of WheelLog's core functionality to Kotlin Mu
 ## Phase 4: Integration
 
 ### 4.1 Android Integration ✅
-- [x] KmpWheelBridge for parallel decoding alongside existing adapters
-- [x] BluetoothService feeds data to KMP bridge
-- [x] Comparison utility to validate KMP vs legacy decoder output
-- [x] Compose app with WheelService using KMP WheelConnectionManager directly
+- [x] ~~KmpWheelBridge for parallel decoding~~ (removed)
+- [x] FreeWheel Compose app (`freewheel/`) with WheelService using KMP WheelConnectionManager directly
 - [x] WheelViewModel orchestrates KMP state, scanning, logging, alarms
-- [x] Decoder mode setting (Legacy / KMP / Both)
+- [x] Legacy `app/` module removed (all code lives in `freewheel/` + `core/`)
 
 ### 4.2 iOS App Scaffold ✅
 - [x] Create iOS Xcode project
@@ -204,15 +202,14 @@ This document tracks the migration of WheelLog's core functionality to Kotlin Mu
 
 ## Current Status
 
-**Last Updated**: 2026-03-02
+**Last Updated**: 2026-03-03
 
 **Recent Commits**:
+- `fdff864` Rename WheelLog → FreeWheel, separate legacy and new apps
+- `28cb4c3` Fix iOS alarm throttling, use KMP sanitizeAddress, add IM2 comparison tests
+- `c0c4993` Improve README, migration plan, decoder parity docs, and issue templates
 - `cfd10db` Document lifecycle, persistence, entry flow, and test inventory in CLAUDE.md
 - `22ab3cc` Finalize ride recording on app close to preserve trip metadata
-- `c7ade99` Add EUC protocol quality assessment and update docs for Leaperkim CAN
-- `1c210c0` Consolidate duplicated utilities into KMP shared module
-- `4c93828` Improve thread safety, resilience, and performance across KMP core and apps
-- `f05cce8` Implement LeaperkimCanDecoder for CAN-over-BLE protocol
 
 **Completed**:
 - All 8 protocol decoders ported to KMP with ~1,436 unit tests

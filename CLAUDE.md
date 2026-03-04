@@ -1,12 +1,12 @@
-# WheelLog KMP Migration
+# FreeWheel KMP Migration
 
 ## Overview
 
-WheelLog is an Android/iOS app for electric unicycle telemetry. The codebase is undergoing a Kotlin Multiplatform (KMP) migration to share protocol decoders between platforms.
+FreeWheel is an Android/iOS app for electric unicycle telemetry. The codebase is undergoing a Kotlin Multiplatform (KMP) migration to share protocol decoders between platforms.
 
 ## Development Policy
 
-**Do not modify legacy Android code.** All new work targets the KMP `core/` module and the new Compose UI in `app/`. The legacy Java adapters (`app/.../utils/*Adapter*.java`), `WheelData.java`, and related files are frozen — they will be removed once the KMP migration is complete, not incrementally refactored. The goal is to eventually separate the new Compose app entirely from the old Android app.
+All new work targets the KMP `core/` module and the Compose UI in `freewheel/`. The `freewheel/` module (`org.freewheel`) is the Compose-only Android app.
 
 ## Project Structure
 
@@ -22,12 +22,12 @@ Wheellog.Android/
 │       ├── service/         # WheelConnectionManager, KeepAliveTimer
 │       ├── telemetry/       # TelemetryBuffer
 │       └── utils/           # ByteUtils, DisplayUtils, StringUtil, Lock, Logger, EnergyCalculator
-├── app/                     # Android app (Jetpack Compose)
-├── shared/                  # Android-only library shared between app and wearos
+├── freewheel/               # FreeWheel Android app (Compose-only, org.freewheel)
+├── shared/                  # Android-only library shared between freewheel and wearos
 │                            #   (WearPage, SmartDouble, Constants)
 ├── iosApp/                  # iOS SwiftUI app
 │   ├── Scripts/             # build-kmp-framework.sh (Xcode build phase)
-│   └── WheelLog/
+│   └── FreeWheel/
 │       ├── Bridge/          # Swift-to-KMP wrappers (see iOS Bridge below)
 │       └── Views/           # SwiftUI views (11 files)
 └── wearos/                  # WearOS companion app (does NOT use KMP core;
@@ -37,11 +37,11 @@ Wheellog.Android/
 ### Module Dependencies
 
 ```
-core  ← standalone KMP (no Android app deps)
-app   → core + shared
-shared ← standalone Android library (no core dep)
-wearos → shared only (NO core)
-iosApp → core framework
+core      ← standalone KMP (no Android app deps)
+freewheel → core + shared  (Compose-only app)
+shared    ← standalone Android library (no core dep)
+wearos    → shared only (NO core)
+iosApp    → core framework
 ```
 
 ## KMP Decoder Architecture
@@ -148,37 +148,7 @@ Decoders without unpackers (KS, VT, NZ) handle framing internally.
 - **Immutable + copy**: Decoders return `currentState.copy(field = newValue)`. SmartBms is mutable internally but exposed via immutable `BmsSnapshot`
 - **BMS accumulation**: `bms1`/`bms2` built across multiple frames. Cell voltages arrive separately (GW: frame 0x02/0x03, KS: via RequestBmsData)
 
-## Decoder Mode (Android)
-
-Users can choose which decoder to use:
-- **Settings → Application Settings → Decoder Mode**
-
-Options:
-- `LEGACY_ONLY` (default): Original Java/Kotlin decoders
-- `KMP_ONLY`: New cross-platform decoders
-
-iOS always uses KMP decoders (no legacy option).
-
-## Legacy vs Compose Boundary
-
-The `app/` module contains two independent UI paths:
-
-| | Legacy Path | Compose Path |
-|---|---|---|
-| Entry point | `MainActivity` | `ComposeActivity` |
-| BLE service | `BluetoothService` | `WheelService` |
-| Data model | `WheelData` singleton | KMP `WheelState` via `WheelViewModel` |
-| Decoder | Legacy adapters or `KmpWheelBridge` | KMP decoders via `WheelConnectionManager` |
-| Settings | `AppConfig` (full) | `AppConfig` (SharedPreferences only, no `wd` access) |
-| UI | XML layouts + hybrid Compose | Pure Jetpack Compose |
-
-Files in `compose/screens/` belong to the Compose path.
-Files in `compose/legacy/` are hybrid screens rendered inside `MainActivity`.
-
-When `use_compose_ui` is true, `WheelData` is never initialized and legacy Koin modules
-(`notificationsModule`, `volumeKeyModule`) are not loaded.
-
-## Compose App Entry Flow
+## FreeWheel App Entry Flow
 
 Startup sequence for the Compose path:
 
@@ -231,28 +201,25 @@ Central orchestrator for the Compose app (`AndroidViewModel`). Owns:
 | Lock (Android/iOS) | `core/src/{androidMain,iosMain}/.../utils/Lock.{android,ios}.kt` |
 | Logger (Android/iOS) | `core/src/{androidMain,iosMain}/.../utils/Logger.{android,ios}.kt` |
 | **Android App** | |
-| Compose entry point | `app/src/main/.../compose/ComposeActivity.kt` |
-| Foreground BLE service | `app/src/main/.../compose/WheelService.kt` |
-| ViewModel | `app/src/main/.../compose/WheelViewModel.kt` |
-| Wheel profiles | `app/src/main/.../compose/WheelProfileStore.kt` |
-| Trip database | `app/src/main/.../data/{TripDatabase,TripDao,TripDataDbEntry}.kt` |
-| Trip repository | `app/src/main/.../data/TripRepository.kt` |
-| KMP bridge | `app/src/main/.../kmp/KmpWheelBridge.kt` |
-| Decoder mode enum | `app/src/main/.../kmp/DecoderMode.kt` |
-| Compose screens | `app/src/main/.../compose/screens/*.kt` |
-| Compose components | `app/src/main/.../compose/components/*.kt` (incl. `DangerousActionDialog`, `TimeRangePicker`) |
-| Legacy hybrid screens | `app/src/main/.../compose/legacy/*.kt` |
+| Compose entry point | `freewheel/src/main/.../compose/ComposeActivity.kt` |
+| Foreground BLE service | `freewheel/src/main/.../compose/WheelService.kt` |
+| ViewModel | `freewheel/src/main/.../compose/WheelViewModel.kt` |
+| Wheel profiles | `freewheel/src/main/.../compose/WheelProfileStore.kt` |
+| Trip database | `freewheel/src/main/.../data/{TripDatabase,TripDao,TripDataDbEntry}.kt` |
+| Trip repository | `freewheel/src/main/.../data/TripRepository.kt` |
+| Compose screens | `freewheel/src/main/.../compose/screens/*.kt` |
+| Compose components | `freewheel/src/main/.../compose/components/*.kt` (incl. `DangerousActionDialog`, `TimeRangePicker`) |
 | **iOS App** | |
-| Main bridge (orchestrator) | `iosApp/WheelLog/Bridge/WheelManager.swift` |
-| StateFlow → @Published | `iosApp/WheelLog/Bridge/StateFlowObserver.swift` |
-| Alarm bridge | `iosApp/WheelLog/Bridge/AlarmManager.swift` |
-| Background mode | `iosApp/WheelLog/Bridge/BackgroundManager.swift` |
-| Location tracking | `iosApp/WheelLog/Bridge/LocationManager.swift` |
-| Ride logging bridge | `iosApp/WheelLog/Bridge/RideLogger.swift` |
-| Ride storage (iOS-only) | `iosApp/WheelLog/Bridge/RideStore.swift` |
-| Telemetry bridge | `iosApp/WheelLog/Bridge/TelemetryBuffer.swift` |
-| Telemetry history | `iosApp/WheelLog/Bridge/TelemetryHistory.swift` |
-| SwiftUI views | `iosApp/WheelLog/Views/*.swift` (incl. `ViewHelpers.swift` shared unit helpers) |
+| Main bridge (orchestrator) | `iosApp/FreeWheel/Bridge/WheelManager.swift` |
+| StateFlow → @Published | `iosApp/FreeWheel/Bridge/StateFlowObserver.swift` |
+| Alarm bridge | `iosApp/FreeWheel/Bridge/AlarmManager.swift` |
+| Background mode | `iosApp/FreeWheel/Bridge/BackgroundManager.swift` |
+| Location tracking | `iosApp/FreeWheel/Bridge/LocationManager.swift` |
+| Ride logging bridge | `iosApp/FreeWheel/Bridge/RideLogger.swift` |
+| Ride storage (iOS-only) | `iosApp/FreeWheel/Bridge/RideStore.swift` |
+| Telemetry bridge | `iosApp/FreeWheel/Bridge/TelemetryBuffer.swift` |
+| Telemetry history | `iosApp/FreeWheel/Bridge/TelemetryHistory.swift` |
+| SwiftUI views | `iosApp/FreeWheel/Views/*.swift` (incl. `ViewHelpers.swift` shared unit helpers) |
 
 ## iOS Bridge Architecture
 
@@ -281,7 +248,7 @@ On the Swift side, `WheelManager.swift` is the main orchestrator. It owns the KM
 | Scenario | Entry point | Flow |
 |---|---|---|
 | User disconnect | `WheelManager.disconnect()` | `stopLogging()` → async `connectionManager.disconnect {}` → state reset in callback |
-| App termination | `willTerminateNotification` in `WheelLogApp.swift` | `stopLogging()` if logging active |
+| App termination | `willTerminateNotification` in `FreeWheelApp.swift` | `stopLogging()` if logging active |
 | WheelManager dealloc | `WheelManager.deinit` | `MainActor.assumeIsolated { stopLogging() }` (only if on main thread) |
 | Connection lost/disconnected | `handleConnectionStateChange()` | `stopLogging()` → `telemetryHistory.save()` → `telemetryBuffer.clear()` |
 
@@ -322,7 +289,7 @@ On iOS, `RideMetadata` (KMP) is converted to `RideMetadata` (Swift struct in `Ri
 
 The logging module (`core/src/commonMain/.../logging/`) handles ride CSV recording:
 
-- **CsvFormatter** — Formats `WheelState` into CSV rows matching legacy WheelLog format. Supports optional GPS columns (6 extra columns inserted after time).
+- **CsvFormatter** — Formats `WheelState` into CSV rows matching legacy FreeWheel format. Supports optional GPS columns (6 extra columns inserted after time).
 - **CsvParser** — Parses CSV files back into `TelemetrySample` lists. Dynamically reads header to handle both GPS and non-GPS layouts. Downsamples to 3600 points for chart rendering.
 - **RideLogger** — Main recording engine. Throttles writes to 1Hz (1000ms minimum between samples). Tracks metadata during recording: max/avg speed, max current/power/PWM, energy consumption.
 - **RideMetadata** — Data class with computed ride stats (duration, distance, energy, peaks).
@@ -352,11 +319,11 @@ KMP uses `expect`/`actual` declarations for platform-specific implementations. E
 |------------|---------|---------|
 | Kotlin | 2.2.10 | All modules |
 | Kotlinx Coroutines | 1.10.2 | core |
-| Koin (DI) | 4.1.1 | core, app |
+| Koin (DI) | 4.1.1 | core |
 | Blessed (Android BLE) | 2.4.1 | core androidMain |
-| Jetpack Compose | 1.9.2 | app |
-| Room (SQLite) | 2.7.2 | app |
-| Vico (charts) | 2.1.2 | app |
+| Jetpack Compose | 1.9.2 | freewheel |
+| Room (SQLite) | 2.7.2 | freewheel |
+| Vico (charts) | 2.1.2 | freewheel |
 | Swift Charts | — | iosApp |
 | CoreBluetooth | — | core iosMain |
 
@@ -366,14 +333,14 @@ KMP uses `expect`/`actual` declarations for platform-specific implementations. E
 # Run KMP tests
 ./gradlew :core:testDebugUnitTest
 
-# Run Android app tests
-./gradlew :app:testDebugUnitTest
+# Run FreeWheel app tests
+./gradlew :freewheel:testDebugUnitTest
 
-# Compile Android app
-./gradlew :app:compileDebugKotlin
+# Compile FreeWheel app
+./gradlew :freewheel:compileDebugKotlin
 
-# Build Android APK
-./gradlew :app:assembleDebug
+# Build FreeWheel APK
+./gradlew :freewheel:assembleDebug
 
 # Build KMP framework for iOS Simulator
 ./gradlew :core:linkReleaseFrameworkIosSimulatorArm64
@@ -382,7 +349,7 @@ KMP uses `expect`/`actual` declarations for platform-specific implementations. E
 ./gradlew :core:linkReleaseFrameworkIosArm64
 
 # Build iOS app (simulator)
-xcodebuild -project iosApp/WheelLog.xcodeproj -scheme WheelLog \
+xcodebuild -project iosApp/FreeWheel.xcodeproj -scheme FreeWheel \
   -destination 'platform=iOS Simulator,name=iPhone 16 Pro' build
 ```
 
@@ -414,7 +381,7 @@ Every new KMP module (`core/src/commonMain/`) should have a corresponding test f
 | Location | Framework | What it covers |
 |----------|-----------|----------------|
 | `core/src/commonTest/` | kotlin-test, coroutines-test | KMP shared code (decoders, state, utils) |
-| `app/src/test/` | JUnit 4, Truth, Mockk, Robolectric | Android app logic (ViewModel, bridge, services) |
+| `freewheel/src/test/` | JUnit 4, Truth, Mockk, Robolectric | FreeWheel app logic (ViewModel, alarms, CSV parity) |
 | `shared/src/test/` | JUnit 4 | Shared Android utilities |
 
 Platform-specific UI (Compose, SwiftUI) is verified via build compilation + manual testing.
@@ -438,14 +405,6 @@ Frame builders (decoder-specific, in respective test files):
 - `buildIM2Frame(flags, command, data)` — InMotion V2 message with escaping + checksum
 - `buildSettingsFrame(payload)` — InMotion V2 settings frame
 
-### Comparison Test Convention
-
-Comparison tests verify KMP decoders produce identical results to the legacy Java/Kotlin decoders:
-
-1. **Cite the legacy test file** in class KDoc
-2. **Cite specific test cases** in individual test comments
-3. **Use identical packet data** from legacy — do not fabricate new packets
-
 ### Test Coverage
 
 **KMP Core Tests** (`core/src/commonTest/`) — ~1,436 tests across 49 test files:
@@ -454,7 +413,7 @@ Comparison tests verify KMP decoders produce identical results to the legacy Jav
 |---|---|---:|
 | Protocol decoders | 8 decoder tests (KS, GW, VT, LK, NB, NZ, IM1, IM2) + AutoDetect, DecoderLifecycle, DecodeLoop, Factory, WheelCommand | ~670 |
 | Protocol unpackers | GotwayUnpacker, NinebotUnpacker, InMotionUnpacker, InMotionV2Unpacker | ~33 |
-| Decoder comparison | GW, KS, VT, NZ, IM1 comparison tests (verify parity with legacy Java decoders) | ~132 |
+| Decoder comparison | GW, KS, VT, NZ, IM1 comparison tests (verify parity using legacy packet data) | ~132 |
 | Service/Connection | WheelConnectionManager (3 files), AutoConnect, KeepAlive, ConnectionState, DemoData | ~175 |
 | Domain & Alarms | WheelState, WheelSettingsConfig, AlarmChecker, AlarmType, SmartBms | ~185 |
 | Telemetry & Logging | TelemetryBuffer/History/Sample/CsvSerializer, CsvFormatter/Parser, RideLogger/Metadata | ~116 |
@@ -462,16 +421,13 @@ Comparison tests verify KMP decoders produce identical results to the legacy Jav
 | Utilities | ByteUtils, DisplayUtils, StringUtil | ~192 |
 | Alarms (vibration) | VibrationPatterns | ~14 |
 
-**Android App Tests** (`app/src/test/`) — ~283 tests across 22 test files:
+**FreeWheel App Tests** (`freewheel/src/test/`) — 4 test files:
 
 | Area | Key test files | Approx tests |
 |---|---|---:|
-| Legacy adapter parity | KS, GW, GW Virtual, VT, NZ, IM1, IM2 adapter tests | ~108 |
-| Utility parity | ByteUtils, StringUtil comparison; CommandParity, BmsParity, CsvParity | ~122 |
 | ViewModel | AutoConnect, Finalization | ~16 |
 | Alarm | AlarmHandler | ~10 |
-| Legacy domain | WheelData, RawData, ElectroClub, Calculator | ~21 |
-| Data | TripParser | ~1 |
+| CSV parity | CsvParityTest | ~5 |
 
 ### iOS Testing on Simulator
 
@@ -507,6 +463,16 @@ Protocol decoder gotchas discovered during development:
 - **LeaperkimCan uses Gotway BLE UUIDs**: Despite being a completely different protocol, Leaperkim CAN
   reuses the same BLE service/characteristic UUIDs as Gotway. Detection relies on device name
   ("LEAPERKIM"/"LPKIM") and must be checked *before* Veteran/Gotway name matching.
+
+## Related Documentation
+
+- [README.md](README.md) — Project overview, build commands, architecture diagram, contributing guide
+- [KMP_MIGRATION_PLAN.md](KMP_MIGRATION_PLAN.md) — Migration phases, BLE implementation status, current progress
+- [RESOURCES.md](RESOURCES.md) — EUC protocol references, open-source hardware, VESC resources
+- [docs/decoder-parity.md](docs/decoder-parity.md) — Per-decoder checklist of legacy parity gaps
+- [docs/protocol-quality-assessment.md](docs/protocol-quality-assessment.md) — Opinionated comparison of manufacturer protocol quality
+- [docs/reference-protocol.md](docs/reference-protocol.md) — Open TLV protocol spec for VESC-based EUCs
+- [docs/reference-implementation-plan.md](docs/reference-implementation-plan.md) — ESP32 hardware phases for reference protocol
 
 ## Branch
 

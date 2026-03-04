@@ -10,7 +10,7 @@
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
-        android:theme="@style/Theme.WheellogAndroid">
+        android:theme="@style/Theme.FreeWheelAndroid">
         <uses-library
             android:name="com.google.android.wearable"
             android:required="true" />

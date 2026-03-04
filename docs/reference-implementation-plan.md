@@ -1,8 +1,9 @@
 # Reference Protocol — Implementation Plan
 
-Companion to [`reference-protocol.md`](reference-protocol.md). This document covers
-the concrete hardware, software, and phasing decisions for building the first working
-implementation of the open TLV protocol.
+Companion to [`reference-protocol.md`](reference-protocol.md). See also
+[`protocol-quality-assessment.md`](protocol-quality-assessment.md) for the analysis motivating this work.
+This document covers the concrete hardware, software, and phasing decisions for building
+the first working implementation of the open TLV protocol.
 
 ## Hardware Strategy
 
@@ -112,7 +113,7 @@ the MTen Mini's voltage exactly. Commodity RC parts, readily available.
 - [ ] `ReferenceDecoder.kt` in `core/protocol/`
 - [ ] `WheelType.REFERENCE` + factory + detector wiring
 - [ ] Unit tests with synthetic TLV frames
-- [ ] End-to-end: ESP32 dev board + WheelLog app showing live simulated data
+- [ ] End-to-end: ESP32 dev board + FreeWheel app showing live simulated data
 
 ## Phase 2: VESC Bridge
 
@@ -131,7 +132,7 @@ LiPo 10S ──► Flipsky VESC 6.7 ──► small BLDC motor (bench-mounted)
                     │
                   UART
                     │
-                 ESP32-S3 ──► BLE ──► WheelLog app
+                 ESP32-S3 ──► BLE ──► FreeWheel app
 ```
 
 ### Deliverables
@@ -139,7 +140,7 @@ LiPo 10S ──► Flipsky VESC 6.7 ──► small BLDC motor (bench-mounted)
 - [ ] VESC UART driver (request/response with checksums)
 - [ ] Telemetry mapping: RPM → speed, v_in → voltage, temps, etc.
 - [ ] Settings proxying: at least max_speed, pedal_tilt, headlight
-- [ ] Bench demo: spin motor, see real telemetry in WheelLog
+- [ ] Bench demo: spin motor, see real telemetry in FreeWheel
 
 ## Phase 3: Real Wheel Integration
 

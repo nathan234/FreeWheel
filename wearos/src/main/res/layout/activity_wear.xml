@@ -5,7 +5,7 @@
     android:layout_height="match_parent"
     android:keepScreenOn="true"
     android:padding="@dimen/box_inset_layout_padding"
-    android:theme="@style/Theme.WheellogAndroid"
+    android:theme="@style/Theme.FreeWheelAndroid"
     tools:context=".WearActivity"
     tools:deviceIds="wear">
 
