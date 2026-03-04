@@ -650,7 +650,7 @@
     <string name="use_reconnect_title">Use reconnect</string>
     <string name="use_reconnect_description">Autoreconnect to wheel if data freeze (use only if you have problems)</string>
     <string name="use_raw_description">When enabled, all raw Bluetooth data packets from the wheel are logged to a separate CSV file. Logging begins when connected and first packet is received. The log file remains open while this setting is enabled, automatically continuing to log data across any disconnections and reconnections. Toggle this setting off to close the current log file. Files are saved to Downloads/FreeWheel/[MAC_ADDRESS]/RAW_yyyy_MM_dd_HH_mm_ss.csv</string>
-    <string name="private_policy"><![CDATA[Before using the app, you must accept the <a href=\"https://github.com/Wheellog/Wheellog.Android/wiki/Privacy-Policy\">Private policy</a> and <a href=\"https://github.com/Wheellog/Wheellog.Android/wiki/Terms-&-Conditions\">Terms & Conditions</a>]]></string>
+    <string name="private_policy"><![CDATA[Before using the app, you must accept the <a href=\"https://github.com/nathan234/FreeWheel/wiki/Privacy-Policy\">Private policy</a> and <a href=\"https://github.com/nathan234/FreeWheel/wiki/Terms-&-Conditions\">Terms & Conditions</a>]]></string>
     <string name="replace_info_block">Replace \"%s\" to:</string>
     <string name="auto_log_when_moving_description">Start auto logging only when wheel speed more than</string>
     <string name="auto_log_when_moving_title">Start logging when is moving</string>

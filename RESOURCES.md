@@ -50,7 +50,7 @@ The most complete and up-to-date protocol documentation is the decoder source co
 
 | App | Platform | License | Notes |
 |-----|----------|---------|-------|
-| [FreeWheel (this project)](https://github.com/Wheellog/Wheellog.Android) | Android + iOS | GPL-3.0 | KMP shared decoders, all major brands |
+| [FreeWheel (this project)](https://github.com/nathan234/FreeWheel) | Android + iOS | GPL-3.0 | KMP shared decoders, all major brands |
 | [EUC World](https://github.com/slastowski/EucWorldAndroid) | Android | Source available | Forked from FreeWheel, most feature-rich Android app. Online service components are proprietary. |
 | [9BMetrics](https://github.com/fgorina/9BMetrics) | iOS + Watch | GPL-3.0 | Ninebot, KingSong, Gotway. Includes protocol documentation. |
 | [WheelDash](https://github.com/blkfribourg/WheelDash) | Garmin/Amazfit | Open source | Standalone watch app, no phone required |

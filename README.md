@@ -53,8 +53,8 @@ Build from source with Xcode 15+. Open `iosApp/FreeWheel.xcodeproj`, select your
 ## Quick Start
 
 ```bash
-git clone https://github.com/Wheellog/Wheellog.Android.git
-cd Wheellog.Android
+git clone https://github.com/nathan234/FreeWheel.git
+cd FreeWheel
 ./gradlew :core:testDebugUnitTest         # Run all KMP tests (~1,436 tests)
 ./gradlew :freewheel:assembleDebug        # Build FreeWheel Android APK
 ```
@@ -370,4 +370,4 @@ Pull requests are welcome on the `main` branch.
 
 ## Acknowledgments
 
-Originally based on [Wheellog.Android](https://github.com/Wheellog/Wheellog.Android) by the FreeWheel team and [palachzzz fork](https://github.com/palachzzz/FreeWheelAndroid).
+Originally based on [Wheellog.Android](https://github.com/Wheellog/Wheellog.Android) by the WheelLog team and [palachzzz fork](https://github.com/palachzzz/FreeWheelAndroid).

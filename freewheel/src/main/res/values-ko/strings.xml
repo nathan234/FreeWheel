@@ -383,7 +383,7 @@
     <string name="power_off_message">"휠이 꺼집니다. 확실합니까?"</string>
     <string name="ec_choose_transport"></string>
     <string name="private_policy_title">"개인 정보 정책"</string>
-    <string name="private_policy"><![CDATA[앱을 사용하려면, <a href=\"https://github.com/Wheellog/Wheellog.Android/wiki/Privacy-Policy\">개인 정보 정책</a>과 <a href=\"https://github.com/Wheellog/Wheellog.Android/wiki/Terms-&-Conditions\">이용 약관</a>에 동의해야 합니다.]]></string>
+    <string name="private_policy"><![CDATA[앱을 사용하려면, <a href=\"https://github.com/nathan234/FreeWheel/wiki/Privacy-Policy\">개인 정보 정책</a>과 <a href=\"https://github.com/nathan234/FreeWheel/wiki/Terms-&-Conditions\">이용 약관</a>에 동의해야 합니다.]]></string>
     <string name="private_policy_agree">"읽었으며 이에 동의합니다"</string>
     <string name="current_mac">"MAC 주소"</string>
     <string name="log_location_pop_up"></string>

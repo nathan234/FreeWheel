@@ -352,7 +352,7 @@
     <string name="private_policy_agree">Я прочитав та погоджуюся</string>
     <string name="current_mac">MAC адреса</string>
     <string name="log_location_pop_up">Ця програма збирає дані про місцезнаходження, щоб додавати дані GPS у логах CSV, коли FreeWheel працює у фоновому режимі або коли екран вимкнено. Дані GPS не збираються при відключенні EUC.</string>
-    <string name="private_policy"><![CDATA[Перед використанням програми потрібно прийняти <a href =\"https://github.com/Wheellog/Wheellog.Android/wiki/Privacy-Policy\">Політику використання</a> та <a href=\"https://github.com/Wheellog/Wheellog.Android/wiki/Terms-&-Conditions\">Загальні положення</a>]]></string>
+    <string name="private_policy"><![CDATA[Перед використанням програми потрібно прийняти <a href =\"https://github.com/nathan234/FreeWheel/wiki/Privacy-Policy\">Політику використання</a> та <a href=\"https://github.com/nathan234/FreeWheel/wiki/Terms-&-Conditions\">Загальні положення</a>]]></string>
     <string name="manual_upload_to_ec">Завантажити на electro.club</string>
     <string name="show_page_trips_title">Сторінка поїздок</string>
     <string name="drl_settings_title">Увімкнути DRL</string>
