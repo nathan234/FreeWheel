@@ -13,8 +13,8 @@ import com.google.android.gms.wearable.MessageClient
 import com.google.android.gms.wearable.MessageEvent
 import com.google.android.gms.wearable.PutDataMapRequest
 import com.google.android.gms.wearable.Wearable
-import com.wheellog.shared.Constants
-import com.wheellog.shared.serialize
+import org.freewheel.shared.Constants
+import org.freewheel.shared.serialize
 import kotlinx.coroutines.*
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject

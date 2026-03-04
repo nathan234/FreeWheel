@@ -7,7 +7,7 @@ android {
     compileSdk 35
 
     defaultConfig {
-        applicationId "com.cooper.wheellog"
+        applicationId "org.freewheel"
         minSdkVersion 24
         targetSdk 35
         versionCode 103
@@ -46,7 +46,7 @@ android {
     lint {
         abortOnError false
     }
-    namespace 'com.cooper.wheellog'
+    namespace 'org.freewheel'
 }
 
 dependencies {

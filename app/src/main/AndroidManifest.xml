@@ -102,10 +102,6 @@
             </intent-filter>
         </activity-alias>
         <activity
-            android:name=".compose.ComposeActivity"
-            android:configChanges="orientation|screenSize"
-            android:exported="false" />
-        <activity
             android:name=".ScanActivity"
             android:theme="@style/OriginalTheme.Dialog.Alert" />
 
@@ -114,9 +110,6 @@
             android:exported="false" />
         <service android:name=".BluetoothService"
             android:foregroundServiceType="connectedDevice"
-            android:exported="false" />
-        <service android:name=".compose.WheelService"
-            android:foregroundServiceType="connectedDevice|location"
             android:exported="false" />
         <service android:name=".LoggingService"
             android:foregroundServiceType="location"

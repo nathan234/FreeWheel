@@ -9,9 +9,9 @@ import com.cooper.wheellog.utils.MiBandEnum
 import com.cooper.wheellog.utils.NotificationUtil
 import com.cooper.wheellog.utils.ThemeEnum
 import com.cooper.wheellog.utils.VolumeKeyController
-import com.wheellog.shared.Constants
-import com.wheellog.shared.WearPage
-import com.wheellog.shared.WearPages
+import org.freewheel.shared.Constants
+import org.freewheel.shared.WearPage
+import org.freewheel.shared.WearPages
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 // import com.yandex.metrica.YandexMetrica
@@ -66,8 +66,6 @@ class AppConfig(var context: Context): KoinComponent {
         get() = getValue(R.string.decoder_mode, 0)
         set(value) = setValue(R.string.decoder_mode, value)
 
-    val decoderMode: com.cooper.wheellog.kmp.DecoderMode
-        get() = com.cooper.wheellog.kmp.DecoderMode.fromInt(decoderModeInt)
 
     var dayNightThemeMode: Int
         get() = getValue(R.string.day_night_theme, MODE_NIGHT_UNSPECIFIED.toString()).toInt()

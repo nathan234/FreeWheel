@@ -80,7 +80,7 @@ meaningless.
 ### Undocumented fields
 
 Frame byte 17 contains beeper volume (0-9). Neither Begode's documentation, the legacy
-WheelLog codebase, nor any upstream community project had this documented. We discovered
+FreeWheel codebase, nor any upstream community project had this documented. We discovered
 it via BLE PacketLogger capture by comparing frames before and after volume writes. The
 ATT summary view in PacketLogger truncates notifications to 16 bytes — the field only
 appears in the full L2CAP/ACL hex dump, which may explain why it went unnoticed.

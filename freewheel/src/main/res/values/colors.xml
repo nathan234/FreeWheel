@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <drawable name="notification_icon_bg">#000</drawable>
+
+    <color name="primary">#1f3a5a</color>
+    <color name="primary_dark">#222222</color> // цвета внизу, для алертов
+    <color name="primary_light">#D1C4E9</color>
+    <color name="accent">#FF5722</color>
+    <color name="primary_text">#212121</color>
+    <color name="secondary_text">#727272</color>
+    <color name="icons">#FFFFFF</color>
+    <color name="divider">#B6B6B6</color>
+    <color name="background">#284a73</color>
+    <color name="navigation_bar">#1f3a5a</color>
+    <color name="wheelview_text">#AAFFFFFF</color>
+    <color name="wheelview_block">#000000</color>
+    <color name="wheelview_textblocks">#FFFFFF</color>
+    <color name="wheelview_versiontext">#32000000</color>
+    <color name="wheelview_speed_text">#FFFFFF</color>
+    <color name="wheelview_main_positive_dial">#FF5722</color>
+    <color name="wheelview_main_negative_dial">#00cc00</color>
+    <color name="wheelview_battery_dial">#00cc00</color>
+    <color name="wheelview_battery_low_dial">#cccc00</color>
+    <color name="wheelview_temperature_dial">#33ccff</color>
+    <color name="wheelview_arc_dim">#30000000</color>
+    <color name="alert_bg">#F2F2F2</color>
+    <color name="alert_button_text">#FFFFFF</color>
+    <color name="alert_button_bg">#747A7A7A</color>
+    <color name="settings_bg">#222222</color>
+    <color name="splash_status_bar">#FFFFFF</color>
+
+    <color name="stats_speed">#00E676</color>
+    <color name="stats_battery">#0D47A1</color>
+    <color name="stats_temp">#F50057</color>
+    <color name="stats_voltage">#1DE9B6</color>
+    <color name="stats_current">#EC407A</color>
+    <color name="stats_power">#FFEA00</color>
+    <color name="stats_pwm">#8F8F8F</color>
+</resources>

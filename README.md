@@ -1,4 +1,4 @@
-# WheelLog Multiplatform
+# FreeWheel Multiplatform
 
 Open-source companion app for electric unicycles (EUC), built with **Kotlin Multiplatform** to share protocol decoders, settings configuration, and business logic across Android and iOS.
 
@@ -46,7 +46,7 @@ Maintains BLE connection, alarms, and ride logging when the app is backgrounded.
 Build from source: clone the repo and run `./gradlew :app:assembleDebug`, then install the APK from `app/build/outputs/apk/debug/`.
 
 ### iOS
-Build from source with Xcode 15+. Open `iosApp/WheelLog.xcodeproj`, select your device/simulator, and build. Requires the KMP framework to be built first (see [Building](#building) below).
+Build from source with Xcode 15+. Open `iosApp/FreeWheel.xcodeproj`, select your device/simulator, and build. Requires the KMP framework to be built first (see [Building](#building) below).
 
 > **Note**: BLE is not available on iOS Simulator. Use a physical device for wheel connectivity, or use the built-in [test mode](#ios-testing-on-simulator) to verify decoder functionality.
 
@@ -174,7 +174,7 @@ Wheellog.Android/
 │       └── iosMain/         # iOS CoreBluetooth implementation + Swift bridge helper
 ├── app/                     # Android app (Jetpack Compose)
 ├── iosApp/                  # iOS SwiftUI app
-│   └── WheelLog/
+│   └── FreeWheel/
 │       ├── Bridge/          # WheelManager (Swift-to-KMP wrapper)
 │       └── Views/           # SwiftUI views
 └── wearos/                  # WearOS companion app
@@ -221,7 +221,7 @@ Logic that both platforms need lives in `core/src/commonMain/`. Platform UI code
 ./gradlew :core:linkReleaseFrameworkIosArm64
 
 # Build iOS app (simulator, from command line)
-xcodebuild -project iosApp/WheelLog.xcodeproj -scheme WheelLog \
+xcodebuild -project iosApp/FreeWheel.xcodeproj -scheme FreeWheel \
   -destination 'platform=iOS Simulator,name=iPhone 16 Pro' build
 ```
 
@@ -239,7 +239,7 @@ Before submitting a PR, run these in order:
 For changes touching iOS Swift code, also run:
 
 ```bash
-xcodebuild -project iosApp/WheelLog.xcodeproj -scheme WheelLog \
+xcodebuild -project iosApp/FreeWheel.xcodeproj -scheme FreeWheel \
   -destination 'platform=iOS Simulator,name=iPhone 16 Pro' build
 ```
 
@@ -297,8 +297,8 @@ Run with `./gradlew :core:testDebugUnitTest`. Tests should **fail** first (class
 #### 4. Wire Up iOS
 
 - **Bridge**: If the KMP code needs a Swift-callable wrapper, add it to `WheelConnectionManagerHelper.kt` (iOS-side) and `WheelManager.swift`
-- **View**: Create a SwiftUI view in `iosApp/WheelLog/Views/`
-- **Xcode**: Add the new `.swift` file to the Xcode project (`WheelLog.xcodeproj`)
+- **View**: Create a SwiftUI view in `iosApp/FreeWheel/Views/`
+- **Xcode**: Add the new `.swift` file to the Xcode project (`FreeWheel.xcodeproj`)
 
 ### KMP-to-Swift Conventions
 
@@ -359,4 +359,4 @@ Pull requests are welcome on the `main` branch.
 
 ## Acknowledgments
 
-Originally based on [WheelLog.Android](https://github.com/Wheellog/Wheellog.Android) by the WheelLog team and [palachzzz fork](https://github.com/palachzzz/WheelLogAndroid).
+Originally based on [Wheellog.Android](https://github.com/Wheellog/Wheellog.Android) by the FreeWheel team and [palachzzz fork](https://github.com/palachzzz/FreeWheelAndroid).

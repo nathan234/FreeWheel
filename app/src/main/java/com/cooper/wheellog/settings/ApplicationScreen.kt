@@ -10,7 +10,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import com.cooper.wheellog.AppConfig
 import com.cooper.wheellog.R
-import com.cooper.wheellog.kmp.DecoderMode
 import com.cooper.wheellog.utils.NotificationUtil
 import com.cooper.wheellog.utils.ThemeEnum
 import com.cooper.wheellog.utils.ThemeIconEnum
@@ -69,18 +68,6 @@ fun applicationScreen(
                 defaultKey = appConfig.dayNightThemeMode.toString(),
             ) {
                 appConfig.dayNightThemeMode = it.first.toInt()
-            }
-
-            list(
-                name = stringResource(R.string.decoder_mode_title),
-                desc = stringResource(R.string.decoder_mode_description),
-                entries = mapOf(
-                    DecoderMode.LEGACY_ONLY.value.toString() to stringResource(R.string.decoder_mode_legacy),
-                    DecoderMode.KMP_ONLY.value.toString() to stringResource(R.string.decoder_mode_kmp),
-                ),
-                defaultKey = appConfig.decoderModeInt.toString(),
-            ) {
-                appConfig.decoderModeInt = it.first.toInt()
             }
 
             switchPref(

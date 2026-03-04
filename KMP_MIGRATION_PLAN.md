@@ -1,6 +1,6 @@
-# WheelLog KMP Migration Plan
+# FreeWheel KMP Migration Plan
 
-This document tracks the migration of WheelLog's core functionality to Kotlin Multiplatform for iOS support.
+This document tracks the migration of FreeWheel's core functionality to Kotlin Multiplatform for iOS support.
 
 ## Overview
 

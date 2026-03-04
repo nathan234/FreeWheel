@@ -8,7 +8,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import com.cooper.wheellog.AppConfig
 import com.cooper.wheellog.R
-import com.wheellog.shared.WearPage
+import org.freewheel.shared.WearPage
 import org.koin.compose.koinInject
 import java.util.EnumSet
 

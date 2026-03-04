@@ -211,7 +211,7 @@ error handling but less boilerplate for data structures).
 
 ### Phase 3: Integration + Demo
 
-- [ ] End-to-end test: VESC dev board + ESP32 + WheelLog app
+- [ ] End-to-end test: VESC dev board + ESP32 + FreeWheel app
 - [ ] Benchmark: latency, throughput, BLE packet efficiency vs existing protocols
 - [ ] Document setup for Floatwheel / custom VESC builds
 

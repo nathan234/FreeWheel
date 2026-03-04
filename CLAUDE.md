@@ -1,12 +1,12 @@
-# WheelLog KMP Migration
+# FreeWheel KMP Migration
 
 ## Overview
 
-WheelLog is an Android/iOS app for electric unicycle telemetry. The codebase is undergoing a Kotlin Multiplatform (KMP) migration to share protocol decoders between platforms.
+FreeWheel is an Android/iOS app for electric unicycle telemetry. The codebase is undergoing a Kotlin Multiplatform (KMP) migration to share protocol decoders between platforms.
 
 ## Development Policy
 
-**Do not modify legacy Android code.** All new work targets the KMP `core/` module and the new Compose UI in `app/`. The legacy Java adapters (`app/.../utils/*Adapter*.java`), `WheelData.java`, and related files are frozen — they will be removed once the KMP migration is complete, not incrementally refactored. The goal is to eventually separate the new Compose app entirely from the old Android app.
+**Do not modify legacy Android code.** All new work targets the KMP `core/` module and the new Compose UI in `freewheel/`. The legacy `app/` module (`com.cooper.wheellog`) is frozen — it remains for reference and existing users but receives no new features. The `freewheel/` module (`org.freewheel`) is the new Compose-only app.
 
 ## Project Structure
 
@@ -22,12 +22,13 @@ Wheellog.Android/
 │       ├── service/         # WheelConnectionManager, KeepAliveTimer
 │       ├── telemetry/       # TelemetryBuffer
 │       └── utils/           # ByteUtils, DisplayUtils, StringUtil, Lock, Logger, EnergyCalculator
-├── app/                     # Android app (Jetpack Compose)
-├── shared/                  # Android-only library shared between app and wearos
+├── freewheel/               # New FreeWheel Android app (Compose-only, org.freewheel)
+├── app/                     # Legacy WheelLog Android app (com.cooper.wheellog, frozen)
+├── shared/                  # Android-only library shared between freewheel, app and wearos
 │                            #   (WearPage, SmartDouble, Constants)
 ├── iosApp/                  # iOS SwiftUI app
 │   ├── Scripts/             # build-kmp-framework.sh (Xcode build phase)
-│   └── WheelLog/
+│   └── FreeWheel/
 │       ├── Bridge/          # Swift-to-KMP wrappers (see iOS Bridge below)
 │       └── Views/           # SwiftUI views (11 files)
 └── wearos/                  # WearOS companion app (does NOT use KMP core;
@@ -37,11 +38,12 @@ Wheellog.Android/
 ### Module Dependencies
 
 ```
-core  ← standalone KMP (no Android app deps)
-app   → core + shared
-shared ← standalone Android library (no core dep)
-wearos → shared only (NO core)
-iosApp → core framework
+core      ← standalone KMP (no Android app deps)
+freewheel → core + shared  (new Compose-only app)
+app       → core + shared  (legacy, frozen)
+shared    ← standalone Android library (no core dep)
+wearos    → shared only (NO core)
+iosApp    → core framework
 ```
 
 ## KMP Decoder Architecture
@@ -159,26 +161,21 @@ Options:
 
 iOS always uses KMP decoders (no legacy option).
 
-## Legacy vs Compose Boundary
+## Legacy vs FreeWheel Boundary
 
-The `app/` module contains two independent UI paths:
+The legacy `app/` module (`com.cooper.wheellog`) and new `freewheel/` module (`org.freewheel`) are separate apps:
 
-| | Legacy Path | Compose Path |
+| | Legacy App (`app/`) | FreeWheel (`freewheel/`) |
 |---|---|---|
+| Application ID | `com.cooper.wheellog` | `org.freewheel` |
 | Entry point | `MainActivity` | `ComposeActivity` |
 | BLE service | `BluetoothService` | `WheelService` |
 | Data model | `WheelData` singleton | KMP `WheelState` via `WheelViewModel` |
 | Decoder | Legacy adapters or `KmpWheelBridge` | KMP decoders via `WheelConnectionManager` |
-| Settings | `AppConfig` (full) | `AppConfig` (SharedPreferences only, no `wd` access) |
+| Application class | `WheelLog` | `FreeWheel` |
 | UI | XML layouts + hybrid Compose | Pure Jetpack Compose |
 
-Files in `compose/screens/` belong to the Compose path.
-Files in `compose/legacy/` are hybrid screens rendered inside `MainActivity`.
-
-When `use_compose_ui` is true, `WheelData` is never initialized and legacy Koin modules
-(`notificationsModule`, `volumeKeyModule`) are not loaded.
-
-## Compose App Entry Flow
+## FreeWheel App Entry Flow
 
 Startup sequence for the Compose path:
 
@@ -231,28 +228,28 @@ Central orchestrator for the Compose app (`AndroidViewModel`). Owns:
 | Lock (Android/iOS) | `core/src/{androidMain,iosMain}/.../utils/Lock.{android,ios}.kt` |
 | Logger (Android/iOS) | `core/src/{androidMain,iosMain}/.../utils/Logger.{android,ios}.kt` |
 | **Android App** | |
-| Compose entry point | `app/src/main/.../compose/ComposeActivity.kt` |
-| Foreground BLE service | `app/src/main/.../compose/WheelService.kt` |
-| ViewModel | `app/src/main/.../compose/WheelViewModel.kt` |
-| Wheel profiles | `app/src/main/.../compose/WheelProfileStore.kt` |
-| Trip database | `app/src/main/.../data/{TripDatabase,TripDao,TripDataDbEntry}.kt` |
-| Trip repository | `app/src/main/.../data/TripRepository.kt` |
+| Compose entry point | `freewheel/src/main/.../compose/ComposeActivity.kt` |
+| Foreground BLE service | `freewheel/src/main/.../compose/WheelService.kt` |
+| ViewModel | `freewheel/src/main/.../compose/WheelViewModel.kt` |
+| Wheel profiles | `freewheel/src/main/.../compose/WheelProfileStore.kt` |
+| Trip database | `freewheel/src/main/.../data/{TripDatabase,TripDao,TripDataDbEntry}.kt` |
+| Trip repository | `freewheel/src/main/.../data/TripRepository.kt` |
 | KMP bridge | `app/src/main/.../kmp/KmpWheelBridge.kt` |
 | Decoder mode enum | `app/src/main/.../kmp/DecoderMode.kt` |
-| Compose screens | `app/src/main/.../compose/screens/*.kt` |
-| Compose components | `app/src/main/.../compose/components/*.kt` (incl. `DangerousActionDialog`, `TimeRangePicker`) |
+| Compose screens | `freewheel/src/main/.../compose/screens/*.kt` |
+| Compose components | `freewheel/src/main/.../compose/components/*.kt` (incl. `DangerousActionDialog`, `TimeRangePicker`) |
 | Legacy hybrid screens | `app/src/main/.../compose/legacy/*.kt` |
 | **iOS App** | |
-| Main bridge (orchestrator) | `iosApp/WheelLog/Bridge/WheelManager.swift` |
-| StateFlow → @Published | `iosApp/WheelLog/Bridge/StateFlowObserver.swift` |
-| Alarm bridge | `iosApp/WheelLog/Bridge/AlarmManager.swift` |
-| Background mode | `iosApp/WheelLog/Bridge/BackgroundManager.swift` |
-| Location tracking | `iosApp/WheelLog/Bridge/LocationManager.swift` |
-| Ride logging bridge | `iosApp/WheelLog/Bridge/RideLogger.swift` |
-| Ride storage (iOS-only) | `iosApp/WheelLog/Bridge/RideStore.swift` |
-| Telemetry bridge | `iosApp/WheelLog/Bridge/TelemetryBuffer.swift` |
-| Telemetry history | `iosApp/WheelLog/Bridge/TelemetryHistory.swift` |
-| SwiftUI views | `iosApp/WheelLog/Views/*.swift` (incl. `ViewHelpers.swift` shared unit helpers) |
+| Main bridge (orchestrator) | `iosApp/FreeWheel/Bridge/WheelManager.swift` |
+| StateFlow → @Published | `iosApp/FreeWheel/Bridge/StateFlowObserver.swift` |
+| Alarm bridge | `iosApp/FreeWheel/Bridge/AlarmManager.swift` |
+| Background mode | `iosApp/FreeWheel/Bridge/BackgroundManager.swift` |
+| Location tracking | `iosApp/FreeWheel/Bridge/LocationManager.swift` |
+| Ride logging bridge | `iosApp/FreeWheel/Bridge/RideLogger.swift` |
+| Ride storage (iOS-only) | `iosApp/FreeWheel/Bridge/RideStore.swift` |
+| Telemetry bridge | `iosApp/FreeWheel/Bridge/TelemetryBuffer.swift` |
+| Telemetry history | `iosApp/FreeWheel/Bridge/TelemetryHistory.swift` |
+| SwiftUI views | `iosApp/FreeWheel/Views/*.swift` (incl. `ViewHelpers.swift` shared unit helpers) |
 
 ## iOS Bridge Architecture
 
@@ -281,7 +278,7 @@ On the Swift side, `WheelManager.swift` is the main orchestrator. It owns the KM
 | Scenario | Entry point | Flow |
 |---|---|---|
 | User disconnect | `WheelManager.disconnect()` | `stopLogging()` → async `connectionManager.disconnect {}` → state reset in callback |
-| App termination | `willTerminateNotification` in `WheelLogApp.swift` | `stopLogging()` if logging active |
+| App termination | `willTerminateNotification` in `FreeWheelApp.swift` | `stopLogging()` if logging active |
 | WheelManager dealloc | `WheelManager.deinit` | `MainActor.assumeIsolated { stopLogging() }` (only if on main thread) |
 | Connection lost/disconnected | `handleConnectionStateChange()` | `stopLogging()` → `telemetryHistory.save()` → `telemetryBuffer.clear()` |
 
@@ -322,7 +319,7 @@ On iOS, `RideMetadata` (KMP) is converted to `RideMetadata` (Swift struct in `Ri
 
 The logging module (`core/src/commonMain/.../logging/`) handles ride CSV recording:
 
-- **CsvFormatter** — Formats `WheelState` into CSV rows matching legacy WheelLog format. Supports optional GPS columns (6 extra columns inserted after time).
+- **CsvFormatter** — Formats `WheelState` into CSV rows matching legacy FreeWheel format. Supports optional GPS columns (6 extra columns inserted after time).
 - **CsvParser** — Parses CSV files back into `TelemetrySample` lists. Dynamically reads header to handle both GPS and non-GPS layouts. Downsamples to 3600 points for chart rendering.
 - **RideLogger** — Main recording engine. Throttles writes to 1Hz (1000ms minimum between samples). Tracks metadata during recording: max/avg speed, max current/power/PWM, energy consumption.
 - **RideMetadata** — Data class with computed ride stats (duration, distance, energy, peaks).
@@ -366,13 +363,16 @@ KMP uses `expect`/`actual` declarations for platform-specific implementations. E
 # Run KMP tests
 ./gradlew :core:testDebugUnitTest
 
-# Run Android app tests
-./gradlew :app:testDebugUnitTest
+# Run FreeWheel app tests
+./gradlew :freewheel:testDebugUnitTest
 
-# Compile Android app
-./gradlew :app:compileDebugKotlin
+# Compile FreeWheel app
+./gradlew :freewheel:compileDebugKotlin
 
-# Build Android APK
+# Build FreeWheel APK
+./gradlew :freewheel:assembleDebug
+
+# Build legacy WheelLog app (if needed)
 ./gradlew :app:assembleDebug
 
 # Build KMP framework for iOS Simulator
@@ -382,7 +382,7 @@ KMP uses `expect`/`actual` declarations for platform-specific implementations. E
 ./gradlew :core:linkReleaseFrameworkIosArm64
 
 # Build iOS app (simulator)
-xcodebuild -project iosApp/WheelLog.xcodeproj -scheme WheelLog \
+xcodebuild -project iosApp/FreeWheel.xcodeproj -scheme FreeWheel \
   -destination 'platform=iOS Simulator,name=iPhone 16 Pro' build
 ```
 

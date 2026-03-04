@@ -1,4 +1,5 @@
 include ':wearos'
 include ':app'
+include ':freewheel'
 include ':shared'
 include ':core'

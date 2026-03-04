@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Build script for WheelLogCore KMP framework
+# Build script for FreeWheelCore KMP framework
 # This script is called by Xcode as a build phase
 
 set -e
@@ -31,4 +31,4 @@ echo "Building KMP framework with task: $GRADLE_TASK"
 # Build the framework
 ./gradlew $GRADLE_TASK --no-daemon
 
-echo "KMP framework built successfully: core/build/bin/$FRAMEWORK_DIR/releaseFramework/WheelLogCore.framework"
+echo "KMP framework built successfully: core/build/bin/$FRAMEWORK_DIR/releaseFramework/FreeWheelCore.framework"

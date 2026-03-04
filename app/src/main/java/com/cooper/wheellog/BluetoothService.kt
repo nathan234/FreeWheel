@@ -5,7 +5,6 @@ import android.bluetooth.*
 import android.content.Intent
 import android.os.*
 import android.os.PowerManager.WakeLock
-import com.cooper.wheellog.kmp.KmpWheelBridge
 import com.cooper.wheellog.utils.*
 import com.cooper.wheellog.utils.Constants.WHEEL_TYPE
 import com.cooper.wheellog.utils.SomeUtil.playSound
@@ -277,47 +276,37 @@ class BluetoothService: Service() {
             sendBroadcast(serviceIntent)
         }
         val wd = WheelData.getInstance()
-        val decoderMode = appConfig.decoderMode
 
-        when (decoderMode) {
-            com.cooper.wheellog.kmp.DecoderMode.LEGACY_ONLY -> {
-                when (wd.wheelType) {
-                    WHEEL_TYPE.KINGSONG -> if (characteristic.uuid == Constants.KINGSONG_READ_CHARACTER_UUID) {
-                        wd.decodeResponse(value, applicationContext)
-                        if (WheelData.getInstance().name.isEmpty()) {
-                            KingsongAdapter.getInstance().requestNameData()
-                        } else if (WheelData.getInstance().serial.isEmpty()) {
-                            KingsongAdapter.getInstance().requestSerialData()
-                        }
-                    }
-                    WHEEL_TYPE.GOTWAY, WHEEL_TYPE.GOTWAY_VIRTUAL, WHEEL_TYPE.VETERAN ->
-                        wd.decodeResponse(value, applicationContext)
-                    WHEEL_TYPE.INMOTION -> if (characteristic.uuid == Constants.INMOTION_READ_CHARACTER_UUID)
-                        wd.decodeResponse(value, applicationContext)
-                    WHEEL_TYPE.INMOTION_V2 -> if (characteristic.uuid == Constants.INMOTION_V2_READ_CHARACTER_UUID)
-                        wd.decodeResponse(value, applicationContext)
-                    WHEEL_TYPE.NINEBOT_Z -> {
-                        Timber.i("Ninebot Z reading")
-                        if (characteristic.uuid == Constants.NINEBOT_Z_READ_CHARACTER_UUID) {
-                            wd.decodeResponse(value, applicationContext)
-                        }
-                    }
-                    WHEEL_TYPE.NINEBOT -> {
-                        Timber.i("Ninebot reading")
-                        if (characteristic.uuid == Constants.NINEBOT_READ_CHARACTER_UUID
-                            || characteristic.uuid == Constants.NINEBOT_Z_READ_CHARACTER_UUID) {
-                            Timber.i("Ninebot read cont")
-                            wd.decodeResponse(value, applicationContext)
-                        }
-                    }
-                    else -> {}
+        when (wd.wheelType) {
+            WHEEL_TYPE.KINGSONG -> if (characteristic.uuid == Constants.KINGSONG_READ_CHARACTER_UUID) {
+                wd.decodeResponse(value, applicationContext)
+                if (WheelData.getInstance().name.isEmpty()) {
+                    KingsongAdapter.getInstance().requestNameData()
+                } else if (WheelData.getInstance().serial.isEmpty()) {
+                    KingsongAdapter.getInstance().requestSerialData()
                 }
             }
-            com.cooper.wheellog.kmp.DecoderMode.KMP_ONLY -> {
-                if (wd.wheelType != WHEEL_TYPE.Unknown) {
-                    KmpWheelBridge.instance.onDataReceived(value, wd.wheelType)
+            WHEEL_TYPE.GOTWAY, WHEEL_TYPE.GOTWAY_VIRTUAL, WHEEL_TYPE.VETERAN ->
+                wd.decodeResponse(value, applicationContext)
+            WHEEL_TYPE.INMOTION -> if (characteristic.uuid == Constants.INMOTION_READ_CHARACTER_UUID)
+                wd.decodeResponse(value, applicationContext)
+            WHEEL_TYPE.INMOTION_V2 -> if (characteristic.uuid == Constants.INMOTION_V2_READ_CHARACTER_UUID)
+                wd.decodeResponse(value, applicationContext)
+            WHEEL_TYPE.NINEBOT_Z -> {
+                Timber.i("Ninebot Z reading")
+                if (characteristic.uuid == Constants.NINEBOT_Z_READ_CHARACTER_UUID) {
+                    wd.decodeResponse(value, applicationContext)
                 }
             }
+            WHEEL_TYPE.NINEBOT -> {
+                Timber.i("Ninebot reading")
+                if (characteristic.uuid == Constants.NINEBOT_READ_CHARACTER_UUID
+                    || characteristic.uuid == Constants.NINEBOT_Z_READ_CHARACTER_UUID) {
+                    Timber.i("Ninebot read cont")
+                    wd.decodeResponse(value, applicationContext)
+                }
+            }
+            else -> {}
         }
     }
 
@@ -420,9 +409,6 @@ class BluetoothService: Service() {
     fun disconnect() {
         Timber.i("call disconnect()")
         disconnectRequested = true
-
-        // Reset KMP bridge
-        KmpWheelBridge.instance.reset()
 
         if (!central.isBluetoothEnabled || (connectionState != ConnectionState.CONNECTED && !isWheelSearch)) {
             Timber.i("not connected.")

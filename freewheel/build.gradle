@@ -1,0 +1,149 @@
+plugins {
+    id 'com.android.application'
+    id 'kotlin-android'
+    id 'com.google.devtools.ksp'
+    id 'org.jetbrains.kotlin.plugin.compose'
+}
+
+repositories {
+    mavenCentral()
+    google()
+}
+
+android {
+    compileSdk 35
+
+    signingConfigs {
+        debug {
+            storeFile file('../debug.keystore')
+        }
+    }
+
+    defaultConfig {
+        applicationId "org.freewheel"
+        minSdk 21
+        targetSdk 35
+        versionCode 1
+        versionName "0.1.0"
+        buildConfigField 'String', 'BUILD_TIME', "\"" + new Date().format('HH:mm dd.MM.yyyy') + "\""
+        buildConfigField 'String', 'BUILD_DATE', "\"" + new Date().format('dd.MM.yyyy') + "\""
+        vectorDrawables.useSupportLibrary = true
+        multiDexEnabled true
+        javaCompileOptions {
+            annotationProcessorOptions {
+                arguments += [
+                        "room.schemaLocation":"$projectDir/schemas".toString(),
+                        "room.incremental":"true",
+                        "room.expandProjection":"true"]
+            }
+        }
+        ksp {
+            arg("room.schemaLocation", "$projectDir/schemas")
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+        debug {
+            applicationIdSuffix ".debug"
+
+            minifyEnabled false
+            shrinkResources false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+    buildFeatures {
+        compose true
+        buildConfig true
+    }
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    testOptions {
+        unitTests {
+            includeAndroidResources = true
+            returnDefaultValues = true
+        }
+        unitTests.all {
+            jvmArgs '-Xmx2g'
+        }
+    }
+    packagingOptions {
+        jniLibs {
+            excludes += ['META-INF/LICENSE*', 'META-INF/NOTICE*']
+        }
+        resources {
+            excludes += ['META-INF/DEPENDENCIES', 'META-INF/LICENSE*', 'META-INF/NOTICE*', 'META-INF/ASL2.0', 'META-INF/*.kotlin_module']
+        }
+    }
+    kotlinOptions {
+        jvmTarget = JavaVersion.VERSION_17.toString()
+    }
+    lint {
+        abortOnError false
+        disable 'ComposableNaming'
+    }
+    namespace 'org.freewheel'
+}
+
+dependencies {
+    implementation project(path: ':shared')
+    implementation project(path: ':core')
+    // compose
+    implementation "androidx.compose.foundation:foundation:$compose_version"
+    implementation "androidx.compose.runtime:runtime:$compose_version"
+    implementation "androidx.compose.ui:ui:$compose_version"
+    implementation "androidx.compose.ui:ui-tooling:$compose_version"
+    implementation 'androidx.compose.material3:material3:1.4.0'
+    implementation 'androidx.navigation:navigation-compose:2.9.5'
+    implementation "androidx.compose.material:material-icons-extended:1.7.8"
+    // charting
+    implementation 'com.patrykandpatrick.vico:compose-m3:2.1.2'
+    // ViewModel
+    implementation "androidx.lifecycle:lifecycle-viewmodel-ktx:$lifecycle_version"
+    // ViewModel utilities for Compose
+    implementation "androidx.lifecycle:lifecycle-viewmodel-compose:$lifecycle_version"
+    // Lifecycles only (without ViewModel or LiveData)
+    implementation "androidx.lifecycle:lifecycle-runtime-ktx:$lifecycle_version"
+    // Lifecycle-aware state collection for Compose
+    implementation "androidx.lifecycle:lifecycle-runtime-compose:$lifecycle_version"
+    // database
+    implementation "androidx.room:room-runtime:$room_version"
+    ksp "androidx.room:room-compiler:$room_version"
+    implementation "androidx.room:room-ktx:$room_version"
+    // bluetooth
+    implementation 'com.github.weliem:blessed-android:2.4.1'
+    // wearOs
+    implementation 'com.google.android.gms:play-services-wearable:19.0.0'
+    // common
+    implementation "androidx.core:core-ktx:$core_ktx_version"
+    implementation "androidx.appcompat:appcompat:$appcompact_version"
+    implementation "com.google.android.material:material:$material_version"
+    implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
+    implementation 'androidx.preference:preference-ktx:1.2.1'
+    implementation 'com.jakewharton.timber:timber:5.0.1'
+    // coroutines
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2'
+
+    // koin
+    implementation platform('io.insert-koin:koin-bom:4.1.1')
+    implementation 'io.insert-koin:koin-android'
+    implementation 'io.insert-koin:koin-androidx-compose'
+
+    testImplementation 'org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2'
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'com.google.truth:truth:1.4.5'
+    testImplementation 'org.junit.jupiter:junit-jupiter:6.0.0'
+    testImplementation 'io.mockk:mockk:1.14.6'
+    testImplementation 'org.robolectric:robolectric:4.16'
+    testImplementation 'androidx.test:core:1.7.0'
+    testImplementation "org.jetbrains.kotlin:kotlin-reflect:$kotlin_version"
+    testImplementation 'com.squareup.okhttp3:mockwebserver:5.1.0'
+    testImplementation 'org.json:json:20250517'
+    testImplementation 'io.insert-koin:koin-test-junit4:4.1.1'
+}

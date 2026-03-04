@@ -2,7 +2,7 @@
 
 A curated collection of references for EUC protocol development, open-source hardware, and the broader movement toward open PEV (personal electric vehicle) ecosystems.
 
-The goal of WheelLog is to **democratize EUC connectivity** and help move the industry toward open-source hardware and firmware, similar to what VESC did for electric skateboards.
+The goal of FreeWheel is to **democratize EUC connectivity** and help move the industry toward open-source hardware and firmware, similar to what VESC did for electric skateboards.
 
 ## Protocol Documentation
 
@@ -21,7 +21,7 @@ No EUC manufacturer publishes official BLE protocol specs. Everything below is r
 
 The most complete and up-to-date protocol documentation is the decoder source code in open-source apps:
 
-- **WheelLog KMP decoders** (`core/src/commonMain/.../protocol/`) -- KingsongDecoder, GotwayDecoder, VeteranDecoder, NinebotDecoder, NinebotZDecoder, InMotionDecoder, InMotionV2Decoder. The most current implementations covering all major brands.
+- **FreeWheel KMP decoders** (`core/src/commonMain/.../protocol/`) -- KingsongDecoder, GotwayDecoder, VeteranDecoder, NinebotDecoder, NinebotZDecoder, InMotionDecoder, InMotionV2Decoder. The most current implementations covering all major brands.
 - [EUC-Dash-ESP32](https://github.com/Pickelhaupt/EUC-Dash-ESP32) -- ESP32-based dashboard with KingSong protocol implementation in C/C++. Useful as an independent cross-reference.
 - [eucWatch](https://github.com/enaon/eucWatch) -- JavaScript-based protocol implementations for KingSong, InMotion, Ninebot, Begode, and Leaperkim on NRF52xx smartwatches.
 - [9BMetrics (iOS)](https://github.com/fgorina/9BMetrics) -- Open-source iOS app with Ninebot, KingSong, and Gotway protocol implementations.
@@ -50,8 +50,8 @@ The most complete and up-to-date protocol documentation is the decoder source co
 
 | App | Platform | License | Notes |
 |-----|----------|---------|-------|
-| [WheelLog (this project)](https://github.com/Wheellog/Wheellog.Android) | Android + iOS | GPL-3.0 | KMP shared decoders, all major brands |
-| [EUC World](https://github.com/slastowski/EucWorldAndroid) | Android | Source available | Forked from WheelLog, most feature-rich Android app. Online service components are proprietary. |
+| [FreeWheel (this project)](https://github.com/Wheellog/Wheellog.Android) | Android + iOS | GPL-3.0 | KMP shared decoders, all major brands |
+| [EUC World](https://github.com/slastowski/EucWorldAndroid) | Android | Source available | Forked from FreeWheel, most feature-rich Android app. Online service components are proprietary. |
 | [9BMetrics](https://github.com/fgorina/9BMetrics) | iOS + Watch | GPL-3.0 | Ninebot, KingSong, Gotway. Includes protocol documentation. |
 | [WheelDash](https://github.com/blkfribourg/WheelDash) | Garmin/Amazfit | Open source | Standalone watch app, no phone required |
 | [EUC-Dash-ESP32](https://github.com/Pickelhaupt/EUC-Dash-ESP32) | ESP32 (T-Watch) | Open source | Hardware BLE dashboard |

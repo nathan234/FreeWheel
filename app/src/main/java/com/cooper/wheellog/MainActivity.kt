@@ -40,7 +40,6 @@ import com.cooper.wheellog.DialogHelper.checkAndShowPrivatePolicyDialog
 import com.cooper.wheellog.DialogHelper.checkBatteryOptimizationsAndShowAlert
 import com.cooper.wheellog.DialogHelper.checkPWMIsSetAndShowAlert
 import com.cooper.wheellog.companion.WearOs
-import com.cooper.wheellog.compose.MainScreen
 import com.cooper.wheellog.data.TripDatabase.Companion.getDataBase
 import com.cooper.wheellog.data.TripParser
 import com.cooper.wheellog.databinding.ActivityMainBinding
@@ -658,17 +657,7 @@ class MainActivity : AppCompatActivity() {
 
         binding = ActivityMainBinding.inflate(layoutInflater)
 
-        if (appConfig.useComposeUI) {
-            // на Compose
-            setContent {
-                AppTheme {
-                    MainScreen()
-                }
-            }
-        } else {
-            // на xml
-            setContentView(binding.root)
-        }
+        setContentView(binding.root)
 
         ElectroClub.instance.apply {
             errorListener = { method: String?, error: String? ->
