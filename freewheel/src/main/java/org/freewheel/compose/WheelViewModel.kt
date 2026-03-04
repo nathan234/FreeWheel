@@ -137,6 +137,9 @@ class WheelViewModel(application: Application) : AndroidViewModel(application) {
     private val _isLogging = MutableStateFlow(false)
     val isLogging: StateFlow<Boolean> = _isLogging.asStateFlow()
 
+    // WearOS manager (created when service is attached)
+    private var wearOsManager: WearOsManager? = null
+
     // Auto-connect manager (created when service is attached)
     private var autoConnectManager: AutoConnectManager? = null
     val isAutoConnecting: StateFlow<Boolean> get() = autoConnectManager?.isAutoConnecting ?: MutableStateFlow(false)
@@ -214,6 +217,8 @@ class WheelViewModel(application: Application) : AndroidViewModel(application) {
 
     override fun onCleared() {
         super.onCleared()
+        wearOsManager?.stop()
+        wearOsManager = null
         prefs.unregisterOnSharedPreferenceChangeListener(prefChangeListener)
         if (rideLogger.isLogging) {
             logSamplingJob?.cancel()
@@ -269,6 +274,15 @@ class WheelViewModel(application: Application) : AndroidViewModel(application) {
         service.onLogToggleRequested = ::toggleLogging
         service.onGpsLocationUpdate = ::updateGpsLocation
 
+        wearOsManager = WearOsManager(
+            context = getApplication(),
+            wheelStateFlow = wheelState,
+            activeAlarmsFlow = activeAlarms,
+            appConfig = appConfig,
+            onHornRequested = ::wheelBeep,
+            onLightToggleRequested = ::toggleLight
+        ).also { it.start(viewModelScope) }
+
         stateCollectionJob = viewModelScope.launch {
             cm.wheelState.collect { _realWheelState.value = it }
         }
@@ -299,6 +313,8 @@ class WheelViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun detachService() {
+        wearOsManager?.stop()
+        wearOsManager = null
         stateCollectionJob?.cancel()
         connectionCollectionJob?.cancel()
         stateCollectionJob = null
@@ -385,6 +401,7 @@ class WheelViewModel(application: Application) : AndroidViewModel(application) {
             stopDemo()
             return
         }
+        wearOsManager?.stop()
         appConfig.lastMac = ""
         autoConnectManager?.stop()
         if (rideLogger.isLogging) stopLogging()
