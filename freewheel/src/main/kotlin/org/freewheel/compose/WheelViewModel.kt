@@ -341,6 +341,8 @@ class WheelViewModel(application: Application) : AndroidViewModel(application) {
         _connectionState.value = ConnectionState.Disconnected
         telemetryBuffer.clear()
         _telemetrySamples.value = emptyList()
+        alarmChecker.reset()
+        _activeAlarms.value = emptySet()
     }
 
     // --- BLE operations ---
@@ -408,6 +410,8 @@ class WheelViewModel(application: Application) : AndroidViewModel(application) {
         }
         telemetryBuffer.clear()
         _telemetrySamples.value = emptyList()
+        alarmChecker.reset()
+        _activeAlarms.value = emptySet()
     }
 
     fun onBluetoothOff() {

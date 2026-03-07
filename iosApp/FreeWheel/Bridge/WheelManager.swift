@@ -690,6 +690,8 @@ class WheelManager: ObservableObject {
             locationManager.stopTracking()
             telemetryHistory.save()
             telemetryBuffer.clear()
+            alarmManager.reset()
+            activeAlarms = []
         }
 
         // Also handle explicit disconnected state
@@ -700,6 +702,8 @@ class WheelManager: ObservableObject {
             locationManager.stopTracking()
             telemetryHistory.save()
             telemetryBuffer.clear()
+            alarmManager.reset()
+            activeAlarms = []
         }
     }
 
@@ -1070,6 +1074,8 @@ class WheelManager: ObservableObject {
                 self?.connectionState = .disconnected
                 self?.wheelState = WheelState.companion.empty()
                 self?.telemetryBuffer.clear()
+                self?.alarmManager.reset()
+                self?.activeAlarms = []
                 if let error = error {
                     print("Disconnect error: \(error.localizedDescription)")
                 }
