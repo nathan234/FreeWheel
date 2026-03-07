@@ -5,6 +5,7 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -75,3 +76,79 @@ jobs:
 
       - name: Build KMP framework for iOS Simulator
         run: ./gradlew :core:linkReleaseFrameworkIosSimulatorArm64
+
+  testflight:
+    name: TestFlight
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: macos-latest
+    needs: kmp-tests
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: gradle
+
+      - name: Build KMP framework for iOS device
+        run: ./gradlew :core:linkReleaseFrameworkIosArm64
+
+      - name: Set build number
+        run: |
+          agvtool new-version -all ${{ github.run_number }}
+        working-directory: iosApp
+
+      - name: Create App Store Connect API key
+        env:
+          APPSTORE_CONNECT_PRIVATE_KEY: ${{ secrets.APPSTORE_CONNECT_PRIVATE_KEY }}
+        run: |
+          mkdir -p ~/private_keys
+          echo "$APPSTORE_CONNECT_PRIVATE_KEY" > ~/private_keys/AuthKey_${{ secrets.APPSTORE_CONNECT_KEY_ID }}.p8
+
+      - name: Archive
+        run: |
+          xcodebuild archive \
+            -project iosApp/FreeWheel.xcodeproj \
+            -scheme FreeWheel \
+            -destination 'generic/platform=iOS' \
+            -archivePath $RUNNER_TEMP/FreeWheel.xcarchive \
+            CODE_SIGN_STYLE=Automatic \
+            DEVELOPMENT_TEAM=VUTS936LBT \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath ~/private_keys/AuthKey_${{ secrets.APPSTORE_CONNECT_KEY_ID }}.p8 \
+            -authenticationKeyID ${{ secrets.APPSTORE_CONNECT_KEY_ID }} \
+            -authenticationKeyIssuerID ${{ secrets.APPSTORE_CONNECT_ISSUER_ID }}
+
+      - name: Export IPA
+        run: |
+          cat > $RUNNER_TEMP/ExportOptions.plist <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>app-store-connect</string>
+            <key>destination</key>
+            <string>upload</string>
+            <key>teamID</key>
+            <string>VUTS936LBT</string>
+          </dict>
+          </plist>
+          EOF
+          xcodebuild -exportArchive \
+            -archivePath $RUNNER_TEMP/FreeWheel.xcarchive \
+            -exportOptionsPlist $RUNNER_TEMP/ExportOptions.plist \
+            -exportPath $RUNNER_TEMP/export \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath ~/private_keys/AuthKey_${{ secrets.APPSTORE_CONNECT_KEY_ID }}.p8 \
+            -authenticationKeyID ${{ secrets.APPSTORE_CONNECT_KEY_ID }} \
+            -authenticationKeyIssuerID ${{ secrets.APPSTORE_CONNECT_ISSUER_ID }}
+
+      - name: Upload to TestFlight
+        run: |
+          xcrun altool --upload-app \
+            --type ios \
+            --file $RUNNER_TEMP/export/FreeWheel.ipa \
+            --apiKey ${{ secrets.APPSTORE_CONNECT_KEY_ID }} \
+            --apiIssuer ${{ secrets.APPSTORE_CONNECT_ISSUER_ID }}
