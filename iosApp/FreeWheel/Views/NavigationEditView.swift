@@ -228,7 +228,7 @@ struct CreateCustomTabSheet: View {
             Form {
                 Section("Tab Name") {
                     TextField("Name", text: $name)
-                        .onChange(of: name) { _, newValue in
+                        .onChange(of: name) { newValue in
                             if newValue.count > 20 {
                                 name = String(newValue.prefix(20))
                             }
