@@ -37,6 +37,7 @@ jobs:
 
   android-build:
     name: Android Build
+    if: github.event_name != 'workflow_dispatch'
     runs-on: ubuntu-latest
     needs: kmp-tests
     steps:
@@ -63,6 +64,7 @@ jobs:
 
   ios-framework:
     name: iOS Framework
+    if: github.event_name != 'workflow_dispatch'
     runs-on: macos-latest
     needs: kmp-tests
     steps:
