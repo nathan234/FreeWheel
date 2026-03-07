@@ -119,7 +119,7 @@ class WheelViewModel(application: Application) : AndroidViewModel(application) {
     val chartTimeRange: StateFlow<ChartTimeRange> = _chartTimeRange.asStateFlow()
 
     // GPS location (full location for ride logging, speed for display/telemetry)
-    private var _lastGpsLocation: android.location.Location? = null
+    private val _lastGpsLocation = MutableStateFlow<android.location.Location?>(null)
     private val _gpsSpeedKmh = MutableStateFlow(0.0)
     val gpsSpeedKmh: StateFlow<Double> = _gpsSpeedKmh.asStateFlow()
 
@@ -694,7 +694,7 @@ class WheelViewModel(application: Application) : AndroidViewModel(application) {
         logSamplingJob = viewModelScope.launch {
             wheelState.collect { state ->
                 if (rideLogger.isLogging) {
-                    val gps = _lastGpsLocation?.let { loc ->
+                    val gps = _lastGpsLocation.value?.let { loc ->
                         GpsLocation(
                             latitude = loc.latitude,
                             longitude = loc.longitude,
@@ -747,7 +747,7 @@ class WheelViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Call from Activity/Service when GPS location updates arrive. */
     fun updateGpsLocation(location: android.location.Location) {
-        _lastGpsLocation = location
+        _lastGpsLocation.value = location
         _gpsSpeedKmh.value = ByteUtils.metersPerSecondToKmh(location.speed.toDouble())
     }
 
