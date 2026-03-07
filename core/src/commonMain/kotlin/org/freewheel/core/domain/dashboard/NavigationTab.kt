@@ -20,5 +20,5 @@ enum class NavigationTab(
     BMS("bms", "BMS", "battery_full", false),
     RIDES("rides", "Rides", "route", false),
     WHEEL_SETTINGS("wheel_settings", "Wheel", "tune", false),
-    SETTINGS("settings", "Settings", "settings", false);
+    SETTINGS("settings", "Settings", "settings", true);
 }
