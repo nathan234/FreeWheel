@@ -124,7 +124,7 @@ fun NavigationEditScreen(
                                 )
                             }
 
-                            if (isActive && !tab.isRequired) {
+                            if (isActive) {
                                 Row {
                                     IconButton(
                                         onClick = {
