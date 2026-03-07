@@ -49,7 +49,7 @@ jobs:
             -authenticationKeyID ${{ secrets.APPSTORE_CONNECT_KEY_ID }} \
             -authenticationKeyIssuerID ${{ secrets.APPSTORE_CONNECT_ISSUER_ID }}
 
-      - name: Export IPA
+      - name: Export & Upload
         run: |
           cat > $RUNNER_TEMP/ExportOptions.plist <<EOF
           <?xml version="1.0" encoding="UTF-8"?>
@@ -73,11 +73,3 @@ jobs:
             -authenticationKeyPath ~/private_keys/AuthKey_${{ secrets.APPSTORE_CONNECT_KEY_ID }}.p8 \
             -authenticationKeyID ${{ secrets.APPSTORE_CONNECT_KEY_ID }} \
             -authenticationKeyIssuerID ${{ secrets.APPSTORE_CONNECT_ISSUER_ID }}
-
-      - name: Upload to TestFlight
-        run: |
-          xcrun altool --upload-app \
-            --type ios \
-            --file $RUNNER_TEMP/export/FreeWheel.ipa \
-            --apiKey ${{ secrets.APPSTORE_CONNECT_KEY_ID }} \
-            --apiIssuer ${{ secrets.APPSTORE_CONNECT_ISSUER_ID }}
