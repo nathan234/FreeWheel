@@ -36,7 +36,7 @@ class WearOsManager(
     private val onLightToggleRequested: () -> Unit
 ) : MessageClient.OnMessageReceivedListener {
 
-    private var isConnected = false
+    @Volatile private var isConnected = false
     private var scope: CoroutineScope? = null
     private var collectionJob: Job? = null
     private var pingJob: Job? = null
