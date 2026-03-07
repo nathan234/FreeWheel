@@ -78,8 +78,10 @@ sealed class NavigationTab {
     }
 
     companion object {
-        /** All built-in tabs (replaces enum .entries). */
-        val builtIn: List<NavigationTab> = listOf(Devices, Chart, Bms, Rides, WheelSettings, Settings)
+        /** All built-in tabs (replaces enum .entries). Lazy to avoid initialization order issues. */
+        val builtIn: List<NavigationTab> by lazy {
+            listOf(Devices, Chart, Bms, Rides, WheelSettings, Settings)
+        }
 
         /** Look up a built-in tab by its ID, or null. */
         fun builtInById(id: String): NavigationTab? = builtIn.firstOrNull { it.id == id }

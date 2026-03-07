@@ -39,11 +39,13 @@ data class NavigationConfig(
         get() = tabs.filterIsInstance<NavigationTab.Custom>()
 
     companion object {
-        val DEFAULT_TABS = listOf(
-            NavigationTab.Devices,
-            NavigationTab.Rides,
-            NavigationTab.Settings
-        )
+        val DEFAULT_TABS by lazy {
+            listOf(
+                NavigationTab.Devices,
+                NavigationTab.Rides,
+                NavigationTab.Settings
+            )
+        }
 
         /** Swift-callable factory (KMP data class defaults aren't exposed to ObjC). */
         fun default(): NavigationConfig = NavigationConfig()
