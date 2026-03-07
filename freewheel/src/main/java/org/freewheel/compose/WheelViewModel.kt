@@ -26,6 +26,11 @@ import org.freewheel.core.domain.AlarmType
 import org.freewheel.core.domain.SettingsCommandId
 import org.freewheel.core.domain.WheelProfile
 import org.freewheel.core.domain.PreferenceKeys
+import org.freewheel.core.domain.dashboard.DashboardLayout
+import org.freewheel.core.domain.dashboard.DashboardLayoutSerializer
+import org.freewheel.core.domain.dashboard.DashboardPreset
+import org.freewheel.core.domain.dashboard.NavigationConfig
+import org.freewheel.core.domain.dashboard.NavigationConfigSerializer
 import org.freewheel.core.protocol.DecoderConfig
 import android.content.SharedPreferences
 import org.freewheel.core.alarm.AlarmChecker
@@ -150,6 +155,14 @@ class WheelViewModel(application: Application) : AndroidViewModel(application) {
     private val _isLightOn = MutableStateFlow(false)
     val isLightOn: StateFlow<Boolean> = _isLightOn.asStateFlow()
 
+    // Dashboard layout (per-wheel)
+    private val _dashboardLayout = MutableStateFlow(DashboardLayout.default())
+    val dashboardLayout: StateFlow<DashboardLayout> = _dashboardLayout.asStateFlow()
+
+    // Navigation config (global)
+    private val _navigationConfig = MutableStateFlow(NavigationConfig())
+    val navigationConfig: StateFlow<NavigationConfig> = _navigationConfig.asStateFlow()
+
     // Saved wheel profiles
     val profileStore = WheelProfileStore(
         PreferenceManager.getDefaultSharedPreferences(application)
@@ -211,6 +224,7 @@ class WheelViewModel(application: Application) : AndroidViewModel(application) {
         val db = TripDatabase.getDataBase(application)
         tripRepository = TripRepository(db.tripDao())
         prefs.registerOnSharedPreferenceChangeListener(prefChangeListener)
+        loadNavigationConfig()
         startTelemetryBuffering()
         startAlarmMonitoring()
     }
@@ -271,6 +285,7 @@ class WheelViewModel(application: Application) : AndroidViewModel(application) {
                 if (state is ConnectionState.Connected) {
                     autoSaveProfile(state.address)
                     initHistoryForWheel(state.address)
+                    loadDashboardLayout()
                     wheelService?.startLocationTracking()
                 }
                 // Start reconnect-after-loss when connection drops
@@ -542,6 +557,49 @@ class WheelViewModel(application: Application) : AndroidViewModel(application) {
             connectionManager?.executeCommand(commandId, intValue, boolValue)
         }
     }
+
+    // --- Dashboard & Navigation config ---
+
+    fun loadDashboardLayout() {
+        val key = "${macPrefix}_${PreferenceKeys.DASHBOARD_LAYOUT}"
+        val raw = prefs.getString(key, null)
+        _dashboardLayout.value = if (raw != null) {
+            DashboardLayoutSerializer.deserialize(raw) ?: DashboardLayout.default()
+        } else {
+            DashboardLayout.default()
+        }
+    }
+
+    fun saveDashboardLayout(layout: DashboardLayout) {
+        _dashboardLayout.value = layout
+        val key = "${macPrefix}_${PreferenceKeys.DASHBOARD_LAYOUT}"
+        prefs.edit().putString(key, DashboardLayoutSerializer.serialize(layout)).apply()
+    }
+
+    fun applyPreset(preset: DashboardPreset) {
+        saveDashboardLayout(preset.layout)
+    }
+
+    private fun loadNavigationConfig() {
+        val raw = prefs.getString(PreferenceKeys.NAVIGATION_CONFIG, null)
+        _navigationConfig.value = if (raw != null) {
+            NavigationConfigSerializer.deserialize(raw) ?: NavigationConfig()
+        } else {
+            NavigationConfig()
+        }
+    }
+
+    fun saveNavigationConfig(config: NavigationConfig) {
+        if (!config.isValid()) return
+        _navigationConfig.value = config
+        prefs.edit().putString(PreferenceKeys.NAVIGATION_CONFIG, NavigationConfigSerializer.serialize(config)).apply()
+    }
+
+    fun getGlobalString(key: String, default: String?): String? =
+        prefs.getString(key, default)
+
+    fun setGlobalString(key: String, value: String) =
+        prefs.edit().putString(key, value).apply()
 
     // --- Logging ---
 

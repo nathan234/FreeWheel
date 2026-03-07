@@ -51,4 +51,10 @@ object PreferenceKeys {
 
     // Wheel settings slider persistence
     const val WHEEL_SLIDER_PREFIX = "wheel_slider_"
+
+    // Dashboard layout (per-wheel)
+    const val DASHBOARD_LAYOUT = "dashboard_layout"
+
+    // Navigation config (global)
+    const val NAVIGATION_CONFIG = "navigation_config"
 }

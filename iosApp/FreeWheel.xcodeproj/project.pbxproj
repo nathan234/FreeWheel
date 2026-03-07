@@ -32,6 +32,10 @@
 		F1000001221F000000001F /* TripDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1000001221F000000000F /* TripDetailView.swift */; };
 		G1000001221F0000000020 /* ChartHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = G1000001221F0000000010 /* ChartHelpers.swift */; };
 		H1000001221F0000000021 /* ViewHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = H1000001221F0000000011 /* ViewHelpers.swift */; };
+		I1000001221F0000000022 /* MetricWidgetRenderers.swift in Sources */ = {isa = PBXBuildFile; fileRef = I1000001221F0000000012 /* MetricWidgetRenderers.swift */; };
+		I1000001221F0000000023 /* DashboardContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = I1000001221F0000000013 /* DashboardContentView.swift */; };
+		I1000001221F0000000024 /* DashboardEditView.swift in Sources */ = {isa = PBXBuildFile; fileRef = I1000001221F0000000014 /* DashboardEditView.swift */; };
+		I1000001221F0000000025 /* NavigationEditView.swift in Sources */ = {isa = PBXBuildFile; fileRef = I1000001221F0000000015 /* NavigationEditView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -62,6 +66,10 @@
 		F1000001221F000000000F /* TripDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TripDetailView.swift; sourceTree = "<group>"; };
 		G1000001221F0000000010 /* ChartHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChartHelpers.swift; sourceTree = "<group>"; };
 		H1000001221F0000000011 /* ViewHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewHelpers.swift; sourceTree = "<group>"; };
+		I1000001221F0000000012 /* MetricWidgetRenderers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetricWidgetRenderers.swift; sourceTree = "<group>"; };
+		I1000001221F0000000013 /* DashboardContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardContentView.swift; sourceTree = "<group>"; };
+		I1000001221F0000000014 /* DashboardEditView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardEditView.swift; sourceTree = "<group>"; };
+		I1000001221F0000000015 /* NavigationEditView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigationEditView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -144,6 +152,10 @@
 				D1000001221F000000000D /* WheelSettingsView.swift */,
 				F1000001221F000000000F /* TripDetailView.swift */,
 				H1000001221F0000000011 /* ViewHelpers.swift */,
+				I1000001221F0000000012 /* MetricWidgetRenderers.swift */,
+				I1000001221F0000000013 /* DashboardContentView.swift */,
+				I1000001221F0000000014 /* DashboardEditView.swift */,
+				I1000001221F0000000015 /* NavigationEditView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -264,6 +276,10 @@
 				F1000001221F000000001F /* TripDetailView.swift in Sources */,
 				G1000001221F0000000020 /* ChartHelpers.swift in Sources */,
 				H1000001221F0000000021 /* ViewHelpers.swift in Sources */,
+				I1000001221F0000000022 /* MetricWidgetRenderers.swift in Sources */,
+				I1000001221F0000000023 /* DashboardContentView.swift in Sources */,
+				I1000001221F0000000024 /* DashboardEditView.swift in Sources */,
+				I1000001221F0000000025 /* NavigationEditView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

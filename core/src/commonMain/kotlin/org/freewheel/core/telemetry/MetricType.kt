@@ -1,6 +1,10 @@
 package org.freewheel.core.telemetry
 
+import org.freewheel.core.domain.dashboard.DashboardMetric
 import org.freewheel.core.utils.StringUtil
+
+/** Typealias to the canonical [org.freewheel.core.domain.dashboard.ColorZone]. */
+typealias ColorZone = org.freewheel.core.domain.dashboard.ColorZone
 
 /**
  * Defines the metrics displayed as gauge tiles on the dashboard.
@@ -42,22 +46,17 @@ enum class MetricType(
 
     /**
      * Returns a color indicator for the given progress fraction (0..1).
-     * For BATTERY the logic is inverted (low = bad).
+     * Delegates to [DashboardMetric.colorZone] for canonical logic.
      */
-    fun colorZone(progress: Double): ColorZone = when (this) {
-        BATTERY -> when {
-            progress > greenBelow -> ColorZone.GREEN
-            progress > (1.0 - redAbove) -> ColorZone.ORANGE
-            else -> ColorZone.RED
+    fun colorZone(progress: Double): ColorZone {
+        val dashboardMetric = when (this) {
+            SPEED -> DashboardMetric.SPEED
+            BATTERY -> DashboardMetric.BATTERY
+            POWER -> DashboardMetric.POWER
+            PWM -> DashboardMetric.PWM
+            TEMPERATURE -> DashboardMetric.TEMPERATURE
+            GPS_SPEED -> DashboardMetric.GPS_SPEED
         }
-        else -> when {
-            progress < greenBelow -> ColorZone.GREEN
-            progress < redAbove -> ColorZone.ORANGE
-            else -> ColorZone.RED
-        }
+        return dashboardMetric.colorZone(progress)
     }
-}
-
-enum class ColorZone {
-    GREEN, ORANGE, RED
 }

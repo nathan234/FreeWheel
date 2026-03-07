@@ -215,6 +215,13 @@ struct SettingsView: View {
                 WheelSettingsContent()
             }
 
+            // MARK: - Interface
+            Section("Interface") {
+                NavigationLink("Customize Navigation") {
+                    NavigationEditView()
+                }
+            }
+
             // MARK: - About
             Section(SettingsLabels.shared.SECTION_ABOUT) {
                 HStack {

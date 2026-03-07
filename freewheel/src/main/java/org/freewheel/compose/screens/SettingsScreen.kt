@@ -80,7 +80,10 @@ import org.freewheel.core.utils.DisplayUtils
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(viewModel: WheelViewModel) {
+fun SettingsScreen(
+    viewModel: WheelViewModel,
+    onNavigateToEditNavigation: () -> Unit = {}
+) {
     val appConfig = viewModel.appConfig
     val wheelState by viewModel.wheelState.collectAsStateWithLifecycle()
     val connectionState by viewModel.connectionState.collectAsStateWithLifecycle()
@@ -399,6 +402,22 @@ fun SettingsScreen(viewModel: WheelViewModel) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 4.dp)
             )
+            HorizontalDivider()
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onNavigateToEditNavigation() }
+                    .padding(vertical = 4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Customize Navigation")
+                Text(
+                    "Edit",
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Medium
+                )
+            }
         }
 
         // About section

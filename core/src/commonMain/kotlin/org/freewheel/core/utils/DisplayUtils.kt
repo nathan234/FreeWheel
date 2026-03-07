@@ -1,6 +1,8 @@
 package org.freewheel.core.utils
 
 import org.freewheel.core.domain.WheelType
+import org.freewheel.core.domain.dashboard.DashboardMetric
+import org.freewheel.core.domain.dashboard.UnitCategory
 import org.freewheel.core.telemetry.MetricType
 
 /**
@@ -87,6 +89,28 @@ object DisplayUtils {
         when (metric) {
             MetricType.SPEED, MetricType.GPS_SPEED -> speedUnit(useMph)
             MetricType.TEMPERATURE -> temperatureUnit(useFahrenheit)
+            else -> metric.unit
+        }
+
+    // --- DashboardMetric conversion ---
+
+    fun convertMetricValue(
+        value: Double,
+        metric: DashboardMetric,
+        useMph: Boolean,
+        useFahrenheit: Boolean
+    ): Double = when (metric.unitCategory) {
+        UnitCategory.SPEED -> convertSpeed(value, useMph)
+        UnitCategory.DISTANCE -> value // handled by formatDistance
+        UnitCategory.TEMPERATURE -> convertTemp(value, useFahrenheit)
+        else -> value
+    }
+
+    fun metricUnit(metric: DashboardMetric, useMph: Boolean, useFahrenheit: Boolean): String =
+        when (metric.unitCategory) {
+            UnitCategory.SPEED -> speedUnit(useMph)
+            UnitCategory.DISTANCE -> distanceUnit(useMph)
+            UnitCategory.TEMPERATURE -> temperatureUnit(useFahrenheit)
             else -> metric.unit
         }
 

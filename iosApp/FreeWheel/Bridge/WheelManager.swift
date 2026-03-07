@@ -141,6 +141,44 @@ class WheelManager: ObservableObject {
     }
     @Published private(set) var isLogging: Bool = false
 
+    // MARK: - Dashboard & Navigation Config
+
+    @Published var dashboardLayout: DashboardLayout = DashboardLayout.companion.default_() {
+        didSet {
+            let serialized = DashboardLayoutSerializer.shared.serialize(layout: dashboardLayout)
+            UserDefaults.standard.set(serialized, forKey: PreferenceKeys.shared.DASHBOARD_LAYOUT)
+        }
+    }
+
+    @Published var navigationConfig: NavigationConfig = NavigationConfig() {
+        didSet {
+            let serialized = NavigationConfigSerializer.shared.serialize(config: navigationConfig)
+            UserDefaults.standard.set(serialized, forKey: PreferenceKeys.shared.NAVIGATION_CONFIG)
+        }
+    }
+
+    func loadDashboardLayout() {
+        if let raw = UserDefaults.standard.string(forKey: PreferenceKeys.shared.DASHBOARD_LAYOUT),
+           let layout = DashboardLayoutSerializer.shared.deserialize(input: raw) {
+            dashboardLayout = layout
+        } else {
+            dashboardLayout = DashboardLayout.companion.default_()
+        }
+    }
+
+    func loadNavigationConfig() {
+        if let raw = UserDefaults.standard.string(forKey: PreferenceKeys.shared.NAVIGATION_CONFIG),
+           let config = NavigationConfigSerializer.shared.deserialize(input: raw) {
+            navigationConfig = config
+        } else {
+            navigationConfig = NavigationConfig()
+        }
+    }
+
+    func applyPreset(_ preset: DashboardPreset) {
+        dashboardLayout = preset.layout
+    }
+
     // MARK: - Saved Wheel Profiles
 
     private static var savedAddressesKey: String { PreferenceKeys.shared.SAVED_WHEEL_ADDRESSES }
@@ -242,6 +280,7 @@ class WheelManager: ObservableObject {
             self.setupKmpComponents()
             self.setupAlarmCallbacks()
             self.startObserving()
+            self.loadNavigationConfig()
             self.backgroundManager.requestNotificationPermission()
 
             self.startupScan()
@@ -583,6 +622,9 @@ class WheelManager: ObservableObject {
 
             // Load telemetry history for this wheel
             telemetryHistory.loadForWheel(address: address)
+
+            // Load per-wheel dashboard layout
+            loadDashboardLayout()
 
             // Start GPS tracking for speed tile / telemetry
             locationManager.startTracking()

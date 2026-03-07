@@ -146,4 +146,6 @@ dependencies {
     testImplementation 'com.squareup.okhttp3:mockwebserver:5.1.0'
     testImplementation 'org.json:json:20250517'
     testImplementation 'io.insert-koin:koin-test-junit4:4.1.1'
+    testImplementation "androidx.compose.ui:ui-test-junit4:$compose_version"
+    debugImplementation "androidx.compose.ui:ui-test-manifest:$compose_version"
 }
