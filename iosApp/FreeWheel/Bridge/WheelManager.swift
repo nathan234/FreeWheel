@@ -644,6 +644,7 @@ class WheelManager: ObservableObject {
         // Track connected address
         if case .connected(let address, _) = newState {
             lastConnectedAddress = address
+            UserDefaults.standard.set(address, forKey: "FreeWheelLastPeripheralUUID")
             // Auto-connect flags are cleared automatically by the shared AutoConnectManager
             // via its connection state observer
 
@@ -670,6 +671,8 @@ class WheelManager: ObservableObject {
         }
 
         // Detect connection lost → start auto-reconnect via shared manager
+        // Don't stop logging or clear telemetry — ride session stays alive
+        // so it resumes when the wheel reconnects.
         if case .connectionLost(let address, _) = newState {
             if backgroundManager.isInBackground {
                 let wheelName = wheelState.displayName
@@ -682,16 +685,7 @@ class WheelManager: ObservableObject {
                 }
             }
 
-            // Stop logging on disconnect
-            if isLogging {
-                stopLogging()
-            }
-
             locationManager.stopTracking()
-            telemetryHistory.save()
-            telemetryBuffer.clear()
-            alarmManager.reset()
-            activeAlarms = []
         }
 
         // Also handle explicit disconnected state
