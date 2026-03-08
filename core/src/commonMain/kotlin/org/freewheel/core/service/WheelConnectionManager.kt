@@ -14,6 +14,7 @@ import org.freewheel.core.protocol.WheelCommand
 import org.freewheel.core.protocol.WheelDecoder
 import org.freewheel.core.protocol.WheelDecoderFactory
 import org.freewheel.core.domain.SettingsCommandId
+import org.freewheel.core.logging.BlePacketDirection
 import org.freewheel.core.utils.Logger
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -84,6 +85,15 @@ class WheelConnectionManager(
     private val keepAliveTimer = KeepAliveTimer(scope, dispatcher)
     private val dataTimeoutTracker = DataTimeoutTracker(scope, dispatcher)
     private val commandScheduler = CommandScheduler(scope, dispatcher)
+
+    // ==================== BLE Capture Hook ====================
+
+    /**
+     * Optional callback invoked for every BLE packet sent or received.
+     * Set by the UI layer to capture raw traffic for protocol debugging.
+     * Runs in the WCM event loop (single-threaded) — zero overhead when null.
+     */
+    var captureCallback: ((data: ByteArray, direction: BlePacketDirection) -> Unit)? = null
 
     // ==================== Event channel and loop ====================
 
@@ -533,6 +543,8 @@ class WheelConnectionManager(
     }
 
     private fun handleDataReceived(event: WheelEvent.DataReceived) {
+        captureCallback?.invoke(event.data, BlePacketDirection.RX)
+
         val decoder = currentDecoder
         if (decoder == null) {
             Logger.w(TAG, "Data received (${event.data.size} bytes) but no decoder set")
@@ -614,10 +626,12 @@ class WheelConnectionManager(
     private suspend fun dispatchCommand(command: WheelCommand) {
         when (command) {
             is WheelCommand.SendBytes -> {
+                captureCallback?.invoke(command.data, BlePacketDirection.TX)
                 bleManager.write(command.data)
             }
             is WheelCommand.SendDelayed -> {
                 commandScheduler.schedule(command.delayMs) {
+                    captureCallback?.invoke(command.data, BlePacketDirection.TX)
                     bleManager.write(command.data)
                 }
             }
@@ -626,9 +640,13 @@ class WheelConnectionManager(
                 commandScheduler.scheduleSequence {
                     for (cmd in rawCommands) {
                         when (cmd) {
-                            is WheelCommand.SendBytes -> bleManager.write(cmd.data)
+                            is WheelCommand.SendBytes -> {
+                                captureCallback?.invoke(cmd.data, BlePacketDirection.TX)
+                                bleManager.write(cmd.data)
+                            }
                             is WheelCommand.SendDelayed -> {
                                 delay(cmd.delayMs)
+                                captureCallback?.invoke(cmd.data, BlePacketDirection.TX)
                                 bleManager.write(cmd.data)
                             }
                             else -> {} // prevent recursion

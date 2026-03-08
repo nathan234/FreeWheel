@@ -2,9 +2,9 @@ package org.freewheel.compose
 
 import org.freewheel.compose.service.WheelService
 import android.app.Application
-import android.preference.PreferenceManager
+import androidx.preference.PreferenceManager
 import androidx.test.core.app.ApplicationProvider
-import org.freewheel.compose.di.AppModule
+import org.freewheel.AppConfig
 import org.freewheel.core.domain.WheelState
 import org.freewheel.core.service.BleManager
 import org.freewheel.core.service.ConnectionState
@@ -55,8 +55,10 @@ class WheelViewModelFinalizationTest {
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
         app = ApplicationProvider.getApplicationContext()
-        PreferenceManager.getDefaultSharedPreferences(app).edit().clear().commit()
-        viewModel = WheelViewModel(app, AppModule.appConfig, AppModule.prefs, AppModule.vibrator)
+        val prefs = PreferenceManager.getDefaultSharedPreferences(app)
+        prefs.edit().clear().commit()
+        val appConfig = AppConfig(app)
+        viewModel = WheelViewModel(app, appConfig, prefs, null)
 
         val mockConnectionState = MutableStateFlow<ConnectionState>(ConnectionState.Disconnected)
         mockCm = mockk(relaxed = true) {

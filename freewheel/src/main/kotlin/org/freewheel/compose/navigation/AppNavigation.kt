@@ -39,6 +39,7 @@ import org.freewheel.compose.screens.DashboardEditScreen
 import org.freewheel.compose.screens.DashboardScreen
 import org.freewheel.compose.screens.MetricDetailScreen
 import org.freewheel.compose.screens.NavigationEditScreen
+import org.freewheel.compose.screens.BleCaptureScreen
 import org.freewheel.compose.screens.RidesScreen
 import org.freewheel.compose.screens.AutoConnectContent
 import org.freewheel.compose.screens.ScanScreen
@@ -67,7 +68,7 @@ fun tabIcon(tab: NavigationTab): ImageVector = when (tab.iconName) {
 }
 
 // Routes that should hide the bottom bar (overlay screens)
-private val overlayRoutes = setOf(Routes.EDIT_DASHBOARD, Routes.EDIT_NAVIGATION)
+private val overlayRoutes = setOf(Routes.EDIT_DASHBOARD, Routes.EDIT_NAVIGATION, Routes.BLE_CAPTURE)
 
 @Composable
 fun AppNavigation(viewModel: WheelViewModel) {
@@ -172,7 +173,8 @@ fun AppNavigation(viewModel: WheelViewModel) {
             composable(NavigationTab.Settings.route) {
                 SettingsScreen(
                     viewModel = viewModel,
-                    onNavigateToEditNavigation = { navController.navigate(Routes.EDIT_NAVIGATION) }
+                    onNavigateToEditNavigation = { navController.navigate(Routes.EDIT_NAVIGATION) },
+                    onNavigateToCapture = { navController.navigate(Routes.BLE_CAPTURE) }
                 )
             }
 
@@ -233,6 +235,14 @@ fun AppNavigation(viewModel: WheelViewModel) {
                     onNavigateToEditCustomTab = { tabId ->
                         navController.navigate(Routes.editCustomTab(tabId))
                     }
+                )
+            }
+
+            // BLE Capture (overlay)
+            composable(Routes.BLE_CAPTURE) {
+                BleCaptureScreen(
+                    viewModel = viewModel,
+                    onBack = { navController.popBackStack() }
                 )
             }
         }

@@ -14,6 +14,7 @@ object Routes {
     const val EDIT_CUSTOM_TAB = "edit_custom_tab/{tabId}"
     const val METRIC_DETAIL = "metric/{metricId}"
     const val TRIP_DETAIL = "trip/{fileName}"
+    const val BLE_CAPTURE = "ble_capture"
 
     // Route prefixes (for bottom-bar visibility checks)
     const val CUSTOM_PREFIX = "custom/"

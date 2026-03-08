@@ -8,6 +8,9 @@ import org.freewheel.core.domain.WheelState
 import org.freewheel.core.utils.ByteUtils
 import org.freewheel.core.utils.PlatformDateFormatter
 import org.freewheel.core.utils.StringUtil
+import org.freewheel.core.logging.BleCaptureLogger
+import org.freewheel.core.logging.BleCaptureMetadata
+import org.freewheel.core.logging.BlePacketDirection
 import org.freewheel.core.logging.GpsLocation
 import org.freewheel.core.logging.RideLogger
 import org.freewheel.core.telemetry.ChartTimeRange
@@ -151,6 +154,14 @@ class WheelViewModel(
     private val _isLogging = MutableStateFlow(false)
     val isLogging: StateFlow<Boolean> = _isLogging.asStateFlow()
 
+    // BLE Capture
+    private val _isCapturing = MutableStateFlow(false)
+    val isCapturing: StateFlow<Boolean> = _isCapturing.asStateFlow()
+
+    data class CaptureStats(val rxCount: Int = 0, val txCount: Int = 0, val markerCount: Int = 0, val startTimeMs: Long = 0)
+    private val _captureStats = MutableStateFlow(CaptureStats())
+    val captureStats: StateFlow<CaptureStats> = _captureStats.asStateFlow()
+
     // WearOS manager (created when service is attached)
     private var wearOsManager: WearOsManager? = null
 
@@ -243,6 +254,7 @@ class WheelViewModel(
         wearOsManager?.stop()
         wearOsManager = null
         prefs.unregisterOnSharedPreferenceChangeListener(prefChangeListener)
+        if (captureLogger.isCapturing) stopCapture()
         if (rideLogger.isLogging) {
             stopLogging()
             telemetryHistory?.save()
@@ -339,6 +351,7 @@ class WheelViewModel(
     }
 
     fun stopDemo() {
+        if (captureLogger.isCapturing) stopCapture()
         if (rideLogger.isLogging) stopLogging()
         demoDataProvider.stop()
         _isDemo.value = false
@@ -408,6 +421,7 @@ class WheelViewModel(
         wearOsManager?.stop()
         appConfig.lastMac = ""
         autoConnectManager?.stop()
+        if (captureLogger.isCapturing) stopCapture()
         if (rideLogger.isLogging) stopLogging()
         wheelService?.stopLocationTracking()
         telemetryHistory?.save()
@@ -426,6 +440,7 @@ class WheelViewModel(
     }
 
     fun shutdownService() {
+        if (captureLogger.isCapturing) stopCapture()
         if (rideLogger.isLogging) stopLogging()
         telemetryHistory?.save()
         // shutdown() calls stopSelf() which is synchronous.
@@ -736,6 +751,69 @@ class WheelViewModel(
             val csvFile = File(ridesDir, trip.fileName)
             if (csvFile.exists()) csvFile.delete()
         }
+    }
+
+    // --- BLE Capture ---
+
+    private val captureLogger = BleCaptureLogger()
+
+    fun startCapture() {
+        val cm = connectionManager ?: return
+        val app = getApplication<Application>()
+        val capturesDir = File(app.getExternalFilesDir(null), "captures")
+        capturesDir.mkdirs()
+        val now = System.currentTimeMillis()
+        val fileName = "capture_${PlatformDateFormatter.formatRideFilename(now)}.csv"
+        val filePath = File(capturesDir, fileName).absolutePath
+
+        val state = wheelState.value
+        val wheelTypeName = state.wheelType?.name ?: "UNKNOWN"
+        val wheelName = state.displayName
+        val firmware = state.version
+        val appVersion = try {
+            app.packageManager.getPackageInfo(app.packageName, 0).versionName ?: ""
+        } catch (_: Exception) { "" }
+
+        if (captureLogger.start(filePath, wheelTypeName, wheelName, firmware, appVersion, now)) {
+            cm.captureCallback = { data, direction ->
+                captureLogger.logPacket(data, direction, System.currentTimeMillis())
+                val stats = _captureStats.value
+                _captureStats.value = when (direction) {
+                    BlePacketDirection.RX -> stats.copy(rxCount = stats.rxCount + 1)
+                    BlePacketDirection.TX -> stats.copy(txCount = stats.txCount + 1)
+                }
+            }
+            _captureStats.value = CaptureStats(startTimeMs = now)
+            _isCapturing.value = true
+        }
+    }
+
+    fun stopCapture(): BleCaptureMetadata? {
+        connectionManager?.captureCallback = null
+        val metadata = captureLogger.stop(System.currentTimeMillis())
+        _isCapturing.value = false
+        return metadata
+    }
+
+    fun insertCaptureMarker(label: String) {
+        captureLogger.insertMarker(label, System.currentTimeMillis())
+        if (captureLogger.isCapturing) {
+            _captureStats.value = _captureStats.value.copy(
+                markerCount = _captureStats.value.markerCount + 1
+            )
+        }
+    }
+
+    fun getCapturesDir(): File {
+        val app = getApplication<Application>()
+        val dir = File(app.getExternalFilesDir(null), "captures")
+        dir.mkdirs()
+        return dir
+    }
+
+    fun deleteCaptureFile(fileName: String) {
+        val file = File(getCapturesDir(), fileName)
+        if (file.exists()) file.delete()
     }
 
     // --- Telemetry buffering ---

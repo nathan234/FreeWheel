@@ -141,6 +141,13 @@ class WheelManager: ObservableObject {
     }
     @Published private(set) var isLogging: Bool = false
 
+    // BLE Capture
+    @Published private(set) var isCapturing: Bool = false
+    @Published private(set) var captureRxCount: Int = 0
+    @Published private(set) var captureTxCount: Int = 0
+    @Published private(set) var captureMarkerCount: Int = 0
+    @Published private(set) var captureStartTime: Date? = nil
+
     // MARK: - Dashboard & Navigation Config
 
     @Published var dashboardLayout: DashboardLayout = DashboardLayout.companion.default() {
@@ -265,6 +272,7 @@ class WheelManager: ObservableObject {
     private var autoConnectManager: AutoConnectManager?
     let rideLogger = RideLogger()
     let rideStore = RideStore()
+    private let captureLogger = FreeWheelCore.BleCaptureLogger(fileWriter: FileWriter())
     let locationManager = LocationManager()
     let backgroundManager = BackgroundManager()
     let telemetryBuffer = TelemetryBuffer()
@@ -355,6 +363,7 @@ class WheelManager: ObservableObject {
         // Finalize ride recording if still active
         if Thread.isMainThread {
             MainActor.assumeIsolated {
+                if isCapturing { stopCapture() }
                 if isLogging {
                     if let metadata = rideLogger.stopLogging(currentDistance: wheelState.totalDistanceKm) {
                         rideStore.addRide(metadata)
@@ -433,6 +442,7 @@ class WheelManager: ObservableObject {
         demoStateObserver?.close()
         demoStateObserver = nil
         WheelConnectionManagerHelper.shared.stopDemo(provider: demoProvider)
+        if isCapturing { stopCapture() }
         if isLogging { stopLogging() }
         telemetryBuffer.clear()
         alarmManager.reset()
@@ -693,6 +703,7 @@ class WheelManager: ObservableObject {
 
         // Also handle explicit disconnected state
         if case .disconnected = newState, oldState.isConnected {
+            if isCapturing { stopCapture() }
             if isLogging {
                 stopLogging()
             }
@@ -953,6 +964,82 @@ class WheelManager: ObservableObject {
             rideStore.addRide(metadata)
         }
         isLogging = false
+    }
+
+    // MARK: - BLE Capture
+
+    func startCapture() {
+        guard let cm = connectionManager else { return }
+
+        let capturesDir = Self.capturesDirectory()
+        do {
+            try FileManager.default.createDirectory(at: capturesDir, withIntermediateDirectories: true)
+        } catch {
+            print("Failed to create captures directory: \(error)")
+            return
+        }
+
+        let now = Date()
+        let nowMs = Int64(now.timeIntervalSince1970 * 1000)
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy_MM_dd_HH_mm_ss"
+        let fileName = "capture_\(formatter.string(from: now)).csv"
+        let filePath = capturesDir.appendingPathComponent(fileName).path
+
+        let wheelTypeName = wheelState.wheelType.name
+        let wheelName = wheelState.displayName
+        let firmware = wheelState.version
+        let appVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
+
+        guard captureLogger.start(
+            filePath: filePath,
+            wheelTypeName: wheelTypeName,
+            wheelName: wheelName,
+            firmware: firmware,
+            appVersion: appVersion,
+            currentTimeMs: nowMs
+        ) else { return }
+
+        WheelConnectionManagerHelper.shared.setCaptureCallback(manager: cm) { [weak self] data, directionStr in
+            Task { @MainActor in
+                guard let self = self else { return }
+                let direction: FreeWheelCore.BlePacketDirection = directionStr == "TX" ? .tx : .rx
+                let currentMs = Int64(Date().timeIntervalSince1970 * 1000)
+                self.captureLogger.logPacket(data: data, direction: direction, currentTimeMs: currentMs)
+                if directionStr == "TX" {
+                    self.captureTxCount += 1
+                } else {
+                    self.captureRxCount += 1
+                }
+            }
+        }
+
+        captureRxCount = 0
+        captureTxCount = 0
+        captureMarkerCount = 0
+        captureStartTime = now
+        isCapturing = true
+    }
+
+    func stopCapture() {
+        if let cm = connectionManager {
+            WheelConnectionManagerHelper.shared.setCaptureCallback(manager: cm, callback: nil)
+        }
+        let nowMs = Int64(Date().timeIntervalSince1970 * 1000)
+        _ = captureLogger.stop(currentTimeMs: nowMs)
+        isCapturing = false
+        captureStartTime = nil
+    }
+
+    func insertCaptureMarker(_ label: String) {
+        let nowMs = Int64(Date().timeIntervalSince1970 * 1000)
+        captureLogger.insertMarker(label: label, currentTimeMs: nowMs)
+        captureMarkerCount += 1
+    }
+
+    static func capturesDirectory() -> URL {
+        let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        return docs.appendingPathComponent("captures")
     }
 
     // MARK: - Background Mode (Feature 4)

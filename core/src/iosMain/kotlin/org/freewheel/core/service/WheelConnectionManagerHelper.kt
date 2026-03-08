@@ -3,6 +3,7 @@ package org.freewheel.core.service
 import org.freewheel.core.alarm.AlarmChecker
 import org.freewheel.core.alarm.AlarmConfig
 import org.freewheel.core.alarm.AlarmResult
+import org.freewheel.core.logging.BlePacketDirection
 import org.freewheel.core.domain.BmsState
 import org.freewheel.core.domain.TelemetryState
 import org.freewheel.core.domain.WheelIdentity
@@ -284,6 +285,22 @@ object WheelConnectionManagerHelper {
 
     fun executeCommand(manager: WheelConnectionManager, commandId: SettingsCommandId, intValue: Int = 0, boolValue: Boolean = false) {
         manager.executeCommand(commandId, intValue, boolValue)
+    }
+
+    // MARK: - BLE Capture Callback
+
+    /**
+     * Set a capture callback on the WheelConnectionManager.
+     * Swift-friendly: passes direction as a String ("RX" or "TX").
+     */
+    fun setCaptureCallback(manager: WheelConnectionManager, callback: ((ByteArray, String) -> Unit)?) {
+        if (callback == null) {
+            manager.captureCallback = null
+        } else {
+            manager.captureCallback = { data, direction ->
+                callback(data, direction.name)
+            }
+        }
     }
 
     // MARK: - Auto-Connect Manager

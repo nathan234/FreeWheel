@@ -81,7 +81,8 @@ import org.freewheel.core.utils.DisplayUtils
 @Composable
 fun SettingsScreen(
     viewModel: WheelViewModel,
-    onNavigateToEditNavigation: () -> Unit = {}
+    onNavigateToEditNavigation: () -> Unit = {},
+    onNavigateToCapture: () -> Unit = {}
 ) {
     val appConfig = viewModel.appConfig
     val wheelState by viewModel.wheelState.collectAsStateWithLifecycle()
@@ -393,6 +394,25 @@ fun SettingsScreen(
                 Text("Customize Navigation")
                 Text(
                     "Edit",
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+        }
+
+        // Developer tools
+        SettingsSection(title = "Developer") {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onNavigateToCapture() }
+                    .padding(vertical = 4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("BLE Capture")
+                Text(
+                    "Open",
                     color = MaterialTheme.colorScheme.primary,
                     fontWeight = FontWeight.Medium
                 )

@@ -3,4 +3,5 @@
     <external-path name="logs" path="Download/FreeWheel/" />
     <external-path name="logs_old" path="Download/WheelLog Logs/" />
     <files-path name="files" path="." />
+    <external-files-path name="external_files" path="." />
 </paths>

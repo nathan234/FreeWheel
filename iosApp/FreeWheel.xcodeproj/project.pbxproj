@@ -39,6 +39,7 @@
 		J1000001221F0000000026 /* HeroGaugeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = J1000001221F0000000016 /* HeroGaugeView.swift */; };
 		K1000001221F0000000027 /* CustomTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = K1000001221F0000000017 /* CustomTabView.swift */; };
 		K1000001221F0000000028 /* CustomTabEditView.swift in Sources */ = {isa = PBXBuildFile; fileRef = K1000001221F0000000018 /* CustomTabEditView.swift */; };
+		L1000001221F0000000029 /* BleCaptureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = L1000001221F0000000019 /* BleCaptureView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -76,6 +77,7 @@
 		J1000001221F0000000016 /* HeroGaugeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeroGaugeView.swift; sourceTree = "<group>"; };
 		K1000001221F0000000017 /* CustomTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomTabView.swift; sourceTree = "<group>"; };
 		K1000001221F0000000018 /* CustomTabEditView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomTabEditView.swift; sourceTree = "<group>"; };
+		L1000001221F0000000019 /* BleCaptureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BleCaptureView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -165,6 +167,7 @@
 				J1000001221F0000000016 /* HeroGaugeView.swift */,
 				K1000001221F0000000017 /* CustomTabView.swift */,
 				K1000001221F0000000018 /* CustomTabEditView.swift */,
+				L1000001221F0000000019 /* BleCaptureView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -292,6 +295,7 @@
 				J1000001221F0000000026 /* HeroGaugeView.swift in Sources */,
 				K1000001221F0000000027 /* CustomTabView.swift in Sources */,
 				K1000001221F0000000028 /* CustomTabEditView.swift in Sources */,
+				L1000001221F0000000029 /* BleCaptureView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

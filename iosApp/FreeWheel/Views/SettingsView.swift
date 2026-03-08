@@ -222,6 +222,13 @@ struct SettingsView: View {
                 }
             }
 
+            // MARK: - Developer
+            Section("Developer") {
+                NavigationLink("BLE Capture") {
+                    BleCaptureView()
+                }
+            }
+
             // MARK: - About
             Section(SettingsLabels.shared.SECTION_ABOUT) {
                 HStack {
