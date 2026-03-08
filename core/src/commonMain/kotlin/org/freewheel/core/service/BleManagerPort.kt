@@ -38,4 +38,16 @@ interface BleManagerPort {
      * Stop scanning for BLE devices.
      */
     suspend fun stopScan()
+
+    /**
+     * Configure which BLE service/characteristic UUIDs to use for read and write.
+     * Called after wheel type detection to set up the correct characteristics
+     * and enable notifications.
+     */
+    fun configureForWheel(
+        readServiceUuid: String,
+        readCharUuid: String,
+        writeServiceUuid: String,
+        writeCharUuid: String
+    ) {}
 }

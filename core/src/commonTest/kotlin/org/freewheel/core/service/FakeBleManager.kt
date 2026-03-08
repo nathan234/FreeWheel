@@ -82,6 +82,19 @@ class FakeBleManager : BleManagerPort {
         }
     }
 
+    /** Last configureForWheel call arguments, for test verification. */
+    var lastConfigureForWheel: List<String>? = null
+        private set
+
+    override fun configureForWheel(
+        readServiceUuid: String,
+        readCharUuid: String,
+        writeServiceUuid: String,
+        writeCharUuid: String
+    ) {
+        lastConfigureForWheel = listOf(readServiceUuid, readCharUuid, writeServiceUuid, writeCharUuid)
+    }
+
     /** Simulate connection state changes for testing. */
     fun setConnectionState(state: ConnectionState) {
         _connectionState.value = state

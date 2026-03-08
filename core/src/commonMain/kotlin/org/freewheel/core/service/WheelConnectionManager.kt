@@ -11,7 +11,6 @@ import org.freewheel.core.domain.WheelState
 import org.freewheel.core.domain.WheelType
 import org.freewheel.core.protocol.DecoderConfig
 import org.freewheel.core.protocol.WheelCommand
-import org.freewheel.core.protocol.WheelDecoder
 import org.freewheel.core.protocol.WheelDecoderFactory
 import org.freewheel.core.domain.SettingsCommandId
 import org.freewheel.core.logging.BlePacketDirection
@@ -23,17 +22,24 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.flow.scan
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.plus
 
 /**
  * Central manager for wheel connections.
  * Coordinates BLE communication, protocol decoding, and state management.
  *
- * All state mutations are serialized through a single event loop coroutine
- * that consumes [WheelEvent]s from a Channel. This eliminates race conditions
- * between concurrent callers (BLE callbacks, UI actions, timers).
+ * Uses a **reducer + scan** pattern (MVI): all events flow through a single
+ * `scan` pipeline where a pure reducer computes `(State, Event) → (NewState, Effects)`.
+ * Side effects (BLE I/O, timers, command dispatch) are extracted and executed
+ * after each state transition, making every transition explicit and atomic.
  *
  * ## Usage
  * ```
@@ -56,29 +62,6 @@ class WheelConnectionManager(
     private val scope: CoroutineScope,
     private val dispatcher: CoroutineDispatcher = Dispatchers.Default
 ) {
-    // ==================== StateFlows (public API, unchanged) ====================
-
-    private val _wheelState = MutableStateFlow(WheelState())
-    private val _connectionState = MutableStateFlow<ConnectionState>(ConnectionState.Disconnected)
-
-    // Granular sub-state flows — emitted selectively when the relevant sub-state changes.
-    // UI components can observe these to avoid recomposition on irrelevant field changes.
-    private val _telemetryState = MutableStateFlow(TelemetryState())
-    private val _settingsState = MutableStateFlow(WheelSettingsState())
-    private val _identityState = MutableStateFlow(WheelIdentity())
-    private val _bmsState = MutableStateFlow(BmsState())
-
-    private val _consecutiveDecodeErrors = MutableStateFlow(0)
-
-    // ==================== Event loop state (owned exclusively by the event loop) ====================
-
-    private var currentDecoder: WheelDecoder? = null
-    private var decoderConfig = DecoderConfig()
-    private var connectionInfo: WheelConnectionInfo? = null
-
-    /** Child job running bleManager.connect(), cancelled on disconnect. */
-    private var bleConnectJob: Job? = null
-
     // ==================== Helpers (timers, scheduler, detector) ====================
 
     private val wheelTypeDetector = WheelTypeDetector()
@@ -95,57 +78,78 @@ class WheelConnectionManager(
      */
     var captureCallback: ((data: ByteArray, direction: BlePacketDirection) -> Unit)? = null
 
-    // ==================== Event channel and loop ====================
+    // ==================== Unified state + scan pipeline ====================
+
+    private val _wcmState = MutableStateFlow(WcmState())
 
     private val events = Channel<WheelEvent>(Channel.UNLIMITED)
 
     private val eventLoopJob: Job = scope.launch(dispatcher) {
-        for (event in events) {
-            processEvent(event)
-        }
+        events.receiveAsFlow()
+            .scan(WcmTransition(WcmState())) { prev, event ->
+                reduce(prev.state, event)
+            }
+            .collect { transition ->
+                _wcmState.value = transition.state
+                executeEffects(transition.effects)
+            }
     }
 
-    // ==================== Public StateFlow properties ====================
+    // ==================== Effect-layer state (not in WcmState) ====================
 
-    /**
-     * Current wheel state as an observable flow.
-     */
-    val wheelState: StateFlow<WheelState> = _wheelState.asStateFlow()
+    /** Child job running bleManager.connect(), cancelled on disconnect. */
+    private var bleConnectJob: Job? = null
 
-    /**
-     * Current connection state as an observable flow.
-     */
-    val connectionState: StateFlow<ConnectionState> = _connectionState.asStateFlow()
+    // ==================== Derived public flows ====================
 
-    /**
-     * Telemetry sub-state (speed, voltage, current, etc.). Updated on every BLE notification.
-     */
-    val telemetryState: StateFlow<TelemetryState> = _telemetryState.asStateFlow()
+    // Uses scope + dispatcher so stateIn collectors run on the same dispatcher
+    // as the scan pipeline. This guarantees derived flows update synchronously
+    // (within the same dispatch) when _wcmState changes.
+    private val derivedScope = scope + dispatcher
 
-    /**
-     * Settings sub-state (pedals mode, light mode, etc.). Updated rarely.
-     */
-    val settingsState: StateFlow<WheelSettingsState> = _settingsState.asStateFlow()
+    /** Current wheel state. */
+    val wheelState: StateFlow<WheelState> = _wcmState
+        .map { it.wheelState }
+        .distinctUntilChanged()
+        .stateIn(derivedScope, SharingStarted.Eagerly, WheelState())
 
-    /**
-     * Identity sub-state (wheel type, model, serial, etc.). Set once per connection.
-     */
-    val identityState: StateFlow<WheelIdentity> = _identityState.asStateFlow()
+    /** Current connection state. */
+    val connectionState: StateFlow<ConnectionState> = _wcmState
+        .map { it.connectionState }
+        .distinctUntilChanged()
+        .stateIn(derivedScope, SharingStarted.Eagerly, ConnectionState.Disconnected)
 
-    /**
-     * BMS sub-state (battery pack snapshots). Updated periodically.
-     */
-    val bmsState: StateFlow<BmsState> = _bmsState.asStateFlow()
+    /** Telemetry sub-state (speed, voltage, current, etc.). Updated on every BLE notification. */
+    val telemetryState: StateFlow<TelemetryState> = _wcmState
+        .map { it.wheelState.toTelemetryState() }
+        .distinctUntilChanged()
+        .stateIn(derivedScope, SharingStarted.Eagerly, TelemetryState())
 
-    /**
-     * Count of consecutive null decode() returns. Resets to 0 on each successful decode.
-     * Useful for diagnostics — a sustained high value indicates persistent decode failures.
-     */
-    val consecutiveDecodeErrors: StateFlow<Int> = _consecutiveDecodeErrors.asStateFlow()
+    /** Settings sub-state (pedals mode, light mode, etc.). Updated rarely. */
+    val settingsState: StateFlow<WheelSettingsState> = _wcmState
+        .map { it.wheelState.toSettingsState() }
+        .distinctUntilChanged()
+        .stateIn(derivedScope, SharingStarted.Eagerly, WheelSettingsState())
 
-    /**
-     * Whether the keep-alive timer is running.
-     */
+    /** Identity sub-state (wheel type, model, serial, etc.). Set once per connection. */
+    val identityState: StateFlow<WheelIdentity> = _wcmState
+        .map { it.wheelState.toIdentity() }
+        .distinctUntilChanged()
+        .stateIn(derivedScope, SharingStarted.Eagerly, WheelIdentity())
+
+    /** BMS sub-state (battery pack snapshots). Updated periodically. */
+    val bmsState: StateFlow<BmsState> = _wcmState
+        .map { it.wheelState.toBmsState() }
+        .distinctUntilChanged()
+        .stateIn(derivedScope, SharingStarted.Eagerly, BmsState())
+
+    /** Count of consecutive decode errors. Resets to 0 on each successful decode. */
+    val consecutiveDecodeErrors: StateFlow<Int> = _wcmState
+        .map { it.consecutiveDecodeErrors }
+        .distinctUntilChanged()
+        .stateIn(derivedScope, SharingStarted.Eagerly, 0)
+
+    /** Whether the keep-alive timer is running. */
     val isKeepAliveRunning: StateFlow<Boolean> = keepAliveTimer.isRunning
 
     // ==================== Public methods (emit events) ====================
@@ -161,7 +165,7 @@ class WheelConnectionManager(
     /**
      * Get the current decoder configuration.
      */
-    fun getConfig(): DecoderConfig = decoderConfig
+    fun getConfig(): DecoderConfig = _wcmState.value.decoderConfig
 
     /**
      * Connect to a wheel at the given address.
@@ -215,31 +219,10 @@ class WheelConnectionManager(
      * Handle BLE service discovery.
      * Called by platform-specific code after services are discovered.
      *
-     * Connection info is computed synchronously so [getConnectionInfo] returns
-     * a valid result immediately after this call.
-     *
      * @param services The discovered BLE services
      * @param deviceName The device name for detection heuristics
      */
     fun onServicesDiscovered(services: DiscoveredServices, deviceName: String?) {
-        // Pre-compute connectionInfo synchronously so getConnectionInfo() works
-        // immediately after this call (required by platform BLE layers).
-        val result = wheelTypeDetector.detect(services, deviceName)
-        when (result) {
-            is WheelTypeDetector.DetectionResult.Detected -> {
-                connectionInfo = WheelConnectionInfo(
-                    wheelType = result.wheelType,
-                    readServiceUuid = result.readServiceUuid,
-                    readCharacteristicUuid = result.readCharacteristicUuid,
-                    writeServiceUuid = result.writeServiceUuid,
-                    writeCharacteristicUuid = result.writeCharacteristicUuid
-                )
-            }
-            is WheelTypeDetector.DetectionResult.Ambiguous -> {
-                connectionInfo = wheelTypeDetector.getUuidsForType(WheelType.GOTWAY_VIRTUAL)
-            }
-            is WheelTypeDetector.DetectionResult.Unknown -> {}
-        }
         events.trySend(WheelEvent.ServicesDiscovered(services, deviceName))
     }
 
@@ -248,10 +231,6 @@ class WheelConnectionManager(
      * Called when wheel type is determined (either from services or auto-detect).
      */
     fun onWheelTypeDetected(wheelType: WheelType) {
-        // Pre-compute connectionInfo synchronously (same reason as onServicesDiscovered)
-        if (connectionInfo == null) {
-            connectionInfo = wheelTypeDetector.getUuidsForType(wheelType)
-        }
         events.trySend(WheelEvent.WheelTypeDetected(wheelType))
     }
 
@@ -259,13 +238,13 @@ class WheelConnectionManager(
      * Get the connection info for the current wheel.
      * Returns null if not connected or wheel type unknown.
      */
-    fun getConnectionInfo(): WheelConnectionInfo? = connectionInfo
+    fun getConnectionInfo(): WheelConnectionInfo? = _wcmState.value.connectionInfo
 
     /**
      * Get the current decoder.
      * Exposed for testing and advanced use cases.
      */
-    fun getCurrentDecoder(): WheelDecoder? = currentDecoder
+    fun getCurrentDecoder() = _wcmState.value.decoder
 
     // ==================== Convenience command methods ====================
 
@@ -413,215 +392,359 @@ class WheelConnectionManager(
         }
     }
 
-    // ==================== Event Processing ====================
+    // ==================== Reducer (pure — no I/O, no var mutation) ====================
 
-    private suspend fun processEvent(event: WheelEvent) {
-        when (event) {
-            is WheelEvent.ConnectRequested -> handleConnect(event)
-            is WheelEvent.DisconnectRequested -> handleDisconnect()
-            is WheelEvent.BleConnectResult -> handleBleResult(event)
-            is WheelEvent.ServicesDiscovered -> handleServicesDiscovered(event)
-            is WheelEvent.WheelTypeDetected -> handleWheelTypeDetected(event)
-            is WheelEvent.DataReceived -> handleDataReceived(event)
-            is WheelEvent.KeepAliveTick -> handleKeepAliveTick()
-            is WheelEvent.DataTimeout -> handleDataTimeout(event)
-            is WheelEvent.SendCommand -> handleSendCommand(event)
-            is WheelEvent.ConfigUpdated -> handleConfigUpdated(event)
+    private fun reduce(state: WcmState, event: WheelEvent): WcmTransition {
+        return when (event) {
+            is WheelEvent.ConnectRequested -> reduceConnect(state, event)
+            is WheelEvent.DisconnectRequested -> reduceDisconnect(state)
+            is WheelEvent.BleConnectResult -> reduceBleResult(state, event)
+            is WheelEvent.ServicesDiscovered -> reduceServicesDiscovered(state, event)
+            is WheelEvent.WheelTypeDetected -> reduceWheelTypeDetected(state, event)
+            is WheelEvent.DataReceived -> reduceDataReceived(state, event)
+            is WheelEvent.KeepAliveTick -> reduceKeepAliveTick(state)
+            is WheelEvent.DataTimeout -> reduceDataTimeout(state, event)
+            is WheelEvent.SendCommand -> reduceSendCommand(state, event)
+            is WheelEvent.ConfigUpdated -> reduceConfigUpdated(state, event)
         }
     }
 
-    // ==================== Event Handlers ====================
+    private fun reduceConnect(state: WcmState, event: WheelEvent.ConnectRequested): WcmTransition {
+        val effects = mutableListOf<WcmEffect>(
+            WcmEffect.CancelBleConnect,
+            WcmEffect.StopTimers,
+            WcmEffect.CancelCommands,
+        )
+        state.decoder?.let { effects.add(WcmEffect.ResetDecoder(it)) }
 
-    private fun handleConnect(event: WheelEvent.ConnectRequested) {
-        // Cancel any pending BLE connect from a previous call
-        bleConnectJob?.cancel()
-
-        // Reset all state
-        resetAllState()
-        currentDecoder = null
-        connectionInfo = null
-
-        // Transition to Connecting
-        _connectionState.value = ConnectionState.Connecting(event.address)
+        var newState = WcmState(
+            decoderConfig = state.decoderConfig,
+            connectionState = ConnectionState.Connecting(event.address)
+        )
 
         // If wheel type is known, set up decoder immediately
-        event.wheelType?.let { setupDecoder(it) }
+        event.wheelType?.let { type ->
+            val (decoderState, decoderEffects) = setupDecoderTransition(newState, type)
+            newState = decoderState
+            effects.addAll(decoderEffects)
+        }
 
-        // Launch BLE connect as a child job so the event loop isn't blocked
+        effects.add(WcmEffect.BleConnect(event.address))
+        return WcmTransition(newState, effects)
+    }
+
+    private fun reduceDisconnect(state: WcmState): WcmTransition {
+        val effects = buildList {
+            add(WcmEffect.CancelBleConnect)
+            add(WcmEffect.StopTimers)
+            add(WcmEffect.CancelCommands)
+            state.decoder?.let { add(WcmEffect.ResetDecoder(it)) }
+            add(WcmEffect.BleDisconnect)
+        }
+        // Atomic reset — impossible to forget a field
+        return WcmTransition(
+            state = WcmState(decoderConfig = state.decoderConfig),
+            effects = effects
+        )
+    }
+
+    private fun reduceBleResult(state: WcmState, event: WheelEvent.BleConnectResult): WcmTransition {
+        // Ignore stale results (e.g., already disconnected by a concurrent call)
+        if (state.connectionState !is ConnectionState.Connecting) {
+            return WcmTransition(state)
+        }
+
+        if (event.success) {
+            val keepAliveMs = state.decoder?.keepAliveIntervalMs ?: 0L
+            val timeoutMs = maxOf(keepAliveMs * 40, 30_000L)
+            return WcmTransition(
+                state = state.copy(connectionState = ConnectionState.DiscoveringServices(event.address)),
+                effects = listOf(WcmEffect.StartDataTimeout(event.address, timeoutMs))
+            )
+        } else {
+            return WcmTransition(
+                state = state.copy(
+                    connectionState = ConnectionState.Failed(
+                        error = event.error ?: "Connection failed",
+                        address = event.address
+                    )
+                )
+            )
+        }
+    }
+
+    private fun reduceServicesDiscovered(state: WcmState, event: WheelEvent.ServicesDiscovered): WcmTransition {
+        Logger.d(TAG, "onServicesDiscovered: deviceName=${event.deviceName}, services=${event.services.serviceUuids()}")
+        var newState = state
+        if (!event.deviceName.isNullOrBlank()) {
+            newState = newState.copy(wheelState = newState.wheelState.copy(btName = event.deviceName))
+        }
+
+        val result = wheelTypeDetector.detect(event.services, event.deviceName)
+        Logger.d(TAG, "Detection result: $result")
+
+        return when (result) {
+            is WheelTypeDetector.DetectionResult.Detected -> {
+                Logger.d(TAG, "Detected: ${result.wheelType}, read=${result.readServiceUuid}/${result.readCharacteristicUuid}")
+                val info = WheelConnectionInfo(
+                    wheelType = result.wheelType,
+                    readServiceUuid = result.readServiceUuid,
+                    readCharacteristicUuid = result.readCharacteristicUuid,
+                    writeServiceUuid = result.writeServiceUuid,
+                    writeCharacteristicUuid = result.writeCharacteristicUuid
+                )
+                val (decoderState, decoderEffects) = setupDecoderTransition(newState, result.wheelType)
+                WcmTransition(
+                    decoderState.copy(connectionInfo = info),
+                    decoderEffects + info.toConfigureBleEffect()
+                )
+            }
+            is WheelTypeDetector.DetectionResult.Ambiguous -> {
+                Logger.d(TAG, "Ambiguous: ${result.possibleTypes}, using GOTWAY_VIRTUAL")
+                val info = WheelConnectionInfo.forType(WheelType.GOTWAY_VIRTUAL)
+                val (decoderState, decoderEffects) = setupDecoderTransition(newState, WheelType.GOTWAY_VIRTUAL)
+                WcmTransition(
+                    decoderState.copy(connectionInfo = info),
+                    decoderEffects + listOfNotNull(info?.toConfigureBleEffect())
+                )
+            }
+            is WheelTypeDetector.DetectionResult.Unknown -> {
+                Logger.w(TAG, "Unknown wheel: ${result.reason}")
+                WcmTransition(
+                    newState.copy(
+                        connectionState = ConnectionState.Failed(
+                            error = "Unknown wheel type: ${result.reason}",
+                            address = getCurrentAddress(newState)
+                        )
+                    )
+                )
+            }
+        }
+    }
+
+    private fun reduceWheelTypeDetected(state: WcmState, event: WheelEvent.WheelTypeDetected): WcmTransition {
+        val info = WheelConnectionInfo.forType(event.wheelType)
+        val (decoderState, decoderEffects) = setupDecoderTransition(state, event.wheelType)
+        val newState = decoderState.copy(connectionInfo = info ?: state.connectionInfo)
+        // Only emit ConfigureBle if BLE hasn't been configured yet
+        val effects = if (info != null && state.connectionInfo == null) {
+            decoderEffects + info.toConfigureBleEffect()
+        } else {
+            decoderEffects
+        }
+        return WcmTransition(newState, effects)
+    }
+
+    private fun reduceDataReceived(state: WcmState, event: WheelEvent.DataReceived): WcmTransition {
+        val captureEffect = WcmEffect.CapturePacket(event.data, BlePacketDirection.RX)
+
+        val decoder = state.decoder
+        if (decoder == null) {
+            Logger.w(TAG, "Data received (${event.data.size} bytes) but no decoder set")
+            return WcmTransition(state, listOf(captureEffect))
+        }
+
+        val result = try {
+            decoder.decode(event.data, state.wheelState, state.decoderConfig)
+        } catch (e: Exception) {
+            Logger.e(TAG, "decode() threw for ${event.data.size} bytes (decoder=${decoder.wheelType})", e)
+            return WcmTransition(
+                state.copy(consecutiveDecodeErrors = state.consecutiveDecodeErrors + 1),
+                listOf(captureEffect)
+            )
+        }
+        if (result == null) {
+            Logger.d(TAG, "decode() returned null for ${event.data.size} bytes (decoder=${decoder.wheelType})")
+            return WcmTransition(
+                state.copy(consecutiveDecodeErrors = state.consecutiveDecodeErrors + 1),
+                listOf(captureEffect)
+            )
+        }
+
+        val newConnectionState = if (decoder.isReady() && state.connectionState !is ConnectionState.Connected) {
+            val address = getCurrentAddress(state) ?: ""
+            Logger.d(TAG, "Decoder ready, transitioning to Connected")
+            ConnectionState.Connected(address = address, wheelName = result.newState.displayName)
+        } else {
+            if (!decoder.isReady()) {
+                Logger.d(TAG, "Decoded OK but isReady()=false (decoder=${decoder.wheelType})")
+            }
+            state.connectionState
+        }
+
+        val effects = buildList {
+            add(captureEffect)
+            if (result.commands.isNotEmpty()) {
+                add(WcmEffect.DispatchCommands(result.commands))
+            }
+        }
+
+        return WcmTransition(
+            state = state.copy(
+                wheelState = result.newState,
+                connectionState = newConnectionState,
+                consecutiveDecodeErrors = 0
+            ),
+            effects = effects
+        )
+    }
+
+    private fun reduceKeepAliveTick(state: WcmState): WcmTransition {
+        val command = state.decoder?.getKeepAliveCommand()
+            ?: return WcmTransition(state)
+        return WcmTransition(state, listOf(WcmEffect.DispatchCommands(listOf(command))))
+    }
+
+    private fun reduceDataTimeout(state: WcmState, event: WheelEvent.DataTimeout): WcmTransition {
+        // Don't stop timers — keep-alive must continue so polling wheels
+        // can recover when signal returns. The timeout tracker continues
+        // monitoring and will naturally reset via onDataReceived().
+        return WcmTransition(
+            state.copy(
+                connectionState = ConnectionState.ConnectionLost(
+                    address = event.address,
+                    reason = "No data received"
+                )
+            )
+        )
+    }
+
+    private fun reduceSendCommand(state: WcmState, event: WheelEvent.SendCommand): WcmTransition {
+        return WcmTransition(state, listOf(WcmEffect.DispatchCommands(listOf(event.command))))
+    }
+
+    private fun reduceConfigUpdated(state: WcmState, event: WheelEvent.ConfigUpdated): WcmTransition {
+        return WcmTransition(state.copy(decoderConfig = event.config))
+    }
+
+    // ==================== Reducer Helpers ====================
+
+    /**
+     * Compute new state + effects for setting up a decoder.
+     * Shared by connect, services discovered, and wheel type detected reducers.
+     */
+    private fun setupDecoderTransition(state: WcmState, wheelType: WheelType): Pair<WcmState, List<WcmEffect>> {
+        val effects = mutableListOf<WcmEffect>()
+        state.decoder?.let { effects.add(WcmEffect.ResetDecoder(it)) }
+
+        val decoder = decoderFactory.createDecoder(wheelType)
+        val newState = state.copy(
+            decoder = decoder,
+            wheelState = state.wheelState.copy(wheelType = wheelType)
+        )
+
+        decoder?.getInitCommands()?.let { cmds ->
+            if (cmds.isNotEmpty()) effects.add(WcmEffect.DispatchCommands(cmds))
+        }
+
+        val intervalMs = decoder?.keepAliveIntervalMs ?: 0L
+        if (intervalMs > 0) {
+            effects.add(WcmEffect.StartKeepAlive(intervalMs))
+        }
+
+        return newState to effects
+    }
+
+    private fun WheelConnectionInfo.toConfigureBleEffect() = WcmEffect.ConfigureBle(
+        readServiceUuid = readServiceUuid,
+        readCharUuid = readCharacteristicUuid,
+        writeServiceUuid = writeServiceUuid,
+        writeCharUuid = writeCharacteristicUuid
+    )
+
+    private fun getCurrentAddress(state: WcmState): String? {
+        return when (val cs = state.connectionState) {
+            is ConnectionState.Connecting -> cs.address
+            is ConnectionState.DiscoveringServices -> cs.address
+            is ConnectionState.Connected -> cs.address
+            is ConnectionState.ConnectionLost -> cs.address
+            else -> null
+        }
+    }
+
+    // ==================== Effect Executor ====================
+
+    private suspend fun executeEffects(effects: List<WcmEffect>) {
+        for (effect in effects) {
+            when (effect) {
+                is WcmEffect.BleConnect -> {
+                    launchBleConnect(effect.address)
+                }
+                is WcmEffect.BleDisconnect -> {
+                    bleManager.disconnect()
+                }
+                is WcmEffect.BleWrite -> {
+                    captureCallback?.invoke(effect.data, BlePacketDirection.TX)
+                    bleManager.write(effect.data)
+                }
+                is WcmEffect.DispatchCommands -> {
+                    commandScheduler.scheduleSequence {
+                        effect.commands.forEach { cmd ->
+                            dispatchCommand(cmd)
+                        }
+                    }
+                }
+                is WcmEffect.StartKeepAlive -> {
+                    keepAliveTimer.start(
+                        intervalMs = effect.intervalMs,
+                        initialDelayMs = effect.intervalMs
+                    ) {
+                        events.send(WheelEvent.KeepAliveTick)
+                    }
+                }
+                is WcmEffect.StartDataTimeout -> {
+                    dataTimeoutTracker.start(timeoutMs = effect.timeoutMs) {
+                        events.send(WheelEvent.DataTimeout(effect.address))
+                    }
+                }
+                is WcmEffect.StopTimers -> {
+                    keepAliveTimer.stop()
+                    dataTimeoutTracker.stop()
+                }
+                is WcmEffect.CancelBleConnect -> {
+                    bleConnectJob?.cancel()
+                    bleConnectJob = null
+                }
+                is WcmEffect.CancelCommands -> {
+                    commandScheduler.cancelAll()
+                }
+                is WcmEffect.CapturePacket -> {
+                    captureCallback?.invoke(effect.data, effect.direction)
+                }
+                is WcmEffect.ResetDecoder -> {
+                    effect.decoder.reset()
+                }
+                is WcmEffect.ConfigureBle -> {
+                    bleManager.configureForWheel(
+                        effect.readServiceUuid, effect.readCharUuid,
+                        effect.writeServiceUuid, effect.writeCharUuid
+                    )
+                }
+            }
+        }
+    }
+
+    // ==================== Effect Helpers ====================
+
+    private fun launchBleConnect(address: String) {
         bleConnectJob = scope.launch(dispatcher) {
             try {
-                val success = bleManager.connect(event.address)
-                events.send(WheelEvent.BleConnectResult(success, event.address))
+                val success = bleManager.connect(address)
+                events.send(WheelEvent.BleConnectResult(success, address))
             } catch (e: kotlinx.coroutines.CancellationException) {
                 // Cancelled by disconnect — don't send result
             } catch (e: Exception) {
                 events.send(WheelEvent.BleConnectResult(
                     success = false,
-                    address = event.address,
+                    address = address,
                     error = e.message ?: "Connection failed"
                 ))
             }
         }
     }
 
-    private fun handleBleResult(event: WheelEvent.BleConnectResult) {
-        bleConnectJob = null
-
-        // Ignore stale results (e.g., already disconnected by a concurrent call)
-        if (_connectionState.value !is ConnectionState.Connecting) {
-            return
-        }
-
-        if (event.success) {
-            _connectionState.value = ConnectionState.DiscoveringServices(event.address)
-            startDataTimeoutMonitor(event.address)
-        } else {
-            _connectionState.value = ConnectionState.Failed(
-                error = event.error ?: "Connection failed",
-                address = event.address
-            )
-        }
-    }
-
-    private suspend fun handleDisconnect() {
-        // Cancel pending BLE connect
-        bleConnectJob?.cancel()
-        bleConnectJob = null
-
-        // Stop timers and scheduled commands
-        stopTimers()
-        commandScheduler.cancelAll()
-
-        // Reset decoder
-        currentDecoder?.reset()
-        currentDecoder = null
-        connectionInfo = null
-
-        // Disconnect BLE
-        bleManager.disconnect()
-
-        // Reset all state flows
-        resetAllState()
-        _connectionState.value = ConnectionState.Disconnected
-    }
-
-    private fun handleServicesDiscovered(event: WheelEvent.ServicesDiscovered) {
-        Logger.d(TAG, "onServicesDiscovered: deviceName=${event.deviceName}, services=${event.services.serviceUuids()}")
-        if (!event.deviceName.isNullOrBlank()) {
-            val oldState = _wheelState.value
-            _wheelState.value = oldState.copy(btName = event.deviceName)
-            emitGranularStates(oldState, _wheelState.value)
-        }
-
-        val result = wheelTypeDetector.detect(event.services, event.deviceName)
-        Logger.d(TAG, "Detection result: $result")
-
-        when (result) {
-            is WheelTypeDetector.DetectionResult.Detected -> {
-                Logger.d(TAG, "Detected: ${result.wheelType}, read=${result.readServiceUuid}/${result.readCharacteristicUuid}")
-                // connectionInfo already set in onServicesDiscovered() public method
-                setupDecoder(result.wheelType)
-            }
-            is WheelTypeDetector.DetectionResult.Ambiguous -> {
-                Logger.d(TAG, "Ambiguous: ${result.possibleTypes}, using GOTWAY_VIRTUAL")
-                // connectionInfo already set in onServicesDiscovered() public method
-                setupDecoder(WheelType.GOTWAY_VIRTUAL)
-            }
-            is WheelTypeDetector.DetectionResult.Unknown -> {
-                Logger.w(TAG, "Unknown wheel: ${result.reason}")
-                _connectionState.value = ConnectionState.Failed(
-                    error = "Unknown wheel type: ${result.reason}",
-                    address = getCurrentAddress()
-                )
-            }
-        }
-    }
-
-    private fun handleWheelTypeDetected(event: WheelEvent.WheelTypeDetected) {
-        setupDecoder(event.wheelType)
-        // connectionInfo already set in onWheelTypeDetected() public method
-    }
-
-    private fun handleDataReceived(event: WheelEvent.DataReceived) {
-        captureCallback?.invoke(event.data, BlePacketDirection.RX)
-
-        val decoder = currentDecoder
-        if (decoder == null) {
-            Logger.w(TAG, "Data received (${event.data.size} bytes) but no decoder set")
-            return
-        }
-
-        val oldState = _wheelState.value
-        val result = try {
-            decoder.decode(event.data, oldState, decoderConfig)
-        } catch (e: Exception) {
-            Logger.e(TAG, "decode() threw for ${event.data.size} bytes (decoder=${decoder.wheelType})", e)
-            _consecutiveDecodeErrors.value++
-            return
-        }
-        if (result == null) {
-            _consecutiveDecodeErrors.value++
-            Logger.d(TAG, "decode() returned null for ${event.data.size} bytes (decoder=${decoder.wheelType})")
-            return
-        }
-
-        _consecutiveDecodeErrors.value = 0
-
-        val newState = result.newState
-        _wheelState.value = newState
-
-        // Emit granular sub-state flows only when the relevant sub-state changes
-        emitGranularStates(oldState, newState)
-
-        // Dispatch response commands directly (no need to re-queue through the channel)
-        if (result.commands.isNotEmpty()) {
-            commandScheduler.scheduleSequence {
-                result.commands.forEach { cmd ->
-                    dispatchCommand(cmd)
-                }
-            }
-        }
-
-        // Update connection state if decoder is ready
-        if (decoder.isReady() && _connectionState.value !is ConnectionState.Connected) {
-            val address = getCurrentAddress() ?: ""
-            Logger.d(TAG, "Decoder ready, transitioning to Connected")
-            _connectionState.value = ConnectionState.Connected(
-                address = address,
-                wheelName = result.newState.displayName
-            )
-        } else if (!decoder.isReady()) {
-            Logger.d(TAG, "Decoded OK but isReady()=false (decoder=${decoder.wheelType})")
-        }
-    }
-
-    private suspend fun handleKeepAliveTick() {
-        val command = currentDecoder?.getKeepAliveCommand() ?: return
-        dispatchCommand(command)
-    }
-
-    private fun handleDataTimeout(event: WheelEvent.DataTimeout) {
-        _connectionState.value = ConnectionState.ConnectionLost(
-            address = event.address,
-            reason = "No data received"
-        )
-        // Don't stop timers — keep-alive must continue so polling wheels
-        // can recover when signal returns. The timeout tracker continues
-        // monitoring and will naturally reset via onDataReceived().
-    }
-
-    private suspend fun handleSendCommand(event: WheelEvent.SendCommand) {
-        dispatchCommand(event.command)
-    }
-
-    private fun handleConfigUpdated(event: WheelEvent.ConfigUpdated) {
-        decoderConfig = event.config
-    }
-
-    // ==================== Private Helpers ====================
-
     /**
-     * Dispatch a command to the BLE layer. Called from event handlers (not through the channel).
+     * Dispatch a command to the BLE layer.
      */
     private suspend fun dispatchCommand(command: WheelCommand) {
         when (command) {
@@ -630,132 +753,27 @@ class WheelConnectionManager(
                 bleManager.write(command.data)
             }
             is WheelCommand.SendDelayed -> {
-                commandScheduler.schedule(command.delayMs) {
-                    captureCallback?.invoke(command.data, BlePacketDirection.TX)
-                    bleManager.write(command.data)
-                }
+                delay(command.delayMs)
+                captureCallback?.invoke(command.data, BlePacketDirection.TX)
+                bleManager.write(command.data)
             }
             else -> {
-                val rawCommands = currentDecoder?.buildCommand(command) ?: return
-                commandScheduler.scheduleSequence {
-                    for (cmd in rawCommands) {
-                        when (cmd) {
-                            is WheelCommand.SendBytes -> {
-                                captureCallback?.invoke(cmd.data, BlePacketDirection.TX)
-                                bleManager.write(cmd.data)
-                            }
-                            is WheelCommand.SendDelayed -> {
-                                delay(cmd.delayMs)
-                                captureCallback?.invoke(cmd.data, BlePacketDirection.TX)
-                                bleManager.write(cmd.data)
-                            }
-                            else -> {} // prevent recursion
+                val rawCommands = _wcmState.value.decoder?.buildCommand(command) ?: return
+                for (cmd in rawCommands) {
+                    when (cmd) {
+                        is WheelCommand.SendBytes -> {
+                            captureCallback?.invoke(cmd.data, BlePacketDirection.TX)
+                            bleManager.write(cmd.data)
                         }
+                        is WheelCommand.SendDelayed -> {
+                            delay(cmd.delayMs)
+                            captureCallback?.invoke(cmd.data, BlePacketDirection.TX)
+                            bleManager.write(cmd.data)
+                        }
+                        else -> {} // prevent recursion
                     }
                 }
             }
-        }
-    }
-
-    private fun setupDecoder(wheelType: WheelType) {
-        currentDecoder?.reset()
-        currentDecoder = decoderFactory.createDecoder(wheelType)
-        val oldState = _wheelState.value
-        _wheelState.value = oldState.copy(wheelType = wheelType)
-        emitGranularStates(oldState, _wheelState.value)
-
-        // Send init commands via commandScheduler so they are
-        // cancelled on disconnect along with all other pending commands.
-        currentDecoder?.getInitCommands()?.let { commands ->
-            commandScheduler.scheduleSequence {
-                commands.forEach { cmd ->
-                    dispatchCommand(cmd)
-                }
-            }
-        }
-
-        // Start keep-alive immediately so polling decoders (InMotion V2) can
-        // request live data without waiting for isReady(). Safe for non-polling
-        // decoders because startKeepAliveTimer() exits early when intervalMs <= 0.
-        startKeepAliveTimer()
-    }
-
-    private fun startKeepAliveTimer() {
-        val decoder = currentDecoder ?: return
-        val intervalMs = decoder.keepAliveIntervalMs
-
-        if (intervalMs <= 0) {
-            // This wheel doesn't need keep-alive (e.g., Gotway, Kingsong)
-            return
-        }
-
-        keepAliveTimer.start(
-            intervalMs = intervalMs,
-            initialDelayMs = intervalMs // Wait one interval before first tick
-        ) {
-            events.send(WheelEvent.KeepAliveTick)
-        }
-    }
-
-    private fun startDataTimeoutMonitor(address: String) {
-        // Proportional timeout: 40x the keep-alive interval, minimum 30 seconds.
-        // 30s minimum — short drops during riding shouldn't trigger ConnectionLost.
-        val decoder = currentDecoder
-        val keepAliveMs = decoder?.keepAliveIntervalMs ?: 0L
-        val timeoutMs = maxOf(keepAliveMs * 40, 30_000L)
-
-        dataTimeoutTracker.start(timeoutMs = timeoutMs) {
-            events.send(WheelEvent.DataTimeout(address))
-        }
-    }
-
-    private fun stopTimers() {
-        keepAliveTimer.stop()
-        dataTimeoutTracker.stop()
-    }
-
-    private fun resetAllState() {
-        _wheelState.value = WheelState()
-        _telemetryState.value = TelemetryState()
-        _settingsState.value = WheelSettingsState()
-        _identityState.value = WheelIdentity()
-        _bmsState.value = BmsState()
-        _consecutiveDecodeErrors.value = 0
-    }
-
-    private fun getCurrentAddress(): String? {
-        return when (val state = _connectionState.value) {
-            is ConnectionState.Connecting -> state.address
-            is ConnectionState.DiscoveringServices -> state.address
-            is ConnectionState.Connected -> state.address
-            is ConnectionState.ConnectionLost -> state.address
-            else -> null
-        }
-    }
-
-    /**
-     * Compare old and new WheelState, emitting only the sub-state flows that changed.
-     * This avoids triggering observers for fields that didn't change.
-     */
-    private fun emitGranularStates(oldState: WheelState, newState: WheelState) {
-        val newTelemetry = newState.toTelemetryState()
-        if (newTelemetry != _telemetryState.value) {
-            _telemetryState.value = newTelemetry
-        }
-
-        val newSettings = newState.toSettingsState()
-        if (newSettings != _settingsState.value) {
-            _settingsState.value = newSettings
-        }
-
-        val newIdentity = newState.toIdentity()
-        if (newIdentity != _identityState.value) {
-            _identityState.value = newIdentity
-        }
-
-        val newBms = newState.toBmsState()
-        if (newBms != _bmsState.value) {
-            _bmsState.value = newBms
         }
     }
 

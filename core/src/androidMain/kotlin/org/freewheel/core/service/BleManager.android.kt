@@ -398,7 +398,7 @@ actual class BleManager : BleManagerPort {
         }
     }
 
-    fun configureForWheel(
+    override fun configureForWheel(
         readServiceUuid: String,
         readCharUuid: String,
         writeServiceUuid: String,

@@ -112,7 +112,7 @@ actual class BleManager : BleManagerPort {
     /**
      * Configure characteristics based on WheelConnectionInfo.
      */
-    fun configureForWheel(
+    override fun configureForWheel(
         readServiceUuid: String,
         readCharUuid: String,
         writeServiceUuid: String,
@@ -122,6 +122,8 @@ actual class BleManager : BleManagerPort {
         this.readCharUuid = readCharUuid
         this.writeServiceUuid = writeServiceUuid
         this.writeCharUuid = writeCharUuid
+        // Set up characteristics now that UUIDs are configured
+        currentPeripheral?.let { setupCharacteristics(it) }
     }
 
     actual override suspend fun connect(address: String): Boolean {
@@ -494,15 +496,13 @@ actual class BleManager : BleManagerPort {
             }
         } ?: emptyList()
 
-        // Invoke callback — this triggers wheel type detection and configureForWheel()
+        // Invoke callback — this triggers wheel type detection in WCM.
+        // configureForWheel() is called later by the WCM effect executor,
+        // which calls setupCharacteristics() to enable notifications.
         onServicesDiscoveredCallback?.invoke(
             DiscoveredServices(discoveredServices),
             peripheral.name
         )
-
-        // Now that UUIDs are configured (via callback → Swift → configureForWheel),
-        // match and subscribe to the correct characteristics
-        setupCharacteristics(peripheral)
 
         // Connection complete
         val address = peripheral.identifier.UUIDString

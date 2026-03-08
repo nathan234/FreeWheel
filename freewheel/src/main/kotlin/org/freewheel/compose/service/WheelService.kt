@@ -90,12 +90,6 @@ class WheelService : Service() {
         bleManager.setServicesDiscoveredCallback { services, deviceName ->
             try {
                 connectionManager.onServicesDiscovered(services, deviceName)
-                connectionManager.getConnectionInfo()?.let { info ->
-                    bleManager.configureForWheel(
-                        info.readServiceUuid, info.readCharacteristicUuid,
-                        info.writeServiceUuid, info.writeCharacteristicUuid
-                    )
-                }
             } catch (e: Exception) {
                 org.freewheel.core.utils.Logger.e("WheelService", "Error in onServicesDiscovered", e)
             }
