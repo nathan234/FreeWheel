@@ -30,6 +30,7 @@ class ComposeActivity : ComponentActivity() {
     private val viewModel: WheelViewModel by viewModels {
         WheelViewModelFactory(application)
     }
+    private val bluetoothManager by lazy { AppModule.bluetoothManager }
     private var serviceBound = false
 
     private val bluetoothReceiver = object : BroadcastReceiver() {
@@ -118,7 +119,7 @@ class ComposeActivity : ComponentActivity() {
     }
 
     private fun bindWheelService() {
-        if (AppModule.bluetoothManager?.adapter?.isEnabled == true) {
+        if (bluetoothManager?.adapter?.isEnabled == true) {
             val intent = Intent(this, WheelService::class.java)
             ContextCompat.startForegroundService(this, intent)
             bindService(intent, serviceConnection, BIND_AUTO_CREATE)

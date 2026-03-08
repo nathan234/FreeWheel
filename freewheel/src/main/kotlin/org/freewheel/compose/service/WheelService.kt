@@ -37,6 +37,9 @@ class WheelService : Service() {
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
+    private var locationManager: LocationManager? = null
+    private var notificationManager: NotificationManager? = null
+
     var onLightToggleRequested: (() -> Unit)? = null
     var onLogToggleRequested: (() -> Unit)? = null
     var onGpsLocationUpdate: ((android.location.Location) -> Unit)? = null
@@ -51,6 +54,9 @@ class WheelService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+
+        locationManager = AppModule.locationManager
+        notificationManager = AppModule.notificationManager
 
         createNotificationChannel()
 
@@ -126,7 +132,7 @@ class WheelService : Service() {
             != PackageManager.PERMISSION_GRANTED
         ) return
 
-        val lm = AppModule.locationManager ?: return
+        val lm = locationManager ?: return
         val listener = LocationListener { location ->
             onGpsLocationUpdate?.invoke(location)
         }
@@ -141,7 +147,7 @@ class WheelService : Service() {
 
     fun stopLocationTracking() {
         val listener = locationListener ?: return
-        val lm = AppModule.locationManager ?: return
+        val lm = locationManager ?: return
         lm.removeUpdates(listener)
         locationListener = null
     }
@@ -159,7 +165,7 @@ class WheelService : Service() {
             ).apply {
                 description = "Shows wheel connection status"
             }
-            AppModule.notificationManager?.createNotificationChannel(channel)
+            notificationManager?.createNotificationChannel(channel)
         }
     }
 
@@ -200,7 +206,7 @@ class WheelService : Service() {
             is ConnectionState.ConnectionLost -> "Reconnecting..."
             is ConnectionState.Failed -> "Connection failed"
         }
-        AppModule.notificationManager?.notify(NOTIFICATION_ID, createNotification(text))
+        notificationManager?.notify(NOTIFICATION_ID, createNotification(text))
     }
 
     companion object {
