@@ -244,13 +244,13 @@ Tests: `InMotionV2DecoderTest.kt` · `InMotionV2UnpackerTest.kt`
 ### Init & Identity
 - [x] Send car type (0x01), serial (0x02), versions (0x06), settings, stats on connect
 - [x] Keep-alive state machine: model → serial → version → real-time data
-- [x] 12 model variants (V11, V11Y, V12HS/HT/PRO, V12S, V13, V13PRO, V14g, V14s, V9)
+- [x] 13 model variants (V11, V11Y, V12HS/HT/PRO, V12S, V13, V13PRO, V14g, V14s, V9, P6)
 
 ### Frame Parsing
 - [x] Message verification with XOR checksum
 - [x] Escape sequence handling (0xA5 prefix for 0xAA/0xA5 bytes)
-- [x] Real-time info per model (V11, V12, V13, V14, V11Y, V9, V12S)
-- [x] Settings parsing per model
+- [x] Real-time info per model (V11, V12, V13, V14, V11Y, V9/V12S/P6 shared)
+- [x] Settings parsing per model (V9/V12S/P6 share extended parser; EUC World skips P6/V12S settings)
 - [x] Total stats (total distance)
 - [x] Battery real-time info
 - [x] Diagnostic data

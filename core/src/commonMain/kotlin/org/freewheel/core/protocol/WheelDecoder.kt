@@ -322,6 +322,16 @@ sealed class WheelCommand {
     /** Same as SetFancierMode — sub-command 0x24 on InMotion V2 */
     data class SetPerformanceMode(val enabled: Boolean) : WheelCommand()
 
+    // --- DarknessBot-discovered settings (command bytes TBD via BLE capture) ---
+
+    data class SetExtremeMode(val enabled: Boolean) : WheelCommand()
+    data class SetTrickMode(val enabled: Boolean) : WheelCommand()
+    data class SetRecuperationMode(val mode: Int) : WheelCommand()
+    data class SetEqualizerMode(val mode: Int) : WheelCommand()
+    data class SetPwmLimit(val limit: Int) : WheelCommand()
+    data class SetBrakeLights(val enabled: Boolean) : WheelCommand()
+    data class SetLightSensor(val enabled: Boolean) : WheelCommand()
+
     // --- Veteran/Leaperkim extended settings ---
 
     data class SetHighSpeedMode(val enabled: Boolean) : WheelCommand()

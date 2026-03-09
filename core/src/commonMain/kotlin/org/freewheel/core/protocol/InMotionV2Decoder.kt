@@ -268,12 +268,11 @@ class InMotionV2Decoder : WheelDecoder {
     private fun processSettings(message: Message, currentState: WheelState): FrameResult? {
         return when (model) {
             Model.V11 -> parseSettingsV11(message.data, currentState)
-            Model.V11Y -> parseSettingsV11y(message.data, currentState)
+            Model.V11Y -> parseSettingsExtended(message.data, currentState)
             Model.V12HS, Model.V12HT, Model.V12PRO -> parseSettingsV12(message.data, currentState)
             Model.V13, Model.V13PRO -> parseSettingsV13(message.data, currentState)
             Model.V14g, Model.V14s -> parseSettingsV14(message.data, currentState)
-            Model.V9 -> parseSettingsV9(message.data, currentState)
-            Model.V12S -> parseSettingsV12S(message.data, currentState)
+            Model.V9, Model.V12S, Model.P6 -> parseSettingsExtended(message.data, currentState)
             else -> parseSettingsV13V14(message.data, currentState)
         }
     }
@@ -336,7 +335,7 @@ class InMotionV2Decoder : WheelDecoder {
                 if (protoVer < 2) parseRealTimeInfoV11Old(message.data, currentState)
                 else parseByLayout(Layouts.V11_1_4, message.data, currentState)
             }
-            Model.V11Y, Model.V9, Model.V12S -> parseByLayout(Layouts.EXTENDED, message.data, currentState)
+            Model.V11Y, Model.V9, Model.V12S, Model.P6 -> parseByLayout(Layouts.EXTENDED, message.data, currentState)
             Model.V12HS, Model.V12HT, Model.V12PRO -> parseByLayout(Layouts.V12, message.data, currentState)
             Model.V13, Model.V13PRO -> parseByLayout(Layouts.V13, message.data, currentState)
             Model.V14g, Model.V14s -> parseByLayout(Layouts.V14, message.data, currentState)
@@ -809,18 +808,6 @@ class InMotionV2Decoder : WheelDecoder {
             ),
             hasNewData = false
         )
-    }
-
-    private fun parseSettingsV11y(data: ByteArray, currentState: WheelState): FrameResult? {
-        return parseSettingsExtended(data, currentState)
-    }
-
-    private fun parseSettingsV9(data: ByteArray, currentState: WheelState): FrameResult? {
-        return parseSettingsExtended(data, currentState)
-    }
-
-    private fun parseSettingsV12S(data: ByteArray, currentState: WheelState): FrameResult? {
-        return parseSettingsExtended(data, currentState)
     }
 
     // ==================== Helper Functions ====================
