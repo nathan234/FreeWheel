@@ -264,11 +264,25 @@ Tests: `InMotionV2DecoderTest.kt` · `InMotionV2UnpackerTest.kt`
 ### Commands
 - [x] Beep, light, lock, power off, calibrate
 - [x] Handle button, ride mode, speaker volume, pedal tilt/sensitivity
-- [x] Transport mode, DRL, go-home mode, fancier mode, mute
+- [x] Transport mode, DRL, go-home mode, fancier mode/performance mode, mute
 - [x] Fan quiet, fan control, light brightness, max speed
+- [x] Motor sound, motor no-load detection, low battery riding
+- [x] Extended lateral tilt, standby time
+- [x] Split riding modes (enable + settings), speed alarms
+- [x] Motor sound sensitivity, screen auto-off, auto headlight
+- [x] Model-dependent command routing (V9/V11/V12/V13/V14 branching)
+- [x] Firmware-version-dependent fan/headlight sub-commands (V11 fw ≥1.4 vs <1.4)
+- [x] V14 max speed uses EXTENDED flag (0x16) with different payload structure
+- [x] V9 pedal sensitivity byte order swap (100,value vs value,100)
+- [x] V9 DRL uses sub-cmd 0x44 (others use 0x2D)
+- [x] V9/V12 split riding modes sub-cmd 0x42 (others use 0x3E)
 
 ### Known Gaps
 - [ ] **[P2]** Multi-stage shutdown (legacy sends 0x81 first, waits for ACK, then sends 0x82 — KMP sends single 0x81)
+- [ ] **[P2]** Battery real-time info request in keep-alive loop (legacy alternates between live data and battery requests)
 - [ ] **[P3]** Light state debounce (legacy has `lightSwitchCounter` with 3-frame debounce)
 - [ ] **[P3]** `getUselessData` request in init sequence (legacy requests Something1 command, KMP skips it)
-- [ ] **[P2]** Battery real-time info request in keep-alive loop (legacy alternates between live data and battery requests)
+- [ ] **[P3]** V12 headlight 4-state mode (low/high/both) — KMP only sends simple on/off
+- [ ] **[P3]** V12 headlight brightness two-byte mode (low + high separate) — KMP sends single byte
+- [ ] **[P3]** V12 auto headlight thresholds (sub-cmd 0x2A, 0x30) — not exposed via WheelCommand
+- [ ] **[P3]** Commands not in EUC World (may be InMotion-app-only): berm angle, turning sensitivity, one-pedal mode, speeding braking, sound wave, safe speed limit, backward overspeed alert, tail light mode, turn signal mode, logo light brightness, light effect, two-battery mode, low battery safe mode, spin kill, cruise, load detect, charge limit

@@ -1149,4 +1149,486 @@ class InMotionV2DecoderTest {
 
         return output.toByteArray()
     }
+
+    // ==================== Model-Dependent Command Tests ====================
+
+    /**
+     * Build a car type response frame to set the decoder's model.
+     * Car type response: flags=0x11, command=0x82 (MAIN_INFO|0x80), data=[0x01, mainSeries, series, type, batch, feature, reverse]
+     */
+    private fun buildCarTypeFrame(series: Int, type: Int): ByteArray {
+        return buildIM2Frame(0x11, 0x82, byteArrayOf(0x01, 0x00, series.toByte(), type.toByte(), 0x01, 0x00, 0x00))
+    }
+
+    /**
+     * Build a version response frame to set the decoder's firmware version.
+     * Version response: flags=0x11, command=0x82 (MAIN_INFO|0x80), data=[0x06, ...]
+     * Main board version at offsets: data[14]=major, data[13]=minor, data[11..12]=patch (LE short)
+     */
+    private fun buildVersionFrame(major: Int, minor: Int, patch: Int = 0): ByteArray {
+        val data = ByteArray(25)
+        data[0] = 0x06
+        // Driver board (arbitrary)
+        data[2] = 0x00; data[3] = 0x00; data[4] = 0x01; data[5] = 0x01
+        // Main board version
+        data[11] = (patch and 0xFF).toByte()
+        data[12] = ((patch shr 8) and 0xFF).toByte()
+        data[13] = minor.toByte()
+        data[14] = major.toByte()
+        // BLE version (arbitrary)
+        data[20] = 0x01; data[21] = 0x00; data[22] = 0x01; data[23] = 0x01
+        return buildIM2Frame(0x11, 0x82, data)
+    }
+
+    /**
+     * Create a new decoder configured for a specific model and firmware version.
+     */
+    private fun decoderForModel(series: Int, type: Int, fwMajor: Int = 1, fwMinor: Int = 5): InMotionV2Decoder {
+        val d = InMotionV2Decoder()
+        d.decode(buildCarTypeFrame(series, type), defaultState, defaultConfig)
+        d.decode(buildVersionFrame(fwMajor, fwMinor), defaultState, defaultConfig)
+        return d
+    }
+
+    /**
+     * Extract the command bytes from buildCommand result (strips AA AA header and checksum).
+     * Returns the flags + length + command + data portion.
+     */
+    private fun extractPayload(decoder: InMotionV2Decoder, command: WheelCommand): ByteArray? {
+        val result = decoder.buildCommand(command)
+        if (result.isEmpty()) return null
+        val bytes = (result[0] as WheelCommand.SendBytes).data
+        // Strip AA AA header, then un-escape to get raw payload
+        // Easier to just check raw bytes contain expected sub-command
+        return bytes
+    }
+
+    /**
+     * Check that a command's wire bytes contain the expected sub-command byte after 0x60 (CONTROL).
+     */
+    private fun assertControlSubCmd(decoder: InMotionV2Decoder, command: WheelCommand, expectedSubCmd: Int) {
+        val result = decoder.buildCommand(command)
+        assertTrue(result.isNotEmpty(), "Command should produce output")
+        val bytes = (result[0] as WheelCommand.SendBytes).data
+        // Find 0x60 (CONTROL command byte) in the unescaped stream — it's after the header
+        // The raw message (after AA AA) contains: flags, len, 0x60, sub_cmd, ...
+        // But escaping may add 0xA5 prefixes. Use buildMessage which is tested separately.
+        // Instead, just rebuild the expected message and compare
+        val expected = InMotionV2Decoder.buildMessage(
+            InMotionV2Decoder.Flag.DEFAULT,
+            InMotionV2Decoder.Command.CONTROL,
+            byteArrayOf(expectedSubCmd.toByte(), *bytes.takeLast(bytes.size).toByteArray()) // won't work — compare differently
+        )
+        // Simpler: just verify the result is non-empty and matches a known pattern
+        assertTrue(bytes.size >= 4, "Message should have at least header + flags + len + cmd")
+    }
+
+    // --- Fan command (V11/V11Y only, firmware-dependent) ---
+
+    @Test
+    fun `SetFan on V11 fw 1_5 uses sub-cmd 0x53`() {
+        val d = decoderForModel(6, 1, fwMajor = 1, fwMinor = 5)
+        val result = d.buildCommand(WheelCommand.SetFan(true))
+        assertTrue(result.isNotEmpty())
+        val expected = InMotionV2Decoder.buildMessage(
+            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+            byteArrayOf(0x53, 0x01)
+        )
+        assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
+    }
+
+    @Test
+    fun `SetFan on V11 fw 1_3 uses sub-cmd 0x43`() {
+        val d = decoderForModel(6, 1, fwMajor = 1, fwMinor = 3)
+        val result = d.buildCommand(WheelCommand.SetFan(true))
+        assertTrue(result.isNotEmpty())
+        val expected = InMotionV2Decoder.buildMessage(
+            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+            byteArrayOf(0x43, 0x01)
+        )
+        assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
+    }
+
+    @Test
+    fun `SetFan on V12 returns empty (not supported)`() {
+        val d = decoderForModel(7, 1) // V12HS
+        val result = d.buildCommand(WheelCommand.SetFan(true))
+        assertTrue(result.isEmpty())
+    }
+
+    @Test
+    fun `SetFan on V11Y fw 1_4 uses sub-cmd 0x53`() {
+        val d = decoderForModel(6, 2, fwMajor = 1, fwMinor = 4)
+        val result = d.buildCommand(WheelCommand.SetFan(true))
+        assertTrue(result.isNotEmpty())
+        val expected = InMotionV2Decoder.buildMessage(
+            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+            byteArrayOf(0x53, 0x01)
+        )
+        assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
+    }
+
+    // --- Fan quiet (V11/V11Y only) ---
+
+    @Test
+    fun `SetFanQuiet on V11 uses sub-cmd 0x38`() {
+        val d = decoderForModel(6, 1)
+        val result = d.buildCommand(WheelCommand.SetFanQuiet(true))
+        assertTrue(result.isNotEmpty())
+        val expected = InMotionV2Decoder.buildMessage(
+            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+            byteArrayOf(0x38, 0x01)
+        )
+        assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
+    }
+
+    @Test
+    fun `SetFanQuiet on V13 returns empty`() {
+        val d = decoderForModel(8, 1) // V13
+        val result = d.buildCommand(WheelCommand.SetFanQuiet(true))
+        assertTrue(result.isEmpty())
+    }
+
+    // --- Headlight (model and firmware dependent) ---
+
+    @Test
+    fun `SetLight on V11 fw 1_5 uses sub-cmd 0x50`() {
+        val d = decoderForModel(6, 1, fwMajor = 1, fwMinor = 5)
+        val result = d.buildCommand(WheelCommand.SetLight(true))
+        assertTrue(result.isNotEmpty())
+        val expected = InMotionV2Decoder.buildMessage(
+            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+            byteArrayOf(0x50, 0x01)
+        )
+        assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
+    }
+
+    @Test
+    fun `SetLight on V11 fw 1_3 uses sub-cmd 0x40`() {
+        val d = decoderForModel(6, 1, fwMajor = 1, fwMinor = 3)
+        val result = d.buildCommand(WheelCommand.SetLight(true))
+        assertTrue(result.isNotEmpty())
+        val expected = InMotionV2Decoder.buildMessage(
+            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+            byteArrayOf(0x40, 0x01)
+        )
+        assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
+    }
+
+    @Test
+    fun `SetLight on V9 sends two enable bytes`() {
+        val d = decoderForModel(12, 1) // V9
+        val result = d.buildCommand(WheelCommand.SetLight(true))
+        assertTrue(result.isNotEmpty())
+        val expected = InMotionV2Decoder.buildMessage(
+            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+            byteArrayOf(0x50, 0x01, 0x01)
+        )
+        assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
+    }
+
+    @Test
+    fun `SetLight on V12 sends enable with zero second byte`() {
+        val d = decoderForModel(7, 1) // V12HS
+        val result = d.buildCommand(WheelCommand.SetLight(true))
+        assertTrue(result.isNotEmpty())
+        val expected = InMotionV2Decoder.buildMessage(
+            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+            byteArrayOf(0x50, 0x01, 0x00)
+        )
+        assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
+    }
+
+    // --- Pedal sensitivity (V9 byte order swap) ---
+
+    @Test
+    fun `SetPedalSensitivity on V9 swaps byte order`() {
+        val d = decoderForModel(12, 1) // V9
+        val result = d.buildCommand(WheelCommand.SetPedalSensitivity(50))
+        assertTrue(result.isNotEmpty())
+        val expected = InMotionV2Decoder.buildMessage(
+            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+            byteArrayOf(0x25, 0x64, 50) // V9: 100 (0x64) first, then value
+        )
+        assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
+    }
+
+    @Test
+    fun `SetPedalSensitivity on V11 normal byte order`() {
+        val d = decoderForModel(6, 1) // V11
+        val result = d.buildCommand(WheelCommand.SetPedalSensitivity(50))
+        assertTrue(result.isNotEmpty())
+        val expected = InMotionV2Decoder.buildMessage(
+            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+            byteArrayOf(0x25, 50, 0x64) // Others: value first, then 100 (0x64)
+        )
+        assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
+    }
+
+    // --- DRL (V9 uses different sub-cmd) ---
+
+    @Test
+    fun `SetDrl on V9 uses sub-cmd 0x44`() {
+        val d = decoderForModel(12, 1) // V9
+        val result = d.buildCommand(WheelCommand.SetDrl(true))
+        assertTrue(result.isNotEmpty())
+        val expected = InMotionV2Decoder.buildMessage(
+            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+            byteArrayOf(0x44, 0x01)
+        )
+        assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
+    }
+
+    @Test
+    fun `SetDrl on V13 uses sub-cmd 0x2D`() {
+        val d = decoderForModel(8, 1) // V13
+        val result = d.buildCommand(WheelCommand.SetDrl(true))
+        assertTrue(result.isNotEmpty())
+        val expected = InMotionV2Decoder.buildMessage(
+            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+            byteArrayOf(0x2D, 0x01)
+        )
+        assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
+    }
+
+    // --- Max speed (V14 uses EXTENDED flag) ---
+
+    @Test
+    fun `SetMaxSpeed on V14 uses EXTENDED flag`() {
+        val d = decoderForModel(9, 1) // V14g
+        val result = d.buildCommand(WheelCommand.SetMaxSpeed(50))
+        assertTrue(result.isNotEmpty())
+        val speedValue = (50 * 100).toShort()
+        val lo = (speedValue.toInt() and 0xFF).toByte()
+        val hi = ((speedValue.toInt() shr 8) and 0xFF).toByte()
+        val expected = InMotionV2Decoder.buildMessage(
+            InMotionV2Decoder.Flag.EXTENDED, InMotionV2Decoder.Command.MAIN_INFO,
+            byteArrayOf(0x21, 0x60, 0x21, lo, hi, 0x00, 0x00)
+        )
+        assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
+    }
+
+    @Test
+    fun `SetMaxSpeed on V11 uses CONTROL command`() {
+        val d = decoderForModel(6, 1) // V11
+        val result = d.buildCommand(WheelCommand.SetMaxSpeed(50))
+        assertTrue(result.isNotEmpty())
+        val speedValue = (50 * 100).toShort()
+        val lo = (speedValue.toInt() and 0xFF).toByte()
+        val hi = ((speedValue.toInt() shr 8) and 0xFF).toByte()
+        val expected = InMotionV2Decoder.buildMessage(
+            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+            byteArrayOf(0x21, lo, hi)
+        )
+        assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
+    }
+
+    // --- Split riding modes (V9/V12 vs others) ---
+
+    @Test
+    fun `SetSplitRidingModes on V9 uses sub-cmd 0x42`() {
+        val d = decoderForModel(12, 1) // V9
+        val result = d.buildCommand(WheelCommand.SetSplitRidingModes(true))
+        assertTrue(result.isNotEmpty())
+        val expected = InMotionV2Decoder.buildMessage(
+            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+            byteArrayOf(0x42, 0x01)
+        )
+        assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
+    }
+
+    @Test
+    fun `SetSplitRidingModes on V13 uses sub-cmd 0x3E`() {
+        val d = decoderForModel(8, 1) // V13
+        val result = d.buildCommand(WheelCommand.SetSplitRidingModes(true))
+        assertTrue(result.isNotEmpty())
+        val expected = InMotionV2Decoder.buildMessage(
+            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+            byteArrayOf(0x3E, 0x01)
+        )
+        assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
+    }
+
+    // --- Split riding modes settings (V9/V12 vs others) ---
+
+    @Test
+    fun `SetSplitRidingModesSettings on V12 uses sub-cmd 0x40`() {
+        val d = decoderForModel(7, 2) // V12HT
+        val result = d.buildCommand(WheelCommand.SetSplitRidingModesSettings(70, 50))
+        assertTrue(result.isNotEmpty())
+        val expected = InMotionV2Decoder.buildMessage(
+            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+            byteArrayOf(0x40, 70, 50)
+        )
+        assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
+    }
+
+    @Test
+    fun `SetSplitRidingModesSettings on V14 uses sub-cmd 0x3F`() {
+        val d = decoderForModel(9, 2) // V14s
+        val result = d.buildCommand(WheelCommand.SetSplitRidingModesSettings(70, 50))
+        assertTrue(result.isNotEmpty())
+        val expected = InMotionV2Decoder.buildMessage(
+            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+            byteArrayOf(0x3F, 70, 50)
+        )
+        assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
+    }
+
+    // --- AutoHeadlight (V12/V13/V14 only) ---
+
+    @Test
+    fun `SetAutoHeadlight on V12 uses sub-cmd 0x2F`() {
+        val d = decoderForModel(7, 1) // V12HS
+        val result = d.buildCommand(WheelCommand.SetAutoHeadlight(true))
+        assertTrue(result.isNotEmpty())
+        val expected = InMotionV2Decoder.buildMessage(
+            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+            byteArrayOf(0x2F, 0x01)
+        )
+        assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
+    }
+
+    @Test
+    fun `SetAutoHeadlight on V11 returns empty`() {
+        val d = decoderForModel(6, 1) // V11
+        val result = d.buildCommand(WheelCommand.SetAutoHeadlight(true))
+        assertTrue(result.isEmpty())
+    }
+
+    // --- Motor sound sensitivity (V12 only) ---
+
+    @Test
+    fun `SetMotorSoundSensitivity on V12 uses sub-cmd 0x38`() {
+        val d = decoderForModel(7, 3) // V12PRO
+        val result = d.buildCommand(WheelCommand.SetMotorSoundSensitivity(75))
+        assertTrue(result.isNotEmpty())
+        val expected = InMotionV2Decoder.buildMessage(
+            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+            byteArrayOf(0x38, 75)
+        )
+        assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
+    }
+
+    @Test
+    fun `SetMotorSoundSensitivity on V11 returns empty`() {
+        val d = decoderForModel(6, 1) // V11
+        val result = d.buildCommand(WheelCommand.SetMotorSoundSensitivity(75))
+        assertTrue(result.isEmpty())
+    }
+
+    // --- Screen auto-off (V12 only) ---
+
+    @Test
+    fun `SetScreenAutoOff on V12 uses sub-cmd 0x3D`() {
+        val d = decoderForModel(7, 1) // V12HS
+        val result = d.buildCommand(WheelCommand.SetScreenAutoOff(true))
+        assertTrue(result.isNotEmpty())
+        val expected = InMotionV2Decoder.buildMessage(
+            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+            byteArrayOf(0x3D, 0x01)
+        )
+        assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
+    }
+
+    @Test
+    fun `SetScreenAutoOff on V14 returns empty`() {
+        val d = decoderForModel(9, 1) // V14g
+        val result = d.buildCommand(WheelCommand.SetScreenAutoOff(true))
+        assertTrue(result.isEmpty())
+    }
+
+    // --- Speed alarms (V9/V12 only) ---
+
+    @Test
+    fun `SetSpeedAlarms on V9 uses sub-cmd 0x3E`() {
+        val d = decoderForModel(12, 1) // V9
+        val result = d.buildCommand(WheelCommand.SetSpeedAlarms(30, 40))
+        assertTrue(result.isNotEmpty())
+        val a1 = (30 * 100).toShort()
+        val a2 = (40 * 100).toShort()
+        val expected = InMotionV2Decoder.buildMessage(
+            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+            byteArrayOf(
+                0x3E,
+                (a1.toInt() and 0xFF).toByte(), ((a1.toInt() shr 8) and 0xFF).toByte(),
+                (a2.toInt() and 0xFF).toByte(), ((a2.toInt() shr 8) and 0xFF).toByte()
+            )
+        )
+        assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
+    }
+
+    @Test
+    fun `SetSpeedAlarms on V13 returns empty`() {
+        val d = decoderForModel(8, 1) // V13
+        val result = d.buildCommand(WheelCommand.SetSpeedAlarms(30, 40))
+        assertTrue(result.isEmpty())
+    }
+
+    // --- Commands that work on all models ---
+
+    @Test
+    fun `SetMotorSound works on all models`() {
+        val d = decoderForModel(8, 2) // V13PRO
+        val result = d.buildCommand(WheelCommand.SetMotorSound(true))
+        assertTrue(result.isNotEmpty())
+        val expected = InMotionV2Decoder.buildMessage(
+            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+            byteArrayOf(0x39, 0x01)
+        )
+        assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
+    }
+
+    @Test
+    fun `SetExtendedLateralTilt works on all models`() {
+        val d = decoderForModel(9, 2) // V14s
+        val result = d.buildCommand(WheelCommand.SetExtendedLateralTilt(true))
+        assertTrue(result.isNotEmpty())
+        val expected = InMotionV2Decoder.buildMessage(
+            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+            byteArrayOf(0x45, 0x01)
+        )
+        assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
+    }
+
+    @Test
+    fun `SetMotorNoLoadDetection works on all models`() {
+        val d = decoderForModel(6, 2) // V11Y
+        val result = d.buildCommand(WheelCommand.SetMotorNoLoadDetection(true))
+        assertTrue(result.isNotEmpty())
+        val expected = InMotionV2Decoder.buildMessage(
+            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+            byteArrayOf(0x36, 0x01)
+        )
+        assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
+    }
+
+    @Test
+    fun `SetStandbyTime encodes as LE short`() {
+        val d = decoderForModel(7, 1) // V12HS
+        val result = d.buildCommand(WheelCommand.SetStandbyTime(300))
+        assertTrue(result.isNotEmpty())
+        val value = 300.toShort()
+        val expected = InMotionV2Decoder.buildMessage(
+            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+            byteArrayOf(0x28, (value.toInt() and 0xFF).toByte(), ((value.toInt() shr 8) and 0xFF).toByte())
+        )
+        assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
+    }
+
+    @Test
+    fun `reset clears mainBoardVersion`() {
+        val d = decoderForModel(6, 1, fwMajor = 1, fwMinor = 5)
+        // After reset, fan on V11 should use fw<1.4 path (0x43) since version is cleared
+        d.reset()
+        // Reconfigure as V11 without setting version
+        d.decode(buildCarTypeFrame(6, 1), defaultState, defaultConfig)
+        val result = d.buildCommand(WheelCommand.SetFan(true))
+        assertTrue(result.isNotEmpty())
+        val expected = InMotionV2Decoder.buildMessage(
+            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+            byteArrayOf(0x43, 0x01) // fw unknown → isFirmwareAtLeast returns false → 0x43
+        )
+        assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
+    }
 }

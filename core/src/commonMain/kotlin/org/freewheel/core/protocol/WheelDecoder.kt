@@ -240,7 +240,9 @@ sealed class WheelCommand {
     data class SetBrakeAssist(val enabled: Boolean) : WheelCommand()
     data class SetTransportMode(val enabled: Boolean) : WheelCommand()
     data class SetRideMode(val enabled: Boolean) : WheelCommand()
+    /** @see SetLowBatteryRiding — same sub-command (0x37) on InMotion V2 */
     data class SetGoHomeMode(val enabled: Boolean) : WheelCommand()
+    /** @see SetPerformanceMode — same sub-command (0x24) on InMotion V2 */
     data class SetFancierMode(val enabled: Boolean) : WheelCommand()
     data class SetRollAngleMode(val mode: Int) : WheelCommand()
 
@@ -307,6 +309,18 @@ sealed class WheelCommand {
     data class SetLoadDetect(val enabled: Boolean) : WheelCommand()
     data class SetStandbyTime(val minutes: Int) : WheelCommand()
     data class SetChargeLimit(val percentage: Int) : WheelCommand()
+    data class SetMotorSound(val enabled: Boolean) : WheelCommand()
+    data class SetMotorSoundSensitivity(val sensitivity: Int) : WheelCommand()
+    data class SetScreenAutoOff(val enabled: Boolean) : WheelCommand()
+    data class SetExtendedLateralTilt(val enabled: Boolean) : WheelCommand()
+    data class SetSplitRidingModes(val enabled: Boolean) : WheelCommand()
+    data class SetSplitRidingModesSettings(val acceleration: Int, val braking: Int) : WheelCommand()
+    data class SetSpeedAlarms(val alarm1: Int, val alarm2: Int) : WheelCommand()
+    /** Same as SetGoHomeMode — sub-command 0x37 on InMotion V2 */
+    data class SetLowBatteryRiding(val enabled: Boolean) : WheelCommand()
+    data class SetMotorNoLoadDetection(val enabled: Boolean) : WheelCommand()
+    /** Same as SetFancierMode — sub-command 0x24 on InMotion V2 */
+    data class SetPerformanceMode(val enabled: Boolean) : WheelCommand()
 
     // --- Veteran/Leaperkim extended settings ---
 

@@ -50,6 +50,7 @@ class InMotionV2Decoder : WheelDecoder {
     private var protoVer = 0
     private var serialNumber = ""
     private var version = ""
+    private var mainBoardVersion = "" // e.g. "1.4.123" for firmware version checks
     private var isModelDetected = false
     private var hasReceivedTelemetry = false
     private var keepAliveCounter = 0
@@ -90,6 +91,7 @@ class InMotionV2Decoder : WheelDecoder {
     object Flag {
         const val INITIAL = 0x11
         const val DEFAULT = 0x14
+        const val EXTENDED = 0x16
     }
 
     /**
@@ -246,6 +248,7 @@ class InMotionV2Decoder : WheelDecoder {
                     val ble = "$ble1.$ble2.$ble3"
 
                     version = "Main:$mainBoard Drv:$driverBoard BLE:$ble"
+                    mainBoardVersion = mainBoard
                     newState = newState.copy(version = version)
 
                     // Set protocol version for V11
@@ -932,115 +935,228 @@ class InMotionV2Decoder : WheelDecoder {
         protoVer = 0
         serialNumber = ""
         version = ""
+        mainBoardVersion = ""
         isModelDetected = false
         hasReceivedTelemetry = false
         keepAliveCounter = 0
     }
 
-    override fun buildCommand(command: WheelCommand): List<WheelCommand> {
+    // Model grouping helpers (must be called under stateLock)
+    private val isV9 get() = model == Model.V9
+    private val isV11Family get() = model == Model.V11 || model == Model.V11Y
+    private val isV12Family get() = model == Model.V12HS || model == Model.V12HT || model == Model.V12PRO || model == Model.V12S
+    private val isV13Family get() = model == Model.V13 || model == Model.V13PRO
+    private val isV14Family get() = model == Model.V14g || model == Model.V14s
+    private val isV9OrV12 get() = isV9 || isV12Family
+
+    /**
+     * Check if main board firmware version is at least major.minor.
+     * Parses mainBoardVersion string like "1.4.123".
+     */
+    private fun isFirmwareAtLeast(major: Int, minor: Int): Boolean {
+        val parts = mainBoardVersion.split(".")
+        if (parts.size < 2) return false
+        val fwMajor = parts[0].toIntOrNull() ?: return false
+        val fwMinor = parts[1].toIntOrNull() ?: return false
+        return fwMajor > major || (fwMajor == major && fwMinor >= minor)
+    }
+
+    private fun controlMsg(vararg bytes: Byte): ByteArray =
+        buildMessage(Flag.DEFAULT, Command.CONTROL, bytes.toList().toByteArray())
+
+    override fun buildCommand(command: WheelCommand): List<WheelCommand> = stateLock.withLock {
+        val msg = buildCommandMessage(command) ?: return@withLock emptyList()
+        listOf(WheelCommand.SendBytes(msg))
+    }
+
+    /**
+     * Build the raw message bytes for a command, or null if unsupported for the current model.
+     * Model-dependent routing based on EUC World reverse-engineering.
+     */
+    private fun buildCommandMessage(command: WheelCommand): ByteArray? {
         return when (command) {
-            is WheelCommand.Beep -> listOf(
-                WheelCommand.SendBytes(playBeepMessage(0x18))
-            )
-            is WheelCommand.SetLight -> listOf(
-                WheelCommand.SendBytes(setLightMessage(command.enabled))
-            )
-            is WheelCommand.SetLock -> listOf(
-                WheelCommand.SendBytes(setLockMessage(command.locked))
-            )
-            is WheelCommand.PowerOff -> listOf(
-                WheelCommand.SendBytes(buildMessage(Flag.INITIAL, Command.DIAGNOSTIC, byteArrayOf(0x81.toByte(), 0x00)))
-            )
-            is WheelCommand.Calibrate -> listOf(
-                WheelCommand.SendBytes(buildMessage(Flag.DEFAULT, Command.CONTROL, byteArrayOf(0x42, 0x01, 0x00, 0x01)))
-            )
-            is WheelCommand.SetHandleButton -> {
-                // Inverted logic: enabled=true sends 0, enabled=false sends 1
-                val enable: Byte = if (command.enabled) 0 else 1
-                listOf(WheelCommand.SendBytes(buildMessage(Flag.DEFAULT, Command.CONTROL, byteArrayOf(0x2E, enable))))
-            }
-            is WheelCommand.SetRideMode -> {
-                val enable: Byte = if (command.enabled) 1 else 0
-                listOf(WheelCommand.SendBytes(buildMessage(Flag.DEFAULT, Command.CONTROL, byteArrayOf(0x23, enable))))
-            }
-            is WheelCommand.SetSpeakerVolume -> listOf(
-                WheelCommand.SendBytes(buildMessage(Flag.DEFAULT, Command.CONTROL, byteArrayOf(0x26, (command.volume and 0xFF).toByte())))
-            )
+            is WheelCommand.Beep -> playBeepMessage(0x18)
+
+            is WheelCommand.SetLight -> buildLightMessage(command.enabled)
+
+            is WheelCommand.SetLock ->
+                controlMsg(0x31, boolByte(command.locked))
+
+            is WheelCommand.PowerOff ->
+                buildMessage(Flag.INITIAL, Command.DIAGNOSTIC, byteArrayOf(0x81.toByte(), 0x00))
+
+            is WheelCommand.Calibrate ->
+                controlMsg(0x42, 0x01, 0x00, 0x01)
+
+            is WheelCommand.SetHandleButton ->
+                // Inverted: enabled=true sends 0 (button disabled), false sends 1
+                controlMsg(0x2E, boolByte(!command.enabled))
+
+            is WheelCommand.SetRideMode ->
+                controlMsg(0x23, boolByte(command.enabled))
+
+            is WheelCommand.SetSpeakerVolume ->
+                controlMsg(0x26, (command.volume.coerceIn(0, 100) and 0xFF).toByte())
+
             is WheelCommand.SetPedalTilt -> {
+                // angle is in 1/10 degree (WheelState units), wire format is degrees × 100
                 val value = (command.angle * 10).toShort()
-                val lo = (value.toInt() and 0xFF).toByte()
-                val hi = ((value.toInt() shr 8) and 0xFF).toByte()
-                listOf(WheelCommand.SendBytes(buildMessage(Flag.DEFAULT, Command.CONTROL, byteArrayOf(0x22, lo, hi))))
+                controlMsg(0x22, leShortLo(value), leShortHi(value))
             }
+
             is WheelCommand.SetPedalSensitivity -> {
-                val s = (command.sensitivity and 0xFF).toByte()
-                listOf(WheelCommand.SendBytes(buildMessage(Flag.DEFAULT, Command.CONTROL, byteArrayOf(0x25, s, s))))
+                val s = (command.sensitivity.coerceIn(0, 100) and 0xFF).toByte()
+                if (isV9) controlMsg(0x25, 0x64, s)
+                else controlMsg(0x25, s, 0x64)
             }
-            is WheelCommand.SetTransportMode -> {
-                val enable: Byte = if (command.enabled) 1 else 0
-                listOf(WheelCommand.SendBytes(buildMessage(Flag.DEFAULT, Command.CONTROL, byteArrayOf(0x32, enable))))
-            }
-            is WheelCommand.SetDrl -> {
-                val enable: Byte = if (command.enabled) 1 else 0
-                listOf(WheelCommand.SendBytes(buildMessage(Flag.DEFAULT, Command.CONTROL, byteArrayOf(0x2D, enable))))
-            }
-            is WheelCommand.SetGoHomeMode -> {
-                val enable: Byte = if (command.enabled) 1 else 0
-                listOf(WheelCommand.SendBytes(buildMessage(Flag.DEFAULT, Command.CONTROL, byteArrayOf(0x37, enable))))
-            }
-            is WheelCommand.SetFancierMode -> {
-                val enable: Byte = if (command.enabled) 1 else 0
-                listOf(WheelCommand.SendBytes(buildMessage(Flag.DEFAULT, Command.CONTROL, byteArrayOf(0x24, enable))))
-            }
-            is WheelCommand.SetMute -> {
-                // Inverted: mute=true sends 0, mute=false sends 1
-                val enable: Byte = if (command.enabled) 0 else 1
-                listOf(WheelCommand.SendBytes(buildMessage(Flag.DEFAULT, Command.CONTROL, byteArrayOf(0x2C, enable))))
-            }
-            is WheelCommand.SetFanQuiet -> {
-                val enable: Byte = if (command.enabled) 1 else 0
-                listOf(WheelCommand.SendBytes(buildMessage(Flag.DEFAULT, Command.CONTROL, byteArrayOf(0x38, enable))))
-            }
-            is WheelCommand.SetFan -> {
-                val enable: Byte = if (command.enabled) 1 else 0
-                listOf(WheelCommand.SendBytes(buildMessage(Flag.DEFAULT, Command.CONTROL, byteArrayOf(0x43, enable))))
-            }
-            is WheelCommand.SetLightBrightness -> listOf(
-                WheelCommand.SendBytes(buildMessage(Flag.DEFAULT, Command.CONTROL, byteArrayOf(0x2B, (command.value and 0xFF).toByte())))
-            )
+
             is WheelCommand.SetMaxSpeed -> {
                 val value = (command.speed * 100).toShort()
-                val lo = (value.toInt() and 0xFF).toByte()
-                val hi = ((value.toInt() shr 8) and 0xFF).toByte()
-                listOf(WheelCommand.SendBytes(buildMessage(Flag.DEFAULT, Command.CONTROL, byteArrayOf(0x21, lo, hi))))
+                val lo = leShortLo(value)
+                val hi = leShortHi(value)
+                if (isV14Family) {
+                    buildMessage(Flag.EXTENDED, Command.MAIN_INFO,
+                        byteArrayOf(0x21, 0x60, 0x21, lo, hi, 0x00, 0x00))
+                } else {
+                    controlMsg(0x21, lo, hi)
+                }
             }
-            // InMotion V2 extended settings — TODO: fill command bytes from BLE capture
-            is WheelCommand.SetBermAngleMode -> emptyList()
-            is WheelCommand.SetBermAngle -> emptyList()
-            is WheelCommand.SetTurningSensitivity -> emptyList()
-            is WheelCommand.SetOnePedalMode -> emptyList()
-            is WheelCommand.SetSpeedingBrakingMode -> emptyList()
-            is WheelCommand.SetSpeedingBrakingAngle -> emptyList()
-            is WheelCommand.SetSoundWave -> emptyList()
-            is WheelCommand.SetSoundWaveSensitivity -> emptyList()
-            is WheelCommand.SetSafeSpeedLimit -> emptyList()
-            is WheelCommand.SetBackwardOverspeedAlert -> emptyList()
-            is WheelCommand.SetTailLightMode -> emptyList()
-            is WheelCommand.SetTurnSignalMode -> emptyList()
-            is WheelCommand.SetLogoLightBrightness -> emptyList()
-            is WheelCommand.SetAutoHeadlight -> emptyList()
-            is WheelCommand.SetLightEffect -> emptyList()
-            is WheelCommand.SetLightEffectMode -> emptyList()
-            is WheelCommand.SetTwoBatteryMode -> emptyList()
-            is WheelCommand.SetLowBatterySafeMode -> emptyList()
-            is WheelCommand.SetSpinKill -> emptyList()
-            is WheelCommand.SetCruise -> emptyList()
-            is WheelCommand.SetLoadDetect -> emptyList()
-            is WheelCommand.SetStandbyTime -> emptyList()
-            is WheelCommand.SetChargeLimit -> emptyList()
-            else -> emptyList()
+
+            is WheelCommand.SetTransportMode ->
+                controlMsg(0x32, boolByte(command.enabled))
+
+            is WheelCommand.SetDrl -> {
+                val subCmd: Byte = if (isV9) 0x44 else 0x2D
+                controlMsg(subCmd, boolByte(command.enabled))
+            }
+
+            is WheelCommand.SetGoHomeMode ->
+                controlMsg(0x37, boolByte(command.enabled))
+
+            is WheelCommand.SetFancierMode ->
+                controlMsg(0x24, boolByte(command.enabled))
+
+            is WheelCommand.SetPerformanceMode ->
+                controlMsg(0x24, boolByte(command.enabled))
+
+            is WheelCommand.SetMute ->
+                // Inverted: mute=true sends 0, mute=false sends 1
+                controlMsg(0x2C, boolByte(!command.enabled))
+
+            is WheelCommand.SetFanQuiet -> {
+                // V11/V11Y only; shares sub-cmd 0x38 with MotorSoundSensitivity on V12
+                if (!isV11Family) return null
+                controlMsg(0x38, boolByte(command.enabled))
+            }
+
+            is WheelCommand.SetFan -> {
+                // V11/V11Y only, firmware-dependent sub-command
+                if (!isV11Family) return null
+                val subCmd: Byte = if (isFirmwareAtLeast(1, 4)) 0x53 else 0x43
+                controlMsg(subCmd, boolByte(command.enabled))
+            }
+
+            is WheelCommand.SetLightBrightness ->
+                controlMsg(0x2B, (command.value and 0xFF).toByte())
+
+            is WheelCommand.SetAutoHeadlight -> {
+                // V12/V13/V14 only
+                if (!isV12Family && !isV13Family && !isV14Family) return null
+                controlMsg(0x2F, boolByte(command.enabled))
+            }
+
+            is WheelCommand.SetMotorNoLoadDetection ->
+                controlMsg(0x36, boolByte(command.enabled))
+
+            is WheelCommand.SetLowBatteryRiding ->
+                controlMsg(0x37, boolByte(command.enabled))
+
+            is WheelCommand.SetMotorSound ->
+                controlMsg(0x39, boolByte(command.enabled))
+
+            is WheelCommand.SetMotorSoundSensitivity -> {
+                // V12 only; shares sub-cmd 0x38 with FanQuiet on V11
+                if (!isV12Family) return null
+                controlMsg(0x38, (command.sensitivity.coerceIn(0, 100) and 0xFF).toByte())
+            }
+
+            is WheelCommand.SetScreenAutoOff -> {
+                // V12 only
+                if (!isV12Family) return null
+                controlMsg(0x3D, boolByte(command.enabled))
+            }
+
+            is WheelCommand.SetStandbyTime -> {
+                val value = command.minutes.toShort()
+                controlMsg(0x28, leShortLo(value), leShortHi(value))
+            }
+
+            is WheelCommand.SetExtendedLateralTilt ->
+                controlMsg(0x45, boolByte(command.enabled))
+
+            is WheelCommand.SetSpeedAlarms -> {
+                // V9/V12 only
+                if (!isV9OrV12) return null
+                val a1 = (command.alarm1 * 100).toShort()
+                val a2 = (command.alarm2 * 100).toShort()
+                controlMsg(0x3E, leShortLo(a1), leShortHi(a1), leShortLo(a2), leShortHi(a2))
+            }
+
+            is WheelCommand.SetSplitRidingModes -> {
+                val subCmd: Byte = if (isV9OrV12) 0x42 else 0x3E
+                controlMsg(subCmd, boolByte(command.enabled))
+            }
+
+            is WheelCommand.SetSplitRidingModesSettings -> {
+                val subCmd: Byte = if (isV9OrV12) 0x40 else 0x3F
+                val accel = (command.acceleration.coerceIn(0, 100) and 0xFF).toByte()
+                val braking = (command.braking.coerceIn(0, 100) and 0xFF).toByte()
+                controlMsg(subCmd, accel, braking)
+            }
+
+            // Commands not found in EUC World — return null (unsupported or need BLE capture)
+            is WheelCommand.SetBermAngleMode -> null
+            is WheelCommand.SetBermAngle -> null
+            is WheelCommand.SetTurningSensitivity -> null
+            is WheelCommand.SetOnePedalMode -> null
+            is WheelCommand.SetSpeedingBrakingMode -> null
+            is WheelCommand.SetSpeedingBrakingAngle -> null
+            is WheelCommand.SetSoundWave -> null
+            is WheelCommand.SetSoundWaveSensitivity -> null
+            is WheelCommand.SetSafeSpeedLimit -> null
+            is WheelCommand.SetBackwardOverspeedAlert -> null
+            is WheelCommand.SetTailLightMode -> null
+            is WheelCommand.SetTurnSignalMode -> null
+            is WheelCommand.SetLogoLightBrightness -> null
+            is WheelCommand.SetLightEffect -> null
+            is WheelCommand.SetLightEffectMode -> null
+            is WheelCommand.SetTwoBatteryMode -> null
+            is WheelCommand.SetLowBatterySafeMode -> null
+            is WheelCommand.SetSpinKill -> null
+            is WheelCommand.SetCruise -> null
+            is WheelCommand.SetLoadDetect -> null
+            is WheelCommand.SetChargeLimit -> null
+
+            else -> null
         }
     }
+
+    /**
+     * Build headlight on/off message. Model and firmware dependent.
+     */
+    private fun buildLightMessage(on: Boolean): ByteArray {
+        val enable = boolByte(on)
+        return when {
+            isV12Family -> controlMsg(0x50, enable, 0x00) // Simple on/off (low beam)
+            isV9 -> controlMsg(0x50, enable, enable)
+            isV11Family && !isFirmwareAtLeast(1, 4) -> controlMsg(0x40, enable)
+            else -> controlMsg(0x50, enable) // V11 fw>=1.4, V13, V14
+        }
+    }
+
+    private fun boolByte(value: Boolean): Byte = if (value) 1 else 0
+    private fun leShortLo(value: Short): Byte = (value.toInt() and 0xFF).toByte()
+    private fun leShortHi(value: Short): Byte = ((value.toInt() shr 8) and 0xFF).toByte()
 
     override fun getInitCommands(): List<WheelCommand> {
         return listOf(
