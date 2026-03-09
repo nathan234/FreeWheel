@@ -606,37 +606,90 @@ class VeteranDecoderTest {
         assertEquals(1, result.newState.batteryLevel)
     }
 
-    // ==================== Battery Percentage (Better/Custom) ====================
+    // ==================== Battery Percentage (SOC Table Lookup) ====================
 
     @Test
-    fun `battery 100V better percents above 10020`() {
-        // mVer=1 (Sherman), useBetterPercents → voltage > 10020 → 100%
+    fun `battery 100V SOC table at full charge`() {
+        // mVer=1 (Sherman), useCustomPercents → uses official SOC table
+        // Voltage >= last table entry (9900) → 100%
         val cfg = config.copy(useCustomPercents = true)
-        val result = decodeSingleFrame(voltage = 10050, ver = 1000, cfg = cfg)
+        val result = decodeSingleFrame(voltage = 9950, ver = 1000, cfg = cfg)
         assertNotNull(result)
         assertEquals(100, result.newState.batteryLevel)
     }
 
     @Test
-    fun `battery 100V better percents mid range`() {
-        // mVer=1 (Sherman), useBetterPercents, voltage between 8160 and 10020
-        // (voltage - 8070) / 19.5
+    fun `battery 100V SOC table at empty`() {
+        // Voltage below first table entry (7560) → 0%
         val cfg = config.copy(useCustomPercents = true)
-        val voltage = 9000 // (9000 - 8070) / 19.5 = 47.7 → 48
-        val result = decodeSingleFrame(voltage = voltage, ver = 1000, cfg = cfg)
+        val result = decodeSingleFrame(voltage = 7500, ver = 1000, cfg = cfg)
         assertNotNull(result)
-        assertEquals(((voltage - 8070) / 19.5).roundToInt(), result.newState.batteryLevel)
+        assertEquals(0, result.newState.batteryLevel)
     }
 
     @Test
-    fun `battery 100V better percents low range`() {
-        // mVer=1 (Sherman), useBetterPercents, voltage between 7935 and 8160
-        // (voltage - 7935) / 48.75
+    fun `battery 100V SOC table at exact entry`() {
+        // Voltage exactly at table[50] = 8837 → 50%
         val cfg = config.copy(useCustomPercents = true)
-        val voltage = 8000 // (8000 - 7935) / 48.75 = 1.33 → 1
-        val result = decodeSingleFrame(voltage = voltage, ver = 1000, cfg = cfg)
+        val result = decodeSingleFrame(voltage = 8837, ver = 1000, cfg = cfg)
         assertNotNull(result)
-        assertEquals(((voltage - 7935) / 48.75).roundToInt(), result.newState.batteryLevel)
+        assertEquals(50, result.newState.batteryLevel)
+    }
+
+    @Test
+    fun `battery 126V SOC table mid range`() {
+        // mVer=4 (Patton), table[50] = 11046
+        val cfg = config.copy(useCustomPercents = true)
+        val result = decodeSingleFrame(voltage = 11046, ver = 4000, cfg = cfg)
+        assertNotNull(result)
+        assertEquals(50, result.newState.batteryLevel)
+    }
+
+    @Test
+    fun `battery 151V SOC table mid range`() {
+        // mVer=5 (Lynx), table[50] = 13255
+        val cfg = config.copy(useCustomPercents = true)
+        val result = decodeSingleFrame(voltage = 13255, ver = 5000, cfg = cfg)
+        assertNotNull(result)
+        assertEquals(50, result.newState.batteryLevel)
+    }
+
+    @Test
+    fun `battery SOC table interpolates between entries`() {
+        // mVer=1 (Sherman), table[49]=8820, table[50]=8837
+        // Voltage 8828 is about halfway → should interpolate to ~49
+        val cfg = config.copy(useCustomPercents = true)
+        val result = decodeSingleFrame(voltage = 8828, ver = 1000, cfg = cfg)
+        assertNotNull(result)
+        val battery = result.newState.batteryLevel
+        assertTrue(battery in 49..50, "Expected ~49-50 but got $battery")
+    }
+
+    @Test
+    fun `battery Oryx falls back to piecewise (no SOC table)`() {
+        // mVer=8 (Oryx) has no official table → uses piecewise-linear even with useCustomPercents
+        val cfg = config.copy(useCustomPercents = true)
+        val result = decodeSingleFrame(voltage = 17272, ver = 8000, cfg = cfg)
+        assertNotNull(result)
+        assertEquals(100, result.newState.batteryLevel)
+    }
+
+    @Test
+    fun `battery Nosfet Aero falls back to piecewise (no SOC table)`() {
+        // mVer=43 (Nosfet Aero) has no official table → piecewise fallback
+        val cfg = config.copy(useCustomPercents = true)
+        val result = decodeSingleFrame(voltage = 12337, ver = 43000, cfg = cfg)
+        assertNotNull(result)
+        assertEquals(100, result.newState.batteryLevel)
+    }
+
+    @Test
+    fun `battery Nosfet Apex uses Lynx 151V table`() {
+        // mVer=42 (Nosfet Apex) shares Lynx table, table[50] = 13255
+        val cfg = config.copy(useCustomPercents = true)
+        val result = decodeSingleFrame(voltage = 13255, ver = 42000, cfg = cfg)
+        assertNotNull(result)
+        assertEquals(50, result.newState.batteryLevel)
     }
 
     // ==================== Version String ====================
@@ -1320,5 +1373,54 @@ class VeteranDecoderTest {
                 (data[payloadSize + 3].toLong() and 0xFF)
         assertEquals(computedCrc, extractedCrc,
             "CRC32 appended to command should match computed CRC32")
+    }
+}
+
+class LookupSocTest {
+
+    @Test
+    fun `below table minimum returns 0`() {
+        assertEquals(0, lookupSoc(7000, VeteranSocTables.SHERMAN_100V))
+    }
+
+    @Test
+    fun `at or above table maximum returns 100`() {
+        assertEquals(100, lookupSoc(9900, VeteranSocTables.SHERMAN_100V))
+        assertEquals(100, lookupSoc(10000, VeteranSocTables.SHERMAN_100V))
+    }
+
+    @Test
+    fun `exact table entry returns exact index`() {
+        // table[0] = 7560
+        assertEquals(0, lookupSoc(7560, VeteranSocTables.SHERMAN_100V))
+        // table[50] = 8837
+        assertEquals(50, lookupSoc(8837, VeteranSocTables.SHERMAN_100V))
+        // table[99] = 9900
+        assertEquals(100, lookupSoc(9900, VeteranSocTables.SHERMAN_100V))
+    }
+
+    @Test
+    fun `interpolation between entries`() {
+        // table[49]=8820, table[50]=8837, range=17
+        // 8828 is 8/17 = 0.47 into the range → 49.47 → rounds to 49
+        assertEquals(49, lookupSoc(8828, VeteranSocTables.SHERMAN_100V))
+        // 8829 is 9/17 = 0.53 → 49.53 → rounds to 50
+        assertEquals(50, lookupSoc(8829, VeteranSocTables.SHERMAN_100V))
+    }
+
+    @Test
+    fun `all three tables have 100 entries`() {
+        assertEquals(100, VeteranSocTables.SHERMAN_100V.size)
+        assertEquals(100, VeteranSocTables.PATTON_126V.size)
+        assertEquals(100, VeteranSocTables.LYNX_151V.size)
+    }
+
+    @Test
+    fun `tables are monotonically increasing`() {
+        for (table in listOf(VeteranSocTables.SHERMAN_100V, VeteranSocTables.PATTON_126V, VeteranSocTables.LYNX_151V)) {
+            for (i in 1 until table.size) {
+                assertTrue(table[i] > table[i - 1], "Table not monotonic at index $i: ${table[i - 1]} >= ${table[i]}")
+            }
+        }
     }
 }

@@ -11,6 +11,27 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /**
+ * Looks up SOC percentage from a voltage-to-SOC table.
+ * Table has 100 entries (index 0-99 = 0%-99%), each value is the minimum voltage × 100
+ * for that SOC level. Returns 100 if voltage exceeds the last entry.
+ */
+internal fun lookupSoc(voltage: Int, table: IntArray): Int {
+    if (voltage < table[0]) return 0
+    if (voltage >= table[table.lastIndex]) return 100
+    // Binary search: find highest index where voltage >= table[index]
+    var low = 0
+    var high = table.lastIndex
+    while (low < high) {
+        val mid = (low + high + 1) / 2
+        if (table[mid] <= voltage) low = mid else high = mid - 1
+    }
+    // Interpolate between low and low+1
+    val range = table[low + 1] - table[low]
+    val fraction = if (range > 0) (voltage - table[low]).toDouble() / range else 0.0
+    return (low + fraction).roundToInt()
+}
+
+/**
  * Simple CRC32 calculation for KMP.
  */
 internal fun veteranCrc32(data: ByteArray, offset: Int, length: Int): Long {
@@ -454,72 +475,66 @@ class VeteranDecoder : WheelDecoder {
     }
 
     private fun calculateBatteryPercent(voltage: Int, useBetterPercents: Boolean): Int {
+        // Use official Leaperkim SOC lookup tables when available
+        val table = if (useBetterPercents) getSocTable() else null
+        if (table != null) return lookupSoc(voltage, table)
+
+        // Piecewise-linear fallback
         return when {
             mVer < 4 -> { // Sherman, Abrams, Sherman S (100V)
-                if (useBetterPercents) {
-                    when {
-                        voltage > 10020 -> 100
-                        voltage > 8160 -> ((voltage - 8070) / 19.5).roundToInt()
-                        voltage > 7935 -> ((voltage - 7935) / 48.75).roundToInt()
-                        else -> 0
-                    }
-                } else {
-                    when {
-                        voltage <= 7935 -> 0
-                        voltage >= 9870 -> 100
-                        else -> ((voltage - 7935) / 19.5).roundToInt()
-                    }
+                when {
+                    voltage <= 7935 -> 0
+                    voltage >= 9870 -> 100
+                    else -> ((voltage - 7935) / 19.5).roundToInt()
                 }
             }
-            mVer == 4 || mVer == 7 || mVer == 43 -> { // Patton, Patton S, Nosfet Aero (126V)
-                if (useBetterPercents) {
-                    when {
-                        voltage > 12525 -> 100
-                        voltage > 10200 -> ((voltage - 9975) / 25.5).roundToInt()
-                        voltage > 9600 -> ((voltage - 9600) / 67.5).roundToInt()
-                        else -> 0
-                    }
-                } else {
-                    when {
-                        voltage <= 9918 -> 0
-                        voltage >= 12337 -> 100
-                        else -> ((voltage - 9918) / 24.2).roundToInt()
-                    }
+            mVer == 4 || mVer == 7 -> { // Patton, Patton S (126V)
+                when {
+                    voltage <= 9918 -> 0
+                    voltage >= 12337 -> 100
+                    else -> ((voltage - 9918) / 24.2).roundToInt()
+                }
+            }
+            mVer == 43 -> { // Nosfet Aero (126V, 2P — different curve than Patton 4P)
+                when {
+                    voltage <= 9918 -> 0
+                    voltage >= 12337 -> 100
+                    else -> ((voltage - 9918) / 24.2).roundToInt()
                 }
             }
             mVer == 5 || mVer == 6 || mVer == 42 -> { // Lynx, Sherman L, Nosfet Apex (151V)
-                if (useBetterPercents) {
-                    when {
-                        voltage > 15030 -> 100
-                        voltage > 12240 -> ((voltage - 11970) / 30.6).roundToInt()
-                        voltage > 11520 -> ((voltage - 11520) / 81.0).roundToInt()
-                        else -> 0
-                    }
-                } else {
-                    when {
-                        voltage <= 11902 -> 0
-                        voltage >= 14805 -> 100
-                        else -> ((voltage - 11902) / 29.03).roundToInt()
-                    }
+                when {
+                    voltage <= 11902 -> 0
+                    voltage >= 14805 -> 100
+                    else -> ((voltage - 11902) / 29.03).roundToInt()
                 }
             }
             mVer == 8 -> { // Oryx (176V)
-                if (useBetterPercents) {
-                    when {
-                        voltage > 17535 -> 100
-                        voltage > 14280 -> ((voltage - 14123) / 34.125).roundToInt()
-                        voltage > 13886 -> ((voltage - 13886) / 85.3125).roundToInt()
-                        else -> 0
-                    }
-                } else {
-                    when {
-                        voltage <= 13886 -> 0
-                        voltage >= 17272 -> 100
-                        else -> ((voltage - 13886) / 34.125).roundToInt()
-                    }
+                when {
+                    voltage <= 13886 -> 0
+                    voltage >= 17272 -> 100
+                    else -> ((voltage - 13886) / 34.125).roundToInt()
                 }
             }
             else -> 1 // Unknown wheel, default to 1%
+        }
+    }
+
+    /**
+     * Returns the official Leaperkim SOC lookup table for the current model, or null
+     * if no table is available. Tables map SOC index (0-99) to minimum voltage × 100.
+     */
+    private fun getSocTable(): IntArray? {
+        return when (mVer) {
+            0, 1 -> VeteranSocTables.SHERMAN_100V
+            2 -> VeteranSocTables.SHERMAN_100V // Abrams (same 100.8V chemistry)
+            3 -> VeteranSocTables.SHERMAN_100V // Sherman S (same 100.8V chemistry)
+            4 -> VeteranSocTables.PATTON_126V
+            7 -> VeteranSocTables.PATTON_126V // Patton S (same 126V chemistry/pack config)
+            5 -> VeteranSocTables.LYNX_151V
+            6 -> VeteranSocTables.LYNX_151V // Sherman L (same 151.2V chemistry)
+            42 -> VeteranSocTables.LYNX_151V // Nosfet Apex (same 151.2V, same pack config)
+            else -> null // Oryx, Nosfet Aero, unknown — use piecewise fallback
         }
     }
 
