@@ -1017,8 +1017,8 @@ class InMotionV2DecoderTest {
     // ==================== P6 Model Test ====================
 
     @Test
-    fun `Model findById returns P6 for series 10 type 1`() {
-        val model = InMotionV2Decoder.Model.findById(10, 1)
+    fun `Model findById returns P6 for series 13 type 1`() {
+        val model = InMotionV2Decoder.Model.findById(13, 1)
         assertEquals(InMotionV2Decoder.Model.P6, model)
         assertEquals("InMotion P6", model.displayName)
         assertEquals(32, model.cellCount)
@@ -1089,7 +1089,7 @@ class InMotionV2DecoderTest {
     fun `keepAlive always sends REAL_TIME_INFO with occasional init retries`() {
         decoder.reset()
         // Model not detected — keepAlive should mostly send REAL_TIME_INFO,
-        // with init retries on every 4th tick
+        // with init retries on every 4th tick (alternating standard/extended)
 
         val commands = mutableListOf<WheelCommand>()
         for (i in 1..8) {
@@ -1106,11 +1106,10 @@ class InMotionV2DecoderTest {
         for (cmd in commands) {
             val bytes = (cmd as WheelCommand.SendBytes).data
             // REAL_TIME_INFO frame: flags=0x14, command=0x04
-            // Init retry frame: flags=0x11, command=0x02
-            // After header (2 bytes AA AA), the first non-escaped byte is flags
+            // Init retry: flags=0x11 (standard) or flags=0x16 (extended P6)
             val flagsByte = if (bytes.size > 2) bytes[2].toInt() and 0xFF else 0
             if (flagsByte == 0x14) realTimeCount++
-            else if (flagsByte == 0x11) initRetryCount++
+            else if (flagsByte == 0x11 || flagsByte == 0x16) initRetryCount++
         }
 
         assertTrue(realTimeCount >= 6, "Should send REAL_TIME_INFO at least 6 out of 8 ticks, got $realTimeCount")
@@ -1620,7 +1619,7 @@ class InMotionV2DecoderTest {
 
     @Test
     fun `P6 headlight uses V9 format with two enable bytes`() {
-        val d = decoderForModel(10, 1) // P6
+        val d = decoderForModel(13, 1) // P6
         val result = d.buildCommand(WheelCommand.SetLight(true))
         assertTrue(result.isNotEmpty())
         val expected = InMotionV2Decoder.buildMessage(
@@ -1632,7 +1631,7 @@ class InMotionV2DecoderTest {
 
     @Test
     fun `P6 DRL uses V9 sub-command 0x44`() {
-        val d = decoderForModel(10, 1) // P6
+        val d = decoderForModel(13, 1) // P6
         val result = d.buildCommand(WheelCommand.SetDrl(true))
         assertTrue(result.isNotEmpty())
         val expected = InMotionV2Decoder.buildMessage(
@@ -1644,7 +1643,7 @@ class InMotionV2DecoderTest {
 
     @Test
     fun `P6 pedal sensitivity uses V9 byte swap`() {
-        val d = decoderForModel(10, 1) // P6
+        val d = decoderForModel(13, 1) // P6
         val result = d.buildCommand(WheelCommand.SetPedalSensitivity(50))
         assertTrue(result.isNotEmpty())
         val expected = InMotionV2Decoder.buildMessage(
@@ -1656,14 +1655,14 @@ class InMotionV2DecoderTest {
 
     @Test
     fun `P6 speed alarms enabled (V9-like)`() {
-        val d = decoderForModel(10, 1) // P6
+        val d = decoderForModel(13, 1) // P6
         val result = d.buildCommand(WheelCommand.SetSpeedAlarms(30, 40))
         assertTrue(result.isNotEmpty()) // P6 should support speed alarms like V9
     }
 
     @Test
     fun `P6 split riding modes uses V9 sub-command 0x42`() {
-        val d = decoderForModel(10, 1) // P6
+        val d = decoderForModel(13, 1) // P6
         val result = d.buildCommand(WheelCommand.SetSplitRidingModes(true))
         assertTrue(result.isNotEmpty())
         val expected = InMotionV2Decoder.buildMessage(
@@ -1675,7 +1674,7 @@ class InMotionV2DecoderTest {
 
     @Test
     fun `P6 split riding modes settings uses V9 sub-command 0x40`() {
-        val d = decoderForModel(10, 1) // P6
+        val d = decoderForModel(13, 1) // P6
         val result = d.buildCommand(WheelCommand.SetSplitRidingModesSettings(80, 60))
         assertTrue(result.isNotEmpty())
         val expected = InMotionV2Decoder.buildMessage(
@@ -1683,6 +1682,104 @@ class InMotionV2DecoderTest {
             byteArrayOf(0x40, 0x50, 0x3C) // V9/V12 sub-cmd, 80, 60
         )
         assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
+    }
+
+    // ==================== P6 Extended Protocol Tests ====================
+
+    @Test
+    fun `P6 extended init response detects model and serial`() {
+        val decoder = InMotionV2Decoder()
+        // Build a P6 extended init response (0x86): flags=EXTENDED, cmd=0x21
+        // data[0]=0x02, data[1]=0x86, data[5:21]=serial, data[27]=series(13), data[28]=type(1)
+        val data = ByteArray(80)
+        data[0] = 0x02
+        data[1] = 0x86.toByte()
+        data[2] = 0x01 // mainSeries
+        data[3] = 0x00
+        data[4] = 0x01
+        // Serial "A1421A1150002437" at data[5:21]
+        val serial = "A1421A1150002437"
+        serial.toByteArray().copyInto(data, 5)
+        // series=13, type=1 at data[27:28]
+        data[27] = 0x0D // series 13
+        data[28] = 0x01 // type 1
+        val frame = buildIM2Frame(0x16, 0x21, data)
+        val result = decoder.decode(frame, defaultState, defaultConfig)
+        assertNotNull(result, "Extended init response should be decoded")
+        assertEquals("InMotion P6", result!!.newState.model)
+        assertEquals("A1421A1150002437", result.newState.serialNumber)
+    }
+
+    @Test
+    fun `P6 extended real-time telemetry is decoded`() {
+        val decoder = InMotionV2Decoder()
+        // First, detect model as P6
+        val initData = ByteArray(80)
+        initData[0] = 0x02; initData[1] = 0x86.toByte()
+        initData[27] = 0x0D; initData[28] = 0x01
+        decoder.decode(buildIM2Frame(0x16, 0x21, initData), defaultState, defaultConfig)
+
+        // Build a 0x87 telemetry response: [02 87 01 00] + 96 payload bytes
+        val payload = ByteArray(96)
+        // voltage at [0:1] = 21858 (218.58V raw)
+        payload[0] = 0x62; payload[1] = 0x55
+        // current at [2:3] = -36 (-0.36A)
+        payload[2] = 0xDC.toByte(); payload[3] = 0xFF.toByte()
+        // speed at [8:9] = 12490 (124.90 km/h)
+        payload[8] = 0xCA.toByte(); payload[9] = 0x30
+        // torque at [12:13] = 0
+        // pwm at [14:15] = 0
+        // mosTemp at [58] = 0xC2 → (194 + 80 - 256) = 18°C
+        payload[58] = 0xC2.toByte()
+        // temp2 at [59] = 0xC6 → 22°C
+        payload[59] = 0xC6.toByte()
+
+        val rtData = byteArrayOf(0x02, 0x87.toByte(), 0x01, 0x00) + payload
+        val frame = buildIM2Frame(0x16, 0x21, rtData)
+
+        val result = decoder.decode(frame, defaultState, defaultConfig)
+        assertNotNull(result, "Extended telemetry should be decoded")
+        assertEquals(21858, result!!.newState.voltage, "Voltage should be 21858 (raw centivolts)")
+        assertEquals(-36, result.newState.current, "Current should be -36")
+        assertEquals(12490, result.newState.speed, "Speed should be 12490")
+        assertEquals(1800, result.newState.temperature, "MosTemp should be 18°C × 100")
+    }
+
+    @Test
+    fun `P6 extended total stats decoded`() {
+        val decoder = InMotionV2Decoder()
+        // Detect model as P6 first
+        val initData = ByteArray(80)
+        initData[0] = 0x02; initData[1] = 0x86.toByte()
+        initData[27] = 0x0D; initData[28] = 0x01
+        decoder.decode(buildIM2Frame(0x16, 0x21, initData), defaultState, defaultConfig)
+
+        // Build 0x91 response: [02 91 | 9E 2D 00 00 ...]
+        // data[2:5] = 11678 → 116780m
+        val statsData = byteArrayOf(0x02, 0x91.toByte(), 0x9E.toByte(), 0x2D, 0x00, 0x00) +
+            ByteArray(20) // padding
+        val frame = buildIM2Frame(0x16, 0x21, statsData)
+        val result = decoder.decode(frame, defaultState, defaultConfig)
+        assertNotNull(result, "Extended total stats should be decoded")
+        assertEquals(116780L, result!!.newState.totalDistance)
+    }
+
+    @Test
+    fun `P6 keepAlive uses extended format after model detection`() {
+        val decoder = InMotionV2Decoder()
+        // Detect model as P6
+        val initData = ByteArray(80)
+        initData[0] = 0x02; initData[1] = 0x86.toByte()
+        initData[27] = 0x0D; initData[28] = 0x01
+        "A1421A1150002437".toByteArray().copyInto(initData, 5)
+        decoder.decode(buildIM2Frame(0x16, 0x21, initData), defaultState, defaultConfig)
+
+        val cmd = decoder.getKeepAliveCommand()
+        assertTrue(cmd is WheelCommand.SendBytes)
+        val bytes = (cmd as WheelCommand.SendBytes).data
+        // Should be EXTENDED flag (0x16), not DEFAULT (0x14)
+        val flagsByte = bytes[2].toInt() and 0xFF
+        assertEquals(0x16, flagsByte, "P6 keep-alive should use EXTENDED flag")
     }
 
     @Test

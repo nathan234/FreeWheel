@@ -70,7 +70,7 @@ class InMotionV2Decoder : WheelDecoder {
         V14s(92, "InMotion V14 50S", 120, 32),
         V12S(111, "InMotion V12S", 120, 20),
         V9(121, "InMotion V9", 120, 20),
-        P6(101, "InMotion P6", 150, 32),
+        P6(131, "InMotion P6", 150, 32),
         UNKNOWN(0, "InMotion Unknown", 100, 20);
 
         companion object {
@@ -194,6 +194,29 @@ class InMotionV2Decoder : WheelDecoder {
                     else -> null
                 }
             }
+            message.flags == Flag.EXTENDED -> {
+                processExtendedMessage(message, currentState)
+            }
+            else -> null
+        }
+    }
+
+    /**
+     * Process P6 extended protocol messages.
+     *
+     * Extended responses have: cmd = sub_cmd from request, data[0] = 0x02,
+     * data[1] = response type (0x80 + original param). Route based on response type.
+     */
+    private fun processExtendedMessage(message: Message, currentState: WheelState): FrameResult? {
+        val data = message.data
+        if (data.size < 2) return null
+        // data[0] should be 0x02 (MAIN_INFO echo), data[1] is response type
+        val responseType = data[1].toInt() and 0xFF
+        return when (responseType) {
+            0x86 -> processExtendedInit(data, currentState)
+            0x87 -> processExtendedRealTime(data, currentState)
+            0x90 -> processExtendedSettings(data, currentState)
+            0x91 -> processExtendedTotalStats(data, currentState)
             else -> null
         }
     }
@@ -260,6 +283,69 @@ class InMotionV2Decoder : WheelDecoder {
         }
 
         return FrameResult(newState, false)
+    }
+
+    // ==================== P6 Extended Protocol ====================
+
+    /**
+     * Process extended init response (0x86).
+     * Contains serial number at data[5:21] and car type at data[27:29].
+     */
+    private fun processExtendedInit(data: ByteArray, currentState: WheelState): FrameResult? {
+        if (data.size < 30) return null
+        var newState = currentState
+
+        // Serial number at data[5..20] (16 ASCII chars)
+        if (data.size >= 21) {
+            serialNumber = data.copyOfRange(5, 21).decodeToString().trimEnd('\u0000')
+            newState = newState.copy(serialNumber = serialNumber)
+        }
+
+        // Car type: series at data[27], type at data[28]
+        val series = data[27].toInt() and 0xFF
+        val type = data[28].toInt() and 0xFF
+        model = Model.findById(series, type)
+        isModelDetected = true
+        newState = newState.copy(
+            model = model.displayName,
+            wheelType = WheelType.INMOTION_V2
+        )
+
+        return FrameResult(newState, false)
+    }
+
+    /**
+     * Process extended real-time telemetry (0x87).
+     * data[0:4] = sub-header [02 87 01 00], data[4:] = 96-byte telemetry payload.
+     * The EXTENDED layout offsets apply to the payload after stripping the sub-header.
+     */
+    private fun processExtendedRealTime(data: ByteArray, currentState: WheelState): FrameResult? {
+        if (data.size < 4) return null
+        // Strip the 4-byte sub-header to get the raw telemetry payload
+        val payload = data.copyOfRange(4, data.size)
+        return processRealTimeInfo(Message(Flag.EXTENDED, data.size, 0, payload), currentState)
+    }
+
+    /**
+     * Process extended settings response (0x90).
+     * For now, pass through to the standard settings parser with data offset.
+     */
+    private fun processExtendedSettings(data: ByteArray, currentState: WheelState): FrameResult? {
+        // TODO: Map extended settings response fields once we have settings-change captures
+        return null
+    }
+
+    /**
+     * Process extended total stats response (0x91).
+     * data[2:6] contains total distance (LE int × 10 for meters).
+     */
+    private fun processExtendedTotalStats(data: ByteArray, currentState: WheelState): FrameResult? {
+        if (data.size < 6) return null
+        val totalDistance = ByteUtils.intFromBytesLE(data, 2).toLong() * 10
+        return FrameResult(
+            currentState.copy(totalDistance = totalDistance),
+            false
+        )
     }
 
     /**
@@ -1147,11 +1233,20 @@ class InMotionV2Decoder : WheelDecoder {
 
     override fun getInitCommands(): List<WheelCommand> {
         return listOf(
+            // Standard IM2 init (V11/V12/V13/V14)
             WheelCommand.SendBytes(buildMessage(Flag.INITIAL, Command.MAIN_INFO, byteArrayOf(0x01))),
             WheelCommand.SendDelayed(buildMessage(Flag.INITIAL, Command.MAIN_INFO, byteArrayOf(0x02)), 100),
             WheelCommand.SendDelayed(buildMessage(Flag.INITIAL, Command.MAIN_INFO, byteArrayOf(0x06)), 200),
             WheelCommand.SendDelayed(buildMessage(Flag.DEFAULT, Command.SETTINGS, byteArrayOf(0x20)), 300),
-            WheelCommand.SendDelayed(buildMessage(Flag.DEFAULT, Command.TOTAL_STATS, byteArrayOf()), 400)
+            WheelCommand.SendDelayed(buildMessage(Flag.DEFAULT, Command.TOTAL_STATS, byteArrayOf()), 400),
+            // P6 extended init: combined car type + serial response
+            WheelCommand.SendDelayed(
+                buildMessage(Flag.EXTENDED, Command.MAIN_INFO, byteArrayOf(0x21, 0x06)), 500
+            ),
+            // P6 total stats
+            WheelCommand.SendDelayed(
+                buildMessage(Flag.EXTENDED, Command.MAIN_INFO, byteArrayOf(0x21, 0x11)), 600
+            )
         )
     }
 
@@ -1159,10 +1254,13 @@ class InMotionV2Decoder : WheelDecoder {
         keepAliveCounter++
         val needsInit = !isModelDetected || serialNumber.isEmpty() || version.isEmpty()
         if (needsInit && keepAliveCounter % 4 == 0) {
-            // Retry whichever init step is still pending
             getNextInitRetryCommand()
+        } else if (model == Model.P6) {
+            // P6 uses extended telemetry poll
+            WheelCommand.SendBytes(
+                buildMessage(Flag.EXTENDED, Command.MAIN_INFO, byteArrayOf(0x21, 0x07))
+            )
         } else {
-            // Always request live data — this is the primary keep-alive
             WheelCommand.SendBytes(buildMessage(Flag.DEFAULT, Command.REAL_TIME_INFO, byteArrayOf()))
         }
     }
@@ -1171,9 +1269,19 @@ class InMotionV2Decoder : WheelDecoder {
      * Returns the next init command that still needs a response.
      */
     private fun getNextInitRetryCommand(): WheelCommand {
+        if (!isModelDetected) {
+            // Alternate between standard and extended init on each retry
+            return if (keepAliveCounter % 8 == 0) {
+                WheelCommand.SendBytes(
+                    buildMessage(Flag.EXTENDED, Command.MAIN_INFO, byteArrayOf(0x21, 0x06))
+                )
+            } else {
+                WheelCommand.SendBytes(
+                    buildMessage(Flag.INITIAL, Command.MAIN_INFO, byteArrayOf(0x01))
+                )
+            }
+        }
         return when {
-            !isModelDetected ->
-                WheelCommand.SendBytes(buildMessage(Flag.INITIAL, Command.MAIN_INFO, byteArrayOf(0x01)))
             serialNumber.isEmpty() ->
                 WheelCommand.SendBytes(buildMessage(Flag.INITIAL, Command.MAIN_INFO, byteArrayOf(0x02)))
             else ->

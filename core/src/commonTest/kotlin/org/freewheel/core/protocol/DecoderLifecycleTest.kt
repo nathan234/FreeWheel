@@ -264,26 +264,28 @@ class DecoderLifecycleTest {
     }
 
     @Test
-    fun `InMotionV2 getInitCommands returns 5 staged commands`() {
+    fun `InMotionV2 getInitCommands returns 7 staged commands`() {
         val decoder = InMotionV2Decoder()
         val commands = decoder.getInitCommands()
 
-        assertEquals(5, commands.size, "Should emit 5 init commands")
+        assertEquals(7, commands.size, "Should emit 7 init commands (5 standard + 2 P6 extended)")
 
         // First: car type (immediate)
         assertTrue(commands[0] is WheelCommand.SendBytes, "First should be SendBytes")
 
-        // Remaining 4: delayed
-        for (i in 1..4) {
+        // Remaining 6: delayed
+        for (i in 1..6) {
             assertTrue(commands[i] is WheelCommand.SendDelayed,
                 "Command $i should be SendDelayed")
         }
 
-        // Verify delays are sequential (100, 200, 300, 400)
+        // Verify delays are sequential (100, 200, 300, 400, 500, 600)
         assertEquals(100L, (commands[1] as WheelCommand.SendDelayed).delayMs)
         assertEquals(200L, (commands[2] as WheelCommand.SendDelayed).delayMs)
         assertEquals(300L, (commands[3] as WheelCommand.SendDelayed).delayMs)
         assertEquals(400L, (commands[4] as WheelCommand.SendDelayed).delayMs)
+        assertEquals(500L, (commands[5] as WheelCommand.SendDelayed).delayMs)
+        assertEquals(600L, (commands[6] as WheelCommand.SendDelayed).delayMs)
     }
 
     @Test
