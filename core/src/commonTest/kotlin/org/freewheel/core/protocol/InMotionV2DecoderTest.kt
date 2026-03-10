@@ -1616,6 +1616,75 @@ class InMotionV2DecoderTest {
         assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
     }
 
+    // ==================== P6 Command Routing (shares V9 protocol) ====================
+
+    @Test
+    fun `P6 headlight uses V9 format with two enable bytes`() {
+        val d = decoderForModel(10, 1) // P6
+        val result = d.buildCommand(WheelCommand.SetLight(true))
+        assertTrue(result.isNotEmpty())
+        val expected = InMotionV2Decoder.buildMessage(
+            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+            byteArrayOf(0x50, 0x01, 0x01) // V9-style: enable, enable
+        )
+        assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
+    }
+
+    @Test
+    fun `P6 DRL uses V9 sub-command 0x44`() {
+        val d = decoderForModel(10, 1) // P6
+        val result = d.buildCommand(WheelCommand.SetDrl(true))
+        assertTrue(result.isNotEmpty())
+        val expected = InMotionV2Decoder.buildMessage(
+            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+            byteArrayOf(0x44, 0x01) // V9-style sub-cmd
+        )
+        assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
+    }
+
+    @Test
+    fun `P6 pedal sensitivity uses V9 byte swap`() {
+        val d = decoderForModel(10, 1) // P6
+        val result = d.buildCommand(WheelCommand.SetPedalSensitivity(50))
+        assertTrue(result.isNotEmpty())
+        val expected = InMotionV2Decoder.buildMessage(
+            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+            byteArrayOf(0x25, 0x64, 0x32) // V9-style: 100, value
+        )
+        assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
+    }
+
+    @Test
+    fun `P6 speed alarms enabled (V9-like)`() {
+        val d = decoderForModel(10, 1) // P6
+        val result = d.buildCommand(WheelCommand.SetSpeedAlarms(30, 40))
+        assertTrue(result.isNotEmpty()) // P6 should support speed alarms like V9
+    }
+
+    @Test
+    fun `P6 split riding modes uses V9 sub-command 0x42`() {
+        val d = decoderForModel(10, 1) // P6
+        val result = d.buildCommand(WheelCommand.SetSplitRidingModes(true))
+        assertTrue(result.isNotEmpty())
+        val expected = InMotionV2Decoder.buildMessage(
+            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+            byteArrayOf(0x42, 0x01) // V9/V12 sub-cmd
+        )
+        assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
+    }
+
+    @Test
+    fun `P6 split riding modes settings uses V9 sub-command 0x40`() {
+        val d = decoderForModel(10, 1) // P6
+        val result = d.buildCommand(WheelCommand.SetSplitRidingModesSettings(80, 60))
+        assertTrue(result.isNotEmpty())
+        val expected = InMotionV2Decoder.buildMessage(
+            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+            byteArrayOf(0x40, 0x50, 0x3C) // V9/V12 sub-cmd, 80, 60
+        )
+        assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
+    }
+
     @Test
     fun `reset clears mainBoardVersion`() {
         val d = decoderForModel(6, 1, fwMajor = 1, fwMinor = 5)

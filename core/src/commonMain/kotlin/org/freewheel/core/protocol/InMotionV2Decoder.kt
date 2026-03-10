@@ -929,12 +929,12 @@ class InMotionV2Decoder : WheelDecoder {
     }
 
     // Model grouping helpers (must be called under stateLock)
-    private val isV9 get() = model == Model.V9
+    private val isV9Like get() = model == Model.V9 || model == Model.P6
     private val isV11Family get() = model == Model.V11 || model == Model.V11Y
     private val isV12Family get() = model == Model.V12HS || model == Model.V12HT || model == Model.V12PRO || model == Model.V12S
     private val isV13Family get() = model == Model.V13 || model == Model.V13PRO
     private val isV14Family get() = model == Model.V14g || model == Model.V14s
-    private val isV9OrV12 get() = isV9 || isV12Family
+    private val isV9OrV12 get() = isV9Like || isV12Family
 
     /**
      * Check if main board firmware version is at least major.minor.
@@ -993,7 +993,7 @@ class InMotionV2Decoder : WheelDecoder {
 
             is WheelCommand.SetPedalSensitivity -> {
                 val s = (command.sensitivity.coerceIn(0, 100) and 0xFF).toByte()
-                if (isV9) controlMsg(0x25, 0x64, s)
+                if (isV9Like) controlMsg(0x25, 0x64, s)
                 else controlMsg(0x25, s, 0x64)
             }
 
@@ -1013,7 +1013,7 @@ class InMotionV2Decoder : WheelDecoder {
                 controlMsg(0x32, boolByte(command.enabled))
 
             is WheelCommand.SetDrl -> {
-                val subCmd: Byte = if (isV9) 0x44 else 0x2D
+                val subCmd: Byte = if (isV9Like) 0x44 else 0x2D
                 controlMsg(subCmd, boolByte(command.enabled))
             }
 
@@ -1135,7 +1135,7 @@ class InMotionV2Decoder : WheelDecoder {
         val enable = boolByte(on)
         return when {
             isV12Family -> controlMsg(0x50, enable, 0x00) // Simple on/off (low beam)
-            isV9 -> controlMsg(0x50, enable, enable)
+            isV9Like -> controlMsg(0x50, enable, enable)
             isV11Family && !isFirmwareAtLeast(1, 4) -> controlMsg(0x40, enable)
             else -> controlMsg(0x50, enable) // V11 fw>=1.4, V13, V14
         }

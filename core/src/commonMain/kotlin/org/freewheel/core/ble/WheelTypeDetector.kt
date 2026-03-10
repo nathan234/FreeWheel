@@ -161,8 +161,10 @@ class WheelTypeDetector {
 
         return when {
             // Leaperkim CAN protocol patterns (before Veteran to prioritize CAN detection)
+            // Official Leaperkim app filters by "LK" prefix
             name.contains("LEAPERKIM") ||
-            name.contains("LPKIM") -> {
+            name.contains("LPKIM") ||
+            name.startsWith("LK") -> {
                 DetectionResult.Detected(
                     wheelType = WheelType.LEAPERKIM,
                     readServiceUuid = BleUuids.Gotway.SERVICE,
@@ -173,12 +175,14 @@ class WheelTypeDetector {
                 )
             }
 
-            // Veteran patterns
+            // Veteran patterns (including Nosfet-branded wheels)
             name.contains("VETERAN") ||
             name.contains("SHERMAN") ||
             name.contains("LYNX") ||
             name.contains("PATTON") ||
-            name.contains("ABRAMS") -> {
+            name.contains("ABRAMS") ||
+            name.contains("ORYX") ||
+            name.contains("NOSFET") -> {
                 DetectionResult.Detected(
                     wheelType = WheelType.VETERAN,
                     readServiceUuid = BleUuids.Gotway.SERVICE,
@@ -192,6 +196,7 @@ class WheelTypeDetector {
             // InMotion V2 patterns (before Gotway to avoid conflicts with names like "MASTER")
             name.startsWith("V11") || name.startsWith("V12") || name.startsWith("V13") ||
             name.startsWith("V14") || name.startsWith("V9") || name.startsWith("P6") ||
+            name.startsWith("E20") || name.startsWith("CLIMBER") || name.startsWith("GLIDE") ||
             name.contains("INMOTION") -> {
                 DetectionResult.Detected(
                     wheelType = WheelType.INMOTION_V2,
