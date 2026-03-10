@@ -42,13 +42,14 @@ class WheelSettingsConfigTest {
     }
 
     @Test
-    fun `Veteran has 4 sections - Lighting, Ride, Audio, Dangerous`() {
+    fun `Veteran has 5 sections - Lighting, Ride, Audio, Battery, Dangerous`() {
         val sections = WheelSettingsConfig.sections(WheelType.VETERAN)
-        assertEquals(4, sections.size)
+        assertEquals(5, sections.size)
         assertEquals("Lighting", sections[0].title)
         assertEquals("Ride", sections[1].title)
         assertEquals("Audio", sections[2].title)
-        assertEquals("Dangerous Actions", sections[3].title)
+        assertEquals("Battery", sections[3].title)
+        assertEquals("Dangerous Actions", sections[4].title)
     }
 
     @Test
@@ -254,16 +255,21 @@ class WheelSettingsConfigTest {
     }
 
     @Test
-    fun `Veteran Dangerous has Lock, Power Off, Reset Trip`() {
-        val dangerous = WheelSettingsConfig.sections(WheelType.VETERAN)[3]
-        assertEquals(3, dangerous.controls.size)
-        val lock = dangerous.controls[0] as ControlSpec.DangerousToggle
+    fun `Veteran Dangerous has Lateral Cutoff, Lock, Calibrate, Power Off, Reset Trip`() {
+        val dangerous = WheelSettingsConfig.sections(WheelType.VETERAN)[4]
+        assertEquals(5, dangerous.controls.size)
+        val cutoff = dangerous.controls[0] as ControlSpec.Slider
+        assertEquals("Lateral Cutoff Angle", cutoff.label)
+        assertEquals(SettingsCommandId.LATERAL_CUTOFF_ANGLE, cutoff.commandId)
+        val lock = dangerous.controls[1] as ControlSpec.DangerousToggle
         assertEquals("Lock Wheel", lock.label)
         assertEquals(SettingsCommandId.LOCK, lock.commandId)
-        val powerOff = dangerous.controls[1] as ControlSpec.DangerousButton
+        val calibrate = dangerous.controls[2] as ControlSpec.DangerousButton
+        assertEquals("Calibrate Wheel", calibrate.label)
+        val powerOff = dangerous.controls[3] as ControlSpec.DangerousButton
         assertEquals("Power Off", powerOff.label)
         assertEquals(SettingsCommandId.POWER_OFF, powerOff.commandId)
-        val resetTrip = dangerous.controls[2] as ControlSpec.DangerousButton
+        val resetTrip = dangerous.controls[4] as ControlSpec.DangerousButton
         assertEquals("Reset Trip", resetTrip.label)
         assertEquals(SettingsCommandId.RESET_TRIP, resetTrip.commandId)
     }
@@ -345,8 +351,8 @@ class WheelSettingsConfigTest {
 
     @Test
     fun `Reset Trip button has confirmation message`() {
-        val dangerous = WheelSettingsConfig.sections(WheelType.VETERAN)[3]
-        val reset = dangerous.controls[2] as ControlSpec.DangerousButton
+        val dangerous = WheelSettingsConfig.sections(WheelType.VETERAN)[4]
+        val reset = dangerous.controls[4] as ControlSpec.DangerousButton
         assertEquals("Reset Trip", reset.confirmTitle)
         assertTrue(reset.confirmMessage.contains("trip distance"))
     }
@@ -410,6 +416,62 @@ class WheelSettingsConfigTest {
 
         val stateUnknown = WheelState(ledMode = -1)
         assertNull(SettingsCommandId.LED.readBool(stateUnknown))
+    }
+
+    // ==================== Veteran New Settings Readback ====================
+
+    @Test
+    fun `readInt returns screenBacklight from WheelState`() {
+        val state = WheelState(screenBacklight = 80)
+        assertEquals(80, SettingsCommandId.SCREEN_BACKLIGHT.readInt(state))
+
+        val stateUnknown = WheelState(screenBacklight = -1)
+        assertNull(SettingsCommandId.SCREEN_BACKLIGHT.readInt(stateUnknown))
+    }
+
+    @Test
+    fun `readInt returns stopSpeed from WheelState`() {
+        val state = WheelState(stopSpeed = 50)
+        assertEquals(50, SettingsCommandId.STOP_SPEED.readInt(state))
+
+        val stateUnknown = WheelState(stopSpeed = -1)
+        assertNull(SettingsCommandId.STOP_SPEED.readInt(stateUnknown))
+    }
+
+    @Test
+    fun `readInt returns pwmLimit from WheelState`() {
+        val state = WheelState(pwmLimit = 70)
+        assertEquals(70, SettingsCommandId.VETERAN_PWM_LIMIT.readInt(state))
+    }
+
+    @Test
+    fun `readInt returns voltageCorrection from WheelState`() {
+        val state = WheelState(voltageCorrection = 5)
+        assertEquals(5, SettingsCommandId.VOLTAGE_CORRECTION.readInt(state))
+
+        val stateNeg = WheelState(voltageCorrection = -10)
+        assertEquals(-10, SettingsCommandId.VOLTAGE_CORRECTION.readInt(stateNeg))
+
+        val stateZero = WheelState(voltageCorrection = 0)
+        assertEquals(0, SettingsCommandId.VOLTAGE_CORRECTION.readInt(stateZero))
+    }
+
+    @Test
+    fun `readInt returns maxChargeVoltage from WheelState`() {
+        val state = WheelState(maxChargeVoltage = 100)
+        assertEquals(100, SettingsCommandId.MAX_CHARGE_VOLTAGE.readInt(state))
+
+        val stateUnknown = WheelState(maxChargeVoltage = -1)
+        assertNull(SettingsCommandId.MAX_CHARGE_VOLTAGE.readInt(stateUnknown))
+    }
+
+    @Test
+    fun `readInt returns lateralCutoffAngle from WheelState`() {
+        val state = WheelState(lateralCutoffAngle = 70)
+        assertEquals(70, SettingsCommandId.LATERAL_CUTOFF_ANGLE.readInt(state))
+
+        val stateUnknown = WheelState(lateralCutoffAngle = -1)
+        assertNull(SettingsCommandId.LATERAL_CUTOFF_ANGLE.readInt(stateUnknown))
     }
 
     // ==================== Slider Visibility Gating ====================

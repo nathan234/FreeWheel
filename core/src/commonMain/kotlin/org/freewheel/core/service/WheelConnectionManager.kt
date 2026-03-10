@@ -381,6 +381,12 @@ class WheelConnectionManager(
             SettingsCommandId.HIGH_SPEED_MODE -> sendCommand(WheelCommand.SetHighSpeedMode(boolValue))
             SettingsCommandId.LOW_VOLTAGE_MODE -> sendCommand(WheelCommand.SetLowVoltageMode(boolValue))
             SettingsCommandId.KEY_TONE -> sendCommand(WheelCommand.SetKeyTone(intValue))
+            SettingsCommandId.SCREEN_BACKLIGHT -> sendCommand(WheelCommand.SetScreenBacklight(intValue))
+            SettingsCommandId.STOP_SPEED -> sendCommand(WheelCommand.SetStopSpeed(intValue))
+            SettingsCommandId.VETERAN_PWM_LIMIT -> sendCommand(WheelCommand.SetVeteranPwmLimit(intValue))
+            SettingsCommandId.VOLTAGE_CORRECTION -> sendCommand(WheelCommand.SetVoltageCorrection(intValue))
+            SettingsCommandId.MAX_CHARGE_VOLTAGE -> sendCommand(WheelCommand.SetMaxChargeVoltage(intValue))
+            SettingsCommandId.LATERAL_CUTOFF_ANGLE -> sendCommand(WheelCommand.SetLateralCutoffAngle(intValue))
             // InMotion V2 extended settings
             SettingsCommandId.BERM_ANGLE_MODE -> setBermAngleMode(boolValue)
             SettingsCommandId.BERM_ANGLE -> setBermAngle(intValue)

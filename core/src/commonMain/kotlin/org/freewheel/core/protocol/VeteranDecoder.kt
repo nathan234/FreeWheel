@@ -190,10 +190,16 @@ class VeteranDecoder : WheelDecoder {
         val batteryOverride: Int? = null,
         val highSpeedMode: Boolean? = null,
         val lowVoltageMode: Boolean? = null,
-        val speakerVolume: Int? = null,
+        val voltageCorrection: Int? = null,
         val transportMode: Boolean? = null,
         val keyTone: Int? = null,
         val pedalHardness: Int? = null,
+        val stopSpeed: Int? = null,
+        val stopPowerRate: Int? = null,
+        val screenBacklightRate: Int? = null,
+        val maxChargeVol: Int? = null,
+        val maxChargeVolBaseVol: Int? = null,
+        val lateralCutoffAngle: Int? = null,
     )
 
     private val unpacker = VeteranUnpacker()
@@ -317,10 +323,16 @@ class VeteranDecoder : WheelDecoder {
                 lockState = subData.lockState ?: state.lockState,
                 highSpeedMode = subData.highSpeedMode ?: state.highSpeedMode,
                 lowVoltageMode = subData.lowVoltageMode ?: state.lowVoltageMode,
-                speakerVolume = subData.speakerVolume ?: state.speakerVolume,
+                voltageCorrection = subData.voltageCorrection ?: state.voltageCorrection,
                 transportMode = subData.transportMode ?: state.transportMode,
                 keyTone = subData.keyTone ?: state.keyTone,
                 pedalSensitivity = subData.pedalHardness ?: state.pedalSensitivity,
+                stopSpeed = subData.stopSpeed ?: state.stopSpeed,
+                pwmLimit = subData.stopPowerRate ?: state.pwmLimit,
+                screenBacklight = subData.screenBacklightRate ?: state.screenBacklight,
+                maxChargeVoltage = subData.maxChargeVol ?: state.maxChargeVoltage,
+                maxChargeVoltageBase = subData.maxChargeVolBaseVol ?: state.maxChargeVoltageBase,
+                lateralCutoffAngle = subData.lateralCutoffAngle ?: state.lateralCutoffAngle,
             )
         }
 
@@ -362,43 +374,35 @@ class VeteranDecoder : WheelDecoder {
         // 0x80 (128) means "not supported" for each field
         val NOT_SUPPORTED = 0x80
 
-        val pedalHardness = if (buff.size > 50) {
-            val raw = buff[50].toInt() and 0xFF
-            if (raw == NOT_SUPPORTED) null else raw
-        } else null
+        fun readUnsigned(offset: Int): Int? {
+            if (buff.size <= offset) return null
+            val raw = buff[offset].toInt() and 0xFF
+            return if (raw == NOT_SUPPORTED) null else raw
+        }
 
-        val transport = if (buff.size > 57) {
-            val raw = buff[57].toInt() and 0xFF
-            if (raw == NOT_SUPPORTED) null else raw != 0
-        } else null
+        fun readSigned(offset: Int): Int? {
+            if (buff.size <= offset) return null
+            val raw = buff[offset].toInt() // signed byte (-128 to 127)
+            return if ((raw and 0xFF) == NOT_SUPPORTED) null else raw
+        }
 
-        val volume = if (buff.size > 59) {
-            val raw = buff[59].toInt() // signed byte
-            if ((raw.toInt() and 0xFF) == NOT_SUPPORTED) null else raw
-        } else null
-
-        val lowVol = if (buff.size > 60) {
-            val raw = buff[60].toInt() and 0xFF
-            if (raw == NOT_SUPPORTED) null else raw != 0
-        } else null
-
-        val highSpeed = if (buff.size > 61) {
-            val raw = buff[61].toInt() and 0xFF
-            if (raw == NOT_SUPPORTED) null else raw != 0
-        } else null
-
-        val keyToneVal = if (buff.size > 63) {
-            val raw = buff[63].toInt() and 0xFF
-            if (raw == NOT_SUPPORTED) null else raw
-        } else null
+        fun readBool(offset: Int): Boolean? {
+            val raw = readUnsigned(offset) ?: return null
+            return raw != 0
+        }
 
         return SubTypeData(
-            pedalHardness = pedalHardness,
-            transportMode = transport,
-            speakerVolume = volume,
-            lowVoltageMode = lowVol,
-            highSpeedMode = highSpeed,
-            keyTone = keyToneVal,
+            pedalHardness = readUnsigned(50),         // byte 50: pedal hardness 0-100
+            stopSpeed = readUnsigned(52),             // byte 52: stop speed (raw, +10 encoding)
+            stopPowerRate = readUnsigned(53),          // byte 53: PWM limit (raw, +30 encoding)
+            screenBacklightRate = readUnsigned(55),    // byte 55: screen backlight 0-100%
+            transportMode = readBool(57),              // byte 57: transport mode
+            voltageCorrection = readUnsigned(59)?.let { it - 15 }, // byte 59: raw 0-30, decoded -15 to +15
+            lowVoltageMode = readBool(60),             // byte 60: low voltage mode
+            highSpeedMode = readBool(61),              // byte 61: high speed mode
+            keyTone = readUnsigned(63),                // byte 63: key tone 0-100%
+            maxChargeVol = readUnsigned(64),           // byte 64: max charge voltage (0-120)
+            maxChargeVolBaseVol = readUnsigned(65),    // byte 65: max charge voltage base
         )
     }
 
@@ -610,6 +614,32 @@ class VeteranDecoder : WheelDecoder {
     }
 
     /**
+     * Build a Veteran binary command with "LdAp" (new format) prefix and CRC32.
+     * Format: [4C 64 41 70] [cmdByte] [byte5] [byte6] [padding 0x80...] [valueByte] + CRC32
+     *
+     * byte6: 0x02 for control toggles (transport, high speed, low power), 0x00 for other settings.
+     * Used for newer settings that only support the "LdAp" format.
+     */
+    private fun buildVeteranCommandNew(cmdByte: Int, valuePosition: Int, value: Int, byte5: Int = 0x01, byte6: Int = 0x00): ByteArray {
+        val payloadSize = valuePosition + 1
+        val payload = ByteArray(payloadSize)
+        payload[0] = 0x4C
+        payload[1] = 0x64  // "LdAp" — new format
+        payload[2] = 0x41
+        payload[3] = 0x70
+        payload[4] = cmdByte.toByte()
+        payload[5] = byte5.toByte()
+        if (payloadSize > 6) payload[6] = byte6.toByte()
+        // Fill positions 7..(payloadSize-2) with 0x80 padding
+        for (i in 7 until payloadSize - 1) {
+            payload[i] = 0x80.toByte()
+        }
+        payload[payloadSize - 1] = value.toByte()
+
+        return appendCrc32(payload)
+    }
+
+    /**
      * Append 4-byte big-endian CRC32 to a byte array.
      */
     private fun appendCrc32(data: ByteArray): ByteArray {
@@ -692,31 +722,33 @@ class VeteranDecoder : WheelDecoder {
             }
             is WheelCommand.SetTransportMode -> {
                 if (ver < 3) return emptyList()
-                // cmd 0x16, value at byte 17 = 0/1
-                listOf(WheelCommand.SendBytes(
-                    buildVeteranCommand(0x16, 17, if (command.enabled) 1 else 0, byte5 = 0x01)
-                ))
+                val value = if (command.enabled) 1 else 0
+                // Send both old "LkAp" and new "LdAp" (byte6=0x02) formats
+                listOf(
+                    WheelCommand.SendBytes(buildVeteranCommand(0x16, 17, value, byte5 = 0x01)),
+                    WheelCommand.SendBytes(buildVeteranCommandNew(0x16, 17, value, byte6 = 0x02))
+                )
             }
             is WheelCommand.SetSpeakerVolume -> {
-                if (ver < 3) return emptyList()
-                // cmd 0x18, value at byte 19
-                listOf(WheelCommand.SendBytes(
-                    buildVeteranCommand(0x18, 19, command.volume, byte5 = 0x01)
-                ))
+                // Veteran has no speaker volume — byte 59 is voltage correction.
+                // This command is unused for Veteran; kept for interface compatibility.
+                emptyList()
             }
             is WheelCommand.SetHighSpeedMode -> {
                 if (ver < 3) return emptyList()
-                // cmd 0x1A, value at byte 21 = 0/1
-                listOf(WheelCommand.SendBytes(
-                    buildVeteranCommand(0x1A, 21, if (command.enabled) 1 else 0, byte5 = 0x01)
-                ))
+                val value = if (command.enabled) 1 else 0
+                listOf(
+                    WheelCommand.SendBytes(buildVeteranCommand(0x1A, 21, value, byte5 = 0x01)),
+                    WheelCommand.SendBytes(buildVeteranCommandNew(0x1A, 21, value, byte6 = 0x02))
+                )
             }
             is WheelCommand.SetLowVoltageMode -> {
                 if (ver < 3) return emptyList()
-                // cmd 0x19, value at byte 20 = 0/1
-                listOf(WheelCommand.SendBytes(
-                    buildVeteranCommand(0x19, 20, if (command.enabled) 1 else 0, byte5 = 0x01)
-                ))
+                val value = if (command.enabled) 1 else 0
+                listOf(
+                    WheelCommand.SendBytes(buildVeteranCommand(0x19, 20, value, byte5 = 0x01)),
+                    WheelCommand.SendBytes(buildVeteranCommandNew(0x19, 20, value, byte6 = 0x02))
+                )
             }
             is WheelCommand.SetKeyTone -> {
                 if (ver < 3) return emptyList()
@@ -740,6 +772,59 @@ class VeteranDecoder : WheelDecoder {
             }
             is WheelCommand.ResetTrip -> {
                 listOf(WheelCommand.SendBytes("CLEARMETER".encodeToByteArray()))
+            }
+            is WheelCommand.SetScreenBacklight -> {
+                if (ver < 3) return emptyList()
+                // cmd 0x14, value at byte 15, range 0-100%
+                listOf(WheelCommand.SendBytes(
+                    buildVeteranCommandNew(0x14, 15, command.value)
+                ))
+            }
+            is WheelCommand.SetStopSpeed -> {
+                if (ver < 3) return emptyList()
+                // cmd 0x11, value at byte 12, protocol range 10-120
+                // Slider sends 10-120 directly; protocol expects same range
+                listOf(WheelCommand.SendBytes(
+                    buildVeteranCommandNew(0x11, 12, command.speed)
+                ))
+            }
+            is WheelCommand.SetVeteranPwmLimit -> {
+                if (ver < 3) return emptyList()
+                // cmd 0x12, value at byte 13, protocol range 30-100
+                // Slider sends 30-100 directly
+                listOf(WheelCommand.SendBytes(
+                    buildVeteranCommandNew(0x12, 13, command.limit)
+                ))
+            }
+            is WheelCommand.SetVoltageCorrection -> {
+                if (ver < 3) return emptyList()
+                // cmd 0x18, value at byte 19
+                // Slider sends -15..+15; protocol encodes as value + 15 (0..30)
+                listOf(WheelCommand.SendBytes(
+                    buildVeteranCommandNew(0x18, 19, command.value + 15)
+                ))
+            }
+            is WheelCommand.SetMaxChargeVoltage -> {
+                if (ver < 3) return emptyList()
+                // cmd 0x1D, value at byte 24, range 0-120 (×0.1V + base)
+                listOf(WheelCommand.SendBytes(
+                    buildVeteranCommandNew(0x1D, 24, command.value)
+                ))
+            }
+            is WheelCommand.SetLateralCutoffAngle -> {
+                if (ver < 3) return emptyList()
+                // cmd 0x16, value at byte 17
+                // Slider sends 35-90; protocol expects same range (offset baked into slider range)
+                listOf(WheelCommand.SendBytes(
+                    buildVeteranCommandNew(0x16, 17, command.angle)
+                ))
+            }
+            is WheelCommand.Calibrate -> {
+                if (ver < 3) return emptyList()
+                // cmd 0x15, value at byte 16 = 0x01 (fixed)
+                listOf(WheelCommand.SendBytes(
+                    buildVeteranCommandNew(0x15, 16, 0x01)
+                ))
             }
             else -> emptyList()
         }

@@ -64,5 +64,12 @@ data class WheelSettingsState(
     val keyTone: Int = -1,
     val lockState: Int = -1,
     val alertSpeed: Int = 0,
-    val autoOffTime: Int = 0
+    val autoOffTime: Int = 0,
+    val screenBacklight: Int = -1,
+    val stopSpeed: Int = -1,
+    val pwmLimit: Int = -1,
+    val voltageCorrection: Int = -1,
+    val maxChargeVoltage: Int = -1,
+    val maxChargeVoltageBase: Int = -1,
+    val lateralCutoffAngle: Int = -1
 )

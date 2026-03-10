@@ -37,7 +37,9 @@ enum class SettingsCommandId {
     // Begode extended settings
     WEAK_MAGNETISM, EXTENDED_ROLL_ANGLE, POWER_ALARM, PLATE_PROTECTION,
     // Veteran extended settings
-    HIGH_SPEED_MODE, LOW_VOLTAGE_MODE, KEY_TONE;
+    HIGH_SPEED_MODE, LOW_VOLTAGE_MODE, KEY_TONE,
+    SCREEN_BACKLIGHT, STOP_SPEED, VETERAN_PWM_LIMIT, VOLTAGE_CORRECTION,
+    MAX_CHARGE_VOLTAGE, LATERAL_CUTOFF_ANGLE;
 
     /** Read current int value from WheelState, or null if no readback. */
     fun readInt(state: WheelState): Int? = when (this) {
@@ -66,6 +68,12 @@ enum class SettingsCommandId {
         EXTENDED_ROLL_ANGLE -> state.extendedRollAngle.takeIf { it >= 0 }
         POWER_ALARM -> state.powerAlarm.takeIf { it >= 0 }
         KEY_TONE -> state.keyTone.takeIf { it >= 0 }
+        SCREEN_BACKLIGHT -> state.screenBacklight.takeIf { it >= 0 }
+        STOP_SPEED -> state.stopSpeed.takeIf { it >= 0 }
+        VETERAN_PWM_LIMIT -> state.pwmLimit.takeIf { it >= 0 }
+        VOLTAGE_CORRECTION -> state.voltageCorrection.takeIf { it > -16 } // -15..+15, raw signed
+        MAX_CHARGE_VOLTAGE -> state.maxChargeVoltage.takeIf { it >= 0 }
+        LATERAL_CUTOFF_ANGLE -> state.lateralCutoffAngle.takeIf { it >= 0 }
         else -> null
     }
 
