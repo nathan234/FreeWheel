@@ -68,6 +68,9 @@ class VeteranDecoderTest {
         ver: Int = 5000,           // mVer = ver/1000 = 5 (Lynx)
         pedalsMode: Int = 0,       // 0x00 or 0x07 for byte 30
         chargeModeLow: Int = 0,    // byte 23: must be 0x00 or 0x01
+        speedAlert: Int = 0,       // raw value, decoder multiplies by 10
+        speedTiltback: Int = 0,    // raw value, decoder multiplies by 10
+        autoOffSec: Int = 0,       // raw value (seconds)
         pitchAngle: Int = 0,       // raw signed value
         hwPwm: Int = 0
     ): ByteArray {
@@ -106,14 +109,21 @@ class VeteranDecoderTest {
         frame[18] = ((temperature shr 8) and 0xFF).toByte()
         frame[19] = (temperature and 0xFF).toByte()
 
-        // Auto-off seconds at 20-21 (leave 0)
+        // Auto-off seconds BE at 20-21
+        frame[20] = ((autoOffSec shr 8) and 0xFF).toByte()
+        frame[21] = (autoOffSec and 0xFF).toByte()
 
         // Charge mode at 22-23: byte 22 MUST be 0x00, byte 23 must be 0x00 or 0x01
         frame[22] = 0x00
         frame[23] = (chargeModeLow and 0x01).toByte()
 
-        // Speed alert at 24-25 (leave 0)
-        // Speed tiltback at 26-27 (leave 0)
+        // Speed alert BE at 24-25
+        frame[24] = ((speedAlert shr 8) and 0xFF).toByte()
+        frame[25] = (speedAlert and 0xFF).toByte()
+
+        // Speed tiltback BE at 26-27
+        frame[26] = ((speedTiltback shr 8) and 0xFF).toByte()
+        frame[27] = (speedTiltback and 0xFF).toByte()
 
         // Version BE at 28-29
         frame[28] = ((ver shr 8) and 0xFF).toByte()
@@ -148,6 +158,9 @@ class VeteranDecoderTest {
         ver: Int = 5000,
         pedalsMode: Int = 0,
         chargeModeLow: Int = 0,
+        speedAlert: Int = 0,
+        speedTiltback: Int = 0,
+        autoOffSec: Int = 0,
         pitchAngle: Int = 0,
         hwPwm: Int = 0,
         cfg: DecoderConfig = config
@@ -163,6 +176,9 @@ class VeteranDecoderTest {
             ver = ver,
             pedalsMode = pedalsMode,
             chargeModeLow = chargeModeLow,
+            speedAlert = speedAlert,
+            speedTiltback = speedTiltback,
+            autoOffSec = autoOffSec,
             pitchAngle = pitchAngle,
             hwPwm = hwPwm
         )
@@ -993,6 +1009,38 @@ class VeteranDecoderTest {
         val result = freshDecoder.decode(frame, WheelState(), config)
         assertNotNull(result)
         assertEquals(2, result.newState.pedalsMode)
+    }
+
+    @Test
+    fun `alertSpeed is populated from frame`() {
+        // speedAlert = shortFromBytesBE(buff, 24) * 10
+        // alertSpeed = speedAlert / 10 = raw value
+        // Raw value 85 -> alertSpeed = 85 km/h
+        val result = decodeSingleFrame(speedAlert = 85)
+        assertNotNull(result)
+        assertEquals(85, result.newState.alertSpeed)
+    }
+
+    @Test
+    fun `alertSpeed zero means off`() {
+        val result = decodeSingleFrame(speedAlert = 0)
+        assertNotNull(result)
+        assertEquals(0, result.newState.alertSpeed)
+    }
+
+    @Test
+    fun `autoOffTime is populated from frame`() {
+        // autoOffSec = shortFromBytesBE(buff, 20) — stored directly in seconds
+        val result = decodeSingleFrame(autoOffSec = 1172)
+        assertNotNull(result)
+        assertEquals(1172, result.newState.autoOffTime)
+    }
+
+    @Test
+    fun `autoOffTime zero means disabled`() {
+        val result = decodeSingleFrame(autoOffSec = 0)
+        assertNotNull(result)
+        assertEquals(0, result.newState.autoOffTime)
     }
 
     // ==================== Extended Frame Builder ====================

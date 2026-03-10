@@ -56,6 +56,18 @@ private struct BmsBlock: View {
             }
             Text("\(BmsLabels.shared.TEMP_1): \(DisplayUtils.shared.formatBmsTemperature(celsius: bms.temp1))")
             Text("\(BmsLabels.shared.TEMP_2): \(DisplayUtils.shared.formatBmsTemperature(celsius: bms.temp2))")
+            if bms.temp3 != 0.0 {
+                Text("\(BmsLabels.shared.TEMP_3): \(DisplayUtils.shared.formatBmsTemperature(celsius: bms.temp3))")
+            }
+            if bms.temp4 != 0.0 {
+                Text("\(BmsLabels.shared.TEMP_4): \(DisplayUtils.shared.formatBmsTemperature(celsius: bms.temp4))")
+            }
+            if bms.temp5 != 0.0 {
+                Text("\(BmsLabels.shared.TEMP_5): \(DisplayUtils.shared.formatBmsTemperature(celsius: bms.temp5))")
+            }
+            if bms.temp6 != 0.0 {
+                Text("\(BmsLabels.shared.TEMP_6): \(DisplayUtils.shared.formatBmsTemperature(celsius: bms.temp6))")
+            }
             if bms.health > 0 {
                 Text("\(BmsLabels.shared.HEALTH): \(bms.health)%")
             }

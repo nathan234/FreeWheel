@@ -99,11 +99,11 @@ class UnitCategoryTest {
     }
 
     @Test
-    fun `all 22 metrics have a unitCategory assigned`() {
+    fun `all 24 metrics have a unitCategory assigned`() {
         for (metric in DashboardMetric.entries) {
             // Just verify it doesn't throw — every metric must have a category
             metric.unitCategory
         }
-        assertEquals(22, DashboardMetric.entries.size)
+        assertEquals(24, DashboardMetric.entries.size)
     }
 }

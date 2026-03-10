@@ -302,6 +302,8 @@ class VeteranDecoder : WheelDecoder {
             calculatedPwm = calculatedPwm,
             angle = pitchAngle / 100.0,
             tiltBackSpeed = speedTiltback / 10,
+            alertSpeed = speedAlert / 10,
+            autoOffTime = autoOffSec,
             pedalsMode = pedalsMode,
             version = version,
             model = getModelName(),
@@ -450,6 +452,7 @@ class VeteranDecoder : WheelDecoder {
 
     private fun updateBmsCellStats(bms: SmartBms) {
         val cellCount = getCellsForWheel()
+        bms.cellNum = cellCount
         bms.minCell = bms.cells[0]
         bms.maxCell = bms.cells[0]
         bms.maxCellNum = 1

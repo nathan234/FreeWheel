@@ -292,11 +292,11 @@ class DashboardMetricTest {
         assertTrue(WidgetType.STAT_ROW in DashboardMetric.TRIP_DISTANCE.supportedDisplayTypes)
     }
 
-    // --- All 22 metrics present ---
+    // --- All 24 metrics present ---
 
     @Test
-    fun `there are 22 metrics in the registry`() {
-        assertEquals(22, DashboardMetric.entries.size)
+    fun `there are 24 metrics in the registry`() {
+        assertEquals(24, DashboardMetric.entries.size)
     }
 
     @Test

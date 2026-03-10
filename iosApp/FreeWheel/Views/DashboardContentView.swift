@@ -148,6 +148,12 @@ struct DashboardContentView: View {
                             VStack(spacing: 12) {
                                 StatRow(label: DashboardLabels.shared.PEDALS_MODE, value: DisplayUtils.shared.pedalsModeText(mode: wheelManager.wheelState.pedalsMode))
                                 StatRow(label: DashboardLabels.shared.TILT_BACK_SPEED, value: DisplayUtils.shared.tiltBackSpeedText(speed: wheelManager.wheelState.tiltBackSpeed, useMph: wheelManager.useMph))
+                                if wheelManager.wheelState.alertSpeed > 0 {
+                                    StatRow(label: DashboardLabels.shared.ALERT_SPEED, value: DisplayUtils.shared.alertSpeedText(speed: wheelManager.wheelState.alertSpeed, useMph: wheelManager.useMph))
+                                }
+                                if wheelManager.wheelState.autoOffTime > 0 {
+                                    StatRow(label: DashboardLabels.shared.AUTO_OFF_TIME, value: DisplayUtils.shared.autoOffTimeText(seconds: wheelManager.wheelState.autoOffTime))
+                                }
                                 StatRow(label: DashboardLabels.shared.LIGHT, value: DisplayUtils.shared.lightModeText(mode: wheelManager.wheelState.lightMode))
                                 StatRow(label: DashboardLabels.shared.LED_MODE, value: "\(wheelManager.wheelState.ledMode)")
                             }

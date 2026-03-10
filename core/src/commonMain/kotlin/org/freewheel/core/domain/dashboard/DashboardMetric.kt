@@ -250,6 +250,26 @@ enum class DashboardMetric(
         supportedDisplayTypes = setOf(WidgetType.STAT_ROW),
         supportedWheelTypes = setOf(WheelType.KINGSONG),
         colorHex = 0xFF607D8B
+    ),
+    ALERT_SPEED(
+        label = "Alert Speed", unit = "km/h",
+        maxValueSpec = MaxValueSpec.None,
+        decimals = 0, greenBelow = 1.0, redAbove = 1.0,
+        invertedColor = false,
+        unitCategory = UnitCategory.SPEED,
+        supportedDisplayTypes = setOf(WidgetType.STAT_ROW),
+        supportedWheelTypes = setOf(WheelType.VETERAN),
+        colorHex = 0xFFFF5722
+    ),
+    AUTO_OFF_TIME(
+        label = "Auto Off", unit = "s",
+        maxValueSpec = MaxValueSpec.None,
+        decimals = 0, greenBelow = 1.0, redAbove = 1.0,
+        invertedColor = false,
+        unitCategory = UnitCategory.NONE,
+        supportedDisplayTypes = setOf(WidgetType.STAT_ROW),
+        supportedWheelTypes = setOf(WheelType.VETERAN),
+        colorHex = 0xFF607D8B
     );
 
     /**
@@ -280,6 +300,8 @@ enum class DashboardMetric(
         SPEED_LIMIT -> state.speedLimit
         CURRENT_LIMIT -> state.currentLimit
         FAN_STATUS -> state.fanStatus.toDouble()
+        ALERT_SPEED -> state.alertSpeed.toDouble()
+        AUTO_OFF_TIME -> state.autoOffTime.toDouble()
     }
 
     /**

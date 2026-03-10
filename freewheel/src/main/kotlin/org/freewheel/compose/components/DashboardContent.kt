@@ -225,6 +225,12 @@ fun DashboardContent(
             StatsSection(modifier = Modifier.padding(horizontal = 16.dp)) {
                 StatRow(label = DashboardLabels.PEDALS_MODE, value = DisplayUtils.pedalsModeText(wheelState.pedalsMode))
                 StatRow(label = DashboardLabels.TILT_BACK_SPEED, value = DisplayUtils.tiltBackSpeedText(wheelState.tiltBackSpeed, useMph))
+                if (wheelState.alertSpeed > 0) {
+                    StatRow(label = DashboardLabels.ALERT_SPEED, value = DisplayUtils.alertSpeedText(wheelState.alertSpeed, useMph))
+                }
+                if (wheelState.autoOffTime > 0) {
+                    StatRow(label = DashboardLabels.AUTO_OFF_TIME, value = DisplayUtils.autoOffTimeText(wheelState.autoOffTime))
+                }
                 StatRow(label = DashboardLabels.LIGHT, value = DisplayUtils.lightModeText(wheelState.lightMode))
                 StatRow(label = DashboardLabels.LED_MODE, value = "${wheelState.ledMode}")
             }

@@ -143,6 +143,8 @@ data class WheelState(
     val lowVoltageMode: Boolean = false,
     val keyTone: Int = -1,           // 0-100% (-1=unknown)
     val lockState: Int = -1,         // lock bitfield (-1=unknown)
+    val alertSpeed: Int = 0,         // km/h (alert/warning speed threshold)
+    val autoOffTime: Int = 0,        // seconds (auto power-off timer)
 
     // Error tracking
     val error: String = "",
@@ -243,7 +245,8 @@ data class WheelState(
         spinKill = spinKill, cruise = cruise, loadDetect = loadDetect,
         standbyTime = standbyTime, chargeLimit = chargeLimit,
         highSpeedMode = highSpeedMode, lowVoltageMode = lowVoltageMode,
-        keyTone = keyTone, lockState = lockState
+        keyTone = keyTone, lockState = lockState,
+        alertSpeed = alertSpeed, autoOffTime = autoOffTime
     )
 
     /** Extract identity fields (set once per connection). */

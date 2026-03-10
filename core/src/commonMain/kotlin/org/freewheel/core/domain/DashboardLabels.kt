@@ -10,6 +10,8 @@ object DashboardLabels {
     // Wheel settings rows
     const val PEDALS_MODE = "Pedals Mode"
     const val TILT_BACK_SPEED = "Tilt-Back Speed"
+    const val ALERT_SPEED = "Alert Speed"
+    const val AUTO_OFF_TIME = "Auto Off"
     const val LIGHT = "Light"
     const val LED_MODE = "LED Mode"
 

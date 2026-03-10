@@ -62,5 +62,7 @@ data class WheelSettingsState(
     val highSpeedMode: Boolean = false,
     val lowVoltageMode: Boolean = false,
     val keyTone: Int = -1,
-    val lockState: Int = -1
+    val lockState: Int = -1,
+    val alertSpeed: Int = 0,
+    val autoOffTime: Int = 0
 )

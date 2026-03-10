@@ -64,6 +64,10 @@ private fun BmsBlock(bms: BmsSnapshot) {
         }
         Text("Temp 1: ${DisplayUtils.formatBmsTemperature(bms.temp1)}")
         Text("Temp 2: ${DisplayUtils.formatBmsTemperature(bms.temp2)}")
+        if (bms.temp3 != 0.0) Text("Temp 3: ${DisplayUtils.formatBmsTemperature(bms.temp3)}")
+        if (bms.temp4 != 0.0) Text("Temp 4: ${DisplayUtils.formatBmsTemperature(bms.temp4)}")
+        if (bms.temp5 != 0.0) Text("Temp 5: ${DisplayUtils.formatBmsTemperature(bms.temp5)}")
+        if (bms.temp6 != 0.0) Text("Temp 6: ${DisplayUtils.formatBmsTemperature(bms.temp6)}")
         if (bms.health > 0) {
             Text("Health: ${bms.health}%")
         }

@@ -165,6 +165,18 @@ object DisplayUtils {
         return formatSpeed(speed.toDouble(), useMph)
     }
 
+    fun alertSpeedText(speed: Int, useMph: Boolean): String {
+        if (speed == 0) return "Off"
+        return formatSpeed(speed.toDouble(), useMph)
+    }
+
+    fun autoOffTimeText(seconds: Int): String {
+        if (seconds == 0) return "Off"
+        val min = seconds / 60
+        val sec = seconds % 60
+        return if (min > 0) "${min}m ${sec}s" else "${sec}s"
+    }
+
     // --- Wheel identity ---
 
     fun wheelDisplayName(wheelType: WheelType, model: String, name: String, btName: String = ""): String {
