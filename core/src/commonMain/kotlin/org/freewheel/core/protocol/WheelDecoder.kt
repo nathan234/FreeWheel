@@ -1,5 +1,6 @@
 package org.freewheel.core.protocol
 
+import org.freewheel.core.domain.CapabilitySet
 import org.freewheel.core.domain.WheelState
 import org.freewheel.core.domain.WheelType
 
@@ -58,6 +59,13 @@ interface WheelDecoder {
      * Interval in milliseconds for keep-alive commands.
      */
     val keepAliveIntervalMs: Long get() = 0L
+
+    /**
+     * Capabilities of the connected wheel.
+     * Returns a default (unresolved) set until model/firmware are detected.
+     * Decoders populate this from their [CapabilityMap] as identification frames arrive.
+     */
+    fun getCapabilities(): CapabilitySet = CapabilitySet()
 }
 
 /**

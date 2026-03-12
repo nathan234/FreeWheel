@@ -5,6 +5,7 @@ import android.app.Application
 import androidx.preference.PreferenceManager
 import androidx.test.core.app.ApplicationProvider
 import org.freewheel.AppConfig
+import org.freewheel.core.domain.CapabilitySet
 import org.freewheel.core.domain.WheelState
 import org.freewheel.core.logging.BleCaptureLogger
 import org.freewheel.core.logging.RideLogger
@@ -82,6 +83,7 @@ class WheelViewModelFinalizationTest {
         mockCm = mockk(relaxed = true) {
             every { connectionState } returns mockConnectionState
             every { wheelState } returns MutableStateFlow(WheelState())
+            every { capabilities } returns MutableStateFlow(CapabilitySet())
         }
         mockBle = mockk(relaxed = true)
         mockService = mockk(relaxed = true)

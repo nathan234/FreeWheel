@@ -1,5 +1,7 @@
 package org.freewheel.core.protocol
 
+import org.freewheel.core.domain.CapabilitySet
+import org.freewheel.core.domain.SettingsCommandId
 import org.freewheel.core.domain.SmartBms
 import org.freewheel.core.domain.WheelState
 import org.freewheel.core.domain.WheelType
@@ -88,6 +90,22 @@ class GotwayDecoder : WheelDecoder {
     private companion object {
         private const val MAX_INFO_ATTEMPTS = 50
         private const val RATIO_GW = 0.875
+
+        /** All Begode/Gotway wheels share the same command set. */
+        val SUPPORTED_COMMANDS: Set<SettingsCommandId> = setOf(
+            SettingsCommandId.LIGHT_MODE,
+            SettingsCommandId.LED_MODE,
+            SettingsCommandId.PEDALS_MODE,
+            SettingsCommandId.ROLL_ANGLE_MODE,
+            SettingsCommandId.CUTOUT_ANGLE,
+            SettingsCommandId.PEDAL_TILT,
+            SettingsCommandId.WEAK_MAGNETISM,
+            SettingsCommandId.EXTENDED_ROLL_ANGLE,
+            SettingsCommandId.BEEPER_VOLUME,
+            SettingsCommandId.PLATE_PROTECTION,
+            SettingsCommandId.POWER_ALARM,
+            SettingsCommandId.CALIBRATE,
+        )
 
         // Frame types (byte 18 of unpacked frame)
         private const val FRAME_LIVE_DATA = 0x00
@@ -606,6 +624,16 @@ class GotwayDecoder : WheelDecoder {
 
     override fun isReady(): Boolean = stateLock.withLock {
         isReady && hasReceivedData
+    }
+
+    override fun getCapabilities(): CapabilitySet = stateLock.withLock {
+        if (!isReady) return@withLock CapabilitySet()
+        CapabilitySet(
+            supportedCommands = SUPPORTED_COMMANDS,
+            detectedModel = model,
+            firmwareVersion = fw,
+            isResolved = true
+        )
     }
 
     override fun reset() {

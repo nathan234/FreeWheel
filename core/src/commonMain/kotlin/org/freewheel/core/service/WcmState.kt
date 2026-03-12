@@ -1,6 +1,7 @@
 package org.freewheel.core.service
 
 import org.freewheel.core.ble.WheelConnectionInfo
+import org.freewheel.core.domain.CapabilitySet
 import org.freewheel.core.domain.WheelState
 import org.freewheel.core.logging.BlePacketDirection
 import org.freewheel.core.protocol.DecoderConfig
@@ -17,6 +18,7 @@ import org.freewheel.core.protocol.WheelDecoder
 data class WcmState(
     val wheelState: WheelState = WheelState(),
     val connectionState: ConnectionState = ConnectionState.Disconnected,
+    val capabilities: CapabilitySet = CapabilitySet(),
     val consecutiveDecodeErrors: Int = 0,
     val consecutiveBleErrors: Int = 0,
     // Internal — not exposed as public flows

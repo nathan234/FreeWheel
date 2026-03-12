@@ -3,18 +3,32 @@ package org.freewheel.core.domain
 /**
  * Shared configuration defining which settings controls appear for each wheel type.
  * Both Android and iOS render their settings screens from this configuration.
+ *
+ * Each wheel type defines a superset of all possible controls. When [capabilities]
+ * is resolved, sections are filtered to only show controls the wheel actually supports.
+ * When capabilities are not yet resolved (null or unresolved), all controls are shown.
  */
 object WheelSettingsConfig {
 
-    fun sections(wheelType: WheelType): List<SettingsSection> = when (wheelType) {
-        WheelType.KINGSONG -> kingsongSections()
-        WheelType.GOTWAY, WheelType.GOTWAY_VIRTUAL -> gotwaySections()
-        WheelType.VETERAN -> veteranSections()
-        WheelType.LEAPERKIM -> leaperkimSections()
-        WheelType.NINEBOT_Z -> ninebotZSections()
-        WheelType.INMOTION -> inmotionSections()
-        WheelType.INMOTION_V2 -> inmotionV2Sections()
-        else -> emptyList()
+    fun sections(wheelType: WheelType, capabilities: CapabilitySet? = null): List<SettingsSection> {
+        val allSections = when (wheelType) {
+            WheelType.KINGSONG -> kingsongSections()
+            WheelType.GOTWAY, WheelType.GOTWAY_VIRTUAL -> gotwaySections()
+            WheelType.VETERAN -> veteranSections()
+            WheelType.LEAPERKIM -> leaperkimSections()
+            WheelType.NINEBOT_Z -> ninebotZSections()
+            WheelType.INMOTION -> inmotionSections()
+            WheelType.INMOTION_V2 -> inmotionV2Sections()
+            else -> emptyList()
+        }
+
+        // Show all controls until capabilities are resolved
+        if (capabilities == null || !capabilities.isResolved) return allSections
+
+        return allSections.mapNotNull { section ->
+            val filtered = section.controls.filter { capabilities.supports(it.commandId) }
+            if (filtered.isEmpty()) null else section.copy(controls = filtered)
+        }
     }
 
     private fun kingsongSections() = listOf(

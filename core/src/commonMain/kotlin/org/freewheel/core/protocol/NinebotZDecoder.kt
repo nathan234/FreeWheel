@@ -1,5 +1,7 @@
 package org.freewheel.core.protocol
 
+import org.freewheel.core.domain.CapabilitySet
+import org.freewheel.core.domain.SettingsCommandId
 import org.freewheel.core.domain.SmartBms
 import org.freewheel.core.domain.WheelState
 import org.freewheel.core.domain.WheelType
@@ -833,6 +835,15 @@ class NinebotZDecoder : WheelDecoder {
         }
     }
 
+    override fun getCapabilities(): CapabilitySet = stateLock.withLock {
+        if (connectionState != NinebotZConnectionState.READY) return@withLock CapabilitySet()
+        CapabilitySet(
+            supportedCommands = SUPPORTED_COMMANDS,
+            detectedModel = "Ninebot Z",
+            isResolved = true
+        )
+    }
+
     override fun reset() {
         stateLock.withLock {
             unpacker.reset()
@@ -984,5 +995,28 @@ class NinebotZDecoder : WheelDecoder {
         if (newGamma.size == 16) {
             gamma = newGamma.copyOf()
         }
+    }
+
+    companion object {
+        val SUPPORTED_COMMANDS: Set<SettingsCommandId> = setOf(
+            SettingsCommandId.LIGHT_MODE,
+            SettingsCommandId.DRL,
+            SettingsCommandId.TAIL_LIGHT,
+            SettingsCommandId.LED_MODE,
+            SettingsCommandId.HANDLE_BUTTON,
+            SettingsCommandId.BRAKE_ASSIST,
+            SettingsCommandId.PEDAL_SENSITIVITY,
+            SettingsCommandId.SPEAKER_VOLUME,
+            SettingsCommandId.ALARM_ENABLED_1,
+            SettingsCommandId.ALARM_ENABLED_2,
+            SettingsCommandId.ALARM_ENABLED_3,
+            SettingsCommandId.ALARM_SPEED_1,
+            SettingsCommandId.ALARM_SPEED_2,
+            SettingsCommandId.ALARM_SPEED_3,
+            SettingsCommandId.LIMITED_MODE,
+            SettingsCommandId.LIMITED_SPEED,
+            SettingsCommandId.LOCK,
+            SettingsCommandId.CALIBRATE,
+        )
     }
 }

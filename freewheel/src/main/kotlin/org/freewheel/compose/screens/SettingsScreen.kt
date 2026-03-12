@@ -92,8 +92,9 @@ fun SettingsScreen(
     val context = LocalContext.current
 
     // Wheel settings config-driven state
-    val wheelSections = remember(wheelState.wheelType) {
-        WheelSettingsConfig.sections(wheelState.wheelType)
+    val capabilities by viewModel.capabilities.collectAsStateWithLifecycle()
+    val wheelSections = remember(wheelState.wheelType, capabilities) {
+        WheelSettingsConfig.sections(wheelState.wheelType, capabilities)
     }
     val toggleStates = remember { mutableStateMapOf<SettingsCommandId, Boolean>() }
     val sliderOverrides = remember(wheelSections) {

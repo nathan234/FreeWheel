@@ -4,6 +4,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class WheelSettingsConfigTest {
@@ -660,5 +661,74 @@ class WheelSettingsConfigTest {
         val lightEffect = lighting.controls[7] as ControlSpec.Toggle
         assertEquals("Light Effects", lightEffect.label)
         assertEquals(SettingsCommandId.LIGHT_EFFECT, lightEffect.commandId)
+    }
+
+    // ==================== Capability Filtering ====================
+
+    @Test
+    fun `null capabilities returns all sections`() {
+        val all = WheelSettingsConfig.sections(WheelType.VETERAN)
+        val withNull = WheelSettingsConfig.sections(WheelType.VETERAN, null)
+        assertEquals(all.size, withNull.size)
+    }
+
+    @Test
+    fun `unresolved capabilities returns all sections`() {
+        val unresolved = CapabilitySet(isResolved = false)
+        val all = WheelSettingsConfig.sections(WheelType.VETERAN)
+        val filtered = WheelSettingsConfig.sections(WheelType.VETERAN, unresolved)
+        assertEquals(all.size, filtered.size)
+    }
+
+    @Test
+    fun `resolved capabilities filters out unsupported controls`() {
+        // Only light mode supported — should keep Lighting section, drop others
+        val caps = CapabilitySet(
+            supportedCommands = setOf(SettingsCommandId.LIGHT_MODE),
+            isResolved = true
+        )
+        val sections = WheelSettingsConfig.sections(WheelType.VETERAN, caps)
+        assertEquals(1, sections.size)
+        assertEquals("Lighting", sections[0].title)
+        assertEquals(1, sections[0].controls.size)
+    }
+
+    @Test
+    fun `Veteran level 0 capabilities shows only base controls`() {
+        val caps = org.freewheel.core.protocol.VeteranDecoder.CAPABILITY_MAP.resolveAt(
+            firmwareLevel = 0,
+            detectedModel = "Sherman"
+        )
+        val sections = WheelSettingsConfig.sections(WheelType.VETERAN, caps)
+        val allCommands = sections.flatMap { it.controls.map { c -> c.commandId } }
+        assertTrue(SettingsCommandId.LIGHT_MODE in allCommands)
+        assertTrue(SettingsCommandId.PEDALS_MODE in allCommands)
+        assertTrue(SettingsCommandId.LOCK in allCommands)
+        assertTrue(SettingsCommandId.RESET_TRIP in allCommands)
+        assertFalse(SettingsCommandId.ALARM_SPEED_1 in allCommands)
+        assertFalse(SettingsCommandId.SCREEN_BACKLIGHT in allCommands)
+    }
+
+    @Test
+    fun `Veteran level 3 capabilities shows all controls`() {
+        val caps = org.freewheel.core.protocol.VeteranDecoder.CAPABILITY_MAP.resolveAt(
+            firmwareLevel = 3,
+            detectedModel = "Sherman S"
+        )
+        val sections = WheelSettingsConfig.sections(WheelType.VETERAN, caps)
+        assertEquals(5, sections.size)
+    }
+
+    @Test
+    fun `empty sections are removed when all controls filtered out`() {
+        val caps = CapabilitySet(
+            supportedCommands = setOf(SettingsCommandId.LIGHT_MODE),
+            isResolved = true
+        )
+        val sections = WheelSettingsConfig.sections(WheelType.KINGSONG, caps)
+        // KingSong has Lighting (3 controls), Ride (1), Dangerous (2)
+        // Only LIGHT_MODE supported → only Lighting section with 1 control
+        assertEquals(1, sections.size)
+        assertEquals("Lighting", sections[0].title)
     }
 }

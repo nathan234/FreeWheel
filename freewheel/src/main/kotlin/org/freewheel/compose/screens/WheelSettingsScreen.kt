@@ -51,8 +51,9 @@ import org.freewheel.core.domain.WheelSettingsConfig
 @Composable
 fun WheelSettingsScreen(viewModel: WheelViewModel, onBack: () -> Unit) {
     val wheelState by viewModel.wheelState.collectAsStateWithLifecycle()
-    val sections = remember(wheelState.wheelType) {
-        WheelSettingsConfig.sections(wheelState.wheelType)
+    val capabilities by viewModel.capabilities.collectAsStateWithLifecycle()
+    val sections = remember(wheelState.wheelType, capabilities) {
+        WheelSettingsConfig.sections(wheelState.wheelType, capabilities)
     }
 
     // Local toggle state for write-only commands

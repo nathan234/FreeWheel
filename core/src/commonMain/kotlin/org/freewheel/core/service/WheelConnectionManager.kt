@@ -4,6 +4,7 @@ import org.freewheel.core.ble.DiscoveredServices
 import org.freewheel.core.ble.WheelConnectionInfo
 import org.freewheel.core.ble.WheelTypeDetector
 import org.freewheel.core.domain.BmsState
+import org.freewheel.core.domain.CapabilitySet
 import org.freewheel.core.domain.TelemetryState
 import org.freewheel.core.domain.WheelIdentity
 import org.freewheel.core.domain.WheelSettingsState
@@ -156,6 +157,12 @@ class WheelConnectionManager(
         .map { it.consecutiveBleErrors }
         .distinctUntilChanged()
         .stateIn(derivedScope, SharingStarted.Eagerly, 0)
+
+    /** Wheel capabilities. Resolved after model/firmware detection; monotonically expanding. */
+    val capabilities: StateFlow<CapabilitySet> = _wcmState
+        .map { it.capabilities }
+        .distinctUntilChanged()
+        .stateIn(derivedScope, SharingStarted.Eagerly, CapabilitySet())
 
     /** Whether the keep-alive timer is running. */
     val isKeepAliveRunning: StateFlow<Boolean> = keepAliveTimer.isRunning
@@ -416,6 +423,8 @@ class WheelConnectionManager(
             SettingsCommandId.EXTENDED_ROLL_ANGLE -> setExtendedRollAngle(intValue)
             SettingsCommandId.POWER_ALARM -> setPowerAlarm(intValue)
             SettingsCommandId.PLATE_PROTECTION -> setPlateProtection(boolValue)
+            // InMotion P6 settings
+            SettingsCommandId.SCREEN_AUTO_OFF -> sendCommand(WheelCommand.SetScreenAutoOff(boolValue))
         }
     }
 
@@ -610,10 +619,19 @@ class WheelConnectionManager(
             }
         }
 
+        // Refresh capabilities (monotonic merge — never removes commands)
+        val newCapabilities = decoder.getCapabilities()
+        val mergedCapabilities = if (newCapabilities.isResolved) {
+            state.capabilities.mergeWith(newCapabilities)
+        } else {
+            state.capabilities
+        }
+
         return WcmTransition(
             state = state.copy(
                 wheelState = result.newState,
                 connectionState = newConnectionState,
+                capabilities = mergedCapabilities,
                 consecutiveDecodeErrors = 0,
                 consecutiveBleErrors = 0
             ),

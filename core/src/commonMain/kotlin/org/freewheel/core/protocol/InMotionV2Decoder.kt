@@ -1,7 +1,11 @@
 package org.freewheel.core.protocol
 
+import org.freewheel.core.domain.CapabilityMap
+import org.freewheel.core.domain.CapabilitySet
+import org.freewheel.core.domain.SettingsCommandId
 import org.freewheel.core.domain.WheelState
 import org.freewheel.core.domain.WheelType
+import org.freewheel.core.domain.resolveAt
 import org.freewheel.core.utils.ByteUtils
 import org.freewheel.core.utils.Lock
 import org.freewheel.core.utils.withLock
@@ -1014,6 +1018,24 @@ class InMotionV2Decoder : WheelDecoder {
         keepAliveCounter = 0
     }
 
+    override fun getCapabilities(): CapabilitySet = stateLock.withLock {
+        if (model == Model.UNKNOWN) return@withLock CapabilitySet()
+        val commands = buildMap {
+            putAll(BASE_COMMANDS)
+            when {
+                isV11Family -> putAll(V11_COMMANDS)
+                isV12Family -> putAll(V12_COMMANDS)
+                isV13Family || isV14Family -> putAll(V13_V14_COMMANDS)
+                model == Model.P6 -> putAll(P6_COMMANDS)
+            }
+        }
+        commands.resolveAt(
+            firmwareLevel = protoVer,
+            detectedModel = model.displayName,
+            firmwareVersion = version
+        )
+    }
+
     // Model grouping helpers (must be called under stateLock)
     private val isV9Like get() = model == Model.V9 || model == Model.P6
     private val isV11Family get() = model == Model.V11 || model == Model.V11Y
@@ -1292,6 +1314,52 @@ class InMotionV2Decoder : WheelDecoder {
     // ==================== Message Building ====================
 
     companion object {
+        /** Commands supported by all InMotion V2 models. */
+        val BASE_COMMANDS: CapabilityMap = mapOf(
+            SettingsCommandId.LIGHT_MODE to 0,
+            SettingsCommandId.LOCK to 0,
+            SettingsCommandId.POWER_OFF to 0,
+            SettingsCommandId.CALIBRATE to 0,
+            SettingsCommandId.HANDLE_BUTTON to 0,
+            SettingsCommandId.RIDE_MODE to 0,
+            SettingsCommandId.SPEAKER_VOLUME to 0,
+            SettingsCommandId.PEDAL_TILT to 0,
+            SettingsCommandId.PEDAL_SENSITIVITY to 0,
+            SettingsCommandId.MAX_SPEED to 0,
+            SettingsCommandId.TRANSPORT_MODE to 0,
+            SettingsCommandId.DRL to 0,
+            SettingsCommandId.GO_HOME_MODE to 0,
+            SettingsCommandId.FANCIER_MODE to 0,
+            SettingsCommandId.MUTE to 0,
+            SettingsCommandId.LIGHT_BRIGHTNESS to 0,
+            SettingsCommandId.STANDBY_TIME to 0,
+        )
+
+        /** V11/V11Y-only commands. */
+        val V11_COMMANDS: CapabilityMap = mapOf(
+            SettingsCommandId.FAN to 0,
+            SettingsCommandId.FAN_QUIET to 0,
+        )
+
+        /** V12 family commands. */
+        val V12_COMMANDS: CapabilityMap = mapOf(
+            SettingsCommandId.AUTO_HEADLIGHT to 0,
+            SettingsCommandId.SCREEN_AUTO_OFF to 0,
+        )
+
+        /** V13/V14 commands. */
+        val V13_V14_COMMANDS: CapabilityMap = mapOf(
+            SettingsCommandId.AUTO_HEADLIGHT to 0,
+        )
+
+        /** P6-specific commands. */
+        val P6_COMMANDS: CapabilityMap = mapOf(
+            SettingsCommandId.SAFE_SPEED_LIMIT to 0,
+            SettingsCommandId.SCREEN_AUTO_OFF to 0,
+            SettingsCommandId.LOGO_LIGHT_BRIGHTNESS to 0,
+            SettingsCommandId.TAIL_LIGHT_MODE to 0,
+            SettingsCommandId.TURN_SIGNAL_MODE to 0,
+        )
         /**
          * Build a message to send to the wheel.
          *

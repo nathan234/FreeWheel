@@ -1,5 +1,7 @@
 package org.freewheel.core.protocol
 
+import org.freewheel.core.domain.CapabilitySet
+import org.freewheel.core.domain.SettingsCommandId
 import org.freewheel.core.domain.WheelState
 import org.freewheel.core.domain.WheelType
 import org.freewheel.core.utils.ByteUtils
@@ -41,6 +43,19 @@ class LeaperkimCanDecoder : WheelDecoder {
     // ==================== CAN Message IDs ====================
 
     internal companion object {
+        val SUPPORTED_COMMANDS: Set<SettingsCommandId> = setOf(
+            SettingsCommandId.LIGHT_MODE,
+            SettingsCommandId.LED,
+            SettingsCommandId.HANDLE_BUTTON,
+            SettingsCommandId.RIDE_MODE,
+            SettingsCommandId.MAX_SPEED,
+            SettingsCommandId.PEDAL_TILT,
+            SettingsCommandId.PEDAL_SENSITIVITY,
+            SettingsCommandId.SPEAKER_VOLUME,
+            SettingsCommandId.LOCK,
+            SettingsCommandId.POWER_OFF,
+        )
+
         // TX commands
         const val CAN_INIT_PASSWORD = 0x0F58B927
         const val CAN_INIT_COMM = 0x0F022A02
@@ -619,6 +634,15 @@ class LeaperkimCanDecoder : WheelDecoder {
     }
 
     override fun isReady(): Boolean = stateLock.withLock { phase == InitPhase.POLLING }
+
+    override fun getCapabilities(): CapabilitySet = stateLock.withLock {
+        if (phase != InitPhase.POLLING) return@withLock CapabilitySet()
+        CapabilitySet(
+            supportedCommands = SUPPORTED_COMMANDS,
+            detectedModel = "Leaperkim CAN",
+            isResolved = true
+        )
+    }
 
     override fun reset() {
         stateLock.withLock {

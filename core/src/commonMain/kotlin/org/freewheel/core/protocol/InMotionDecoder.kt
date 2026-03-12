@@ -1,5 +1,7 @@
 package org.freewheel.core.protocol
 
+import org.freewheel.core.domain.CapabilitySet
+import org.freewheel.core.domain.SettingsCommandId
 import org.freewheel.core.domain.WheelState
 import org.freewheel.core.domain.WheelType
 import org.freewheel.core.utils.ByteUtils
@@ -151,6 +153,15 @@ class InMotionDecoder : WheelDecoder {
     }
 
     override fun isReady(): Boolean = stateLock.withLock { isReady && model != Model.UNKNOWN }
+
+    override fun getCapabilities(): CapabilitySet = stateLock.withLock {
+        if (model == Model.UNKNOWN) return@withLock CapabilitySet()
+        CapabilitySet(
+            supportedCommands = SUPPORTED_COMMANDS,
+            detectedModel = model.name,
+            isResolved = true
+        )
+    }
 
     override fun reset() {
         stateLock.withLock {
@@ -913,6 +924,19 @@ class InMotionDecoder : WheelDecoder {
     // ==================== Utility Functions ====================
 
     companion object {
+        val SUPPORTED_COMMANDS: Set<SettingsCommandId> = setOf(
+            SettingsCommandId.LIGHT_MODE,
+            SettingsCommandId.LED,
+            SettingsCommandId.HANDLE_BUTTON,
+            SettingsCommandId.RIDE_MODE,
+            SettingsCommandId.MAX_SPEED,
+            SettingsCommandId.PEDAL_TILT,
+            SettingsCommandId.PEDAL_SENSITIVITY,
+            SettingsCommandId.SPEAKER_VOLUME,
+            SettingsCommandId.CALIBRATE,
+            SettingsCommandId.POWER_OFF,
+        )
+
         /**
          * Calculate battery percentage from voltage based on model.
          */

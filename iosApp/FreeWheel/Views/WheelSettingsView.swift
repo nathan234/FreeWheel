@@ -27,7 +27,7 @@ struct WheelSettingsContent: View {
     @State private var showConfirmation = false
 
     var body: some View {
-        let sections = WheelSettingsConfig.shared.sections(wheelType: wheelManager.wheelState.wheelType)
+        let sections = WheelSettingsConfig.shared.sections(wheelType: wheelManager.wheelState.wheelType, capabilities: wheelManager.capabilities)
 
         ForEach(Array(sections.enumerated()), id: \.offset) { _, section in
             Section(section.title) {

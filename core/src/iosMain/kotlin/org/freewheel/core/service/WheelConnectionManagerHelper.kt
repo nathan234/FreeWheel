@@ -5,6 +5,7 @@ import org.freewheel.core.alarm.AlarmConfig
 import org.freewheel.core.alarm.AlarmResult
 import org.freewheel.core.logging.BlePacketDirection
 import org.freewheel.core.domain.BmsState
+import org.freewheel.core.domain.CapabilitySet
 import org.freewheel.core.domain.TelemetryState
 import org.freewheel.core.domain.WheelIdentity
 import org.freewheel.core.domain.WheelSettingsState
@@ -422,6 +423,12 @@ object WheelConnectionManagerHelper {
     fun observeBmsState(manager: WheelConnectionManager, onChange: (BmsState) -> Unit): FlowObservation {
         val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
         scope.launch { manager.bmsState.collect { onChange(it) } }
+        return FlowObservation(scope)
+    }
+
+    fun observeCapabilities(manager: WheelConnectionManager, onChange: (CapabilitySet) -> Unit): FlowObservation {
+        val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+        scope.launch { manager.capabilities.collect { onChange(it) } }
         return FlowObservation(scope)
     }
 

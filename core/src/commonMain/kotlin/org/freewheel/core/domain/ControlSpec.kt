@@ -39,7 +39,32 @@ enum class SettingsCommandId {
     // Veteran extended settings
     HIGH_SPEED_MODE, LOW_VOLTAGE_MODE, KEY_TONE,
     SCREEN_BACKLIGHT, STOP_SPEED, VETERAN_PWM_LIMIT, VOLTAGE_CORRECTION,
-    MAX_CHARGE_VOLTAGE, LATERAL_CUTOFF_ANGLE;
+    MAX_CHARGE_VOLTAGE, LATERAL_CUTOFF_ANGLE,
+    // InMotion P6 settings
+    SCREEN_AUTO_OFF;
+
+    /**
+     * True if this command is firmware-gated (not supported by all models of its WheelType).
+     * Used by [CapabilitySet.supports] to detect wheels with version-dependent features.
+     */
+    val isExtended: Boolean get() = when (this) {
+        // Veteran: mVer >= 3 required
+        ALARM_SPEED_1, PEDAL_TILT, TRANSPORT_MODE, HIGH_SPEED_MODE, LOW_VOLTAGE_MODE,
+        KEY_TONE, SCREEN_BACKLIGHT, STOP_SPEED, VETERAN_PWM_LIMIT, VOLTAGE_CORRECTION,
+        MAX_CHARGE_VOLTAGE, LATERAL_CUTOFF_ANGLE,
+        // InMotion V2: model/protoVer gated
+        BERM_ANGLE_MODE, BERM_ANGLE, TURNING_SENSITIVITY, ONE_PEDAL_MODE,
+        SPEEDING_BRAKING_MODE, SPEEDING_BRAKING_ANGLE, SOUND_WAVE, SOUND_WAVE_SENSITIVITY,
+        SAFE_SPEED_LIMIT, BACKWARD_OVERSPEED_ALERT, TAIL_LIGHT_MODE, TURN_SIGNAL_MODE,
+        LOGO_LIGHT_BRIGHTNESS, AUTO_HEADLIGHT, LIGHT_EFFECT, LIGHT_EFFECT_MODE,
+        TWO_BATTERY_MODE, LOW_BATTERY_SAFE_MODE, SPIN_KILL, CRUISE, LOAD_DETECT,
+        STANDBY_TIME, CHARGE_LIMIT, SCREEN_AUTO_OFF,
+        // Begode extended
+        WEAK_MAGNETISM, EXTENDED_ROLL_ANGLE, POWER_ALARM, PLATE_PROTECTION,
+        // InMotion V2 thermal (V11-only)
+        FAN_QUIET -> true
+        else -> false
+    }
 
     /** Read current int value from WheelState, or null if no readback. */
     fun readInt(state: WheelState): Int? = when (this) {

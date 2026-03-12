@@ -1,5 +1,7 @@
 package org.freewheel.core.protocol
 
+import org.freewheel.core.domain.CapabilitySet
+import org.freewheel.core.domain.SettingsCommandId
 import org.freewheel.core.domain.SmartBms
 import org.freewheel.core.domain.WheelState
 import org.freewheel.core.domain.WheelType
@@ -570,6 +572,16 @@ class KingsongDecoder : WheelDecoder {
         model.isNotEmpty() && hasReceivedVoltage
     }
 
+    override fun getCapabilities(): CapabilitySet = stateLock.withLock {
+        if (model.isEmpty()) return@withLock CapabilitySet()
+        CapabilitySet(
+            supportedCommands = SUPPORTED_COMMANDS,
+            detectedModel = model,
+            firmwareVersion = version,
+            isResolved = true
+        )
+    }
+
     override fun reset() = stateLock.withLock {
         ksAlarm1Speed = 0
         ksAlarm2Speed = 0
@@ -716,5 +728,14 @@ class KingsongDecoder : WheelDecoder {
 
     companion object {
         private const val KS18L_SCALER = 0.83
+
+        val SUPPORTED_COMMANDS: Set<SettingsCommandId> = setOf(
+            SettingsCommandId.LIGHT_MODE,
+            SettingsCommandId.LED_MODE,
+            SettingsCommandId.STROBE_MODE,
+            SettingsCommandId.PEDALS_MODE,
+            SettingsCommandId.CALIBRATE,
+            SettingsCommandId.POWER_OFF,
+        )
     }
 }

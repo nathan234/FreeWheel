@@ -23,6 +23,7 @@ import org.freewheel.core.service.BleManager
 import org.freewheel.core.service.ConnectionState
 import org.freewheel.core.service.DemoDataProvider
 import org.freewheel.core.service.WheelConnectionManager
+import org.freewheel.core.domain.CapabilitySet
 import org.freewheel.core.domain.AlarmAction
 import org.freewheel.core.domain.AlarmType
 import org.freewheel.core.domain.SettingsCommandId
@@ -81,6 +82,7 @@ class WheelViewModel(
     private var bleManager: BleManager? = null
     private var stateCollectionJob: Job? = null
     private var connectionCollectionJob: Job? = null
+    private var capabilitiesCollectionJob: Job? = null
 
     // Connection state
     private val _connectionState = MutableStateFlow<ConnectionState>(ConnectionState.Disconnected)
@@ -108,6 +110,10 @@ class WheelViewModel(
 
     // Real wheel state from WheelConnectionManager
     private val _realWheelState = MutableStateFlow(WheelState())
+
+    // Capabilities from WheelConnectionManager
+    private val _capabilities = MutableStateFlow(CapabilitySet())
+    val capabilities: StateFlow<CapabilitySet> = _capabilities.asStateFlow()
 
     // Wheel state — combines real and demo sources
     val wheelState: StateFlow<WheelState> = combine(
@@ -294,6 +300,9 @@ class WheelViewModel(
         stateCollectionJob = viewModelScope.launch {
             cm.wheelState.collect { _realWheelState.value = it }
         }
+        capabilitiesCollectionJob = viewModelScope.launch {
+            cm.capabilities.collect { _capabilities.value = it }
+        }
         connectionCollectionJob = viewModelScope.launch {
             cm.connectionState.collect { state ->
                 if (!_isDemo.value) {
@@ -326,8 +335,10 @@ class WheelViewModel(
         wearOsManager = null
         stateCollectionJob?.cancel()
         connectionCollectionJob?.cancel()
+        capabilitiesCollectionJob?.cancel()
         stateCollectionJob = null
         connectionCollectionJob = null
+        capabilitiesCollectionJob = null
         autoConnectManager?.destroy()
         autoConnectManager = null
         wheelService?.onGpsLocationUpdate = null

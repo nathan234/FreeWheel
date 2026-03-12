@@ -9,6 +9,7 @@ class WheelManager: ObservableObject {
     // MARK: - Published State
 
     @Published private(set) var wheelState: WheelState = WheelState.companion.empty()
+    @Published private(set) var capabilities: CapabilitySet = CapabilitySet.companion.empty()
     @Published private(set) var connectionState: ConnectionStateWrapper = .disconnected
     @Published private(set) var discoveredDevices: [DiscoveredDevice] = []
     @Published private(set) var isScanning: Bool = false
@@ -287,6 +288,7 @@ class WheelManager: ObservableObject {
 
     private var wheelStateObserver: FlowObservation?
     private var connectionStateObserver: FlowObservation?
+    private var capabilitiesObserver: FlowObservation?
     private var autoConnectingObserver: FlowObservation?
     private var reconnectStateObserver: FlowObservation?
     private var demoStateObserver: FlowObservation?
@@ -388,6 +390,7 @@ class WheelManager: ObservableObject {
     deinit {
         wheelStateObserver?.close()
         connectionStateObserver?.close()
+        capabilitiesObserver?.close()
         autoConnectingObserver?.close()
         reconnectStateObserver?.close()
         demoStateObserver?.close()
@@ -476,6 +479,7 @@ class WheelManager: ObservableObject {
         isMockMode = false
         connectionState = .disconnected
         wheelState = WheelState.companion.empty()
+        capabilities = CapabilitySet.companion.empty()
     }
 
     private func startDemoObserving() {
@@ -538,6 +542,7 @@ class WheelManager: ObservableObject {
         isTestMode = false
         connectionState = .disconnected
         wheelState = WheelState.companion.empty()
+        capabilities = CapabilitySet.companion.empty()
         telemetryBuffer.clear()
     }
 
@@ -566,6 +571,13 @@ class WheelManager: ObservableObject {
             Task { @MainActor in
                 guard let self = self, !self.isMockMode else { return }
                 self.handleWheelStateUpdate(state)
+            }
+        }
+
+        // Observe capabilities — drives settings UI filtering
+        capabilitiesObserver = helper.observeCapabilities(manager: cm) { [weak self] caps in
+            Task { @MainActor in
+                self?.capabilities = caps
             }
         }
 

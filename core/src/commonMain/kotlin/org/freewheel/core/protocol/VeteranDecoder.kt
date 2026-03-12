@@ -1,8 +1,12 @@
 package org.freewheel.core.protocol
 
+import org.freewheel.core.domain.CapabilityMap
+import org.freewheel.core.domain.CapabilitySet
+import org.freewheel.core.domain.SettingsCommandId
 import org.freewheel.core.domain.SmartBms
 import org.freewheel.core.domain.WheelState
 import org.freewheel.core.domain.WheelType
+import org.freewheel.core.domain.resolveAt
 import org.freewheel.core.utils.ByteUtils
 import org.freewheel.core.utils.Lock
 import org.freewheel.core.utils.currentTimeMillis
@@ -205,6 +209,7 @@ class VeteranDecoder : WheelDecoder {
     private val unpacker = VeteranUnpacker()
     private var lastPacketTime = 0L
     private var mVer = 0
+    private var version = ""
     private var bms1 = SmartBms()
     private var bms2 = SmartBms()
 
@@ -252,7 +257,7 @@ class VeteranDecoder : WheelDecoder {
         val speedTiltback = ByteUtils.shortFromBytesBE(buff, 26) * 10
         val ver = ByteUtils.shortFromBytesBE(buff, 28)
         mVer = ver / 1000
-        val version = "${ver / 1000}.${(ver % 1000) / 100}.${ver % 100}".padStart(9, '0')
+        version = "${ver / 1000}.${(ver % 1000) / 100}.${ver % 100}".padStart(9, '0')
         val pedalsMode = ByteUtils.shortFromBytesBE(buff, 30)
         val pitchAngle = ByteUtils.signedShortFromBytesBE(buff, 32)
         val hwPwm = ByteUtils.shortFromBytesBE(buff, 34)
@@ -578,11 +583,21 @@ class VeteranDecoder : WheelDecoder {
 
     override fun isReady(): Boolean = stateLock.withLock { mVer != 0 }
 
+    override fun getCapabilities(): CapabilitySet = stateLock.withLock {
+        if (mVer == 0) return@withLock CapabilitySet()
+        CAPABILITY_MAP.resolveAt(
+            firmwareLevel = mVer,
+            detectedModel = getModelName(),
+            firmwareVersion = version
+        )
+    }
+
     override fun reset() {
         stateLock.withLock {
             unpacker.reset()
             lastPacketTime = 0
             mVer = 0
+            version = ""
             bms1 = SmartBms()
             bms2 = SmartBms()
         }
@@ -653,89 +668,77 @@ class VeteranDecoder : WheelDecoder {
         return result
     }
 
+    /**
+     * Check if a command requiring a minimum firmware level is supported.
+     * Uses the [CAPABILITY_MAP] as the single source of truth.
+     * Must be called under [stateLock].
+     */
+    private fun isSupported(commandId: SettingsCommandId): Boolean {
+        val minVer = CAPABILITY_MAP[commandId] ?: return false
+        return mVer >= minVer
+    }
+
     override fun buildCommand(command: WheelCommand): List<WheelCommand> {
-        val ver = stateLock.withLock { mVer }
+        return stateLock.withLock {
+            buildCommandLocked(command)
+        }
+    }
+
+    private fun buildCommandLocked(command: WheelCommand): List<WheelCommand> {
         return when (command) {
             is WheelCommand.Beep -> {
-                if (ver < 3) {
+                if (mVer < 3) {
                     listOf(WheelCommand.SendBytes("b".encodeToByteArray()))
                 } else {
-                    // cmd 0x0E, value at byte 9 = 0x01
-                    listOf(WheelCommand.SendBytes(
-                        buildVeteranCommand(0x0E, 9, 0x01)
-                    ))
+                    listOf(WheelCommand.SendBytes(buildVeteranCommand(0x0E, 9, 0x01)))
                 }
             }
             is WheelCommand.SetLight -> {
-                if (ver < 3) {
+                if (mVer < 3) {
                     listOf(WheelCommand.SendBytes(
                         if (command.enabled) "SetLightON".encodeToByteArray()
                         else "SetLightOFF".encodeToByteArray()
                     ))
                 } else {
-                    // cmd 0x0D, value at byte 8 = 1/0
                     listOf(WheelCommand.SendBytes(
                         buildVeteranCommand(0x0D, 8, if (command.enabled) 1 else 0, byte5 = 0x01)
                     ))
                 }
             }
             is WheelCommand.SetPedalsMode -> {
-                if (ver < 3) {
+                if (mVer < 3) {
                     val cmd = when (command.mode) {
-                        0 -> "SETh"
-                        1 -> "SETm"
-                        2 -> "SETs"
+                        0 -> "SETh"; 1 -> "SETm"; 2 -> "SETs"
                         else -> return emptyList()
                     }
                     listOf(WheelCommand.SendBytes(cmd.encodeToByteArray()))
                 } else {
-                    // cmd 0x0C, value at byte 7
-                    // UI sends 0=hard, 1=medium, 2=soft
-                    // Wheel expects 3=hard, 2=medium, 1=soft
                     val value = when (command.mode) {
-                        0 -> 3  // hard
-                        1 -> 2  // medium
-                        2 -> 1  // soft
+                        0 -> 3; 1 -> 2; 2 -> 1  // hard/medium/soft
                         else -> return emptyList()
                     }
-                    listOf(WheelCommand.SendBytes(
-                        buildVeteranCommand(0x0C, 7, value, byte5 = 0x01)
-                    ))
+                    listOf(WheelCommand.SendBytes(buildVeteranCommand(0x0C, 7, value, byte5 = 0x01)))
                 }
             }
             is WheelCommand.SetAlarmSpeed -> {
-                if (ver < 3) return emptyList()
-                // cmd 0x11, value at byte 12 = speed + 10
-                listOf(WheelCommand.SendBytes(
-                    buildVeteranCommand(0x11, 12, command.speed + 10, byte5 = 0x01)
-                ))
+                if (!isSupported(SettingsCommandId.ALARM_SPEED_1)) return emptyList()
+                listOf(WheelCommand.SendBytes(buildVeteranCommand(0x11, 12, command.speed + 10, byte5 = 0x01)))
             }
             is WheelCommand.SetPedalTilt -> {
-                if (ver < 3) return emptyList()
-                // cmd 0x10, value at byte 11 = angle + 80
-                // command.angle comes from UI as raw degrees (e.g. -8 to 8)
-                // After dispatch: setPedalTilt multiplies by 10, so angle is degrees*10
-                // Encoding: value = angle + 80 (where angle is degrees*10)
-                listOf(WheelCommand.SendBytes(
-                    buildVeteranCommand(0x10, 11, command.angle + 80, byte5 = 0x01)
-                ))
+                if (!isSupported(SettingsCommandId.PEDAL_TILT)) return emptyList()
+                listOf(WheelCommand.SendBytes(buildVeteranCommand(0x10, 11, command.angle + 80, byte5 = 0x01)))
             }
             is WheelCommand.SetTransportMode -> {
-                if (ver < 3) return emptyList()
+                if (!isSupported(SettingsCommandId.TRANSPORT_MODE)) return emptyList()
                 val value = if (command.enabled) 1 else 0
-                // Send both old "LkAp" and new "LdAp" (byte6=0x02) formats
                 listOf(
                     WheelCommand.SendBytes(buildVeteranCommand(0x16, 17, value, byte5 = 0x01)),
                     WheelCommand.SendBytes(buildVeteranCommandNew(0x16, 17, value, byte6 = 0x02))
                 )
             }
-            is WheelCommand.SetSpeakerVolume -> {
-                // Veteran has no speaker volume — byte 59 is voltage correction.
-                // This command is unused for Veteran; kept for interface compatibility.
-                emptyList()
-            }
+            is WheelCommand.SetSpeakerVolume -> emptyList()
             is WheelCommand.SetHighSpeedMode -> {
-                if (ver < 3) return emptyList()
+                if (!isSupported(SettingsCommandId.HIGH_SPEED_MODE)) return emptyList()
                 val value = if (command.enabled) 1 else 0
                 listOf(
                     WheelCommand.SendBytes(buildVeteranCommand(0x1A, 21, value, byte5 = 0x01)),
@@ -743,7 +746,7 @@ class VeteranDecoder : WheelDecoder {
                 )
             }
             is WheelCommand.SetLowVoltageMode -> {
-                if (ver < 3) return emptyList()
+                if (!isSupported(SettingsCommandId.LOW_VOLTAGE_MODE)) return emptyList()
                 val value = if (command.enabled) 1 else 0
                 listOf(
                     WheelCommand.SendBytes(buildVeteranCommand(0x19, 20, value, byte5 = 0x01)),
@@ -751,17 +754,11 @@ class VeteranDecoder : WheelDecoder {
                 )
             }
             is WheelCommand.SetKeyTone -> {
-                if (ver < 3) return emptyList()
-                // cmd 0x1C, value at byte 23
-                listOf(WheelCommand.SendBytes(
-                    buildVeteranCommand(0x1C, 23, command.value, byte5 = 0x01)
-                ))
+                if (!isSupported(SettingsCommandId.KEY_TONE)) return emptyList()
+                listOf(WheelCommand.SendBytes(buildVeteranCommand(0x1C, 23, command.value, byte5 = 0x01)))
             }
             is WheelCommand.PowerOff -> {
-                if (ver < 3) return emptyList()
-                // cmd 0x16, byte 16 = 1 (close in 10 seconds)
-                // This has a special layout: value is at byte 16, not the last byte
-                // Use the CMD_SET_CLOSE_IN_10 pattern from decompiled app
+                if (!isSupported(SettingsCommandId.POWER_OFF)) return emptyList()
                 val payload = byteArrayOf(
                     0x4C, 0x6B, 0x41, 0x70, 0x16, 0x01,
                     0x80.toByte(), 0x80.toByte(), 0x80.toByte(), 0x80.toByte(),
@@ -774,57 +771,32 @@ class VeteranDecoder : WheelDecoder {
                 listOf(WheelCommand.SendBytes("CLEARMETER".encodeToByteArray()))
             }
             is WheelCommand.SetScreenBacklight -> {
-                if (ver < 3) return emptyList()
-                // cmd 0x14, value at byte 15, range 0-100%
-                listOf(WheelCommand.SendBytes(
-                    buildVeteranCommandNew(0x14, 15, command.value)
-                ))
+                if (!isSupported(SettingsCommandId.SCREEN_BACKLIGHT)) return emptyList()
+                listOf(WheelCommand.SendBytes(buildVeteranCommandNew(0x14, 15, command.value)))
             }
             is WheelCommand.SetStopSpeed -> {
-                if (ver < 3) return emptyList()
-                // cmd 0x11, value at byte 12, protocol range 10-120
-                // Slider sends 10-120 directly; protocol expects same range
-                listOf(WheelCommand.SendBytes(
-                    buildVeteranCommandNew(0x11, 12, command.speed)
-                ))
+                if (!isSupported(SettingsCommandId.STOP_SPEED)) return emptyList()
+                listOf(WheelCommand.SendBytes(buildVeteranCommandNew(0x11, 12, command.speed)))
             }
             is WheelCommand.SetVeteranPwmLimit -> {
-                if (ver < 3) return emptyList()
-                // cmd 0x12, value at byte 13, protocol range 30-100
-                // Slider sends 30-100 directly
-                listOf(WheelCommand.SendBytes(
-                    buildVeteranCommandNew(0x12, 13, command.limit)
-                ))
+                if (!isSupported(SettingsCommandId.VETERAN_PWM_LIMIT)) return emptyList()
+                listOf(WheelCommand.SendBytes(buildVeteranCommandNew(0x12, 13, command.limit)))
             }
             is WheelCommand.SetVoltageCorrection -> {
-                if (ver < 3) return emptyList()
-                // cmd 0x18, value at byte 19
-                // Slider sends -15..+15; protocol encodes as value + 15 (0..30)
-                listOf(WheelCommand.SendBytes(
-                    buildVeteranCommandNew(0x18, 19, command.value + 15)
-                ))
+                if (!isSupported(SettingsCommandId.VOLTAGE_CORRECTION)) return emptyList()
+                listOf(WheelCommand.SendBytes(buildVeteranCommandNew(0x18, 19, command.value + 15)))
             }
             is WheelCommand.SetMaxChargeVoltage -> {
-                if (ver < 3) return emptyList()
-                // cmd 0x1D, value at byte 24, range 0-120 (×0.1V + base)
-                listOf(WheelCommand.SendBytes(
-                    buildVeteranCommandNew(0x1D, 24, command.value)
-                ))
+                if (!isSupported(SettingsCommandId.MAX_CHARGE_VOLTAGE)) return emptyList()
+                listOf(WheelCommand.SendBytes(buildVeteranCommandNew(0x1D, 24, command.value)))
             }
             is WheelCommand.SetLateralCutoffAngle -> {
-                if (ver < 3) return emptyList()
-                // cmd 0x16, value at byte 17
-                // Slider sends 35-90; protocol expects same range (offset baked into slider range)
-                listOf(WheelCommand.SendBytes(
-                    buildVeteranCommandNew(0x16, 17, command.angle)
-                ))
+                if (!isSupported(SettingsCommandId.LATERAL_CUTOFF_ANGLE)) return emptyList()
+                listOf(WheelCommand.SendBytes(buildVeteranCommandNew(0x16, 17, command.angle)))
             }
             is WheelCommand.Calibrate -> {
-                if (ver < 3) return emptyList()
-                // cmd 0x15, value at byte 16 = 0x01 (fixed)
-                listOf(WheelCommand.SendBytes(
-                    buildVeteranCommandNew(0x15, 16, 0x01)
-                ))
+                if (!isSupported(SettingsCommandId.CALIBRATE)) return emptyList()
+                listOf(WheelCommand.SendBytes(buildVeteranCommandNew(0x15, 16, 0x01)))
             }
             else -> emptyList()
         }
@@ -834,5 +806,30 @@ class VeteranDecoder : WheelDecoder {
 
     companion object {
         private const val WAITING_TIME = 100L
+
+        /** Single source of truth for Veteran command support by mVer. */
+        val CAPABILITY_MAP: CapabilityMap = mapOf(
+            // mVer 0+ (all models — ASCII protocol fallback)
+            SettingsCommandId.LIGHT_MODE to 0,
+            SettingsCommandId.PEDALS_MODE to 0,
+            SettingsCommandId.LOCK to 0,
+            SettingsCommandId.RESET_TRIP to 0,
+
+            // mVer 3+ (LkAp/LdAp binary protocol)
+            SettingsCommandId.ALARM_SPEED_1 to 3,
+            SettingsCommandId.PEDAL_TILT to 3,
+            SettingsCommandId.TRANSPORT_MODE to 3,
+            SettingsCommandId.HIGH_SPEED_MODE to 3,
+            SettingsCommandId.LOW_VOLTAGE_MODE to 3,
+            SettingsCommandId.KEY_TONE to 3,
+            SettingsCommandId.SCREEN_BACKLIGHT to 3,
+            SettingsCommandId.STOP_SPEED to 3,
+            SettingsCommandId.VETERAN_PWM_LIMIT to 3,
+            SettingsCommandId.VOLTAGE_CORRECTION to 3,
+            SettingsCommandId.MAX_CHARGE_VOLTAGE to 3,
+            SettingsCommandId.LATERAL_CUTOFF_ANGLE to 3,
+            SettingsCommandId.CALIBRATE to 3,
+            SettingsCommandId.POWER_OFF to 3,
+        )
     }
 }

@@ -11,6 +11,7 @@ import org.freewheel.core.logging.RideLogger
 import org.freewheel.core.telemetry.PlatformTelemetryFileIO
 import org.freewheel.data.TripDatabase
 import org.freewheel.data.TripRepository
+import org.freewheel.core.domain.CapabilitySet
 import org.freewheel.core.domain.WheelState
 import org.freewheel.core.service.AutoConnectManager
 import org.freewheel.core.service.BleManager
@@ -85,6 +86,7 @@ class WheelViewModelAutoConnectTest {
         mockCm = mockk(relaxed = true) {
             every { connectionState } returns mockConnectionState
             every { wheelState } returns MutableStateFlow(WheelState())
+            every { capabilities } returns MutableStateFlow(CapabilitySet())
         }
         mockBle = mockk(relaxed = true)
         mockService = mockk(relaxed = true)
