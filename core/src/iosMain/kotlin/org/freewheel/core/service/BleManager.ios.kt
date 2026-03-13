@@ -77,6 +77,16 @@ actual class BleManager : BleManagerPort {
     private var centralDelegate: CBCentralManagerDelegateImpl? = null
     private var peripheralDelegate: CBPeripheralDelegateImpl? = null
 
+    /**
+     * Raw Bluetooth adapter state, mirroring CBManagerState values.
+     * Separate from [connectionState] so it persists across connection lifecycle changes.
+     *
+     * Values: CBManagerStateUnknown(0), Resetting(1), Unsupported(2),
+     *         Unauthorized(3), PoweredOff(4), PoweredOn(5).
+     */
+    private val _bluetoothState = MutableStateFlow(CBManagerStateUnknown)
+    val bluetoothState: StateFlow<Long> = _bluetoothState.asStateFlow()
+
     actual override val connectionState: StateFlow<ConnectionState>
         get() = _connectionState.asStateFlow()
 
@@ -271,23 +281,12 @@ actual class BleManager : BleManagerPort {
     // ==================== Internal Callback Methods ====================
 
     internal fun onStateUpdated(state: Long) {
-        when (state) {
-            CBManagerStatePoweredOn -> {
-                // Ready to use
-            }
-            CBManagerStatePoweredOff -> {
-                _connectionState.value = ConnectionState.Failed("Bluetooth is powered off")
-            }
-            CBManagerStateUnauthorized -> {
-                _connectionState.value = ConnectionState.Failed("Bluetooth permission denied")
-            }
-            CBManagerStateUnsupported -> {
-                _connectionState.value = ConnectionState.Failed("Bluetooth not supported")
-            }
-            else -> {
-                // Resetting, Unknown states
-            }
-        }
+        _bluetoothState.value = state
+        // BT adapter state (powered off, unauthorized, unsupported) is surfaced
+        // exclusively via bluetoothState. Connection lifecycle (connecting, connected,
+        // disconnected, failed) is a separate concern in connectionState.
+        // When BT powers off mid-connection, CoreBluetooth fires didDisconnectPeripheral
+        // which sets ConnectionLost — no need to duplicate that here.
     }
 
     internal fun onPeripheralDiscovered(peripheral: CBPeripheral, advertisementData: Map<Any?, *>, rssi: Int) {

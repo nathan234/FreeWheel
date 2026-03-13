@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import FreeWheelCore
 
 // CROSS-PLATFORM SYNC: This view mirrors freewheel/.../compose/screens/ScanScreen.kt.
@@ -58,6 +59,30 @@ struct ScanView: View {
                 }
                 .padding()
 
+                // Bluetooth state banner
+                if wheelManager.bluetoothState == .unauthorized {
+                    BluetoothBanner(
+                        icon: "hand.raised.fill",
+                        message: "Bluetooth permission is required to connect to your wheel.",
+                        buttonLabel: "Open Settings",
+                        action: openAppSettings
+                    )
+                } else if wheelManager.bluetoothState == .poweredOff {
+                    BluetoothBanner(
+                        icon: "antenna.radiowaves.left.and.right.slash",
+                        message: "Bluetooth is turned off. Enable it to scan for wheels.",
+                        buttonLabel: "Open Settings",
+                        action: openBluetoothSettings
+                    )
+                } else if wheelManager.bluetoothState == .unsupported {
+                    BluetoothBanner(
+                        icon: "exclamationmark.triangle.fill",
+                        message: "This device does not support Bluetooth.",
+                        buttonLabel: nil,
+                        action: nil
+                    )
+                }
+
                 // Hide scan button while connecting
                 if connectingAddress == nil {
                     scanButton
@@ -111,6 +136,8 @@ struct ScanView: View {
             }
         }
         .buttonStyle(.plain)
+        .disabled(!wheelManager.bluetoothState.isReady)
+        .opacity(wheelManager.bluetoothState.isReady ? 1.0 : 0.4)
         .padding(.vertical, hasDevices ? 12 : 0)
         .animation(.easeInOut(duration: 0.3), value: hasDevices)
     }
@@ -285,6 +312,18 @@ struct ScanView: View {
         wheelManager.disconnect()
     }
 
+    private func openAppSettings() {
+        if let url = URL(string: UIApplication.openSettingsURLString) {
+            UIApplication.shared.open(url)
+        }
+    }
+
+    private func openBluetoothSettings() {
+        // On iOS, opening Bluetooth settings directly isn't supported via public API.
+        // Open the app settings page which shows the Bluetooth permission toggle.
+        openAppSettings()
+    }
+
     #if targetEnvironment(simulator)
     private func testButton(_ label: String, wheelType: WheelType, color: Color) -> some View {
         Button(action: {
@@ -421,6 +460,40 @@ struct DeviceRow: View {
 
     private var signalBars: Int {
         Int(DisplayUtils.shared.signalBars(rssi: Int32(device.rssi)))
+    }
+}
+
+/// Banner shown when Bluetooth is unavailable (unauthorized, powered off, unsupported).
+private struct BluetoothBanner: View {
+    let icon: String
+    let message: String
+    let buttonLabel: String?
+    let action: (() -> Void)?
+
+    var body: some View {
+        VStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 28))
+                .foregroundColor(.orange)
+
+            Text(message)
+                .font(.subheadline)
+                .multilineTextAlignment(.center)
+                .foregroundColor(.secondary)
+
+            if let buttonLabel = buttonLabel, let action = action {
+                Button(action: action) {
+                    Text(buttonLabel)
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                }
+            }
+        }
+        .padding()
+        .frame(maxWidth: .infinity)
+        .background(Color.orange.opacity(0.08))
+        .cornerRadius(12)
+        .padding(.horizontal)
     }
 }
 

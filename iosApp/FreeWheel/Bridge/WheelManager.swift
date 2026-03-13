@@ -13,6 +13,7 @@ class WheelManager: ObservableObject {
     @Published private(set) var connectionState: ConnectionStateWrapper = .disconnected
     @Published private(set) var discoveredDevices: [DiscoveredDevice] = []
     @Published private(set) var isScanning: Bool = false
+    @Published private(set) var bluetoothState: BluetoothState = .unknown
     @Published var isMockMode: Bool = false
     @Published var isTestMode: Bool = false
 
@@ -291,6 +292,7 @@ class WheelManager: ObservableObject {
     private var capabilitiesObserver: FlowObservation?
     private var autoConnectingObserver: FlowObservation?
     private var reconnectStateObserver: FlowObservation?
+    private var bluetoothStateObserver: FlowObservation?
     private var demoStateObserver: FlowObservation?
 
     // MARK: - Initialization
@@ -595,6 +597,15 @@ class WheelManager: ObservableObject {
                     self.isScanning = true
                 } else if self.isScanning {
                     self.isScanning = false
+                }
+            }
+        }
+
+        // Observe Bluetooth adapter state — drives permission/power UI in ScanView
+        if let ble = bleManager {
+            bluetoothStateObserver = helper.observeBluetoothState(bleManager: ble) { [weak self] rawState in
+                Task { @MainActor in
+                    self?.bluetoothState = BluetoothState(rawValue: rawState.int64Value)
                 }
             }
         }
@@ -1296,6 +1307,30 @@ enum ConnectionStateWrapper: Equatable {
             self = .disconnected
         }
     }
+}
+
+/// Bluetooth adapter state, mapped from CBManagerState values.
+enum BluetoothState {
+    case unknown
+    case resetting
+    case unsupported
+    case unauthorized
+    case poweredOff
+    case poweredOn
+
+    init(rawValue: Int64) {
+        switch rawValue {
+        case 1: self = .resetting
+        case 2: self = .unsupported
+        case 3: self = .unauthorized
+        case 4: self = .poweredOff
+        case 5: self = .poweredOn
+        default: self = .unknown
+        }
+    }
+
+    /// Whether BLE is ready to use.
+    var isReady: Bool { self == .poweredOn }
 }
 
 /// Swift representation of a discovered BLE device
