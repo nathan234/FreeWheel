@@ -63,21 +63,21 @@ struct ScanView: View {
                 if wheelManager.bluetoothState == .unauthorized {
                     BluetoothBanner(
                         icon: "hand.raised.fill",
-                        message: "Bluetooth permission is required to connect to your wheel.",
-                        buttonLabel: "Open Settings",
+                        message: ScanLabels.shared.BT_PERMISSION_REQUIRED,
+                        buttonLabel: ScanLabels.shared.OPEN_SETTINGS,
                         action: openAppSettings
                     )
                 } else if wheelManager.bluetoothState == .poweredOff {
                     BluetoothBanner(
                         icon: "antenna.radiowaves.left.and.right.slash",
-                        message: "Bluetooth is turned off. Enable it to scan for wheels.",
-                        buttonLabel: "Open Settings",
+                        message: ScanLabels.shared.BT_TURNED_OFF,
+                        buttonLabel: ScanLabels.shared.OPEN_SETTINGS,
                         action: openBluetoothSettings
                     )
                 } else if wheelManager.bluetoothState == .unsupported {
                     BluetoothBanner(
                         icon: "exclamationmark.triangle.fill",
-                        message: "This device does not support Bluetooth.",
+                        message: ScanLabels.shared.BT_UNSUPPORTED,
                         buttonLabel: nil,
                         action: nil
                     )

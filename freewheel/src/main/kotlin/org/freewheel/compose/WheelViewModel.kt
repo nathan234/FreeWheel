@@ -21,6 +21,7 @@ import org.freewheel.core.telemetry.TelemetrySample
 import org.freewheel.core.service.AutoConnectManager
 import org.freewheel.core.service.BleDevice
 import org.freewheel.core.service.BleManager
+import org.freewheel.core.service.BluetoothAdapterState
 import org.freewheel.core.service.ConnectionState
 import org.freewheel.core.service.DemoDataProvider
 import org.freewheel.core.service.WheelConnectionManager
@@ -88,6 +89,10 @@ class WheelViewModel(
     // Connection state
     private val _connectionState = MutableStateFlow<ConnectionState>(ConnectionState.Disconnected)
     val connectionState: StateFlow<ConnectionState> = _connectionState.asStateFlow()
+
+    // Bluetooth adapter state (set by ComposeActivity before and after service binding)
+    private val _bluetoothState = MutableStateFlow(BluetoothAdapterState.UNKNOWN)
+    val bluetoothState: StateFlow<BluetoothAdapterState> = _bluetoothState.asStateFlow()
 
     // Track the connect coroutine so we can cancel the scan-stop + connect call
     private var connectJob: Job? = null
@@ -441,10 +446,15 @@ class WheelViewModel(
         _activeAlarms.value = emptySet()
     }
 
-    fun onBluetoothOff() {
-        _isScanning.value = false
-        if (!_isDemo.value) {
-            _connectionState.value = ConnectionState.Disconnected
+    fun setBluetoothAdapterState(state: BluetoothAdapterState) {
+        _bluetoothState.value = state
+        bleManager?.setBluetoothAdapterState(state)
+
+        if (state == BluetoothAdapterState.POWERED_OFF) {
+            _isScanning.value = false
+            if (!_isDemo.value) {
+                _connectionState.value = ConnectionState.Disconnected
+            }
         }
     }
 

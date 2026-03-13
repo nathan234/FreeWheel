@@ -15,4 +15,10 @@ object ScanLabels {
     const val RESCAN = "Rescan"
     const val SCAN = "Scan"
     const val FORGET = "Forget"
+
+    // Bluetooth state banners
+    const val BT_PERMISSION_REQUIRED = "Bluetooth permission is required to connect to your wheel."
+    const val BT_TURNED_OFF = "Bluetooth is turned off. Enable it to scan for wheels."
+    const val BT_UNSUPPORTED = "This device does not support Bluetooth."
+    const val OPEN_SETTINGS = "Open Settings"
 }

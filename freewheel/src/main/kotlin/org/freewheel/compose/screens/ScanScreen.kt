@@ -1,5 +1,6 @@
 package org.freewheel.compose.screens
 
+import android.content.Intent
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -50,11 +51,13 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.freewheel.compose.WheelViewModel
 import org.freewheel.core.domain.CommonLabels
 import org.freewheel.core.domain.ScanLabels
+import org.freewheel.core.service.BluetoothAdapterState
 import org.freewheel.core.utils.DisplayUtils
 
 // CROSS-PLATFORM SYNC: This screen mirrors iosApp/FreeWheel/Views/ScanView.swift.
@@ -103,13 +106,17 @@ fun ScanScreen(viewModel: WheelViewModel) {
     val devices by viewModel.discoveredDevices.collectAsStateWithLifecycle()
     val connectionState by viewModel.connectionState.collectAsStateWithLifecycle()
     val savedAddresses by viewModel.savedAddresses.collectAsStateWithLifecycle()
+    val bluetoothState by viewModel.bluetoothState.collectAsStateWithLifecycle()
     val hasDevices = devices.isNotEmpty()
     val connectingAddress = connectionState.connectingAddress
     val failedAddress = connectionState.failedAddress
+    val isBluetoothReady = bluetoothState.isReady
 
     // Partition devices into saved ("My Wheels") and new
     val myWheels = devices.filter { it.address in savedAddresses }
     val newDevices = devices.filter { it.address !in savedAddresses }
+
+    val context = LocalContext.current
 
     Column(
         modifier = Modifier
@@ -125,11 +132,39 @@ fun ScanScreen(viewModel: WheelViewModel) {
             modifier = Modifier.padding(16.dp)
         )
 
+        // Bluetooth state banners
+        when (bluetoothState) {
+            BluetoothAdapterState.UNAUTHORIZED -> BluetoothBanner(
+                message = ScanLabels.BT_PERMISSION_REQUIRED,
+                buttonLabel = ScanLabels.OPEN_SETTINGS,
+                onClick = {
+                    val intent = Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                        data = android.net.Uri.parse("package:${context.packageName}")
+                    }
+                    context.startActivity(intent)
+                }
+            )
+            BluetoothAdapterState.POWERED_OFF -> BluetoothBanner(
+                message = ScanLabels.BT_TURNED_OFF,
+                buttonLabel = ScanLabels.OPEN_SETTINGS,
+                onClick = {
+                    context.startActivity(Intent(android.provider.Settings.ACTION_BLUETOOTH_SETTINGS))
+                }
+            )
+            BluetoothAdapterState.UNSUPPORTED -> BluetoothBanner(
+                message = ScanLabels.BT_UNSUPPORTED,
+                buttonLabel = null,
+                onClick = null
+            )
+            else -> {}
+        }
+
         // Hide scan button while connecting
         if (connectingAddress == null) {
             ScanButton(
                 isScanning = isScanning,
                 hasDevices = hasDevices,
+                enabled = isBluetoothReady,
                 onToggleScan = {
                     if (isScanning) viewModel.stopScan() else viewModel.startScan()
                 }
@@ -237,6 +272,7 @@ fun ScanScreen(viewModel: WheelViewModel) {
 private fun ScanButton(
     isScanning: Boolean,
     hasDevices: Boolean,
+    enabled: Boolean = true,
     onToggleScan: () -> Unit
 ) {
     val size = if (hasDevices) 100.dp else 160.dp
@@ -245,7 +281,8 @@ private fun ScanButton(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = if (hasDevices) 12.dp else 0.dp),
+            .padding(vertical = if (hasDevices) 12.dp else 0.dp)
+            .then(if (enabled) Modifier else Modifier.alpha(0.4f)),
         contentAlignment = Alignment.Center
     ) {
         // Pulse animation when scanning
@@ -285,7 +322,7 @@ private fun ScanButton(
                 .shadow(12.dp, CircleShape, ambientColor = buttonColor.copy(alpha = 0.4f))
                 .clip(CircleShape)
                 .background(buttonColor)
-                .clickable(onClick = onToggleScan),
+                .clickable(enabled = enabled, onClick = onToggleScan),
             contentAlignment = Alignment.Center
         ) {
             Column(
@@ -464,6 +501,38 @@ private fun SignalStrengthBars(rssi: Int) {
                         else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
                     )
             )
+        }
+    }
+}
+
+@Composable
+private fun BluetoothBanner(
+    message: String,
+    buttonLabel: String?,
+    onClick: (() -> Unit)?
+) {
+    val warningColor = Color(0xFFF57C00) // Orange 700
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .background(
+                warningColor.copy(alpha = 0.08f),
+                RoundedCornerShape(12.dp)
+            )
+            .padding(16.dp)
+    ) {
+        Text(
+            text = message,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = if (buttonLabel != null) 8.dp else 0.dp)
+        )
+        if (buttonLabel != null && onClick != null) {
+            TextButton(onClick = onClick) {
+                Text(buttonLabel, fontWeight = FontWeight.Medium)
+            }
         }
     }
 }
