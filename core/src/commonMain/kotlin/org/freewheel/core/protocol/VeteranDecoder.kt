@@ -565,19 +565,19 @@ class VeteranDecoder : WheelDecoder {
 
     private fun getModelName(): String {
         return when (mVer) {
-            0, 1 -> "Sherman"
-            2 -> "Abrams"
-            3 -> "Sherman S"
-            4 -> "Patton"
-            5 -> "Lynx"
-            6 -> "Sherman L"
-            7 -> "Patton S"
-            8 -> "Oryx"
-            9 -> "Lynx S"
+            0, 1 -> "Leaperkim Sherman"
+            2 -> "Leaperkim Abrams"
+            3 -> "Leaperkim Sherman S"
+            4 -> "Leaperkim Patton"
+            5 -> "Leaperkim Lynx"
+            6 -> "Leaperkim Sherman L"
+            7 -> "Leaperkim Patton S"
+            8 -> "Leaperkim Oryx"
+            9 -> "Leaperkim Lynx S"
             42 -> "Nosfet Apex"
             43 -> "Nosfet Aero"
             44 -> "Nosfet Aeon"
-            else -> "Unknown Veteran"
+            else -> "Unknown"
         }
     }
 

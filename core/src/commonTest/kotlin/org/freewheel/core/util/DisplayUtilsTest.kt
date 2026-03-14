@@ -153,8 +153,8 @@ class DisplayUtilsTest {
     }
 
     @Test
-    fun `wheelDisplayName brand only`() {
-        assertEquals("Veteran", DisplayUtils.wheelDisplayName(WheelType.VETERAN, "", ""))
+    fun `wheelDisplayName VETERAN with no model falls back to Dashboard`() {
+        assertEquals("Dashboard", DisplayUtils.wheelDisplayName(WheelType.VETERAN, "", ""))
     }
 
     @Test
@@ -233,9 +233,9 @@ class DisplayUtilsTest {
     }
 
     @Test
-    fun `WheelState displayName brand only`() {
+    fun `WheelState displayName VETERAN with no model falls back to Dashboard`() {
         val state = WheelState(wheelType = WheelType.VETERAN)
-        assertEquals("Veteran", state.displayName)
+        assertEquals("Dashboard", state.displayName)
     }
 
     @Test

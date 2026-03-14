@@ -293,51 +293,51 @@ class GotwayDecoderTest {
     // ==================== Veteran Model Names ====================
 
     @Test
-    fun `veteran decoder identifies Sherman (mVer 1)`() {
+    fun `veteran decoder identifies Leaperkim Sherman (mVer 1)`() {
         val state = decodeVeteranFrame(mVer = 1)
-        assertEquals("Sherman", state.model)
+        assertEquals("Leaperkim Sherman", state.model)
     }
 
     @Test
-    fun `veteran decoder identifies Abrams (mVer 2)`() {
+    fun `veteran decoder identifies Leaperkim Abrams (mVer 2)`() {
         val state = decodeVeteranFrame(mVer = 2)
-        assertEquals("Abrams", state.model)
+        assertEquals("Leaperkim Abrams", state.model)
     }
 
     @Test
     fun `veteran decoder identifies Sherman S (mVer 3)`() {
         val state = decodeVeteranFrame(mVer = 3)
-        assertEquals("Sherman S", state.model)
+        assertEquals("Leaperkim Sherman S", state.model)
     }
 
     @Test
-    fun `veteran decoder identifies Patton (mVer 4)`() {
+    fun `veteran decoder identifies Leaperkim Patton (mVer 4)`() {
         val state = decodeVeteranFrame(mVer = 4)
-        assertEquals("Patton", state.model)
+        assertEquals("Leaperkim Patton", state.model)
     }
 
     @Test
-    fun `veteran decoder identifies Lynx (mVer 5)`() {
+    fun `veteran decoder identifies Leaperkim Lynx (mVer 5)`() {
         val state = decodeVeteranFrame(mVer = 5)
-        assertEquals("Lynx", state.model)
+        assertEquals("Leaperkim Lynx", state.model)
     }
 
     @Test
-    fun `veteran decoder identifies Sherman L (mVer 6)`() {
+    fun `veteran decoder identifies Leaperkim Sherman L (mVer 6)`() {
         val state = decodeVeteranFrame(mVer = 6)
-        assertEquals("Sherman L", state.model)
+        assertEquals("Leaperkim Sherman L", state.model)
     }
 
     @Test
-    fun `veteran decoder identifies Patton S (mVer 7)`() {
+    fun `veteran decoder identifies Leaperkim Patton S (mVer 7)`() {
         val state = decodeVeteranFrame(mVer = 7)
-        assertEquals("Patton S", state.model)
+        assertEquals("Leaperkim Patton S", state.model)
     }
 
     @Test
-    fun `veteran decoder identifies Oryx (mVer 8)`() {
+    fun `veteran decoder identifies Leaperkim Oryx (mVer 8)`() {
         val state = decodeVeteranFrame(mVer = 8)
-        assertEquals("Oryx", state.model)
+        assertEquals("Leaperkim Oryx", state.model)
     }
 
     @Test

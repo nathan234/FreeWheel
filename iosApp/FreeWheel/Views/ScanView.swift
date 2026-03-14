@@ -191,7 +191,7 @@ struct ScanView: View {
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
                     testButton("KingSong", wheelType: .kingsong, color: .blue)
                     testButton("Begode", wheelType: .gotway, color: .green)
-                    testButton("Veteran", wheelType: .veteran, color: .purple)
+                    testButton("Leaperkim", wheelType: .veteran, color: .purple)
                     testButton("Ninebot Z", wheelType: .ninebotZ, color: .orange)
                     testButton("InMotion", wheelType: .inmotion, color: .teal)
                     testButton("InMotion V2", wheelType: .inmotionV2, color: .indigo)

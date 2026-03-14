@@ -697,7 +697,7 @@ class WheelSettingsConfigTest {
     fun `Veteran level 0 capabilities shows only base controls`() {
         val caps = org.freewheel.core.protocol.VeteranDecoder.CAPABILITY_MAP.resolveAt(
             firmwareLevel = 0,
-            detectedModel = "Sherman"
+            detectedModel = "Leaperkim Sherman"
         )
         val sections = WheelSettingsConfig.sections(WheelType.VETERAN, caps)
         val allCommands = sections.flatMap { it.controls.map { c -> c.commandId } }

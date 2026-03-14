@@ -682,12 +682,12 @@ class WheelStateTest {
     fun `Veteran wheel state`() {
         val state = WheelState(
             wheelType = WheelType.VETERAN,
-            model = "Sherman",
+            model = "Leaperkim Sherman",
             version = "001.0.58"
         )
 
         assertEquals(WheelType.VETERAN, state.wheelType)
-        assertEquals("Sherman", state.model)
+        assertEquals("Leaperkim Sherman", state.model)
     }
 
     @Test

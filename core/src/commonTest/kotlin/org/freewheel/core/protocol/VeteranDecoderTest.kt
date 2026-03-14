@@ -455,67 +455,67 @@ class VeteranDecoderTest {
     // ==================== Model Detection ====================
 
     @Test
-    fun `model from mVer 0 is Sherman`() {
-        // mVer=0 maps to "Sherman" but isReady will be false
+    fun `model from mVer 0 is Leaperkim Sherman`() {
+        // mVer=0 maps to "Leaperkim Sherman" but isReady will be false
         val result = decodeSingleFrame(ver = 0) // mVer = 0/1000 = 0
         assertNotNull(result)
-        assertEquals("Sherman", result.newState.model)
+        assertEquals("Leaperkim Sherman", result.newState.model)
     }
 
     @Test
-    fun `model from mVer 1 is Sherman`() {
+    fun `model from mVer 1 is Leaperkim Sherman`() {
         val result = decodeSingleFrame(ver = 1000)
         assertNotNull(result)
-        assertEquals("Sherman", result.newState.model)
+        assertEquals("Leaperkim Sherman", result.newState.model)
     }
 
     @Test
-    fun `model from mVer 2 is Abrams`() {
+    fun `model from mVer 2 is Leaperkim Abrams`() {
         val result = decodeSingleFrame(ver = 2000)
         assertNotNull(result)
-        assertEquals("Abrams", result.newState.model)
+        assertEquals("Leaperkim Abrams", result.newState.model)
     }
 
     @Test
-    fun `model from mVer 3 is Sherman S`() {
+    fun `model from mVer 3 is Leaperkim Sherman S`() {
         val result = decodeSingleFrame(ver = 3000)
         assertNotNull(result)
-        assertEquals("Sherman S", result.newState.model)
+        assertEquals("Leaperkim Sherman S", result.newState.model)
     }
 
     @Test
-    fun `model from mVer 4 is Patton`() {
+    fun `model from mVer 4 is Leaperkim Patton`() {
         val result = decodeSingleFrame(ver = 4000)
         assertNotNull(result)
-        assertEquals("Patton", result.newState.model)
+        assertEquals("Leaperkim Patton", result.newState.model)
     }
 
     @Test
-    fun `model from mVer 5 is Lynx`() {
+    fun `model from mVer 5 is Leaperkim Lynx`() {
         val result = decodeSingleFrame(ver = 5000)
         assertNotNull(result)
-        assertEquals("Lynx", result.newState.model)
+        assertEquals("Leaperkim Lynx", result.newState.model)
     }
 
     @Test
-    fun `model from mVer 6 is Sherman L`() {
+    fun `model from mVer 6 is Leaperkim Sherman L`() {
         val result = decodeSingleFrame(ver = 6000)
         assertNotNull(result)
-        assertEquals("Sherman L", result.newState.model)
+        assertEquals("Leaperkim Sherman L", result.newState.model)
     }
 
     @Test
-    fun `model from mVer 7 is Patton S`() {
+    fun `model from mVer 7 is Leaperkim Patton S`() {
         val result = decodeSingleFrame(ver = 7000)
         assertNotNull(result)
-        assertEquals("Patton S", result.newState.model)
+        assertEquals("Leaperkim Patton S", result.newState.model)
     }
 
     @Test
-    fun `model from mVer 8 is Oryx`() {
+    fun `model from mVer 8 is Leaperkim Oryx`() {
         val result = decodeSingleFrame(ver = 8000)
         assertNotNull(result)
-        assertEquals("Oryx", result.newState.model)
+        assertEquals("Leaperkim Oryx", result.newState.model)
     }
 
     @Test
@@ -533,10 +533,10 @@ class VeteranDecoderTest {
     }
 
     @Test
-    fun `unknown mVer returns Unknown Veteran`() {
+    fun `unknown mVer returns Unknown`() {
         val result = decodeSingleFrame(ver = 99000) // mVer=99
         assertNotNull(result)
-        assertEquals("Unknown Veteran", result.newState.model)
+        assertEquals("Unknown", result.newState.model)
     }
 
     // ==================== Battery Percentage (Standard) ====================
@@ -781,7 +781,7 @@ class VeteranDecoderTest {
         val frame1 = buildVeteranFrame(ver = 5000, voltage = 9686)
         val result1 = freshDecoder.decode(frame1, WheelState(), config)
         assertNotNull(result1)
-        assertEquals("Lynx", result1.newState.model)
+        assertEquals("Leaperkim Lynx", result1.newState.model)
 
         // Reset
         freshDecoder.reset()
@@ -791,7 +791,7 @@ class VeteranDecoderTest {
         val frame2 = buildVeteranFrame(ver = 4000, voltage = 12000)
         val result2 = freshDecoder.decode(frame2, WheelState(), config)
         assertNotNull(result2)
-        assertEquals("Patton", result2.newState.model)
+        assertEquals("Leaperkim Patton", result2.newState.model)
         assertTrue(freshDecoder.isReady())
     }
 
