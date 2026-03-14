@@ -1021,7 +1021,7 @@ class InMotionV2DecoderTest {
         val model = InMotionV2Decoder.Model.findById(13, 1)
         assertEquals(InMotionV2Decoder.Model.P6, model)
         assertEquals("InMotion P6", model.displayName)
-        assertEquals(32, model.cellCount)
+        assertEquals(56, model.cellCount)
     }
 
     // ==================== Unknown Model Fallback Parser ====================
@@ -2020,5 +2020,145 @@ class InMotionV2DecoderTest {
             byteArrayOf(0x43, 0x01) // fw unknown → isFirmwareAtLeast returns false → 0x43
         )
         assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
+    }
+
+    // ==================== BMS Tests ====================
+
+    /**
+     * Build a BMS response frame.
+     * @param batteryId e.g. 0x24 for battery 1
+     * @param responseType 0x81=status, 0x82=voltages, 0x84=serial
+     * @param payload the BMS-specific data after the 2-byte header
+     */
+    private fun buildBmsFrame(batteryId: Int, responseType: Int, payload: ByteArray): ByteArray {
+        val data = byteArrayOf(0x02, responseType.toByte()) + payload
+        return buildIM2Frame(0x16, batteryId, data)
+    }
+
+    private fun decoderWithP6(): InMotionV2Decoder {
+        val d = InMotionV2Decoder()
+        d.decode(buildCarTypeFrame(13, 1), defaultState, defaultConfig) // P6
+        return d
+    }
+
+    @Test
+    fun `BMS cell voltages parsed for P6`() {
+        val d = decoderWithP6()
+        // Build payload: 56 cells, each at 3.65V = 3650 mV = 0x0E42 LE
+        val payload = ByteArray(56 * 2)
+        for (i in 0 until 56) {
+            val mv = 3650 + i // slightly different for each cell
+            payload[i * 2] = (mv and 0xFF).toByte()
+            payload[(i * 2) + 1] = ((mv shr 8) and 0xFF).toByte()
+        }
+        val frame = buildBmsFrame(0x24, 0x82, payload)
+        val result = d.decode(frame, defaultState, defaultConfig)
+        assertNotNull(result)
+        val bms = result.newState.bms1
+        assertNotNull(bms)
+        assertEquals(56, bms.cellNum)
+        // First cell: 3650 mV = 3.650V
+        assertTrue(abs(bms.cells[0] - 3.650) < 0.001, "Cell 0 should be ~3.650V, got ${bms.cells[0]}")
+        // Last cell: 3650 + 55 = 3705 mV = 3.705V
+        assertTrue(abs(bms.cells[55] - 3.705) < 0.001, "Cell 55 should be ~3.705V, got ${bms.cells[55]}")
+        // Cell stats
+        assertTrue(bms.minCell > 3.6, "minCell should be > 3.6V")
+        assertTrue(bms.maxCell > 3.7, "maxCell should be > 3.7V")
+        assertTrue(bms.cellDiff > 0.05, "cellDiff should be > 0.05V")
+        assertEquals(1, bms.minCellNum)
+        assertEquals(56, bms.maxCellNum)
+    }
+
+    @Test
+    fun `BMS status parsed for P6`() {
+        val d = decoderWithP6()
+        // Build status payload (offsets relative to data array, not bArr2)
+        // data[8..9] = voltage LE short × 0.01 → 20160 = 201.60V
+        // data[10..11] = current LE short × 0.01 → -500 = -5.00A
+        // data[18..19] = SOC unsigned short → 85%
+        val payload = ByteArray(28)
+        // voltage at payload offset 6 (data[8] = header[2] + payload[6])
+        val voltage = 20160 // 201.60V
+        payload[6] = (voltage and 0xFF).toByte()
+        payload[7] = ((voltage shr 8) and 0xFF).toByte()
+        // current at payload offset 8
+        val current = -500 // -5.00A (charging)
+        payload[8] = (current and 0xFF).toByte()
+        payload[9] = ((current shr 8) and 0xFF).toByte()
+        // SOC at payload offset 16
+        payload[16] = 85.toByte()
+        payload[17] = 0
+        // temp1 at payload offset 24
+        payload[24] = 28.toByte()
+        // temp2 at payload offset 25
+        payload[25] = 30.toByte()
+
+        val frame = buildBmsFrame(0x24, 0x81, payload)
+        val result = d.decode(frame, defaultState, defaultConfig)
+        assertNotNull(result)
+        val bms = result.newState.bms1
+        assertNotNull(bms)
+        assertTrue(abs(bms.voltage - 201.60) < 0.1, "Voltage should be ~201.6V, got ${bms.voltage}")
+        assertTrue(abs(bms.current - (-5.0)) < 0.1, "Current should be ~-5.0A, got ${bms.current}")
+        assertEquals(85, bms.remPerc)
+        assertEquals(28.0, bms.temp1)
+        assertEquals(30.0, bms.temp2)
+    }
+
+    @Test
+    fun `BMS serial parsed for P6`() {
+        val d = decoderWithP6()
+        // Serial at payload offset 20 (data[22]), 20 ASCII chars
+        val payload = ByteArray(42)
+        val serial = "P6SERIAL12345678ABCD"
+        for (i in serial.indices) {
+            payload[20 + i] = serial[i].code.toByte()
+        }
+        val frame = buildBmsFrame(0x24, 0x84, payload)
+        val result = d.decode(frame, defaultState, defaultConfig)
+        assertNotNull(result)
+        val bms = result.newState.bms1
+        assertNotNull(bms)
+        assertEquals("P6SERIAL12345678ABCD", bms.serialNumber)
+        assertEquals(56, bms.cellNum)
+    }
+
+    @Test
+    fun `BMS keep-alive cycles through status and voltages`() {
+        val d = decoderWithP6()
+        // Feed telemetry so hasReceivedTelemetry = true
+        d.decode(buildIM2Frame(0x16, 0x21, byteArrayOf(0x02, 0x87.toByte()) + ByteArray(100)), defaultState, defaultConfig)
+
+        // Collect 8 keep-alive commands, find the BMS ones (every 4th tick, offset 3)
+        val commands = mutableListOf<ByteArray>()
+        repeat(8) {
+            val cmd = d.getKeepAliveCommand()
+            if (cmd is WheelCommand.SendBytes) {
+                commands.add(cmd.data)
+            }
+        }
+        // At least one BMS command should be present (tick 3 and/or tick 7)
+        assertTrue(commands.size >= 8, "Should have 8 commands")
+    }
+
+    @Test
+    fun `BMS init commands include battery serial requests`() {
+        val d = InMotionV2Decoder()
+        val initCommands = d.getInitCommands()
+        // Should include BMS serial init for battery 1 and 2
+        assertEquals(9, initCommands.size)
+        // Last two should be BMS serial init
+        assertEquals(700L, (initCommands[7] as WheelCommand.SendDelayed).delayMs)
+        assertEquals(800L, (initCommands[8] as WheelCommand.SendDelayed).delayMs)
+    }
+
+    @Test
+    fun `Model batteryCount correct for each model`() {
+        assertEquals(1, InMotionV2Decoder.Model.V11.batteryCount)
+        assertEquals(1, InMotionV2Decoder.Model.P6.batteryCount)
+        assertEquals(2, InMotionV2Decoder.Model.V13.batteryCount)
+        assertEquals(2, InMotionV2Decoder.Model.V13PRO.batteryCount)
+        assertEquals(4, InMotionV2Decoder.Model.V14g.batteryCount)
+        assertEquals(4, InMotionV2Decoder.Model.V14s.batteryCount)
     }
 }

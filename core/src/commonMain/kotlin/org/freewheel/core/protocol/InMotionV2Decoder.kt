@@ -4,6 +4,7 @@ import org.freewheel.core.domain.CapabilityMap
 import org.freewheel.core.domain.CapabilitySet
 import org.freewheel.core.domain.SettingsCommandId
 import org.freewheel.core.domain.WheelState
+import org.freewheel.core.domain.SmartBms
 import org.freewheel.core.domain.WheelType
 import org.freewheel.core.domain.resolveAt
 import org.freewheel.core.utils.ByteUtils
@@ -58,23 +59,30 @@ class InMotionV2Decoder : WheelDecoder {
     private var isModelDetected = false
     private var hasReceivedTelemetry = false
     private var keepAliveCounter = 0
+    private var bms1 = SmartBms()
+    private var bms2 = SmartBms()
+    private var bmsInitDone = false
+    private var bmsPollCounter = 0
 
     /**
      * InMotion V2 wheel models.
      */
-    enum class Model(val id: Int, val displayName: String, val maxSpeed: Int, val cellCount: Int) {
+    enum class Model(
+        val id: Int, val displayName: String, val maxSpeed: Int,
+        val cellCount: Int, val batteryCount: Int = 1
+    ) {
         V11(61, "InMotion V11", 60, 20),
         V11Y(62, "InMotion V11y", 120, 20),
         V12HS(71, "InMotion V12 HS", 70, 24),
         V12HT(72, "InMotion V12 HT", 70, 24),
         V12PRO(73, "InMotion V12 PRO", 70, 24),
-        V13(81, "InMotion V13", 120, 30),
-        V13PRO(82, "InMotion V13 PRO", 120, 30),
-        V14g(91, "InMotion V14 50GB", 120, 32),
-        V14s(92, "InMotion V14 50S", 120, 32),
+        V13(81, "InMotion V13", 120, 30, batteryCount = 2),
+        V13PRO(82, "InMotion V13 PRO", 120, 30, batteryCount = 2),
+        V14g(91, "InMotion V14 50GB", 120, 32, batteryCount = 4),
+        V14s(92, "InMotion V14 50S", 120, 32, batteryCount = 4),
         V12S(111, "InMotion V12S", 120, 20),
         V9(121, "InMotion V9", 120, 20),
-        P6(131, "InMotion P6", 150, 32),
+        P6(131, "InMotion P6", 150, 56),
         UNKNOWN(0, "InMotion Unknown", 100, 20);
 
         companion object {
@@ -111,6 +119,22 @@ class InMotionV2Decoder : WheelDecoder {
         const val TOTAL_STATS = 0x11
         const val SETTINGS = 0x20
         const val CONTROL = 0x60
+    }
+
+    /**
+     * BMS battery IDs used in extended protocol (flag 0x16).
+     * These appear as the command byte in BMS request/response frames.
+     */
+    object BmsId {
+        const val BATTERY_1 = 0x24
+        const val BATTERY_2 = 0x25
+        const val BATTERY_3 = 0x26
+        const val BATTERY_4 = 0x27
+
+        /** BMS response sub-types (original request | 0x80). */
+        const val RESP_STATUS = 0x81    // per-battery status (voltage, current, SOC, temps)
+        const val RESP_VOLTAGES = 0x82  // per-battery cell voltages
+        const val RESP_SERIAL = 0x84    // per-battery serial number + init
     }
 
     override fun decode(data: ByteArray, currentState: WheelState, config: DecoderConfig): DecodedData? = stateLock.withLock {
@@ -214,7 +238,21 @@ class InMotionV2Decoder : WheelDecoder {
     private fun processExtendedMessage(message: Message, currentState: WheelState): FrameResult? {
         val data = message.data
         if (data.size < 2) return null
-        // data[0] should be 0x02 (MAIN_INFO echo), data[1] is response type
+
+        // BMS responses: command byte is battery ID (0x24-0x27)
+        val cmd = message.command
+        if (cmd in BmsId.BATTERY_1..BmsId.BATTERY_4) {
+            val responseType = data[1].toInt() and 0xFF
+            val bmsNum = cmd - BmsId.BATTERY_1 + 1
+            return when (responseType) {
+                BmsId.RESP_SERIAL -> processBmsSerial(bmsNum, data, currentState)
+                BmsId.RESP_STATUS -> processBmsStatus(bmsNum, data, currentState)
+                BmsId.RESP_VOLTAGES -> processBmsCellVoltages(bmsNum, data, currentState)
+                else -> null
+            }
+        }
+
+        // Standard P6 extended responses: data[0] = 0x02, data[1] = response type
         val responseType = data[1].toInt() and 0xFF
         return when (responseType) {
             0x86 -> processExtendedInit(data, currentState)
@@ -384,21 +422,137 @@ class InMotionV2Decoder : WheelDecoder {
     }
 
     /**
-     * Process battery real-time info.
+     * Process battery real-time info (flag 0x14, command 0x05).
+     * General battery summary — not per-cell BMS data.
      */
     private fun processBatteryRealTimeInfo(message: Message, currentState: WheelState): FrameResult? {
-        val data = message.data
-        if (data.size < 20) return null
+        return null // General battery info; per-cell BMS uses extended protocol
+    }
 
-        // Parse battery data (not stored in WheelState currently)
-        // val bat1Voltage = ByteUtils.shortFromBytesLE(data, 0)
-        // val bat1Temp = data[4].toInt()
-        // val bat2Voltage = ByteUtils.shortFromBytesLE(data, 8)
-        // val bat2Temp = data[12].toInt()
-        // val chargeVoltage = ByteUtils.shortFromBytesLE(data, 16)
-        // val chargeCurrent = ByteUtils.shortFromBytesLE(data, 18)
+    // ==================== BMS Parsing (Extended Protocol) ====================
 
-        return null
+    private fun bmsForNum(num: Int): SmartBms = if (num <= 1) bms1 else bms2
+
+    /**
+     * Process BMS serial/init response (sub-type 0x04, response 0x84).
+     * Initializes the BMS instance and extracts serial number.
+     *
+     * EUC World offsets (relative to bArr2 which includes command byte):
+     * bytes 23-42 = 20-char ASCII serial. In our data array (no command byte),
+     * that's data[22..41].
+     */
+    private fun processBmsSerial(bmsNum: Int, data: ByteArray, currentState: WheelState): FrameResult? {
+        if (data.size < 42) return null
+        val bms = bmsForNum(bmsNum)
+        bms.cellNum = model.cellCount
+
+        // Extract serial number (20 ASCII chars at EUC World offset 23 = data[22])
+        val serialBytes = data.copyOfRange(22, minOf(42, data.size))
+        bms.serialNumber = serialBytes
+            .map { it.toInt().toChar() }
+            .joinToString("")
+            .trim('\u0000', ' ')
+
+        bmsInitDone = true
+        return FrameResult(
+            currentState.copy(
+                bms1 = bms1.toSnapshot(),
+                bms2 = if (model.batteryCount > 1) bms2.toSnapshot() else currentState.bms2
+            ),
+            false
+        )
+    }
+
+    /**
+     * Process BMS status response (sub-type 0x01, response 0x81).
+     * Contains voltage, current, SOC, and temperatures.
+     *
+     * EUC World offsets (bArr2-relative, subtract 1 for data index):
+     * [9]  = short LE × 0.01 → voltage
+     * [11] = short LE × 0.01 → current
+     * [13] = short LE × 0.01 → (third metric)
+     * [19] = unsigned short → SOC %
+     */
+    private fun processBmsStatus(bmsNum: Int, data: ByteArray, currentState: WheelState): FrameResult? {
+        if (data.size < 19) return null
+        val bms = bmsForNum(bmsNum)
+
+        // Offsets: EUC World bArr2[N] = data[N-1]
+        bms.voltage = ByteUtils.signedShortFromBytesLE(data, 8) * 0.01
+        if (data.size > 11) {
+            bms.current = ByteUtils.signedShortFromBytesLE(data, 10) * 0.01
+        }
+        if (data.size > 19) {
+            bms.remPerc = ByteUtils.shortFromBytesLE(data, 18)
+        }
+        // Temperatures at EUC World offsets 27, 28 = data[26], data[27]
+        if (data.size > 27) {
+            bms.temp1 = (data[26].toInt() and 0xFF).toDouble()
+        }
+        if (data.size > 28) {
+            bms.temp2 = (data[27].toInt() and 0xFF).toDouble()
+        }
+
+        return FrameResult(
+            currentState.copy(
+                bms1 = bms1.toSnapshot(),
+                bms2 = if (model.batteryCount > 1) bms2.toSnapshot() else currentState.bms2
+            ),
+            false
+        )
+    }
+
+    /**
+     * Process BMS cell voltages response (sub-type 0x02, response 0x82).
+     * Cell i = LE short at EUC World offset (i*2 + 3) = data[(i*2) + 2], in millivolts.
+     */
+    private fun processBmsCellVoltages(bmsNum: Int, data: ByteArray, currentState: WheelState): FrameResult? {
+        val bms = bmsForNum(bmsNum)
+        val cellCount = model.cellCount.coerceAtMost(SmartBms.MAX_CELLS)
+        bms.cellNum = cellCount
+
+        for (i in 0 until cellCount) {
+            val offset = (i * 2) + 2  // EUC World: (i*2) + 3 in bArr2 = (i*2) + 2 in data
+            if (offset + 1 >= data.size) break
+            val mv = ByteUtils.signedShortFromBytesLE(data, offset)
+            bms.cells[i] = mv * 0.001
+        }
+
+        updateBmsCellStats(bms, cellCount)
+
+        return FrameResult(
+            currentState.copy(
+                bms1 = bms1.toSnapshot(),
+                bms2 = if (model.batteryCount > 1) bms2.toSnapshot() else currentState.bms2
+            ),
+            false
+        )
+    }
+
+    private fun updateBmsCellStats(bms: SmartBms, cellCount: Int) {
+        if (cellCount == 0) return
+        bms.minCell = bms.cells[0]
+        bms.maxCell = bms.cells[0]
+        bms.maxCellNum = 1
+        bms.minCellNum = 1
+        var totalVolt = 0.0
+
+        for (i in 0 until cellCount) {
+            val cell = bms.cells[i]
+            if (cell > 0.0) {
+                totalVolt += cell
+                if (bms.maxCell < cell) {
+                    bms.maxCell = cell
+                    bms.maxCellNum = i + 1
+                }
+                if (bms.minCell > cell) {
+                    bms.minCell = cell
+                    bms.minCellNum = i + 1
+                }
+            }
+        }
+        bms.cellDiff = bms.maxCell - bms.minCell
+        bms.avgCell = if (cellCount > 0) totalVolt / cellCount else 0.0
     }
 
     /**
@@ -1047,6 +1201,10 @@ class InMotionV2Decoder : WheelDecoder {
         isModelDetected = false
         hasReceivedTelemetry = false
         keepAliveCounter = 0
+        bms1 = SmartBms()
+        bms2 = SmartBms()
+        bmsInitDone = false
+        bmsPollCounter = 0
     }
 
     override fun getCapabilities(): CapabilitySet = stateLock.withLock {
@@ -1325,7 +1483,7 @@ class InMotionV2Decoder : WheelDecoder {
     private fun leShortHi(value: Short): Byte = ((value.toInt() shr 8) and 0xFF).toByte()
 
     override fun getInitCommands(): List<WheelCommand> {
-        return listOf(
+        val commands = mutableListOf(
             // Standard IM2 init (V11/V12/V13/V14)
             WheelCommand.SendBytes(buildMessage(Flag.INITIAL, Command.MAIN_INFO, byteArrayOf(0x01))),
             WheelCommand.SendDelayed(buildMessage(Flag.INITIAL, Command.MAIN_INFO, byteArrayOf(0x02)), 100),
@@ -1339,8 +1497,13 @@ class InMotionV2Decoder : WheelDecoder {
             // P6 total stats
             WheelCommand.SendDelayed(
                 buildMessage(Flag.EXTENDED, Command.MAIN_INFO, byteArrayOf(0x21, 0x11)), 600
-            )
+            ),
+            // BMS serial init for battery 1
+            WheelCommand.SendDelayed(buildBmsRequest(BmsId.BATTERY_1, 0x04), 700)
         )
+        // BMS serial init for battery 2 (V13/V14)
+        commands.add(WheelCommand.SendDelayed(buildBmsRequest(BmsId.BATTERY_2, 0x04), 800))
+        return commands
     }
 
     override fun getKeepAliveCommand(): WheelCommand = stateLock.withLock {
@@ -1348,6 +1511,9 @@ class InMotionV2Decoder : WheelDecoder {
         val needsInit = !isModelDetected || serialNumber.isEmpty() || version.isEmpty()
         if (needsInit && keepAliveCounter % 4 == 0) {
             getNextInitRetryCommand()
+        } else if (isModelDetected && keepAliveCounter % 4 == 3) {
+            // Every 4th tick (~1s): send next BMS poll request
+            getNextBmsPollCommand()
         } else if (model == Model.P6) {
             // P6 uses extended telemetry poll
             WheelCommand.SendBytes(
@@ -1356,6 +1522,24 @@ class InMotionV2Decoder : WheelDecoder {
         } else {
             WheelCommand.SendBytes(buildMessage(Flag.DEFAULT, Command.REAL_TIME_INFO, byteArrayOf()))
         }
+    }
+
+    /**
+     * Cycle through BMS status and voltage requests for each battery.
+     * Single-battery: 2-step cycle (status, voltages).
+     * Dual-battery (V13): 4-step. Quad-battery (V14): 8-step.
+     */
+    private fun getNextBmsPollCommand(): WheelCommand {
+        val battCount = model.batteryCount
+        val cycleLen = battCount * 2 // status + voltages per battery
+        val step = bmsPollCounter % cycleLen
+        bmsPollCounter++
+
+        val batteryNum = step / 2 // 0, 1, 2, or 3
+        val batteryId = BmsId.BATTERY_1 + batteryNum
+        val subCmd = if (step % 2 == 0) 0x01 else 0x02 // status then voltages
+
+        return WheelCommand.SendBytes(buildBmsRequest(batteryId, subCmd))
     }
 
     /**
@@ -1380,6 +1564,21 @@ class InMotionV2Decoder : WheelDecoder {
             else ->
                 WheelCommand.SendBytes(buildMessage(Flag.INITIAL, Command.MAIN_INFO, byteArrayOf(0x06)))
         }
+    }
+
+    // ==================== BMS Request Building ====================
+
+    /**
+     * Build a BMS request message.
+     * @param batteryId BMS battery ID (0x24-0x27)
+     * @param subCmd Sub-command: 0x04=serial, 0x01=status, 0x02=voltages
+     */
+    private fun buildBmsRequest(batteryId: Int, subCmd: Int): ByteArray {
+        return buildMessage(
+            Flag.EXTENDED,
+            Command.MAIN_INFO,
+            byteArrayOf(batteryId.toByte(), subCmd.toByte())
+        )
     }
 
     // ==================== Message Building ====================
