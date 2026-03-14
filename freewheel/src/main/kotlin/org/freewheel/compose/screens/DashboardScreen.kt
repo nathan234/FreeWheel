@@ -51,6 +51,7 @@ fun DashboardScreen(
     val samples by viewModel.telemetrySamples.collectAsStateWithLifecycle()
     val gpsSpeed by viewModel.gpsSpeedKmh.collectAsStateWithLifecycle()
     val dashboardLayout by viewModel.dashboardLayout.collectAsStateWithLifecycle()
+    val rangeEstimateKm by viewModel.rangeEstimateKm.collectAsStateWithLifecycle()
     val useMph = viewModel.getGlobalBool(PreferenceKeys.USE_MPH, false)
     val useFahrenheit = viewModel.getGlobalBool(PreferenceKeys.USE_FAHRENHEIT, false)
 
@@ -114,6 +115,7 @@ fun DashboardScreen(
             onNavigateToMetric = onNavigateToMetric,
             onNavigateToWheelSettings = onNavigateToWheelSettings,
             onDisconnect = { viewModel.disconnect() },
+            rangeEstimateKm = rangeEstimateKm,
             modifier = Modifier.padding(contentPadding)
         )
     }

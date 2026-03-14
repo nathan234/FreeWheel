@@ -143,6 +143,32 @@ class WheelManager: ObservableObject {
     }
     @Published private(set) var isLogging: Bool = false
 
+    // Auto-torch settings (persisted to UserDefaults)
+    @Published var autoTorchEnabled: Bool = UserDefaults.standard.bool(forKey: PreferenceKeys.shared.AUTO_TORCH_ENABLED) {
+        didSet { UserDefaults.standard.set(autoTorchEnabled, forKey: PreferenceKeys.shared.AUTO_TORCH_ENABLED) }
+    }
+    @Published var autoTorchSpeedThreshold: Double = {
+        let ud = UserDefaults.standard
+        return ud.object(forKey: PreferenceKeys.shared.AUTO_TORCH_SPEED_THRESHOLD) != nil
+            ? Double(ud.integer(forKey: PreferenceKeys.shared.AUTO_TORCH_SPEED_THRESHOLD))
+            : Double(PreferenceDefaults.shared.AUTO_TORCH_SPEED_THRESHOLD)
+    }() {
+        didSet { UserDefaults.standard.set(Int(autoTorchSpeedThreshold), forKey: PreferenceKeys.shared.AUTO_TORCH_SPEED_THRESHOLD) }
+    }
+    @Published var autoTorchUseSunset: Bool = {
+        let ud = UserDefaults.standard
+        return ud.object(forKey: PreferenceKeys.shared.AUTO_TORCH_USE_SUNSET) != nil
+            ? ud.bool(forKey: PreferenceKeys.shared.AUTO_TORCH_USE_SUNSET)
+            : PreferenceDefaults.shared.AUTO_TORCH_USE_SUNSET
+    }() {
+        didSet { UserDefaults.standard.set(autoTorchUseSunset, forKey: PreferenceKeys.shared.AUTO_TORCH_USE_SUNSET) }
+    }
+    private var autoTorchLightRequested: Bool = false
+
+    // Range estimate
+    private var startBattery: Int = -1
+    @Published var rangeEstimateKm: Double? = nil
+
     // BLE Capture
     @Published private(set) var isCapturing: Bool = false
     @Published private(set) var captureRxCount: Int = 0
@@ -651,6 +677,9 @@ class WheelManager: ObservableObject {
             let alarmConfig = buildAlarmConfig()
             alarmManager.checkAlarms(state: newWheelState, config: alarmConfig, enabled: alarmsEnabled, action: alarmAction)
             activeAlarms = alarmManager.activeAlarms
+
+            // Auto-torch
+            checkAutoTorch(wheelState: newWheelState)
         }
 
         // Write ride log sample
@@ -660,6 +689,19 @@ class WheelManager: ObservableObject {
                 location: locationManager.currentLocation,
                 includeGPS: logGPS
             )
+        }
+
+        // Range estimate
+        if startBattery < 0 && newWheelState.batteryLevel > 0 {
+            startBattery = Int(newWheelState.batteryLevel)
+        }
+        if startBattery > 0 {
+            let estimate = RangeEstimator.shared.estimate(
+                currentBattery: newWheelState.batteryLevel,
+                tripDistanceKm: newWheelState.wheelDistanceKm,
+                startBattery: Int32(startBattery)
+            )
+            rangeEstimateKm = estimate?.doubleValue
         }
 
         // Telemetry buffer + history
@@ -672,6 +714,45 @@ class WheelManager: ObservableObject {
             )
             telemetryBuffer.addSampleIfNeeded(sample: sample)
             telemetryHistory.addSample(sample)
+        }
+    }
+
+    // MARK: - Auto-Torch
+
+    private func checkAutoTorch(wheelState: WheelState) {
+        guard autoTorchEnabled else {
+            if autoTorchLightRequested {
+                autoTorchLightRequested = false
+                isLightOn = false
+                if let cm = connectionManager {
+                    WheelConnectionManagerHelper.shared.sendToggleLight(manager: cm, enabled: false)
+                }
+            }
+            return
+        }
+
+        let location = locationManager.currentLocation
+        let result = AutoTorchEngine.shared.shouldLightBeOn(
+            speedKmh: wheelState.speedKmh,
+            speedThresholdKmh: Int32(autoTorchSpeedThreshold),
+            useSunset: autoTorchUseSunset,
+            latitudeDeg: location?.coordinate.latitude ?? 0.0,
+            longitudeDeg: location?.coordinate.longitude ?? 0.0,
+            epochMillis: Int64(Date().timeIntervalSince1970 * 1000)
+        )
+
+        if result.shouldBeOn && !autoTorchLightRequested {
+            autoTorchLightRequested = true
+            isLightOn = true
+            if let cm = connectionManager {
+                WheelConnectionManagerHelper.shared.sendToggleLight(manager: cm, enabled: true)
+            }
+        } else if !result.shouldBeOn && autoTorchLightRequested {
+            autoTorchLightRequested = false
+            isLightOn = false
+            if let cm = connectionManager {
+                WheelConnectionManagerHelper.shared.sendToggleLight(manager: cm, enabled: false)
+            }
         }
     }
 
@@ -1219,6 +1300,10 @@ class WheelManager: ObservableObject {
             WheelConnectionManagerHelper.shared.stopAutoConnect(manager: acm)
         }
         UserDefaults.standard.removeObject(forKey: "FreeWheelLastPeripheralUUID")
+
+        // Reset range estimate
+        startBattery = -1
+        rangeEstimateKm = nil
 
         // Fire-and-forget — cleanup happens in handleConnectionStateChange when
         // state transitions to .disconnected via StateFlow polling.

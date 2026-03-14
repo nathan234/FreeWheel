@@ -108,9 +108,34 @@ object DashboardPresets {
         )
     )
 
-    private val _all = listOf(_default, _racing, _touring, _compact, _diagnostic)
+    private val _tilesOnly = DashboardPreset(
+        id = "tiles_only",
+        name = "Tiles Only",
+        layout = DashboardLayout.create(
+            id = "tiles_only", name = "Tiles Only",
+            heroMetric = null,
+            tiles = listOf(
+                DashboardMetric.SPEED,
+                DashboardMetric.BATTERY,
+                DashboardMetric.POWER,
+                DashboardMetric.PWM,
+                DashboardMetric.TEMPERATURE,
+                DashboardMetric.GPS_SPEED
+            ),
+            stats = listOf(
+                DashboardMetric.VOLTAGE,
+                DashboardMetric.CURRENT,
+                DashboardMetric.TRIP_DISTANCE,
+                DashboardMetric.TOTAL_DISTANCE
+            ),
+            sections = emptySet()
+        )
+    )
+
+    private val _all = listOf(_default, _tilesOnly, _racing, _touring, _compact, _diagnostic)
 
     fun default(): DashboardPreset = _default
+    fun tilesOnly(): DashboardPreset = _tilesOnly
     fun racing(): DashboardPreset = _racing
     fun touring(): DashboardPreset = _touring
     fun compact(): DashboardPreset = _compact

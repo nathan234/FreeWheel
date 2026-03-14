@@ -360,6 +360,46 @@ fun SettingsScreen(
             )
         }
 
+        // Auto-torch section
+        val autoTorchEnabled = viewModel.getGlobalBool(PreferenceKeys.AUTO_TORCH_ENABLED, PreferenceDefaults.AUTO_TORCH_ENABLED)
+        SettingsSection(title = SettingsLabels.SECTION_AUTO_TORCH) {
+            SettingsToggle(
+                label = SettingsLabels.AUTO_TORCH_ENABLED,
+                checked = autoTorchEnabled,
+                onCheckedChange = { viewModel.setGlobalBool(PreferenceKeys.AUTO_TORCH_ENABLED, it) }
+            )
+            if (autoTorchEnabled) {
+                HorizontalDivider()
+                val speedThreshold = viewModel.getGlobalInt(
+                    PreferenceKeys.AUTO_TORCH_SPEED_THRESHOLD,
+                    PreferenceDefaults.AUTO_TORCH_SPEED_THRESHOLD
+                )
+                AlarmSlider(
+                    label = SettingsLabels.AUTO_TORCH_SPEED_THRESHOLD,
+                    value = speedThreshold.toFloat(),
+                    range = 0f..60f,
+                    displayValue = displaySpeed(speedThreshold, useMph),
+                    unit = if (useMph) "mph" else "km/h",
+                    onValueChange = { viewModel.setGlobalInt(PreferenceKeys.AUTO_TORCH_SPEED_THRESHOLD, it.toInt()) }
+                )
+                HorizontalDivider()
+                SettingsToggle(
+                    label = SettingsLabels.AUTO_TORCH_USE_SUNSET,
+                    checked = viewModel.getGlobalBool(
+                        PreferenceKeys.AUTO_TORCH_USE_SUNSET,
+                        PreferenceDefaults.AUTO_TORCH_USE_SUNSET
+                    ),
+                    onCheckedChange = { viewModel.setGlobalBool(PreferenceKeys.AUTO_TORCH_USE_SUNSET, it) }
+                )
+            }
+            Text(
+                SettingsLabels.AUTO_TORCH_HINT,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp)
+            )
+        }
+
         // Wheel settings (config-driven, when connected)
         if (connectionState.isConnected && wheelSections.isNotEmpty()) {
             for (section in wheelSections) {

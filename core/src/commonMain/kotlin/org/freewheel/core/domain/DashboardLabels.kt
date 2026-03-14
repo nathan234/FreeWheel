@@ -28,6 +28,9 @@ object DashboardLabels {
     const val CHART = "Chart"
     const val BMS = "BMS"
 
+    // Range estimate
+    const val ESTIMATED_RANGE = "Est. Range"
+
     // Mode badges
     const val DEMO_MODE_BADGE = "Demo Mode - Simulated Data"
     const val TEST_MODE_BADGE = "Test Mode - KMP Decoder"

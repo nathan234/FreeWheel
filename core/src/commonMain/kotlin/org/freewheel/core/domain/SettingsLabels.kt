@@ -53,6 +53,13 @@ object SettingsLabels {
     // Pre-warning
     const val PRE_WARNING_HINT = "Advisory tones before full alarms. Set warning period > 0 to enable."
 
+    // Auto-torch
+    const val SECTION_AUTO_TORCH = "Auto Headlight"
+    const val AUTO_TORCH_ENABLED = "Enable Auto Headlight"
+    const val AUTO_TORCH_SPEED_THRESHOLD = "Speed Threshold"
+    const val AUTO_TORCH_USE_SUNSET = "Turn On After Sunset"
+    const val AUTO_TORCH_HINT = "Automatically turns on the headlight when riding above the speed threshold or after sunset."
+
     // About / meta
     const val TITLE = "Settings"
     const val VERSION = "Version"

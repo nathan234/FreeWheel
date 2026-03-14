@@ -55,6 +55,11 @@ object PreferenceKeys {
     // Dashboard layout (per-wheel)
     const val DASHBOARD_LAYOUT = "dashboard_layout"
 
+    // Auto-torch (global)
+    const val AUTO_TORCH_ENABLED = "auto_torch_enabled"
+    const val AUTO_TORCH_SPEED_THRESHOLD = "auto_torch_speed_threshold"
+    const val AUTO_TORCH_USE_SUNSET = "auto_torch_use_sunset"
+
     // Navigation config (global)
     const val NAVIGATION_CONFIG = "navigation_config"
 }

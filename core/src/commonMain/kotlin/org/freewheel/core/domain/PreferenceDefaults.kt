@@ -52,4 +52,9 @@ object PreferenceDefaults {
 
     // Alarm action (index into AlarmAction enum)
     const val ALARM_ACTION = 0
+
+    // Auto-torch
+    const val AUTO_TORCH_ENABLED = false
+    const val AUTO_TORCH_SPEED_THRESHOLD = 10 // km/h
+    const val AUTO_TORCH_USE_SUNSET = true
 }

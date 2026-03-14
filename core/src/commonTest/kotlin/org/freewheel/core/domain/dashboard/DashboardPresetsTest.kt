@@ -2,6 +2,7 @@ package org.freewheel.core.domain.dashboard
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
@@ -14,11 +15,12 @@ class DashboardPresetsTest {
     }
 
     @Test
-    fun `all preset heroes support HERO_GAUGE`() {
+    fun `all preset heroes support HERO_GAUGE or are null`() {
         for (preset in DashboardPresets.all()) {
+            val hero = preset.layout.heroMetric
             assertTrue(
-                WidgetType.HERO_GAUGE in preset.layout.heroMetric.supportedDisplayTypes,
-                "Preset '${preset.name}' hero ${preset.layout.heroMetric} must support HERO_GAUGE"
+                hero == null || WidgetType.HERO_GAUGE in hero.supportedDisplayTypes,
+                "Preset '${preset.name}' hero $hero must support HERO_GAUGE or be null"
             )
         }
     }
@@ -59,8 +61,8 @@ class DashboardPresetsTest {
     }
 
     @Test
-    fun `there are 5 presets`() {
-        assertEquals(5, DashboardPresets.all().size)
+    fun `there are 6 presets`() {
+        assertEquals(6, DashboardPresets.all().size)
     }
 
     @Test
@@ -94,6 +96,20 @@ class DashboardPresetsTest {
         assertSame(DashboardPresets.default(), DashboardPresets.default())
         assertSame(DashboardPresets.racing(), DashboardPresets.racing())
         assertSame(DashboardPresets.all(), DashboardPresets.all())
+    }
+
+    @Test
+    fun `tiles only preset has null hero`() {
+        val tilesOnly = DashboardPresets.tilesOnly()
+        assertNull(tilesOnly.layout.heroMetric)
+        assertTrue(tilesOnly.layout.tiles.isNotEmpty())
+    }
+
+    @Test
+    fun `tiles only preset hides info cards`() {
+        val tilesOnly = DashboardPresets.tilesOnly()
+        assertEquals(false, tilesOnly.layout.showWheelSettings)
+        assertEquals(false, tilesOnly.layout.showWheelInfo)
     }
 
     @Test

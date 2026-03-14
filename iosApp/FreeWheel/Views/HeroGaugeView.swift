@@ -51,7 +51,7 @@ struct HeroGaugeView: View {
                 // Value text
                 VStack(spacing: 2) {
                     Text(formattedValue)
-                        .font(.system(size: 40, weight: .bold, design: .rounded))
+                        .font(.system(size: 52, weight: .bold, design: .rounded))
                     Text(unitLabel)
                         .font(.subheadline)
                         .foregroundColor(.secondary)

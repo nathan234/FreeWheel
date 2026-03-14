@@ -103,7 +103,7 @@ fun HeroGauge(
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
                 text = formattedValue,
-                fontSize = 40.sp,
+                fontSize = 52.sp,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onBackground
             )

@@ -172,6 +172,27 @@ class DashboardLayoutSerializerTest {
     }
 
     @Test
+    fun `null hero serializes as NONE and round-trips`() {
+        val layout = DashboardLayout.create(
+            heroMetric = null,
+            tiles = listOf(DashboardMetric.SPEED, DashboardMetric.BATTERY)
+        )
+        val serialized = DashboardLayoutSerializer.serialize(layout)
+        assertTrue(serialized.contains("hero:NONE"))
+        val deserialized = DashboardLayoutSerializer.deserialize(serialized)
+        assertNotNull(deserialized)
+        assertNull(deserialized.heroMetric)
+    }
+
+    @Test
+    fun `hero NONE in v2 input deserializes to null`() {
+        val input = "v2|hero:NONE|tiles:SPEED,BATTERY|stats:VOLTAGE|sections:"
+        val result = DashboardLayoutSerializer.deserialize(input)
+        assertNotNull(result)
+        assertNull(result.heroMetric)
+    }
+
+    @Test
     fun `missing sections key uses defaults`() {
         val input = "v2|hero:SPEED|tiles:BATTERY|stats:VOLTAGE"
         val result = DashboardLayoutSerializer.deserialize(input)

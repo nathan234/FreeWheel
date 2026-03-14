@@ -19,7 +19,7 @@ object DashboardLayoutSerializer {
         val parts = mutableListOf(CURRENT_VERSION)
         layout.id?.let { parts += "id:$it" }
         layout.name?.let { parts += "name:$it" }
-        parts += "hero:${layout.heroMetric.name}"
+        parts += "hero:${layout.heroMetric?.name ?: "NONE"}"
         parts += "tiles:${layout.tiles.joinToString(",") { it.name }}"
         parts += "stats:${layout.stats.joinToString(",") { it.name }}"
         parts += "sections:${layout.sections.joinToString(",") { it.name }}"
@@ -76,6 +76,7 @@ object DashboardLayoutSerializer {
         var id: String? = null
         var name: String? = null
         var hero: DashboardMetric? = null
+        var heroExplicitlyNone = false
         var tiles: List<DashboardMetric>? = null
         var stats: List<DashboardMetric>? = null
         var sections: Set<DashboardSection>? = null
@@ -89,7 +90,13 @@ object DashboardLayoutSerializer {
             when (key) {
                 "id" -> id = value
                 "name" -> name = value
-                "hero" -> hero = parseMetric(value)
+                "hero" -> {
+                    if (value == "NONE") {
+                        heroExplicitlyNone = true
+                    } else {
+                        hero = parseMetric(value)
+                    }
+                }
                 "tiles" -> tiles = parseMetricList(value)
                 "stats" -> stats = parseMetricList(value)
                 "sections" -> sections = parseSectionSet(value)
@@ -99,7 +106,7 @@ object DashboardLayoutSerializer {
         return DashboardLayout.createLenient(
             id = id,
             name = name,
-            heroMetric = hero ?: DashboardMetric.SPEED,
+            heroMetric = if (heroExplicitlyNone) null else (hero ?: DashboardMetric.SPEED),
             tiles = tiles ?: DashboardLayout.DEFAULT_TILES,
             stats = stats ?: DashboardLayout.DEFAULT_STATS,
             sections = sections ?: DashboardLayout.DEFAULT_SECTIONS

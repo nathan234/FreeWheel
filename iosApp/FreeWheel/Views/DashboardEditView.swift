@@ -28,7 +28,7 @@ struct LayoutEditorBody: View {
     let onSave: (DashboardLayout) -> Void
     let onCancel: () -> Void
 
-    @State private var heroMetric: DashboardMetric = .speed
+    @State private var heroMetric: DashboardMetric? = .speed
     @State private var tiles: [DashboardMetric] = []
     @State private var stats: [DashboardMetric] = []
     @State private var showWheelSettings: Bool = true
@@ -37,7 +37,7 @@ struct LayoutEditorBody: View {
     @State private var showAddStat = false
 
     private var isLayoutValid: Bool {
-        heroMetric.supportedDisplayTypes.contains(.heroGauge) &&
+        (heroMetric == nil || heroMetric!.supportedDisplayTypes.contains(.heroGauge)) &&
         tiles.allSatisfy { $0.supportedDisplayTypes.contains(.gaugeTile) } &&
         stats.allSatisfy { $0.supportedDisplayTypes.contains(.statRow) }
     }
@@ -65,6 +65,19 @@ struct LayoutEditorBody: View {
 
             // Hero metric
             Section("Hero Gauge") {
+                // "None" option for tiles-only layout
+                Button(action: { heroMetric = nil }) {
+                    HStack {
+                        Text("None (tiles only)")
+                        Spacer()
+                        if heroMetric == nil {
+                            Image(systemName: "checkmark")
+                                .foregroundColor(.accentColor)
+                        }
+                    }
+                }
+                .foregroundColor(.primary)
+
                 let heroOptions = DashboardMetric.entries.filter {
                     $0.supportedDisplayTypes.contains(.heroGauge) &&
                     $0.isAvailableFor(wheelType: wheelType)

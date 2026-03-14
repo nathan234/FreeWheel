@@ -76,6 +76,7 @@ fun DashboardContent(
     onNavigateToMetric: (String) -> Unit,
     onNavigateToWheelSettings: () -> Unit,
     onDisconnect: () -> Unit,
+    rangeEstimateKm: Double? = null,
     showControls: Boolean = true,
     modifier: Modifier = Modifier
 ) {
@@ -100,69 +101,71 @@ fun DashboardContent(
         // Alarm banner
         AlarmBanner(activeAlarms = activeAlarms)
 
-        // Hero metric rendering
-        val isSpeedHero = effectiveLayout.heroMetric == DashboardMetric.SPEED ||
-            effectiveLayout.heroMetric == DashboardMetric.GPS_SPEED
+        // Hero metric rendering (null = tiles-only layout, skip hero gauge)
+        val heroMetric = effectiveLayout.heroMetric
+        val isSpeedHero = heroMetric == DashboardMetric.SPEED ||
+            heroMetric == DashboardMetric.GPS_SPEED
 
-        if (isSpeedHero) {
-            // Speed display mode picker (dashboard only)
-            if (showControls) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)
-                ) {
-                    for (mode in SpeedDisplayMode.entries) {
-                        val label = when (mode) {
-                            SpeedDisplayMode.WHEEL -> DashboardLabels.SPEED_SOURCE_SPEED
-                            SpeedDisplayMode.GPS -> DashboardLabels.SPEED_SOURCE_GPS
-                            SpeedDisplayMode.BOTH -> DashboardLabels.SPEED_SOURCE_BOTH
-                        }
-                        FilterChip(
-                            selected = speedDisplayMode == mode,
-                            onClick = { onSpeedDisplayModeChange(mode) },
-                            label = { Text(label) },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                                selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+        if (heroMetric != null) {
+            if (isSpeedHero) {
+                // Speed display mode picker (dashboard only)
+                if (showControls) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)
+                    ) {
+                        for (mode in SpeedDisplayMode.entries) {
+                            val label = when (mode) {
+                                SpeedDisplayMode.WHEEL -> DashboardLabels.SPEED_SOURCE_SPEED
+                                SpeedDisplayMode.GPS -> DashboardLabels.SPEED_SOURCE_GPS
+                                SpeedDisplayMode.BOTH -> DashboardLabels.SPEED_SOURCE_BOTH
+                            }
+                            FilterChip(
+                                selected = speedDisplayMode == mode,
+                                onClick = { onSpeedDisplayModeChange(mode) },
+                                label = { Text(label) },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
                             )
-                        )
+                        }
                     }
                 }
+
+                // Speed gauge (hero metric)
+                SpeedGauge(
+                    speed = displaySpeed,
+                    maxSpeed = maxSpeed,
+                    unitLabel = speedUnit,
+                    gpsSpeed = displayGpsSpeed,
+                    mode = speedDisplayMode,
+                    modifier = Modifier
+                        .height(250.dp)
+                        .padding(top = 8.dp)
+                        .clickable { onNavigateToMetric("speed") }
+                )
+            } else {
+                // Generic hero gauge for non-speed metrics
+                val heroRawValue = heroMetric.extractValue(wheelState) ?: 0.0
+                val heroDisplayValue = DisplayUtils.convertMetricValue(heroRawValue, heroMetric, useMph, useFahrenheit)
+                val heroUnit = DisplayUtils.metricUnit(heroMetric, useMph, useFahrenheit)
+                val heroMax = heroMetric.maxValue.let { if (it > 0) it else kotlin.math.abs(heroRawValue).coerceAtLeast(1.0) }
+
+                HeroGauge(
+                    value = heroDisplayValue,
+                    maxValue = heroMax,
+                    unitLabel = heroUnit,
+                    label = heroMetric.label,
+                    metric = heroMetric,
+                    modifier = Modifier
+                        .height(250.dp)
+                        .padding(top = 8.dp)
+                        .clickable { onNavigateToMetric(heroMetric.name.lowercase()) }
+                )
             }
-
-            // Speed gauge (hero metric)
-            SpeedGauge(
-                speed = displaySpeed,
-                maxSpeed = maxSpeed,
-                unitLabel = speedUnit,
-                gpsSpeed = displayGpsSpeed,
-                mode = speedDisplayMode,
-                modifier = Modifier
-                    .height(250.dp)
-                    .padding(top = 8.dp)
-                    .clickable { onNavigateToMetric("speed") }
-            )
-        } else {
-            // Generic hero gauge for non-speed metrics
-            val heroMetric = effectiveLayout.heroMetric
-            val heroRawValue = heroMetric.extractValue(wheelState) ?: 0.0
-            val heroDisplayValue = DisplayUtils.convertMetricValue(heroRawValue, heroMetric, useMph, useFahrenheit)
-            val heroUnit = DisplayUtils.metricUnit(heroMetric, useMph, useFahrenheit)
-            val heroMax = heroMetric.maxValue.let { if (it > 0) it else kotlin.math.abs(heroRawValue).coerceAtLeast(1.0) }
-
-            HeroGauge(
-                value = heroDisplayValue,
-                maxValue = heroMax,
-                unitLabel = heroUnit,
-                label = heroMetric.label,
-                metric = heroMetric,
-                modifier = Modifier
-                    .height(250.dp)
-                    .padding(top = 8.dp)
-                    .clickable { onNavigateToMetric(heroMetric.name.lowercase()) }
-            )
         }
 
         // Gauge tile grid — 2 columns, driven by layout
@@ -206,6 +209,16 @@ fun DashboardContent(
                         useFahrenheit = useFahrenheit
                     )
                 }
+            }
+        }
+
+        // Range estimate (shown when available)
+        if (rangeEstimateKm != null) {
+            StatsSection(modifier = Modifier.padding(horizontal = 16.dp)) {
+                StatRow(
+                    label = DashboardLabels.ESTIMATED_RANGE,
+                    value = DisplayUtils.formatDistance(rangeEstimateKm, useMph, decimals = 1)
+                )
             }
         }
 

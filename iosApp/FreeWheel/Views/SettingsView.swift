@@ -210,6 +210,25 @@ struct SettingsView: View {
                 Toggle(SettingsLabels.shared.SHOW_UNKNOWN_DEVICES, isOn: $wheelManager.showUnknownDevices)
             }
 
+            // MARK: - Auto Headlight
+            Section {
+                Toggle(SettingsLabels.shared.AUTO_TORCH_ENABLED, isOn: $wheelManager.autoTorchEnabled)
+                if wheelManager.autoTorchEnabled {
+                    alarmSlider(
+                        label: SettingsLabels.shared.AUTO_TORCH_SPEED_THRESHOLD,
+                        value: $wheelManager.autoTorchSpeedThreshold,
+                        range: 0...60,
+                        displayValue: displaySpeed(wheelManager.autoTorchSpeedThreshold),
+                        unit: DisplayUtils.shared.speedUnit(useMph: wheelManager.useMph)
+                    )
+                    Toggle(SettingsLabels.shared.AUTO_TORCH_USE_SUNSET, isOn: $wheelManager.autoTorchUseSunset)
+                }
+            } header: {
+                Text(SettingsLabels.shared.SECTION_AUTO_TORCH)
+            } footer: {
+                Text(SettingsLabels.shared.AUTO_TORCH_HINT)
+            }
+
             // MARK: - Wheel Settings
             if wheelManager.connectionState.isConnected {
                 WheelSettingsContent()

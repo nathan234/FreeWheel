@@ -12,7 +12,8 @@ import org.freewheel.core.domain.WheelType
 data class DashboardLayout private constructor(
     val id: String?,
     val name: String?,
-    val heroMetric: DashboardMetric,
+    /** Hero gauge metric, or null for tiles-only layout. */
+    val heroMetric: DashboardMetric?,
     val tiles: List<DashboardMetric>,
     val stats: List<DashboardMetric>,
     val sections: Set<DashboardSection>
@@ -30,7 +31,11 @@ data class DashboardLayout private constructor(
      */
     fun filteredFor(wheelType: WheelType): DashboardLayout {
         if (wheelType == WheelType.Unknown) return this
-        val filteredHero = if (heroMetric.isAvailableFor(wheelType)) heroMetric else DashboardMetric.SPEED
+        val filteredHero = when {
+            heroMetric == null -> null
+            heroMetric.isAvailableFor(wheelType) -> heroMetric
+            else -> DashboardMetric.SPEED
+        }
         return copy(
             heroMetric = filteredHero,
             tiles = tiles.filter { it.isAvailableFor(wheelType) },
@@ -60,17 +65,20 @@ data class DashboardLayout private constructor(
         /**
          * Strict factory — throws on invalid metric placement.
          * Use for user-initiated layout creation (edit screens, presets).
+         * Pass null for [heroMetric] to create a tiles-only layout.
          */
         fun create(
             id: String? = null,
             name: String? = null,
-            heroMetric: DashboardMetric = DashboardMetric.SPEED,
+            heroMetric: DashboardMetric? = DashboardMetric.SPEED,
             tiles: List<DashboardMetric> = DEFAULT_TILES,
             stats: List<DashboardMetric> = DEFAULT_STATS,
             sections: Set<DashboardSection> = DEFAULT_SECTIONS
         ): DashboardLayout {
-            require(WidgetType.HERO_GAUGE in heroMetric.supportedDisplayTypes) {
-                "${heroMetric.name} does not support HERO_GAUGE"
+            if (heroMetric != null) {
+                require(WidgetType.HERO_GAUGE in heroMetric.supportedDisplayTypes) {
+                    "${heroMetric.name} does not support HERO_GAUGE"
+                }
             }
             tiles.forEach {
                 require(WidgetType.GAUGE_TILE in it.supportedDisplayTypes) {
@@ -87,18 +95,21 @@ data class DashboardLayout private constructor(
 
         /**
          * Lenient factory for deserialization — filters invalid metrics instead of throwing.
-         * Invalid hero falls back to SPEED.
+         * Invalid hero falls back to SPEED. Explicit null hero preserved (tiles-only layout).
          */
         fun createLenient(
             id: String? = null,
             name: String? = null,
-            heroMetric: DashboardMetric = DashboardMetric.SPEED,
+            heroMetric: DashboardMetric? = DashboardMetric.SPEED,
             tiles: List<DashboardMetric> = DEFAULT_TILES,
             stats: List<DashboardMetric> = DEFAULT_STATS,
             sections: Set<DashboardSection> = DEFAULT_SECTIONS
         ): DashboardLayout {
-            val validHero = if (WidgetType.HERO_GAUGE in heroMetric.supportedDisplayTypes) heroMetric
-                else DashboardMetric.SPEED
+            val validHero = when {
+                heroMetric == null -> null
+                WidgetType.HERO_GAUGE in heroMetric.supportedDisplayTypes -> heroMetric
+                else -> DashboardMetric.SPEED
+            }
             return DashboardLayout(
                 id, name, validHero,
                 tiles.filter { WidgetType.GAUGE_TILE in it.supportedDisplayTypes },

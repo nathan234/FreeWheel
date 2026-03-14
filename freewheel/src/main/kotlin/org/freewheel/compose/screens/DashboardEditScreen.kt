@@ -88,7 +88,7 @@ internal fun LayoutEditorContent(
     onSave: (DashboardLayout) -> Unit,
     onCancel: () -> Unit
 ) {
-    // Local mutable state
+    // Local mutable state (null heroMetric = tiles-only layout)
     var heroMetric by remember(currentLayout) { mutableStateOf(currentLayout.heroMetric) }
     val tiles = remember(currentLayout) { mutableStateListOf(*currentLayout.tiles.toTypedArray()) }
     val stats = remember(currentLayout) { mutableStateListOf(*currentLayout.stats.toTypedArray()) }
@@ -96,7 +96,7 @@ internal fun LayoutEditorContent(
     var showWheelInfo by remember(currentLayout) { mutableStateOf(currentLayout.showWheelInfo) }
 
     val isLayoutValid = remember(heroMetric, tiles.toList(), stats.toList()) {
-        WidgetType.HERO_GAUGE in heroMetric.supportedDisplayTypes &&
+        (heroMetric == null || WidgetType.HERO_GAUGE in heroMetric!!.supportedDisplayTypes) &&
         tiles.all { WidgetType.GAUGE_TILE in it.supportedDisplayTypes } &&
         stats.all { WidgetType.STAT_ROW in it.supportedDisplayTypes }
     }
@@ -175,6 +175,17 @@ internal fun LayoutEditorContent(
                 color = MaterialTheme.colorScheme.surfaceVariant
             ) {
                 Column(modifier = Modifier.padding(8.dp)) {
+                    // "None" option for tiles-only layout
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = heroMetric == null,
+                            onClick = { heroMetric = null }
+                        )
+                        Text("None (tiles only)")
+                    }
                     heroOptions.forEach { metric ->
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -196,7 +207,7 @@ internal fun LayoutEditorContent(
                 metrics = tiles,
                 widgetType = WidgetType.GAUGE_TILE,
                 wheelType = wheelType,
-                allSelected = tiles + stats + listOf(heroMetric),
+                allSelected = tiles + stats + listOfNotNull(heroMetric),
                 onAdd = { showAddTileDialog = true },
                 onRemove = { tiles.remove(it) },
                 onMoveUp = { idx -> if (idx > 0) { val item = tiles.removeAt(idx); tiles.add(idx - 1, item) } },
@@ -209,7 +220,7 @@ internal fun LayoutEditorContent(
                 metrics = stats,
                 widgetType = WidgetType.STAT_ROW,
                 wheelType = wheelType,
-                allSelected = tiles + stats + listOf(heroMetric),
+                allSelected = tiles + stats + listOfNotNull(heroMetric),
                 onAdd = { showAddStatDialog = true },
                 onRemove = { stats.remove(it) },
                 onMoveUp = { idx -> if (idx > 0) { val item = stats.removeAt(idx); stats.add(idx - 1, item) } },

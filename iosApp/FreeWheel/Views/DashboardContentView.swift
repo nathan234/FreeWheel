@@ -44,10 +44,6 @@ struct DashboardContentView: View {
         return Array(arr.suffix(20))
     }
 
-    private var isSpeedHero: Bool {
-        effectiveLayout.heroMetric == .speed || effectiveLayout.heroMetric == .gpsSpeed
-    }
-
     var body: some View {
         ScrollView {
             VStack(spacing: 20) {
@@ -56,51 +52,55 @@ struct DashboardContentView: View {
                     AlarmBannerView(activeAlarms: wheelManager.activeAlarms)
                 }
 
-                if isSpeedHero {
-                    // Speed display mode picker (only on main dashboard)
-                    if showControls {
-                        Picker("Speed Source", selection: $wheelManager.speedDisplayMode) {
-                            Text(DashboardLabels.shared.SPEED_SOURCE_SPEED).tag(SpeedDisplayMode.wheel)
-                            Text(DashboardLabels.shared.SPEED_SOURCE_GPS).tag(SpeedDisplayMode.gps)
-                            Text(DashboardLabels.shared.SPEED_SOURCE_BOTH).tag(SpeedDisplayMode.both)
+                // Hero metric rendering (nil = tiles-only layout, skip hero gauge)
+                if let heroMetric = effectiveLayout.heroMetric {
+                    let isSpeedHero = heroMetric == .speed || heroMetric == .gpsSpeed
+
+                    if isSpeedHero {
+                        // Speed display mode picker (only on main dashboard)
+                        if showControls {
+                            Picker("Speed Source", selection: $wheelManager.speedDisplayMode) {
+                                Text(DashboardLabels.shared.SPEED_SOURCE_SPEED).tag(SpeedDisplayMode.wheel)
+                                Text(DashboardLabels.shared.SPEED_SOURCE_GPS).tag(SpeedDisplayMode.gps)
+                                Text(DashboardLabels.shared.SPEED_SOURCE_BOTH).tag(SpeedDisplayMode.both)
+                            }
+                            .pickerStyle(.segmented)
+                            .padding(.horizontal)
                         }
-                        .pickerStyle(.segmented)
-                        .padding(.horizontal)
-                    }
 
-                    // Speed gauge
-                    Button(action: { selectedMetric = "speed" }) {
-                        SpeedGaugeView(
-                            speed: displaySpeed,
-                            maxSpeed: maxSpeed,
-                            unitLabel: speedUnit,
-                            gpsSpeed: gpsDisplaySpeed,
-                            mode: wheelManager.speedDisplayMode
-                        )
-                        .frame(height: 250)
-                        .padding(.top)
-                    }
-                    .buttonStyle(.plain)
-                } else {
-                    // Generic hero gauge for non-speed metrics
-                    let heroMetric = effectiveLayout.heroMetric
-                    let heroRawValue = heroMetric.extractValue(state: wheelManager.wheelState)?.doubleValue ?? 0.0
-                    let heroDisplayValue = DisplayUtils.shared.convertMetricValue(value: heroRawValue, metric: heroMetric, useMph: wheelManager.useMph, useFahrenheit: wheelManager.useFahrenheit)
-                    let heroUnit = DisplayUtils.shared.metricUnit(metric: heroMetric, useMph: wheelManager.useMph, useFahrenheit: wheelManager.useFahrenheit)
-                    let heroMax = heroMetric.maxValue > 0 ? heroMetric.maxValue : max(abs(heroRawValue), 1.0)
+                        // Speed gauge
+                        Button(action: { selectedMetric = "speed" }) {
+                            SpeedGaugeView(
+                                speed: displaySpeed,
+                                maxSpeed: maxSpeed,
+                                unitLabel: speedUnit,
+                                gpsSpeed: gpsDisplaySpeed,
+                                mode: wheelManager.speedDisplayMode
+                            )
+                            .frame(height: 250)
+                            .padding(.top)
+                        }
+                        .buttonStyle(.plain)
+                    } else {
+                        // Generic hero gauge for non-speed metrics
+                        let heroRawValue = heroMetric.extractValue(state: wheelManager.wheelState)?.doubleValue ?? 0.0
+                        let heroDisplayValue = DisplayUtils.shared.convertMetricValue(value: heroRawValue, metric: heroMetric, useMph: wheelManager.useMph, useFahrenheit: wheelManager.useFahrenheit)
+                        let heroUnit = DisplayUtils.shared.metricUnit(metric: heroMetric, useMph: wheelManager.useMph, useFahrenheit: wheelManager.useFahrenheit)
+                        let heroMax = heroMetric.maxValue > 0 ? heroMetric.maxValue : max(abs(heroRawValue), 1.0)
 
-                    Button(action: { selectedMetric = heroMetric.name.lowercased() }) {
-                        HeroGaugeView(
-                            value: heroDisplayValue,
-                            maxValue: heroMax,
-                            unitLabel: heroUnit,
-                            label: heroMetric.label,
-                            metric: heroMetric
-                        )
-                        .frame(height: 250)
-                        .padding(.top)
+                        Button(action: { selectedMetric = heroMetric.name.lowercased() }) {
+                            HeroGaugeView(
+                                value: heroDisplayValue,
+                                maxValue: heroMax,
+                                unitLabel: heroUnit,
+                                label: heroMetric.label,
+                                metric: heroMetric
+                            )
+                            .frame(height: 250)
+                            .padding(.top)
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
                 }
 
                 // Gauge tile grid — driven by layout
@@ -134,6 +134,20 @@ struct DashboardContentView: View {
                                 useFahrenheit: wheelManager.useFahrenheit
                             )
                         }
+                    }
+                    .padding()
+                    .background(Color(UIColor.secondarySystemGroupedBackground))
+                    .cornerRadius(12)
+                    .padding(.horizontal)
+                }
+
+                // Range estimate (shown when available)
+                if let range = wheelManager.rangeEstimateKm {
+                    VStack(spacing: 12) {
+                        StatRow(
+                            label: DashboardLabels.shared.ESTIMATED_RANGE,
+                            value: DisplayUtils.shared.formatDistance(km: range, useMph: wheelManager.useMph, decimals: 1)
+                        )
                     }
                     .padding()
                     .background(Color(UIColor.secondarySystemGroupedBackground))
@@ -296,6 +310,19 @@ struct DashboardContentView: View {
     NavigationStack {
         DashboardContentView(
             layout: DashboardPresets.shared.all().first(where: { $0.id == "racing" })!.layout,
+            selectedMetric: .constant(nil),
+            showChart: .constant(false),
+            showBms: .constant(false),
+            showEditDashboard: .constant(false)
+        )
+        .environmentObject(WheelManager())
+    }
+}
+
+#Preview("Tiles Only Layout") {
+    NavigationStack {
+        DashboardContentView(
+            layout: DashboardPresets.shared.tilesOnly().layout,
             selectedMetric: .constant(nil),
             showChart: .constant(false),
             showBms: .constant(false),

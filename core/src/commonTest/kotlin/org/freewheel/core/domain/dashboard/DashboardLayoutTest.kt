@@ -5,6 +5,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class DashboardLayoutTest {
@@ -158,6 +159,31 @@ class DashboardLayoutTest {
         val filtered = layout.filteredFor(WheelType.INMOTION_V2)
         assertFalse(filtered.showWheelSettings)
         assertFalse(filtered.showWheelInfo)
+    }
+
+    @Test
+    fun `create with null hero succeeds for tiles-only layout`() {
+        val layout = DashboardLayout.create(
+            heroMetric = null,
+            tiles = listOf(DashboardMetric.SPEED, DashboardMetric.BATTERY)
+        )
+        assertNull(layout.heroMetric)
+    }
+
+    @Test
+    fun `createLenient preserves null hero`() {
+        val layout = DashboardLayout.createLenient(heroMetric = null)
+        assertNull(layout.heroMetric)
+    }
+
+    @Test
+    fun `filteredFor preserves null hero`() {
+        val layout = DashboardLayout.create(
+            heroMetric = null,
+            tiles = listOf(DashboardMetric.SPEED, DashboardMetric.BATTERY)
+        )
+        val filtered = layout.filteredFor(WheelType.KINGSONG)
+        assertNull(filtered.heroMetric)
     }
 
     @Test

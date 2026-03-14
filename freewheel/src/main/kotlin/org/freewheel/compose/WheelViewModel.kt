@@ -19,6 +19,8 @@ import org.freewheel.core.telemetry.TelemetryBuffer
 import org.freewheel.core.telemetry.TelemetryHistory
 import org.freewheel.core.telemetry.TelemetrySample
 import org.freewheel.core.service.AutoConnectManager
+import org.freewheel.core.service.AutoTorchEngine
+import org.freewheel.core.utils.RangeEstimator
 import org.freewheel.core.service.BleDevice
 import org.freewheel.core.service.BleManager
 import org.freewheel.core.service.BluetoothAdapterState
@@ -30,6 +32,7 @@ import org.freewheel.core.domain.AlarmAction
 import org.freewheel.core.domain.AlarmType
 import org.freewheel.core.domain.SettingsCommandId
 import org.freewheel.core.domain.WheelProfile
+import org.freewheel.core.domain.PreferenceDefaults
 import org.freewheel.core.domain.PreferenceKeys
 import org.freewheel.core.domain.dashboard.DashboardLayout
 import org.freewheel.core.domain.dashboard.DashboardLayoutSerializer
@@ -188,6 +191,11 @@ class WheelViewModel(
     private val _isLightOn = MutableStateFlow(false)
     val isLightOn: StateFlow<Boolean> = _isLightOn.asStateFlow()
 
+    // Range estimate
+    private var startBattery: Int = -1
+    private val _rangeEstimateKm = MutableStateFlow<Double?>(null)
+    val rangeEstimateKm: StateFlow<Double?> = _rangeEstimateKm.asStateFlow()
+
     // Dashboard layout (per-wheel)
     private val _dashboardLayout = MutableStateFlow(DashboardLayout.default())
     val dashboardLayout: StateFlow<DashboardLayout> = _dashboardLayout.asStateFlow()
@@ -250,12 +258,16 @@ class WheelViewModel(
         onWheelBeep = ::wheelBeep
     )
 
+    // Auto-torch: tracks whether engine requested light on (to avoid spamming commands)
+    private var autoTorchLightRequested = false
+
     init {
         prefs.registerOnSharedPreferenceChangeListener(prefChangeListener)
         loadNavigationConfig()
         loadCustomTabLayouts()
         startTelemetryBuffering()
         startAlarmMonitoring()
+        startAutoTorchMonitoring()
     }
 
     override fun onCleared() {
@@ -444,6 +456,8 @@ class WheelViewModel(
         _telemetrySamples.value = emptyList()
         alarmChecker.reset()
         _activeAlarms.value = emptySet()
+        startBattery = -1
+        _rangeEstimateKm.value = null
     }
 
     fun setBluetoothAdapterState(state: BluetoothAdapterState) {
@@ -882,6 +896,18 @@ class WheelViewModel(
                         _telemetrySamples.value = telemetryBuffer.samples
                     }
                     telemetryHistory?.addSample(sample)
+
+                    // Range estimation: capture start battery on first valid reading
+                    if (startBattery < 0 && state.batteryLevel > 0) {
+                        startBattery = state.batteryLevel
+                    }
+                    if (startBattery > 0) {
+                        _rangeEstimateKm.value = RangeEstimator.estimate(
+                            currentBattery = state.batteryLevel,
+                            tripDistanceKm = state.wheelDistanceKm,
+                            startBattery = startBattery
+                        )
+                    }
                 }
             }
         }
@@ -912,6 +938,53 @@ class WheelViewModel(
         val history = TelemetryHistory(telemetryFileIO)
         history.loadForWheel(path, System.currentTimeMillis())
         telemetryHistory = history
+    }
+
+    // --- Auto-torch monitoring ---
+
+    private fun startAutoTorchMonitoring() {
+        viewModelScope.launch {
+            wheelState.collect { state ->
+                val enabled = getGlobalBool(PreferenceKeys.AUTO_TORCH_ENABLED, PreferenceDefaults.AUTO_TORCH_ENABLED)
+                if (!enabled) {
+                    if (autoTorchLightRequested) {
+                        // Auto-torch was on but user disabled the feature — turn off
+                        autoTorchLightRequested = false
+                        _isLightOn.value = false
+                        connectionManager?.toggleLight(false)
+                    }
+                    return@collect
+                }
+
+                val speedThreshold = getGlobalInt(
+                    PreferenceKeys.AUTO_TORCH_SPEED_THRESHOLD,
+                    PreferenceDefaults.AUTO_TORCH_SPEED_THRESHOLD
+                )
+                val useSunset = getGlobalBool(
+                    PreferenceKeys.AUTO_TORCH_USE_SUNSET,
+                    PreferenceDefaults.AUTO_TORCH_USE_SUNSET
+                )
+                val gpsLocation = _lastGpsLocation.value
+
+                val result = AutoTorchEngine.shouldLightBeOn(
+                    speedKmh = state.speedKmh,
+                    speedThresholdKmh = speedThreshold,
+                    useSunset = useSunset,
+                    latitudeDeg = gpsLocation?.latitude ?: 0.0,
+                    longitudeDeg = gpsLocation?.longitude ?: 0.0
+                )
+
+                if (result.shouldBeOn && !autoTorchLightRequested) {
+                    autoTorchLightRequested = true
+                    _isLightOn.value = true
+                    connectionManager?.toggleLight(true)
+                } else if (!result.shouldBeOn && autoTorchLightRequested) {
+                    autoTorchLightRequested = false
+                    _isLightOn.value = false
+                    connectionManager?.toggleLight(false)
+                }
+            }
+        }
     }
 
     // --- Alarm monitoring ---

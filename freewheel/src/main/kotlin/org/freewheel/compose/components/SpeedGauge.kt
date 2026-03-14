@@ -151,33 +151,28 @@ fun SpeedGauge(
 
         // Center content
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            val speedTextStyle = TextStyle(
+                fontSize = 60.sp,
+                fontWeight = FontWeight.Bold
+            )
             when (mode) {
                 SpeedDisplayMode.WHEEL -> {
                     Text(
                         text = String.format(Locale.US, "%.1f", speed),
-                        style = MaterialTheme.typography.displayMedium.copy(
-                            fontWeight = FontWeight.Bold,
-                            color = arcColor
-                        )
+                        style = speedTextStyle.copy(color = arcColor)
                     )
                 }
                 SpeedDisplayMode.GPS -> {
                     val gpsText = if (gpsSpeed > 0) String.format(Locale.US, "%.1f", gpsSpeed) else "\u2014"
                     Text(
                         text = gpsText,
-                        style = MaterialTheme.typography.displayMedium.copy(
-                            fontWeight = FontWeight.Bold,
-                            color = GPS_CYAN
-                        )
+                        style = speedTextStyle.copy(color = GPS_CYAN)
                     )
                 }
                 SpeedDisplayMode.BOTH -> {
                     Text(
                         text = String.format(Locale.US, "%.1f", speed),
-                        style = MaterialTheme.typography.displayMedium.copy(
-                            fontWeight = FontWeight.Bold,
-                            color = arcColor
-                        )
+                        style = speedTextStyle.copy(color = arcColor)
                     )
                     val gpsText = if (gpsSpeed > 0) String.format(Locale.US, "GPS %.1f", gpsSpeed) else "GPS \u2014"
                     Text(

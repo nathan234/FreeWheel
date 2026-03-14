@@ -112,22 +112,22 @@ struct SpeedGaugeView: View {
                     switch mode {
                     case .wheel:
                         Text(String(format: "%.1f", speed))
-                            .font(.system(size: size * 0.18, weight: .bold, design: .rounded))
+                            .font(.system(size: size * 0.24, weight: .bold, design: .rounded))
                             .foregroundColor(arcColor)
                     case .gps:
                         Text(gpsSpeed > 0 ? String(format: "%.1f", gpsSpeed) : "\u{2014}")
-                            .font(.system(size: size * 0.18, weight: .bold, design: .rounded))
+                            .font(.system(size: size * 0.24, weight: .bold, design: .rounded))
                             .foregroundColor(gpsCyan)
                     case .both:
                         Text(String(format: "%.1f", speed))
-                            .font(.system(size: size * 0.18, weight: .bold, design: .rounded))
+                            .font(.system(size: size * 0.24, weight: .bold, design: .rounded))
                             .foregroundColor(arcColor)
                         Text(gpsSpeed > 0 ? String(format: "GPS %.1f", gpsSpeed) : "GPS \u{2014}")
                             .font(.system(size: size * 0.06, weight: .medium))
                             .foregroundColor(gpsCyan)
                     default:
                         Text(String(format: "%.1f", speed))
-                            .font(.system(size: size * 0.18, weight: .bold, design: .rounded))
+                            .font(.system(size: size * 0.24, weight: .bold, design: .rounded))
                             .foregroundColor(arcColor)
                     }
 
