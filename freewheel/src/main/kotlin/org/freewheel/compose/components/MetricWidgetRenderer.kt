@@ -32,6 +32,7 @@ fun RenderGaugeTile(
     useMph: Boolean,
     useFahrenheit: Boolean,
     onNavigateToMetric: (String) -> Unit,
+    onLongPress: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val rawValue = metric.extractValue(wheelState) ?: gpsSpeed
@@ -68,6 +69,7 @@ fun RenderGaugeTile(
             val metricId = metricType?.name?.lowercase() ?: metric.name.lowercase()
             onNavigateToMetric(metricId)
         },
+        onLongPress = onLongPress,
         modifier = modifier
     )
 }

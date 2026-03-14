@@ -11,6 +11,7 @@ struct MetricGaugeTile: View {
     let useFahrenheit: Bool
     let sparklineData: [Double]
     let action: () -> Void
+    var onLongPress: (() -> Void)? = nil
 
     private var rawValue: Double {
         metric.extractValue(state: wheelState)?.doubleValue ?? gpsSpeed
@@ -61,7 +62,8 @@ struct MetricGaugeTile: View {
             progress: progress,
             color: color,
             sparklineData: sparklineData,
-            action: action
+            action: action,
+            onLongPress: onLongPress
         )
     }
 }

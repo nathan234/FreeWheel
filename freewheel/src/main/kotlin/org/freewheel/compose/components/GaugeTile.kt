@@ -4,7 +4,8 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.aspectRatio
@@ -32,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.math.min
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun GaugeTile(
     label: String,
@@ -41,6 +43,7 @@ fun GaugeTile(
     color: Color,
     sparklineData: List<Float>,
     onClick: () -> Unit,
+    onLongPress: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val animatedProgress by animateFloatAsState(
@@ -53,7 +56,7 @@ fun GaugeTile(
 
     Surface(
         modifier = modifier
-            .clickable(onClick = onClick)
+            .combinedClickable(onClick = onClick, onLongClick = onLongPress)
             .semantics { contentDescription = "$label: $value $unit" },
         shape = RoundedCornerShape(12.dp),
         color = MaterialTheme.colorScheme.surfaceVariant

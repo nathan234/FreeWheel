@@ -76,6 +76,7 @@ fun DashboardContent(
     onNavigateToMetric: (String) -> Unit,
     onNavigateToWheelSettings: () -> Unit,
     onDisconnect: () -> Unit,
+    onEditDashboard: (() -> Unit)? = null,
     rangeEstimateKm: Double? = null,
     showControls: Boolean = true,
     modifier: Modifier = Modifier
@@ -187,6 +188,7 @@ fun DashboardContent(
                         useMph = useMph,
                         useFahrenheit = useFahrenheit,
                         onNavigateToMetric = onNavigateToMetric,
+                        onLongPress = onEditDashboard,
                         modifier = tileModifier
                     )
                 }

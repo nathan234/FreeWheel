@@ -113,11 +113,13 @@ struct DashboardContentView: View {
                             gpsSpeed: gpsKmh,
                             useMph: wheelManager.useMph,
                             useFahrenheit: wheelManager.useFahrenheit,
-                            sparklineData: sparklineFor(metric)
-                        ) {
-                            let metricType = metric.sparklineKey
-                            selectedMetric = metricType?.name.lowercased() ?? metric.name.lowercased()
-                        }
+                            sparklineData: sparklineFor(metric),
+                            action: {
+                                let metricType = metric.sparklineKey
+                                selectedMetric = metricType?.name.lowercased() ?? metric.name.lowercased()
+                            },
+                            onLongPress: { showEditDashboard = true }
+                        )
                     }
                 }
                 .padding(.horizontal)

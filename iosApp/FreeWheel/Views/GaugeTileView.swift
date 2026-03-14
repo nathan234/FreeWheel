@@ -8,6 +8,7 @@ struct GaugeTileView: View {
     let color: Color
     let sparklineData: [Double]
     let action: () -> Void
+    var onLongPress: (() -> Void)? = nil
 
     var body: some View {
         Button(action: action) {
@@ -82,6 +83,18 @@ struct GaugeTileView: View {
             .cornerRadius(12)
         }
         .buttonStyle(.plain)
+        .if(onLongPress != nil) { view in
+            view.simultaneousGesture(
+                LongPressGesture(minimumDuration: 0.5)
+                    .onEnded { _ in onLongPress?() }
+            )
+        }
+    }
+}
+
+private extension View {
+    @ViewBuilder func `if`<Content: View>(_ condition: Bool, transform: (Self) -> Content) -> some View {
+        if condition { transform(self) } else { self }
     }
 }
 

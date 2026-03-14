@@ -115,6 +115,7 @@ fun DashboardScreen(
             onNavigateToMetric = onNavigateToMetric,
             onNavigateToWheelSettings = onNavigateToWheelSettings,
             onDisconnect = { viewModel.disconnect() },
+            onEditDashboard = onNavigateToEditDashboard,
             rangeEstimateKm = rangeEstimateKm,
             modifier = Modifier.padding(contentPadding)
         )
