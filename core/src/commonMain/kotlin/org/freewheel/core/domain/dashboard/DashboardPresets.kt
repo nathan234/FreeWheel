@@ -58,7 +58,7 @@ object DashboardPresets {
                 DashboardMetric.VOLTAGE,
                 DashboardMetric.CURRENT
             ),
-            sections = setOf(DashboardSection.WHEEL_SETTINGS, DashboardSection.WHEEL_INFO)
+            sections = setOf(DashboardSection.WHEEL_SETTINGS, DashboardSection.WHEEL_INFO, DashboardSection.BMS_SUMMARY)
         )
     )
 
@@ -104,7 +104,7 @@ object DashboardPresets {
                 DashboardMetric.TRIP_DISTANCE,
                 DashboardMetric.TOTAL_DISTANCE
             ),
-            sections = setOf(DashboardSection.WHEEL_SETTINGS, DashboardSection.WHEEL_INFO)
+            sections = setOf(DashboardSection.WHEEL_SETTINGS, DashboardSection.WHEEL_INFO, DashboardSection.BMS_SUMMARY)
         )
     )
 

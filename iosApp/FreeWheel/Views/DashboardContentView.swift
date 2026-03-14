@@ -155,6 +155,43 @@ struct DashboardContentView: View {
                     .padding(.horizontal)
                 }
 
+                // BMS summary card (conditional — shown when BMS data available)
+                if effectiveLayout.showBmsSummary, let bms = wheelManager.wheelState.bms1, bms.cellNum > 0 {
+                    Button(action: { showBms = true }) {
+                        VStack(spacing: 12) {
+                            HStack {
+                                Text(DashboardLabels.shared.BMS_SUMMARY)
+                                    .font(.subheadline)
+                                    .fontWeight(.semibold)
+                                Spacer()
+                                Image(systemName: "battery.100")
+                            }
+                            .foregroundColor(.secondary)
+                            StatRow(
+                                label: DashboardLabels.shared.BMS_MIN_CELL,
+                                value: DisplayUtils.shared.formatBmsCellLabeled(voltage: bms.minCell, cellNum: bms.minCellNum)
+                            )
+                            StatRow(
+                                label: DashboardLabels.shared.BMS_MAX_CELL,
+                                value: DisplayUtils.shared.formatBmsCellLabeled(voltage: bms.maxCell, cellNum: bms.maxCellNum)
+                            )
+                            let diffColor: Color = bms.cellDiff > 0.1 ? .red
+                                : bms.cellDiff > 0.05 ? .orange
+                                : .primary
+                            StatRow(
+                                label: DashboardLabels.shared.BMS_CELL_DIFF,
+                                value: DisplayUtils.shared.formatBmsCell(voltage: bms.cellDiff),
+                                valueColor: diffColor
+                            )
+                        }
+                        .padding()
+                        .background(Color(UIColor.secondarySystemGroupedBackground))
+                        .cornerRadius(12)
+                        .padding(.horizontal)
+                    }
+                    .buttonStyle(.plain)
+                }
+
                 if showControls {
                     // Wheel settings (conditional)
                     if effectiveLayout.showWheelSettings && wheelManager.wheelState.pedalsMode >= 0 {

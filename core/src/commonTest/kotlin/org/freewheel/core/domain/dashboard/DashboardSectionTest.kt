@@ -7,8 +7,8 @@ import kotlin.test.assertTrue
 class DashboardSectionTest {
 
     @Test
-    fun `there are 2 sections`() {
-        assertEquals(2, DashboardSection.entries.size)
+    fun `there are 3 sections`() {
+        assertEquals(3, DashboardSection.entries.size)
     }
 
     @Test
@@ -19,6 +19,11 @@ class DashboardSectionTest {
     @Test
     fun `WHEEL_INFO has correct label`() {
         assertEquals("Wheel Info", DashboardSection.WHEEL_INFO.label)
+    }
+
+    @Test
+    fun `BMS_SUMMARY has correct label`() {
+        assertEquals("BMS Summary", DashboardSection.BMS_SUMMARY.label)
     }
 
     @Test

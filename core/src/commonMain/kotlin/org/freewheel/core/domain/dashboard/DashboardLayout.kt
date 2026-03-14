@@ -24,6 +24,9 @@ data class DashboardLayout private constructor(
     /** Backward compat: true if WHEEL_INFO section is enabled. */
     val showWheelInfo: Boolean get() = DashboardSection.WHEEL_INFO in sections
 
+    /** True if BMS_SUMMARY section is enabled. */
+    val showBmsSummary: Boolean get() = DashboardSection.BMS_SUMMARY in sections
+
     /**
      * Returns a copy with metrics filtered for the given wheel type.
      * Removes metrics that are not available for the wheel, keeping the hero
@@ -60,7 +63,7 @@ data class DashboardLayout private constructor(
             DashboardMetric.TOTAL_DISTANCE
         )
 
-        val DEFAULT_SECTIONS = setOf(DashboardSection.WHEEL_SETTINGS, DashboardSection.WHEEL_INFO)
+        val DEFAULT_SECTIONS = setOf(DashboardSection.WHEEL_SETTINGS, DashboardSection.WHEEL_INFO, DashboardSection.BMS_SUMMARY)
 
         /**
          * Strict factory — throws on invalid metric placement.

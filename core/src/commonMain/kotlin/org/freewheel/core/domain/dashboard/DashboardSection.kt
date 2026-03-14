@@ -5,5 +5,6 @@ package org.freewheel.core.domain.dashboard
  */
 enum class DashboardSection(val label: String) {
     WHEEL_SETTINGS("Wheel Settings"),
-    WHEEL_INFO("Wheel Info")
+    WHEEL_INFO("Wheel Info"),
+    BMS_SUMMARY("BMS Summary")
 }

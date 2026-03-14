@@ -33,6 +33,7 @@ struct LayoutEditorBody: View {
     @State private var stats: [DashboardMetric] = []
     @State private var showWheelSettings: Bool = true
     @State private var showWheelInfo: Bool = true
+    @State private var showBmsSummary: Bool = true
     @State private var showAddTile = false
     @State private var showAddStat = false
 
@@ -56,6 +57,7 @@ struct LayoutEditorBody: View {
                                 stats = Array(filtered.stats)
                                 showWheelSettings = filtered.showWheelSettings
                                 showWheelInfo = filtered.showWheelInfo
+                                showBmsSummary = filtered.showBmsSummary
                             }
                             .buttonStyle(.bordered)
                         }
@@ -167,6 +169,7 @@ struct LayoutEditorBody: View {
             Section("Info Cards") {
                 Toggle("Show Wheel Settings", isOn: $showWheelSettings)
                 Toggle("Show Wheel Info", isOn: $showWheelInfo)
+                Toggle("Show BMS Summary", isOn: $showBmsSummary)
             }
         }
         .navigationTitle(title)
@@ -180,6 +183,7 @@ struct LayoutEditorBody: View {
                     var sections: Set<DashboardSection> = []
                     if showWheelSettings { sections.insert(.wheelSettings) }
                     if showWheelInfo { sections.insert(.wheelInfo) }
+                    if showBmsSummary { sections.insert(.bmsSummary) }
                     let layout = DashboardLayout.companion.create(
                         id: nil, name: nil,
                         heroMetric: heroMetric,
@@ -199,6 +203,7 @@ struct LayoutEditorBody: View {
             stats = Array(initialLayout.stats)
             showWheelSettings = initialLayout.showWheelSettings
             showWheelInfo = initialLayout.showWheelInfo
+            showBmsSummary = initialLayout.showBmsSummary
         }
         .sheet(isPresented: $showAddTile) {
             AddMetricSheet(

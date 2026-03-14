@@ -94,6 +94,7 @@ internal fun LayoutEditorContent(
     val stats = remember(currentLayout) { mutableStateListOf(*currentLayout.stats.toTypedArray()) }
     var showWheelSettings by remember(currentLayout) { mutableStateOf(currentLayout.showWheelSettings) }
     var showWheelInfo by remember(currentLayout) { mutableStateOf(currentLayout.showWheelInfo) }
+    var showBmsSummary by remember(currentLayout) { mutableStateOf(currentLayout.showBmsSummary) }
 
     val isLayoutValid = remember(heroMetric, tiles.toList(), stats.toList()) {
         (heroMetric == null || WidgetType.HERO_GAUGE in heroMetric!!.supportedDisplayTypes) &&
@@ -117,6 +118,7 @@ internal fun LayoutEditorContent(
                             val sections = mutableSetOf<DashboardSection>()
                             if (showWheelSettings) sections += DashboardSection.WHEEL_SETTINGS
                             if (showWheelInfo) sections += DashboardSection.WHEEL_INFO
+                            if (showBmsSummary) sections += DashboardSection.BMS_SUMMARY
                             val layout = DashboardLayout.create(
                                 heroMetric = heroMetric,
                                 tiles = tiles.toList(),
@@ -156,6 +158,7 @@ internal fun LayoutEditorContent(
                             stats.addAll(presetLayout.stats)
                             showWheelSettings = presetLayout.showWheelSettings
                             showWheelInfo = presetLayout.showWheelInfo
+                            showBmsSummary = presetLayout.showBmsSummary
                         },
                         label = { Text(preset.name) },
                         colors = FilterChipDefaults.filterChipColors(
@@ -250,6 +253,15 @@ internal fun LayoutEditorContent(
                     ) {
                         Text("Show Wheel Info")
                         Switch(checked = showWheelInfo, onCheckedChange = { showWheelInfo = it })
+                    }
+                    HorizontalDivider()
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Show BMS Summary")
+                        Switch(checked = showBmsSummary, onCheckedChange = { showBmsSummary = it })
                     }
                 }
             }

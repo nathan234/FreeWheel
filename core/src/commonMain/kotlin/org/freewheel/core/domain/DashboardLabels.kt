@@ -31,6 +31,12 @@ object DashboardLabels {
     // Range estimate
     const val ESTIMATED_RANGE = "Est. Range"
 
+    // BMS summary
+    const val BMS_SUMMARY = "Battery Cells"
+    const val BMS_MIN_CELL = "Min Cell"
+    const val BMS_MAX_CELL = "Max Cell"
+    const val BMS_CELL_DIFF = "Cell Diff"
+
     // Mode badges
     const val DEMO_MODE_BADGE = "Demo Mode - Simulated Data"
     const val TEST_MODE_BADGE = "Test Mode - KMP Decoder"

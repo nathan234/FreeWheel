@@ -222,6 +222,59 @@ fun DashboardContent(
             }
         }
 
+        // BMS summary card (conditional — shown when BMS data available)
+        if (effectiveLayout.showBmsSummary && wheelState.bms1 != null) {
+            val bms = wheelState.bms1!!
+            if (bms.cellNum > 0) {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp)
+                        .clickable { onNavigateToBms() },
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                DashboardLabels.BMS_SUMMARY,
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Icon(
+                                Icons.Default.BatteryFull,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        StatRow(
+                            label = DashboardLabels.BMS_MIN_CELL,
+                            value = DisplayUtils.formatBmsCellLabeled(bms.minCell, bms.minCellNum)
+                        )
+                        StatRow(
+                            label = DashboardLabels.BMS_MAX_CELL,
+                            value = DisplayUtils.formatBmsCellLabeled(bms.maxCell, bms.maxCellNum)
+                        )
+                        val diffColor = if (bms.cellDiff > 0.1) Color(0xFFF44336)
+                            else if (bms.cellDiff > 0.05) Color(0xFFFF9800)
+                            else Color.Unspecified
+                        StatRow(
+                            label = DashboardLabels.BMS_CELL_DIFF,
+                            value = DisplayUtils.formatBmsCell(bms.cellDiff),
+                            valueColor = diffColor
+                        )
+                    }
+                }
+            }
+        }
+
         // Wheel settings card (conditional)
         if (effectiveLayout.showWheelSettings && wheelState.pedalsMode >= 0) {
             StatsSection(modifier = Modifier.padding(horizontal = 16.dp)) {
