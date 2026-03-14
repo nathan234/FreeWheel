@@ -260,6 +260,8 @@ class WheelViewModel(
 
     // Auto-torch: tracks whether engine requested light on (to avoid spamming commands)
     private var autoTorchLightRequested = false
+    // When true, auto-torch backs off until next reconnect (user manually toggled light)
+    private var autoTorchManualOverride = false
 
     init {
         prefs.registerOnSharedPreferenceChangeListener(prefChangeListener)
@@ -458,6 +460,7 @@ class WheelViewModel(
         _activeAlarms.value = emptySet()
         startBattery = -1
         _rangeEstimateKm.value = null
+        autoTorchManualOverride = false
     }
 
     fun setBluetoothAdapterState(state: BluetoothAdapterState) {
@@ -562,6 +565,10 @@ class WheelViewModel(
     fun toggleLight() {
         val newState = !_isLightOn.value
         _isLightOn.value = newState
+        // If auto-torch is active, latch manual override so it stops controlling the light
+        if (getGlobalBool(PreferenceKeys.AUTO_TORCH_ENABLED, PreferenceDefaults.AUTO_TORCH_ENABLED)) {
+            autoTorchManualOverride = true
+        }
         viewModelScope.launch {
             connectionManager?.toggleLight(newState)
         }
@@ -965,6 +972,9 @@ class WheelViewModel(
                     PreferenceDefaults.AUTO_TORCH_USE_SUNSET
                 )
                 val gpsLocation = _lastGpsLocation.value
+
+                // User manually toggled light — back off until reconnect
+                if (autoTorchManualOverride) return@collect
 
                 val result = AutoTorchEngine.shouldLightBeOn(
                     speedKmh = state.speedKmh,

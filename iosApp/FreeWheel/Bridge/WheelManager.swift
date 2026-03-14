@@ -164,6 +164,7 @@ class WheelManager: ObservableObject {
         didSet { UserDefaults.standard.set(autoTorchUseSunset, forKey: PreferenceKeys.shared.AUTO_TORCH_USE_SUNSET) }
     }
     private var autoTorchLightRequested: Bool = false
+    private var autoTorchManualOverride: Bool = false
 
     // Range estimate
     private var startBattery: Int = -1
@@ -731,6 +732,9 @@ class WheelManager: ObservableObject {
             return
         }
 
+        // User manually toggled light — back off until reconnect
+        if autoTorchManualOverride { return }
+
         let location = locationManager.currentLocation
         let result = AutoTorchEngine.shared.shouldLightBeOn(
             speedKmh: wheelState.speedKmh,
@@ -872,6 +876,10 @@ class WheelManager: ObservableObject {
     func toggleLight() {
         guard let cm = connectionManager else { return }
         isLightOn.toggle()
+        // If auto-torch is active, latch manual override so it stops controlling the light
+        if autoTorchEnabled {
+            autoTorchManualOverride = true
+        }
         WheelConnectionManagerHelper.shared.sendToggleLight(manager: cm, enabled: isLightOn)
     }
 
@@ -1301,9 +1309,10 @@ class WheelManager: ObservableObject {
         }
         UserDefaults.standard.removeObject(forKey: "FreeWheelLastPeripheralUUID")
 
-        // Reset range estimate
+        // Reset range estimate and auto-torch override
         startBattery = -1
         rangeEstimateKm = nil
+        autoTorchManualOverride = false
 
         // Fire-and-forget — cleanup happens in handleConnectionStateChange when
         // state transitions to .disconnected via StateFlow polling.
