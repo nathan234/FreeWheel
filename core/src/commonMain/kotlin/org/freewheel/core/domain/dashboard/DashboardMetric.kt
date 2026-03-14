@@ -344,6 +344,19 @@ enum class DashboardMetric(
         return wheelType in types
     }
 
+    /**
+     * Wheel-aware maximum for gauge progress and color thresholds.
+     * Uses wheel-reported limits when available, falls back to fixed maxValue or spec defaults.
+     */
+    fun effectiveMax(wheelState: WheelState): Double = when (this) {
+        SPEED, GPS_SPEED -> wheelState.speedLimit.takeIf { it > 0 }
+            ?: wheelState.maxSpeed.takeIf { it > 0 }?.toDouble()
+            ?: maxValue.takeIf { it > 0 } ?: 50.0
+        CURRENT -> wheelState.currentLimit.takeIf { it > 0 }
+            ?: (maxValueSpec as? MaxValueSpec.Dynamic)?.minimumDefault ?: 100.0
+        else -> maxValue.takeIf { it > 0.0 } ?: 100.0
+    }
+
     /** Backward-compatible bridge: maxValue as Double (0.0 for Dynamic/None). */
     val maxValue: Double get() = maxValueSpec.fixedValueOrNull() ?: 0.0
 

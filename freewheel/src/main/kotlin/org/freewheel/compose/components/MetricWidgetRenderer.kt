@@ -47,7 +47,8 @@ fun RenderGaugeTile(
     }
 
     val progress = if (maxValue > 0) (abs(displayValue) / maxValue).toFloat() else 0f
-    val rawProgress = if (metric.maxValue > 0) (abs(rawValue) / metric.maxValue) else 0.0
+    val effectiveMax = metric.effectiveMax(wheelState)
+    val rawProgress = if (effectiveMax > 0) (abs(rawValue) / effectiveMax) else 0.0
     val color = tileColorForMetric(metric, rawProgress)
 
     val formattedValue = if (metric == DashboardMetric.GPS_SPEED && gpsSpeed <= 0) {
@@ -73,6 +74,7 @@ fun RenderGaugeTile(
 
 /**
  * Renders a [DashboardMetric] as a [StatRow] composable.
+ * Applies color coding based on wheel-aware thresholds for metrics with meaningful danger levels.
  */
 @Composable
 fun RenderStatRow(
@@ -94,9 +96,15 @@ fun RenderStatRow(
         else -> "${StringUtil.formatDecimal(displayValue, metric.decimals)} $displayUnit"
     }
 
+    val effectiveMax = metric.effectiveMax(wheelState)
+    val rawProgress = if (effectiveMax > 0) (abs(rawValue) / effectiveMax) else 0.0
+    val zone = metric.colorZone(rawProgress)
+    val valueColor = if (zone != ColorZone.GREEN) tileColorForMetric(metric, rawProgress) else Color.Unspecified
+
     StatRow(
         label = metric.label,
         value = formatted,
+        valueColor = valueColor,
         modifier = modifier
     )
 }

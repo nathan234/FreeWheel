@@ -242,6 +242,45 @@ class DashboardMetricTest {
         assertEquals(DashboardMetric.SPEED.sparklineKey, DashboardMetric.SPEED.toMetricType())
     }
 
+    // --- effectiveMax ---
+
+    @Test
+    fun `effectiveMax uses speedLimit when available`() {
+        val state = WheelState(speedLimit = 120.0)
+        assertEquals(120.0, DashboardMetric.SPEED.effectiveMax(state), 0.01)
+        assertEquals(120.0, DashboardMetric.GPS_SPEED.effectiveMax(state), 0.01)
+    }
+
+    @Test
+    fun `effectiveMax uses maxSpeed as fallback`() {
+        val state = WheelState(maxSpeed = 60)
+        assertEquals(60.0, DashboardMetric.SPEED.effectiveMax(state), 0.01)
+    }
+
+    @Test
+    fun `effectiveMax falls back to fixed max`() {
+        val state = WheelState() // no speedLimit, no maxSpeed
+        assertEquals(50.0, DashboardMetric.SPEED.effectiveMax(state), 0.01)
+    }
+
+    @Test
+    fun `effectiveMax uses currentLimit for CURRENT`() {
+        val state = WheelState(currentLimit = 80.0)
+        assertEquals(80.0, DashboardMetric.CURRENT.effectiveMax(state), 0.01)
+    }
+
+    @Test
+    fun `effectiveMax CURRENT falls back to dynamic minimumDefault`() {
+        val state = WheelState() // no currentLimit
+        assertEquals(100.0, DashboardMetric.CURRENT.effectiveMax(state), 0.01)
+    }
+
+    @Test
+    fun `effectiveMax prefers speedLimit over maxSpeed`() {
+        val state = WheelState(speedLimit = 90.0, maxSpeed = 60)
+        assertEquals(90.0, DashboardMetric.SPEED.effectiveMax(state), 0.01)
+    }
+
     // --- Classification flags ---
 
     @Test

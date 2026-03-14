@@ -60,6 +60,7 @@ fun StatCard(
 fun StatRow(
     label: String,
     value: String,
+    valueColor: Color = Color.Unspecified,
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -73,7 +74,8 @@ fun StatRow(
         )
         Text(
             text = value,
-            fontWeight = FontWeight.Medium
+            fontWeight = FontWeight.Medium,
+            color = if (valueColor != Color.Unspecified) valueColor else Color.Unspecified
         )
     }
 }

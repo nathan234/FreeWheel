@@ -37,7 +37,8 @@ struct MetricGaugeTile: View {
     }
 
     private var color: Color {
-        let rawProgress = metric.maxValue > 0 ? abs(rawValue) / metric.maxValue : 0
+        let effMax = metric.effectiveMax(wheelState: wheelState)
+        let rawProgress = effMax > 0 ? abs(rawValue) / effMax : 0
         let zone = metric.colorZone(progress: rawProgress)
         switch zone {
         case .green: return .green
@@ -90,7 +91,19 @@ struct MetricStatRow: View {
         return "\(StringUtil.shared.formatDecimal(value: converted, decimals: Int32(metric.decimals))) \(unit)"
     }
 
+    private var valueColor: Color? {
+        let effMax = metric.effectiveMax(wheelState: wheelState)
+        let rawProgress = effMax > 0 ? abs(rawValue) / effMax : 0
+        let zone = metric.colorZone(progress: rawProgress)
+        switch zone {
+        case .green: return nil
+        case .orange: return .orange
+        case .red: return .red
+        default: return nil
+        }
+    }
+
     var body: some View {
-        StatRow(label: metric.label, value: formattedValue)
+        StatRow(label: metric.label, value: formattedValue, valueColor: valueColor)
     }
 }
