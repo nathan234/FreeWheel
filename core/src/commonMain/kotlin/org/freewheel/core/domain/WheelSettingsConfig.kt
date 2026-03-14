@@ -41,6 +41,7 @@ object WheelSettingsConfig {
             ControlSpec.Segmented("Pedals Mode", listOf("Hard", "Medium", "Soft"), SettingsCommandId.PEDALS_MODE)
         )),
         SettingsSection("Dangerous Actions", listOf(
+            lockToggle(),
             calibrateButton(),
             powerOffButton()
         ))

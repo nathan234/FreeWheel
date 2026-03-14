@@ -3,6 +3,7 @@ package org.freewheel.core.protocol
 import org.freewheel.core.domain.WheelState
 import org.freewheel.core.domain.WheelType
 import kotlin.math.roundToInt
+import org.freewheel.core.domain.SettingsCommandId
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -1015,5 +1016,362 @@ class KingsongDecoderTest {
     @Test
     fun `wheelType is KINGSONG`() {
         assertEquals(WheelType.KINGSONG, decoder.wheelType)
+    }
+
+    // ==================== Hardware Faults (0xF5) Tests ====================
+
+    @Test
+    fun `cpu load frame 0xF5 no faults sets hwFaults to 0`() {
+        decoder.reset()
+        // All diagnostic bytes (2-9) are zero
+        val data = ByteArray(14)
+        data[12] = 50 // cpuLoad
+        data[13] = 10 // output raw
+        val packet = buildKsFrame(0xF5, data)
+
+        val result = decoder.decode(packet, defaultState, defaultConfig)
+        assertNotNull(result)
+        assertEquals(0, result.newState.hwFaults, "No faults should give hwFaults=0")
+        assertEquals("", result.newState.alert, "No faults should give empty alert")
+        assertEquals(50, result.newState.cpuLoad, "CPU load should still be parsed")
+    }
+
+    @Test
+    fun `cpu load frame 0xF5 current amplitude fault`() {
+        decoder.reset()
+        val data = ByteArray(14)
+        // Bytes 2-3 (data[0-1]): current amplitude — non-zero = fault
+        data[0] = 0x01
+        val packet = buildKsFrame(0xF5, data)
+
+        val result = decoder.decode(packet, defaultState, defaultConfig)
+        assertNotNull(result)
+        assertEquals(KingsongDecoder.HwFault.CURRENT_AMPLITUDE, result.newState.hwFaults)
+        assertTrue(result.newState.alert.contains("Current amplitude fault"))
+    }
+
+    @Test
+    fun `cpu load frame 0xF5 temperature fault`() {
+        decoder.reset()
+        val data = ByteArray(14)
+        // Bytes 4-5 (data[2-3]): temperature — non-zero = fault
+        data[2] = 0x01
+        val packet = buildKsFrame(0xF5, data)
+
+        val result = decoder.decode(packet, defaultState, defaultConfig)
+        assertNotNull(result)
+        assertEquals(KingsongDecoder.HwFault.TEMPERATURE, result.newState.hwFaults)
+        assertTrue(result.newState.alert.contains("Temperature fault"))
+    }
+
+    @Test
+    fun `cpu load frame 0xF5 motor phase short fault`() {
+        decoder.reset()
+        val data = ByteArray(14)
+        // Byte 6 (data[4]): motor phase short
+        data[4] = 0x01
+        val packet = buildKsFrame(0xF5, data)
+
+        val result = decoder.decode(packet, defaultState, defaultConfig)
+        assertNotNull(result)
+        assertEquals(KingsongDecoder.HwFault.MOTOR_PHASE_SHORT, result.newState.hwFaults)
+        assertTrue(result.newState.alert.contains("Motor phase short"))
+    }
+
+    @Test
+    fun `cpu load frame 0xF5 gyroscope error`() {
+        decoder.reset()
+        val data = ByteArray(14)
+        // Byte 7 (data[5]): gyroscope error
+        data[5] = 0x01
+        val packet = buildKsFrame(0xF5, data)
+
+        val result = decoder.decode(packet, defaultState, defaultConfig)
+        assertNotNull(result)
+        assertEquals(KingsongDecoder.HwFault.GYROSCOPE_ERROR, result.newState.hwFaults)
+        assertTrue(result.newState.alert.contains("Gyroscope error"))
+    }
+
+    @Test
+    fun `cpu load frame 0xF5 motor hall error`() {
+        decoder.reset()
+        val data = ByteArray(14)
+        // Byte 8 (data[6]): motor hall error
+        data[6] = 0x01
+        val packet = buildKsFrame(0xF5, data)
+
+        val result = decoder.decode(packet, defaultState, defaultConfig)
+        assertNotNull(result)
+        assertEquals(KingsongDecoder.HwFault.MOTOR_HALL_ERROR, result.newState.hwFaults)
+        assertTrue(result.newState.alert.contains("Motor hall error"))
+    }
+
+    @Test
+    fun `cpu load frame 0xF5 sn board error`() {
+        decoder.reset()
+        val data = ByteArray(14)
+        // Byte 9 (data[7]): SN board error
+        data[7] = 0x01
+        val packet = buildKsFrame(0xF5, data)
+
+        val result = decoder.decode(packet, defaultState, defaultConfig)
+        assertNotNull(result)
+        assertEquals(KingsongDecoder.HwFault.SN_BOARD_ERROR, result.newState.hwFaults)
+        assertTrue(result.newState.alert.contains("SN board error"))
+    }
+
+    @Test
+    fun `cpu load frame 0xF5 multiple faults`() {
+        decoder.reset()
+        val data = ByteArray(14)
+        // Current amplitude + gyroscope
+        data[0] = 0x01  // bytes 2-3 non-zero
+        data[5] = 0x01  // byte 7 non-zero
+        data[12] = 75   // cpuLoad
+        val packet = buildKsFrame(0xF5, data)
+
+        val result = decoder.decode(packet, defaultState, defaultConfig)
+        assertNotNull(result)
+        val expected = KingsongDecoder.HwFault.CURRENT_AMPLITUDE or KingsongDecoder.HwFault.GYROSCOPE_ERROR
+        assertEquals(expected, result.newState.hwFaults, "Should have both faults set")
+        assertTrue(result.newState.alert.contains("Current amplitude fault"))
+        assertTrue(result.newState.alert.contains("Gyroscope error"))
+        assertEquals(75, result.newState.cpuLoad, "cpuLoad should be preserved")
+    }
+
+    // ==================== Speed Limit / BMS SOC / Energy / Fault Code (0xF6) Tests ====================
+
+    @Test
+    fun `speed limit frame 0xF6 parses BMS SOC`() {
+        decoder.reset()
+        val data = ByteArray(14)
+        // Speed limit at data[0-1]
+        data[0] = (3000 and 0xFF).toByte()
+        data[1] = ((3000 shr 8) and 0xFF).toByte()
+        // BMS SOC at byte 4 (data[2])
+        data[2] = 85.toByte()
+        val packet = buildKsFrame(0xF6, data)
+
+        val result = decoder.decode(packet, defaultState, defaultConfig)
+        assertNotNull(result)
+        assertEquals(85, result.newState.bmsSoc, "BMS SOC should be 85%")
+        assertEquals(30.0, result.newState.speedLimit, 0.01, "Speed limit should still be parsed")
+    }
+
+    @Test
+    fun `speed limit frame 0xF6 clamps BMS SOC to 100`() {
+        decoder.reset()
+        val data = ByteArray(14)
+        data[2] = 120.toByte() // > 100
+        val packet = buildKsFrame(0xF6, data)
+
+        val result = decoder.decode(packet, defaultState, defaultConfig)
+        assertNotNull(result)
+        assertEquals(100, result.newState.bmsSoc, "BMS SOC should be clamped to 100")
+    }
+
+    @Test
+    fun `speed limit frame 0xF6 parses energy Wh`() {
+        decoder.reset()
+        val data = ByteArray(14)
+        // Energy at bytes 6-9 (data[4-7]), LE 32-bit
+        val energy = 12345
+        data[4] = (energy and 0xFF).toByte()
+        data[5] = ((energy shr 8) and 0xFF).toByte()
+        data[6] = ((energy shr 16) and 0xFF).toByte()
+        data[7] = ((energy shr 24) and 0xFF).toByte()
+        val packet = buildKsFrame(0xF6, data)
+
+        val result = decoder.decode(packet, defaultState, defaultConfig)
+        assertNotNull(result)
+        assertEquals(12345L, result.newState.totalEnergyWh, "Energy should be 12345 Wh")
+    }
+
+    @Test
+    fun `speed limit frame 0xF6 parses fault code`() {
+        decoder.reset()
+        val data = ByteArray(14)
+        // Fault code at bytes 14-15 (data[12-13]) via getInt2R (LE)
+        val faultCode = 42
+        data[12] = (faultCode and 0xFF).toByte()
+        data[13] = ((faultCode shr 8) and 0xFF).toByte()
+        val packet = buildKsFrame(0xF6, data)
+
+        val result = decoder.decode(packet, defaultState, defaultConfig)
+        assertNotNull(result)
+        assertEquals(42, result.newState.faultCode, "Fault code should be 42")
+        assertEquals("Fault code: 42", result.newState.error, "Error string should contain fault code")
+    }
+
+    @Test
+    fun `speed limit frame 0xF6 zero fault code clears error`() {
+        decoder.reset()
+        val data = ByteArray(14)
+        // Fault code bytes are zero (default)
+        val packet = buildKsFrame(0xF6, data)
+
+        val result = decoder.decode(packet, defaultState, defaultConfig)
+        assertNotNull(result)
+        assertEquals(0, result.newState.faultCode, "Fault code should be 0")
+        assertEquals("", result.newState.error, "Error should be empty for zero fault code")
+    }
+
+    // ==================== 16-bit Alarm Speed (0xA4/0xB5) Tests ====================
+
+    @Test
+    fun `alert frame 0xA4 reads 16-bit alarm speeds`() {
+        decoder.reset()
+        val data = ByteArray(14)
+        // alarm1Speed at frame bytes 4-5 (data[2-3]) — LE
+        val alarm1 = 300  // > 255, requires 16-bit
+        data[2] = (alarm1 and 0xFF).toByte()
+        data[3] = ((alarm1 shr 8) and 0xFF).toByte()
+        // alarm2Speed at frame bytes 6-7 (data[4-5])
+        val alarm2 = 350
+        data[4] = (alarm2 and 0xFF).toByte()
+        data[5] = ((alarm2 shr 8) and 0xFF).toByte()
+        // alarm3Speed at frame bytes 8-9 (data[6-7])
+        val alarm3 = 400
+        data[6] = (alarm3 and 0xFF).toByte()
+        data[7] = ((alarm3 shr 8) and 0xFF).toByte()
+        // maxSpeed at frame bytes 10-11 (data[8-9])
+        val maxSpd = 500
+        data[8] = (maxSpd and 0xFF).toByte()
+        data[9] = ((maxSpd shr 8) and 0xFF).toByte()
+        val packet = buildKsFrame(0xA4, data)
+
+        val result = decoder.decode(packet, defaultState, defaultConfig)
+        assertNotNull(result)
+        // Verify via getCapabilities or just that decode succeeds —
+        // the alarm speeds are stored in decoder-internal state, not in WheelState directly
+        assertTrue(result.commands.isNotEmpty(), "0xA4 should trigger alarm request")
+    }
+
+    @Test
+    fun `alert frame 0xB5 reads 16-bit alarm speeds backward compatible`() {
+        decoder.reset()
+        val data = ByteArray(14)
+        // 8-bit compatible values — high byte is 0
+        data[2] = 30  // alarm1
+        data[4] = 35  // alarm2
+        data[6] = 40  // alarm3
+        data[8] = 50  // maxSpeed
+        val packet = buildKsFrame(0xB5, data)
+
+        val result = decoder.decode(packet, defaultState, defaultConfig)
+        assertNotNull(result)
+        assertTrue(result.commands.isEmpty(), "0xB5 should NOT trigger command")
+    }
+
+    // ==================== Keep-Alive Tests ====================
+
+    @Test
+    fun `keepAliveIntervalMs is 2500`() {
+        assertEquals(2500L, decoder.keepAliveIntervalMs)
+    }
+
+    @Test
+    fun `getKeepAliveCommand returns valid frame`() {
+        val command = decoder.getKeepAliveCommand()
+        assertNotNull(command)
+        assertTrue(command is WheelCommand.SendBytes)
+        val frame = (command as WheelCommand.SendBytes).data
+        assertEquals(20, frame.size)
+        assertEquals(0xAA.toByte(), frame[0])
+        assertEquals(0x55.toByte(), frame[1])
+        assertEquals(0x5E.toByte(), frame[16], "Keep-alive frame type should be 0x5E")
+        assertEquals(0x14.toByte(), frame[17])
+        assertEquals(0x5A.toByte(), frame[18])
+        assertEquals(0x5A.toByte(), frame[19])
+    }
+
+    // ==================== Lock/Unlock Tests ====================
+
+    @Test
+    fun `buildCommand SetLock locked sends lock command`() {
+        val commands = decoder.buildCommand(WheelCommand.SetLock(locked = true))
+        assertTrue(commands.isNotEmpty())
+        val frame = (commands[0] as WheelCommand.SendBytes).data
+        assertEquals(0x7C.toByte(), frame[16], "Lock command type should be 0x7C")
+        assertEquals(0x00.toByte(), frame[2], "Lock (locked=true) should send 0x00 at data[2]")
+    }
+
+    @Test
+    fun `buildCommand SetLock unlocked sends unlock command`() {
+        val commands = decoder.buildCommand(WheelCommand.SetLock(locked = false))
+        assertTrue(commands.isNotEmpty())
+        val frame = (commands[0] as WheelCommand.SendBytes).data
+        assertEquals(0x7C.toByte(), frame[16], "Unlock command type should be 0x7C")
+        assertEquals(0x01.toByte(), frame[2], "Unlock (locked=false) should send 0x01 at data[2]")
+    }
+
+    @Test
+    fun `lock status frame 0x5F locked`() {
+        decoder.reset()
+        val data = ByteArray(14)
+        data[0] = 1 // byte 2 in frame = data[0] in payload = locked
+        val packet = buildKsFrame(0x5F, data)
+
+        val result = decoder.decode(packet, defaultState, defaultConfig)
+        assertNotNull(result)
+        assertEquals(1, result.newState.lockState, "Lock status 1 should set lockState=1")
+    }
+
+    @Test
+    fun `lock status frame 0x5F locked value 2`() {
+        decoder.reset()
+        val data = ByteArray(14)
+        data[0] = 2 // byte 2 = 2 also means locked
+        val packet = buildKsFrame(0x5F, data)
+
+        val result = decoder.decode(packet, defaultState, defaultConfig)
+        assertNotNull(result)
+        assertEquals(1, result.newState.lockState, "Lock status 2 should also set lockState=1")
+    }
+
+    @Test
+    fun `lock status frame 0x5F unlocked`() {
+        decoder.reset()
+        val data = ByteArray(14)
+        data[0] = 0 // byte 2 = 0 = unlocked
+        val packet = buildKsFrame(0x5F, data)
+
+        val result = decoder.decode(packet, defaultState, defaultConfig)
+        assertNotNull(result)
+        assertEquals(0, result.newState.lockState, "Lock status 0 should set lockState=0")
+    }
+
+    @Test
+    fun `lock result frame 0xB1 success`() {
+        decoder.reset()
+        val data = ByteArray(14)
+        data[0] = 1 // cmd=1 at byte 2
+        data[1] = 0 // result=0 at byte 3
+        val packet = buildKsFrame(0xB1, data)
+
+        val result = decoder.decode(packet, defaultState, defaultConfig)
+        assertNotNull(result)
+        assertEquals(1, result.newState.lockState, "Lock result cmd=1,result=0 should set lockState=1")
+    }
+
+    @Test
+    fun `lock result frame 0xB1 unlock`() {
+        decoder.reset()
+        val data = ByteArray(14)
+        data[0] = 0 // cmd=0 at byte 2 (not cmd=1)
+        data[1] = 0 // result=0 at byte 3
+        val packet = buildKsFrame(0xB1, data)
+
+        val result = decoder.decode(packet, defaultState, defaultConfig)
+        assertNotNull(result)
+        assertEquals(0, result.newState.lockState, "Lock result cmd!=1 should set lockState=0")
+    }
+
+    @Test
+    fun `LOCK is in supported commands`() {
+        assertTrue(
+            SettingsCommandId.LOCK in KingsongDecoder.SUPPORTED_COMMANDS,
+            "LOCK should be in SUPPORTED_COMMANDS"
+        )
     }
 }

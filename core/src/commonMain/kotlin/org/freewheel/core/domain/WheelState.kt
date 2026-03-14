@@ -26,9 +26,13 @@ data class WheelState(
     /** Secondary temperature (motor/board). Populated by: KS, GW, IM1, IM2. */
     val temperature2: Int = 0,
     val batteryLevel: Int = 0,
+    /** BMS-reported state of charge 0-100. Populated by: KS. -1 = unknown. */
+    val bmsSoc: Int = -1,
 
     // Distance tracking — populated by all decoders
     val totalDistance: Long = 0,
+    /** Total energy consumption in Wh. Populated by: KS. */
+    val totalEnergyWh: Long = 0,
     val wheelDistance: Long = 0,
 
     // PWM and output — populated by: KS, GW, VT, IM2
@@ -52,6 +56,8 @@ data class WheelState(
     val imuTemp: Int = 0,
     /** CPU load percentage. Populated by: KS. */
     val cpuLoad: Int = 0,
+    /** Hardware fault bitfield. Populated by: KS. See KingsongDecoder.HwFault. */
+    val hwFaults: Int = 0,
 
     // Limits — populated by: IM2
     val speedLimit: Double = 0.0,
@@ -155,7 +161,9 @@ data class WheelState(
 
     // Error tracking
     val error: String = "",
-    /** Alert string. Populated by: GW, IM1, IM2. */
+    /** Wheel error/fault code. Populated by: KS. 0 = no fault. */
+    val faultCode: Int = 0,
+    /** Alert string. Populated by: GW, KS, IM1, IM2. */
     val alert: String = "",
 
     // Timestamp of last update
@@ -220,12 +228,13 @@ data class WheelState(
     fun toTelemetryState() = TelemetryState(
         speed = speed, voltage = voltage, current = current, phaseCurrent = phaseCurrent,
         power = power, temperature = temperature, temperature2 = temperature2,
-        batteryLevel = batteryLevel, totalDistance = totalDistance, wheelDistance = wheelDistance,
+        batteryLevel = batteryLevel, bmsSoc = bmsSoc,
+        totalDistance = totalDistance, totalEnergyWh = totalEnergyWh, wheelDistance = wheelDistance,
         output = output, calculatedPwm = calculatedPwm, angle = angle, roll = roll,
         torque = torque, motorPower = motorPower, cpuTemp = cpuTemp, imuTemp = imuTemp,
-        cpuLoad = cpuLoad, speedLimit = speedLimit, currentLimit = currentLimit,
+        cpuLoad = cpuLoad, hwFaults = hwFaults, speedLimit = speedLimit, currentLimit = currentLimit,
         fanStatus = fanStatus, chargingStatus = chargingStatus, wheelAlarm = wheelAlarm,
-        alert = alert, timestamp = timestamp
+        faultCode = faultCode, alert = alert, timestamp = timestamp
     )
 
     /** Extract settings fields (rare updates, only when wheel reports new settings). */

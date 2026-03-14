@@ -329,7 +329,7 @@ class WheelSettingsConfigTest {
     @Test
     fun `Calibrate button has confirmation title and message`() {
         val dangerous = WheelSettingsConfig.sections(WheelType.KINGSONG)[2]
-        val calibrate = dangerous.controls[0] as ControlSpec.DangerousButton
+        val calibrate = dangerous.controls[1] as ControlSpec.DangerousButton
         assertEquals("Calibrate Wheel", calibrate.confirmTitle)
         assertTrue(calibrate.confirmMessage.contains("flat surface"))
     }
@@ -337,7 +337,7 @@ class WheelSettingsConfigTest {
     @Test
     fun `Power Off button has confirmation message`() {
         val dangerous = WheelSettingsConfig.sections(WheelType.KINGSONG)[2]
-        val powerOff = dangerous.controls[1] as ControlSpec.DangerousButton
+        val powerOff = dangerous.controls[2] as ControlSpec.DangerousButton
         assertEquals("Power Off", powerOff.confirmTitle)
         assertTrue(powerOff.confirmMessage.contains("power off"))
     }

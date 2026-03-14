@@ -18,7 +18,9 @@ data class TelemetryState(
     val temperature: Int = 0,
     val temperature2: Int = 0,
     val batteryLevel: Int = 0,
+    val bmsSoc: Int = -1,
     val totalDistance: Long = 0,
+    val totalEnergyWh: Long = 0,
     val wheelDistance: Long = 0,
     val output: Int = 0,
     val calculatedPwm: Double = 0.0,
@@ -29,11 +31,13 @@ data class TelemetryState(
     val cpuTemp: Int = 0,
     val imuTemp: Int = 0,
     val cpuLoad: Int = 0,
+    val hwFaults: Int = 0,
     val speedLimit: Double = 0.0,
     val currentLimit: Double = 0.0,
     val fanStatus: Int = 0,
     val chargingStatus: Int = 0,
     val wheelAlarm: Boolean = false,
+    val faultCode: Int = 0,
     val alert: String = "",
     val timestamp: Long = 0
 ) {

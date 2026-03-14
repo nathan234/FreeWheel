@@ -84,6 +84,8 @@ class KingsongDecoder : WheelDecoder {
                 FrameType.BMS_DATA_1, FrameType.BMS_DATA_2 -> processBmsData(data, currentState, frameType)
                 FrameType.BMS_SERIAL_1, FrameType.BMS_SERIAL_2 -> processBmsSerial(data, frameType)
                 FrameType.BMS_FW_1, FrameType.BMS_FW_2 -> processBmsFirmware(data, frameType)
+                FrameType.LOCK_STATUS -> processLockStatus(data, currentState)
+                FrameType.LOCK_RESULT -> processLockResult(data, currentState)
                 else -> null
             }
 
@@ -226,14 +228,40 @@ class KingsongDecoder : WheelDecoder {
     }
 
     /**
-     * Frame 0xF5: CPU load and PWM
+     * Frame 0xF5: CPU load, PWM, and hardware diagnostics
+     *
+     * Bytes 2-9 contain hardware fault indicators (non-zero = fault active).
+     * Bytes 14-15 contain CPU load and PWM as before.
      */
     private fun processCpuLoadPwm(data: ByteArray, currentState: WheelState): WheelState {
+        // Hardware faults from bytes 2-9
+        var faults = 0
+        if (ByteUtils.getInt2R(data, 2) != 0) faults = faults or HwFault.CURRENT_AMPLITUDE
+        if (ByteUtils.getInt2R(data, 4) != 0) faults = faults or HwFault.TEMPERATURE
+        if ((data[6].toInt() and 0xFF) != 0) faults = faults or HwFault.MOTOR_PHASE_SHORT
+        if ((data[7].toInt() and 0xFF) != 0) faults = faults or HwFault.GYROSCOPE_ERROR
+        if ((data[8].toInt() and 0xFF) != 0) faults = faults or HwFault.MOTOR_HALL_ERROR
+        if ((data[9].toInt() and 0xFF) != 0) faults = faults or HwFault.SN_BOARD_ERROR
+
+        val alert = if (faults != 0) {
+            buildList {
+                if (faults and HwFault.CURRENT_AMPLITUDE != 0) add("Current amplitude fault")
+                if (faults and HwFault.TEMPERATURE != 0) add("Temperature fault")
+                if (faults and HwFault.MOTOR_PHASE_SHORT != 0) add("Motor phase short")
+                if (faults and HwFault.GYROSCOPE_ERROR != 0) add("Gyroscope error")
+                if (faults and HwFault.MOTOR_HALL_ERROR != 0) add("Motor hall error")
+                if (faults and HwFault.SN_BOARD_ERROR != 0) add("SN board error")
+            }.joinToString(", ")
+        } else ""
+
+        // Existing CPU load + PWM at bytes 14-15
         val cpuLoad = data[14].toInt()
         val output = (data[15].toInt() and 0xFF) * 100
         val calculatedPwm = output / 10000.0
 
         return currentState.copy(
+            hwFaults = faults,
+            alert = alert,
             cpuLoad = cpuLoad,
             output = output,
             calculatedPwm = calculatedPwm
@@ -241,25 +269,45 @@ class KingsongDecoder : WheelDecoder {
     }
 
     /**
-     * Frame 0xF6: Speed limit
+     * Frame 0xF6: Speed limit, BMS SOC, energy consumption, fault code
+     *
+     * - Bytes 2-3: Speed limit (existing)
+     * - Byte 4: BMS state of charge (0-100%)
+     * - Bytes 6-9: Total energy consumption in Wh (LE 32-bit)
+     * - Bytes 14-15: Fault code
      */
     private fun processSpeedLimit(data: ByteArray, currentState: WheelState): WheelState {
         mSpeedLimit = ByteUtils.getInt2R(data, 2) / 100.0
-        return currentState.copy(speedLimit = mSpeedLimit)
+
+        val bmsSoc = (data[4].toInt() and 0xFF).coerceIn(0, 100)
+        val totalEnergyWh = ByteUtils.intFromBytesLE(data, 6).toLong()
+        val faultCode = ByteUtils.getInt2R(data, 14)
+        val error = if (faultCode != 0) "Fault code: $faultCode" else ""
+
+        return currentState.copy(
+            speedLimit = mSpeedLimit,
+            bmsSoc = bmsSoc,
+            totalEnergyWh = totalEnergyWh,
+            faultCode = faultCode,
+            error = error
+        )
     }
 
     /**
      * Frame 0xA4/0xB5: Max speed and alerts
+     *
+     * Uses 16-bit reads for alarm speeds — backward-compatible since
+     * the high byte was 0 on older wheels.
      */
     private fun processMaxSpeedAlerts(
         data: ByteArray,
         currentState: WheelState,
         commands: MutableList<WheelCommand>
     ): WheelState {
-        wheelMaxSpeed = data[10].toInt() and 0xFF
-        ksAlarm3Speed = data[8].toInt() and 0xFF
-        ksAlarm2Speed = data[6].toInt() and 0xFF
-        ksAlarm1Speed = data[4].toInt() and 0xFF
+        wheelMaxSpeed = ByteUtils.getInt2R(data, 10)
+        ksAlarm3Speed = ByteUtils.getInt2R(data, 8)
+        ksAlarm2Speed = ByteUtils.getInt2R(data, 6)
+        ksAlarm1Speed = ByteUtils.getInt2R(data, 4)
 
         // Respond to 0xA4 with alarm settings request
         if ((data[16].toInt() and 0xFF) == FrameType.MAX_SPEED_ALERTS) {
@@ -399,6 +447,30 @@ class KingsongDecoder : WheelDecoder {
 
         bms.versionNumber = snData.decodeToString().trim { it <= ' ' || it == '\u0000' }
         return null
+    }
+
+    /**
+     * Frame 0x5F: Lock status report
+     * data[2] == 1 or 2 means locked, otherwise unlocked
+     */
+    private fun processLockStatus(data: ByteArray, currentState: WheelState): WheelState {
+        val lockByte = data[2].toInt() and 0xFF
+        val locked = lockByte == 1 || lockByte == 2
+        return currentState.copy(lockState = if (locked) 1 else 0)
+    }
+
+    /**
+     * Frame 0xB1: Lock/unlock command result
+     * data[2]==1 and data[3]==0 means lock success
+     */
+    private fun processLockResult(data: ByteArray, currentState: WheelState): WheelState {
+        val cmd = data[2].toInt() and 0xFF
+        val result = data[3].toInt() and 0xFF
+        return if (cmd == 1 && result == 0) {
+            currentState.copy(lockState = 1)
+        } else {
+            currentState.copy(lockState = 0)
+        }
     }
 
     private fun updateBmsCellStats(bms: SmartBms, cellCount: Int = getCellsForWheel()) {
@@ -568,6 +640,11 @@ class KingsongDecoder : WheelDecoder {
         )
     }
 
+    override val keepAliveIntervalMs: Long = 2500L
+
+    override fun getKeepAliveCommand(): WheelCommand =
+        WheelCommand.SendBytes(createRequest(CmdByte.KEEP_ALIVE))
+
     override fun isReady(): Boolean = stateLock.withLock {
         model.isNotEmpty() && hasReceivedVoltage
     }
@@ -655,6 +732,12 @@ class KingsongDecoder : WheelDecoder {
             is WheelCommand.RequestAlarmSettings -> {
                 listOf(WheelCommand.SendBytes(createRequest(InitCmd.REQUEST_ALARMS)))
             }
+            is WheelCommand.SetLock -> {
+                val data = getEmptyRequest()
+                data[2] = if (command.locked) 0x00 else 0x01
+                data[16] = CmdByte.LOCK.toByte()
+                listOf(WheelCommand.SendBytes(data))
+            }
             is WheelCommand.RequestBmsData -> {
                 // bmsNum: 1 or 2, dataType: 0=serial, 1=moreData, 2=firmware
                 // Maps to: E1(bms1 serial), E2(bms2 serial), E3(bms1 more), E4(bms2 more), E5(bms1 fw), E6(bms2 fw)
@@ -707,6 +790,8 @@ class KingsongDecoder : WheelDecoder {
         const val BMS_SERIAL_2 = 0xE2
         const val BMS_FW_1 = 0xE5
         const val BMS_FW_2 = 0xE6
+        const val LOCK_STATUS = 0x5F
+        const val LOCK_RESULT = 0xB1
     }
 
     private object InitCmd {
@@ -724,6 +809,18 @@ class KingsongDecoder : WheelDecoder {
         const val LED_MODE = 0x6C
         const val STROBE_MODE = 0x53
         const val ALARM_SPEED = 0x85
+        const val KEEP_ALIVE = 0x5E
+        const val LOCK = 0x7C
+    }
+
+    /** Hardware fault flag constants for the [WheelState.hwFaults] bitfield. */
+    object HwFault {
+        const val CURRENT_AMPLITUDE = 0x01
+        const val TEMPERATURE = 0x02
+        const val MOTOR_PHASE_SHORT = 0x04
+        const val GYROSCOPE_ERROR = 0x08
+        const val MOTOR_HALL_ERROR = 0x10
+        const val SN_BOARD_ERROR = 0x20
     }
 
     companion object {
@@ -736,6 +833,7 @@ class KingsongDecoder : WheelDecoder {
             SettingsCommandId.PEDALS_MODE,
             SettingsCommandId.CALIBRATE,
             SettingsCommandId.POWER_OFF,
+            SettingsCommandId.LOCK,
         )
     }
 }

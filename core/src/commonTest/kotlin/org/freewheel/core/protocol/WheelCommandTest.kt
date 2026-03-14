@@ -76,10 +76,18 @@ class WheelCommandTest {
     }
 
     @Test
-    fun `KingsongDecoder SetLock returns empty`() {
+    fun `KingsongDecoder SetLock returns lock command`() {
         val decoder = KingsongDecoder()
-        assertTrue(decoder.buildCommand(WheelCommand.SetLock(true)).isEmpty())
-        assertTrue(decoder.buildCommand(WheelCommand.SetLock(false)).isEmpty())
+        val lockCmds = decoder.buildCommand(WheelCommand.SetLock(true))
+        assertEquals(1, lockCmds.size)
+        val frame = (lockCmds[0] as WheelCommand.SendBytes).data
+        assertEquals(0x7C.toByte(), frame[16], "Lock command type should be 0x7C")
+        assertEquals(0x00.toByte(), frame[2], "Lock should send 0x00")
+
+        val unlockCmds = decoder.buildCommand(WheelCommand.SetLock(false))
+        assertEquals(1, unlockCmds.size)
+        val unlockFrame = (unlockCmds[0] as WheelCommand.SendBytes).data
+        assertEquals(0x01.toByte(), unlockFrame[2], "Unlock should send 0x01")
     }
 
     @Test
