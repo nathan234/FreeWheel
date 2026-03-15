@@ -181,27 +181,13 @@ KMP uses `expect`/`actual` declarations for platform-specific implementations. E
 
 ## Test Coverage
 
-**KMP Core Tests** (`core/src/commonTest/`) — ~1,436 tests across 49 test files:
+**KMP Core Tests** (`core/src/commonTest/`):
 
-| Area | Key test files | Approx tests |
-|---|---|---:|
-| Protocol decoders | 8 decoder tests (KS, GW, VT, LK, NB, NZ, IM1, IM2) + AutoDetect, DecoderLifecycle, DecodeLoop, Factory, WheelCommand | ~670 |
-| Protocol unpackers | GotwayUnpacker, NinebotUnpacker, InMotionUnpacker, InMotionV2Unpacker | ~33 |
-| Decoder comparison | GW, KS, VT, NZ, IM1 comparison tests (verify parity using legacy packet data) | ~132 |
-| Service/Connection | WheelConnectionManager (3 files), AutoConnect, KeepAlive, ConnectionState, DemoData | ~175 |
-| Domain & Alarms | WheelState, WheelSettingsConfig, AlarmChecker, AlarmType, SmartBms | ~185 |
-| Telemetry & Logging | TelemetryBuffer/History/Sample/CsvSerializer, CsvFormatter/Parser, RideLogger/Metadata | ~116 |
-| BLE & Detection | BleUuids, WheelTypeDetector, WheelConnectionInfo | ~64 |
-| Utilities | ByteUtils, DisplayUtils, StringUtil | ~192 |
-| Alarms (vibration) | VibrationPatterns | ~14 |
+Run with `./gradlew :core:testDebugUnitTest`. Covers protocol decoders, unpackers, comparison tests (legacy parity), service/connection, domain & alarms, telemetry & logging, BLE & detection, and utilities.
 
-**FreeWheel App Tests** (`freewheel/src/test/`) — 4 test files:
+**FreeWheel App Tests** (`freewheel/src/test/`):
 
-| Area | Key test files | Approx tests |
-|---|---|---:|
-| ViewModel | AutoConnect, Finalization | ~16 |
-| Alarm | AlarmHandler | ~10 |
-| CSV parity | CsvParityTest | ~5 |
+Run with `./gradlew :freewheel:testDebugUnitTest`. Covers ViewModel (AutoConnect, Finalization), AlarmHandler, CsvParity, NavigationConfigUI, and DashboardContent.
 
 ### iOS Testing on Simulator
 

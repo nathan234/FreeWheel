@@ -2,7 +2,7 @@
 
 ## Overview
 
-FreeWheel is an Android/iOS app for electric unicycle telemetry. The codebase is undergoing a Kotlin Multiplatform (KMP) migration to share protocol decoders between platforms.
+FreeWheel is an Android/iOS app for electric unicycle telemetry. The codebase uses Kotlin Multiplatform (KMP) to share protocol decoders, settings configuration, and business logic between platforms.
 
 ## Development Policy
 
@@ -16,6 +16,7 @@ Wheellog.Android/
 │   └── src/commonMain/.../core/
 │       ├── alarm/           # AlarmChecker
 │       ├── ble/             # BleUuids, WheelTypeDetector, WheelConnectionInfo
+│       ├── charger/         # ChargerState, ChargerConnectionManager, HwChargerDecoder, HwChargerProtocol
 │       ├── domain/          # WheelState, WheelType, SmartBms, AppConstants, WheelSettingsConfig, ControlSpec
 │       ├── logging/         # RideLogger
 │       ├── protocol/        # All decoders + unpackers (see Decoder Architecture below)
@@ -102,6 +103,7 @@ Central orchestrator for the Compose app (`AndroidViewModel`). Owns:
 | Utils (formatting, platform) | `core/src/commonMain/.../utils/{ByteUtils,DisplayUtils,StringUtil,Lock,Logger}.kt` |
 | Telemetry buffer | `core/src/commonMain/.../telemetry/TelemetryBuffer.kt` |
 | Telemetry file I/O | `core/src/commonMain/.../telemetry/TelemetryFileIO.kt` |
+| Charger protocol | `core/src/commonMain/.../charger/{ChargerState,ChargerConnectionManager,HwChargerDecoder,HwChargerProtocol}.kt` |
 | Preference keys & defaults | `core/src/commonMain/.../domain/{PreferenceKeys,PreferenceDefaults}.kt` |
 | Ride logging (CSV) | `core/src/commonMain/.../logging/{CsvFormatter,CsvParser,RideLogger,RideMetadata}.kt` |
 | Demo data provider | `core/src/commonMain/.../service/DemoDataProvider.kt` |
@@ -129,7 +131,8 @@ Central orchestrator for the Compose app (`AndroidViewModel`). Owns:
 | Ride storage (iOS-only) | `iosApp/FreeWheel/Bridge/RideStore.swift` |
 | Telemetry bridge | `iosApp/FreeWheel/Bridge/TelemetryBuffer.swift` |
 | Telemetry history | `iosApp/FreeWheel/Bridge/TelemetryHistory.swift` |
-| SwiftUI views | `iosApp/FreeWheel/Views/*.swift` (incl. `ViewHelpers.swift` shared unit helpers) |
+| Charger bridge | `iosApp/FreeWheel/Bridge/ChargerManager.swift` |
+| SwiftUI views | `iosApp/FreeWheel/Views/*.swift` (incl. `ViewHelpers.swift`, `ChargerView.swift`) |
 
 ## iOS Bridge Architecture
 

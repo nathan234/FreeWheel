@@ -55,7 +55,7 @@ Build from source with Xcode 15+. Open `iosApp/FreeWheel.xcodeproj`, select your
 ```bash
 git clone https://github.com/nathan234/FreeWheel.git
 cd FreeWheel
-./gradlew :core:testDebugUnitTest         # Run all KMP tests (~1,436 tests)
+./gradlew :core:testDebugUnitTest         # Run all KMP tests
 ./gradlew :freewheel:assembleDebug        # Build FreeWheel Android APK
 ```
 

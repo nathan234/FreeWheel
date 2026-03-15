@@ -153,11 +153,11 @@ Tests: `VeteranDecoderTest.kt` · `VeteranDecoderComparisonTest.kt`
 
 ### Known Gaps
 - [ ] **[P1]** Nosfet Aero (mVer 43) SOC table: 126V/2P pack has a different voltage-SOC curve than Patton/Patton-S (126V/4P). Uses piecewise-linear fallback. Need real-world data or Leaperkim-provided table.
-- [ ] **[P2]** Dual-format commands: official app sends old (LkAp) + new (LdAp) format concatenated for non-"004" firmware. We only send old format. May affect newer wheels.
+- [x] ~~**[P2]** Dual-format commands~~: LdAp command format added. Old (LkAp) format still sent for basic commands; new format used for extended settings.
 - [ ] **[P2]** Lock command: requires time-based password prefix (`genPwdCmd` in official app). Currently returns empty.
 - [ ] **[P2]** Oryx (mVer 8) SOC table: no official table available (not in Leaperkim app v1.4.8). Uses piecewise-linear fallback.
-- [ ] **[P3]** Fall protection angle: parsed in sub-type 2 (byte 47) by official app but not surfaced in WheelState.
-- [ ] **[P3]** Time sync on connect: official app sends time sync command on first valid frame.
+- [x] ~~**[P3]** Fall protection angle~~: parsed from sub-type 2 (byte 47) and surfaced in WheelState.
+- [x] ~~**[P3]** Time sync on connect~~: sends time sync commands on first valid frame.
 - [ ] **[P3]** Sub-types 1/5 cell voltages (cells 1-15), 2/6 cells 16-30, 3/7 remaining cells + temps: not yet parsed (BMS data already comes from main frame for mVer >= 5).
 
 ---
@@ -294,7 +294,7 @@ Tests: `InMotionV2DecoderTest.kt` · `InMotionV2UnpackerTest.kt`
 
 ### Known Gaps
 - [ ] **[P2]** Multi-stage shutdown (legacy sends 0x81 first, waits for ACK, then sends 0x82 — KMP sends single 0x81)
-- [ ] **[P2]** Battery real-time info request in keep-alive loop (legacy alternates between live data and battery requests)
+- [x] ~~**[P2]** Battery real-time info request in keep-alive loop~~: BMS polling added to keep-alive via `bmsPollCounter` cycle.
 - [ ] **[P3]** Light state debounce (legacy has `lightSwitchCounter` with 3-frame debounce)
 - [ ] **[P3]** `getUselessData` request in init sequence (legacy requests Something1 command, KMP skips it)
 - [ ] **[P3]** V12 headlight 4-state mode (low/high/both) — KMP only sends simple on/off

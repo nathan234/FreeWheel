@@ -36,12 +36,12 @@ This document tracks the migration of FreeWheel's core functionality to Kotlin M
 | Decoder | Unpacker | Status | Tests |
 |---------|----------|--------|-------|
 | GotwayDecoder | GotwayUnpacker | ✅ | ✅ |
-| VeteranDecoder | (uses Gotway) | ✅ | ✅ |
+| VeteranDecoder | (inline) | ✅ | ✅ |
 | KingsongDecoder | (inline) | ✅ | ✅ |
 | InMotionDecoder | InMotionUnpacker | ✅ | ✅ |
 | InMotionV2Decoder | InMotionV2Unpacker | ✅ | ✅ |
 | NinebotDecoder | NinebotUnpacker | ✅ | ✅ |
-| NinebotZDecoder | NinebotZUnpacker | ✅ | ✅ |
+| NinebotZDecoder | (inline) | ✅ | ✅ |
 | AutoDetectDecoder | (delegates) | ✅ | ✅ |
 
 ---
@@ -202,17 +202,10 @@ This document tracks the migration of FreeWheel's core functionality to Kotlin M
 
 ## Current Status
 
-**Last Updated**: 2026-03-03
-
-**Recent Commits**:
-- `fdff864` Rename WheelLog → FreeWheel, separate legacy and new apps
-- `28cb4c3` Fix iOS alarm throttling, use KMP sanitizeAddress, add IM2 comparison tests
-- `c0c4993` Improve README, migration plan, decoder parity docs, and issue templates
-- `cfd10db` Document lifecycle, persistence, entry flow, and test inventory in CLAUDE.md
-- `22ab3cc` Finalize ride recording on app close to preserve trip metadata
+**Status**: Migration complete. All phases delivered. Ongoing work tracked in [decoder-parity.md](docs/decoder-parity.md).
 
 **Completed**:
-- All 8 protocol decoders ported to KMP with ~1,436 unit tests
+- All 8 protocol decoders ported to KMP with comprehensive test suites
 - iOS app fully functional: dashboard, charts, settings, ride history, background mode
 - Android Compose app with WheelService, WheelViewModel, auto-reconnect
 - Alarm system (speed, current, temp, battery) on both platforms
@@ -220,9 +213,10 @@ This document tracks the migration of FreeWheel's core functionality to Kotlin M
 - Telemetry buffer (5-min rolling) and history (24h persistent per-wheel)
 - Wheel settings config defined once in KMP, rendered natively on both platforms
 - LeaperkimCan decoder for CAN-over-BLE protocol
+- HW Charger (Roger/Pidzoom) BLE support on both platforms
+- Dependency injection and testability refactoring
 
-**Next Steps**:
+**Remaining Work**:
 1. Close remaining decoder parity gaps (see [decoder-parity.md](docs/decoder-parity.md))
 2. Firmware update support (where applicable)
 3. Wider device testing across wheel manufacturers
-4. Integration tests with real wheel connections
