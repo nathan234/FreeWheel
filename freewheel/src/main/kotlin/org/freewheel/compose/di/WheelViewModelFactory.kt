@@ -21,6 +21,7 @@ class WheelViewModelFactory(
             captureLogger = AppModule.bleCaptureLogger,
             telemetryFileIO = AppModule.telemetryFileIO,
             profileStore = AppModule.profileStore,
+            chargerProfileStore = AppModule.chargerProfileStore,
             demoDataProvider = AppModule.demoDataProvider,
             alarmChecker = AppModule.alarmChecker,
             telemetryBuffer = AppModule.telemetryBuffer

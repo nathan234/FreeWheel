@@ -60,6 +60,14 @@ sealed class NavigationTab {
         override val isRequired = false
     }
 
+    data object Charger : NavigationTab() {
+        override val id = "CHARGER"
+        override val route = "charger"
+        override val label = "Charger"
+        override val iconName = "bolt"
+        override val isRequired = false
+    }
+
     data object Settings : NavigationTab() {
         override val id = "SETTINGS"
         override val route = "settings"
@@ -80,7 +88,7 @@ sealed class NavigationTab {
     companion object {
         /** All built-in tabs (replaces enum .entries). Lazy to avoid initialization order issues. */
         val builtIn: List<NavigationTab> by lazy {
-            listOf(Devices, Chart, Bms, Rides, WheelSettings, Settings)
+            listOf(Devices, Chart, Bms, Rides, WheelSettings, Charger, Settings)
         }
 
         /** Look up a built-in tab by its ID, or null. */

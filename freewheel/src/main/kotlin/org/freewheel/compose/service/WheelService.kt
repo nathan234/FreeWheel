@@ -15,6 +15,7 @@ import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import org.freewheel.R
+import org.freewheel.core.charger.ChargerConnectionManager
 import org.freewheel.core.protocol.DefaultWheelDecoderFactory
 import org.freewheel.core.protocol.WheelDecoderFactory
 import org.freewheel.core.service.BleManager
@@ -34,6 +35,12 @@ class WheelService : Service() {
     lateinit var bleManager: BleManager
         private set
     lateinit var connectionManager: WheelConnectionManager
+        private set
+
+    // Charger BLE (separate connection)
+    lateinit var chargerBleManager: BleManager
+        private set
+    lateinit var chargerConnectionManager: ChargerConnectionManager
         private set
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
@@ -57,6 +64,8 @@ class WheelService : Service() {
         ble: BleManager = BleManager(),
         decoderFactory: WheelDecoderFactory = DefaultWheelDecoderFactory(),
         cm: WheelConnectionManager? = null,
+        chargerBle: BleManager = BleManager(),
+        chargerCm: ChargerConnectionManager? = null,
         locManager: LocationManager? = AppModule.locationManager,
         notifManager: NotificationManager? = AppModule.notificationManager,
     ) {
@@ -64,6 +73,11 @@ class WheelService : Service() {
         connectionManager = cm ?: WheelConnectionManager(
             bleManager = ble,
             decoderFactory = decoderFactory,
+            scope = serviceScope
+        )
+        chargerBleManager = chargerBle
+        chargerConnectionManager = chargerCm ?: ChargerConnectionManager(
+            bleManager = chargerBle,
             scope = serviceScope
         )
         locationManager = locManager
@@ -99,6 +113,26 @@ class WheelService : Service() {
             connectionManager.onBleError()
         }
 
+        // Wire charger BLE data to charger connection manager
+        chargerBleManager.initialize(this)
+        chargerBleManager.setDataReceivedCallback { data ->
+            try {
+                chargerConnectionManager.onDataReceived(data)
+            } catch (e: Exception) {
+                org.freewheel.core.utils.Logger.e("WheelService", "Error in charger onDataReceived", e)
+            }
+        }
+        chargerBleManager.setServicesDiscoveredCallback { _, _ ->
+            try {
+                chargerConnectionManager.onServicesDiscovered()
+            } catch (e: Exception) {
+                org.freewheel.core.utils.Logger.e("WheelService", "Error in charger onServicesDiscovered", e)
+            }
+        }
+        chargerBleManager.setBleErrorCallback {
+            chargerConnectionManager.onBleError()
+        }
+
         // Monitor connection state for notification updates
         serviceScope.launch {
             connectionManager.connectionState.collect { state ->
@@ -126,7 +160,10 @@ class WheelService : Service() {
         // actually runs before the scope is cancelled.
         // runBlocking is safe here: shutdown() runs on Dispatchers.Default (the
         // event loop dispatcher), not Main, so no deadlock.
-        runBlocking { connectionManager.shutdown() }
+        runBlocking {
+            connectionManager.shutdown()
+            chargerConnectionManager.shutdown()
+        }
         serviceScope.cancel()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             stopForeground(STOP_FOREGROUND_REMOVE)

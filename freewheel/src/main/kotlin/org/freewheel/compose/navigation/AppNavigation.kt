@@ -40,6 +40,7 @@ import org.freewheel.compose.screens.DashboardScreen
 import org.freewheel.compose.screens.MetricDetailScreen
 import org.freewheel.compose.screens.NavigationEditScreen
 import org.freewheel.compose.screens.BleCaptureScreen
+import org.freewheel.compose.screens.ChargerScreen
 import org.freewheel.compose.screens.RidesScreen
 import org.freewheel.compose.screens.AutoConnectContent
 import org.freewheel.compose.screens.ScanScreen
@@ -167,6 +168,11 @@ fun AppNavigation(viewModel: WheelViewModel) {
                     viewModel = viewModel,
                     onBack = { navController.popBackStack() }
                 )
+            }
+
+            // Charger tab
+            composable(NavigationTab.Charger.route) {
+                ChargerScreen(viewModel = viewModel)
             }
 
             // Settings tab

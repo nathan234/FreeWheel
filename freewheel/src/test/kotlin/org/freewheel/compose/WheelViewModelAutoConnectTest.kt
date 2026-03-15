@@ -14,6 +14,8 @@ import org.freewheel.data.TripRepository
 import org.freewheel.core.domain.CapabilitySet
 import org.freewheel.core.domain.WheelState
 import org.freewheel.core.service.AutoConnectManager
+import org.freewheel.core.charger.ChargerConnectionManager
+import org.freewheel.core.charger.ChargerState
 import org.freewheel.core.service.BleManager
 import org.freewheel.core.service.ConnectionState
 import org.freewheel.core.service.WheelConnectionManager
@@ -79,6 +81,7 @@ class WheelViewModelAutoConnectTest {
             captureLogger = BleCaptureLogger(),
             telemetryFileIO = PlatformTelemetryFileIO(),
             profileStore = WheelProfileStore(prefs),
+            chargerProfileStore = ChargerProfileStore(prefs),
             demoDataProvider = DemoDataProvider()
         )
 
@@ -89,7 +92,13 @@ class WheelViewModelAutoConnectTest {
             every { capabilities } returns MutableStateFlow(CapabilitySet())
         }
         mockBle = mockk(relaxed = true)
-        mockService = mockk(relaxed = true)
+        val mockChargerCm = mockk<ChargerConnectionManager>(relaxed = true) {
+            every { chargerState } returns MutableStateFlow(ChargerState())
+            every { connectionState } returns MutableStateFlow(ConnectionState.Disconnected)
+        }
+        mockService = mockk(relaxed = true) {
+            every { chargerConnectionManager } returns mockChargerCm
+        }
     }
 
     @After

@@ -62,4 +62,10 @@ object PreferenceKeys {
 
     // Navigation config (global)
     const val NAVIGATION_CONFIG = "navigation_config"
+
+    // Charger profiles
+    const val SAVED_CHARGER_ADDRESSES = "saved_charger_addresses"
+    const val SUFFIX_CHARGER_NAME = "_charger_name"
+    const val SUFFIX_CHARGER_PASSWORD = "_charger_password"
+    const val SUFFIX_CHARGER_LAST_CONNECTED = "_charger_last_connected"
 }

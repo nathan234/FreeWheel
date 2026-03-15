@@ -9,6 +9,7 @@ import android.os.Vibrator
 import androidx.core.content.ContextCompat.getSystemService
 import androidx.preference.PreferenceManager
 import org.freewheel.AppConfig
+import org.freewheel.compose.ChargerProfileStore
 import org.freewheel.compose.WheelProfileStore
 import org.freewheel.core.alarm.AlarmChecker
 import org.freewheel.core.logging.BleCaptureLogger
@@ -63,6 +64,7 @@ object AppModule {
     val bleCaptureLogger: BleCaptureLogger by lazy { BleCaptureLogger() }
     val telemetryFileIO: TelemetryFileIO by lazy { PlatformTelemetryFileIO() }
     val profileStore: WheelProfileStore by lazy { WheelProfileStore(prefs) }
+    val chargerProfileStore: ChargerProfileStore by lazy { ChargerProfileStore(prefs) }
     val demoDataProvider: DemoDataProvider by lazy { DemoDataProvider() }
     val alarmChecker: AlarmChecker by lazy { AlarmChecker() }
     val telemetryBuffer: TelemetryBuffer by lazy { TelemetryBuffer() }

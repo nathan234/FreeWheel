@@ -35,8 +35,8 @@ class NavigationTabTest {
     }
 
     @Test
-    fun `there are 6 built-in navigation tabs`() {
-        assertEquals(6, NavigationTab.builtIn.size)
+    fun `there are 7 built-in navigation tabs`() {
+        assertEquals(7, NavigationTab.builtIn.size)
     }
 
     @Test

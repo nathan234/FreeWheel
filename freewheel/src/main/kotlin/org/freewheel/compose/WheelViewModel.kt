@@ -27,6 +27,8 @@ import org.freewheel.core.service.BluetoothAdapterState
 import org.freewheel.core.service.ConnectionState
 import org.freewheel.core.service.DemoDataProvider
 import org.freewheel.core.service.WheelConnectionManager
+import org.freewheel.core.charger.ChargerConnectionManager
+import org.freewheel.core.charger.ChargerState
 import org.freewheel.core.domain.CapabilitySet
 import org.freewheel.core.domain.AlarmAction
 import org.freewheel.core.domain.AlarmType
@@ -76,6 +78,7 @@ class WheelViewModel(
     private val captureLogger: BleCaptureLogger,
     private val telemetryFileIO: TelemetryFileIO,
     val profileStore: WheelProfileStore,
+    val chargerProfileStore: ChargerProfileStore,
     private val demoDataProvider: DemoDataProvider,
     private val alarmChecker: AlarmChecker = AlarmChecker(),
     val telemetryBuffer: TelemetryBuffer = TelemetryBuffer()
@@ -89,9 +92,21 @@ class WheelViewModel(
     private var connectionCollectionJob: Job? = null
     private var capabilitiesCollectionJob: Job? = null
 
+    // Charger service references
+    private var chargerConnectionManager: ChargerConnectionManager? = null
+    private var chargerStateCollectionJob: Job? = null
+    private var chargerConnectionCollectionJob: Job? = null
+
     // Connection state
     private val _connectionState = MutableStateFlow<ConnectionState>(ConnectionState.Disconnected)
     val connectionState: StateFlow<ConnectionState> = _connectionState.asStateFlow()
+
+    // Charger state
+    private val _chargerState = MutableStateFlow(ChargerState())
+    val chargerState: StateFlow<ChargerState> = _chargerState.asStateFlow()
+
+    private val _chargerConnectionState = MutableStateFlow<ConnectionState>(ConnectionState.Disconnected)
+    val chargerConnectionState: StateFlow<ConnectionState> = _chargerConnectionState.asStateFlow()
 
     // Bluetooth adapter state (set by ComposeActivity before and after service binding)
     private val _bluetoothState = MutableStateFlow(BluetoothAdapterState.UNKNOWN)
@@ -290,6 +305,7 @@ class WheelViewModel(
         wheelService = service
         connectionManager = cm
         bleManager = ble
+        chargerConnectionManager = service.chargerConnectionManager
 
         pushDecoderConfig()
 
@@ -348,6 +364,20 @@ class WheelViewModel(
                 }
             }
         }
+
+        // Charger state collection
+        val ccm = service.chargerConnectionManager
+        chargerStateCollectionJob = viewModelScope.launch {
+            ccm.chargerState.collect { _chargerState.value = it }
+        }
+        chargerConnectionCollectionJob = viewModelScope.launch {
+            ccm.connectionState.collect { state ->
+                _chargerConnectionState.value = state
+                if (state is ConnectionState.Connected) {
+                    autoSaveChargerProfile(state.address)
+                }
+            }
+        }
     }
 
     fun detachService() {
@@ -356,9 +386,13 @@ class WheelViewModel(
         stateCollectionJob?.cancel()
         connectionCollectionJob?.cancel()
         capabilitiesCollectionJob?.cancel()
+        chargerStateCollectionJob?.cancel()
+        chargerConnectionCollectionJob?.cancel()
         stateCollectionJob = null
         connectionCollectionJob = null
         capabilitiesCollectionJob = null
+        chargerStateCollectionJob = null
+        chargerConnectionCollectionJob = null
         autoConnectManager?.destroy()
         autoConnectManager = null
         wheelService?.onGpsLocationUpdate = null
@@ -367,6 +401,7 @@ class WheelViewModel(
         wheelService = null
         connectionManager = null
         bleManager = null
+        chargerConnectionManager = null
     }
 
     // --- Demo mode ---
@@ -622,6 +657,76 @@ class WheelViewModel(
 
     fun executeWheelCommand(commandId: SettingsCommandId, intValue: Int = 0, boolValue: Boolean = false) {
         connectionManager?.executeCommand(commandId, intValue, boolValue)
+    }
+
+    // --- Charger operations ---
+
+    fun connectCharger(address: String, password: String) {
+        chargerConnectionManager?.connect(address, password)
+    }
+
+    fun disconnectCharger() {
+        chargerConnectionManager?.disconnect()
+    }
+
+    fun setChargerVoltage(voltage: Float) {
+        chargerConnectionManager?.setOutputVoltage(voltage)
+    }
+
+    fun setChargerCurrent(current: Float) {
+        chargerConnectionManager?.setOutputCurrent(current)
+    }
+
+    fun toggleChargerOutput(enable: Boolean) {
+        chargerConnectionManager?.toggleOutput(enable)
+    }
+
+    fun setChargerPowerLimit(watts: Int) {
+        chargerConnectionManager?.setPowerLimit(watts)
+    }
+
+    fun setChargerTwoStageCharging(enabled: Boolean) {
+        chargerConnectionManager?.setTwoStageCharging(enabled)
+    }
+
+    fun setChargerEndOfChargeCurrent(current: Float) {
+        chargerConnectionManager?.setEndOfChargeCurrent(current)
+    }
+
+    fun setChargerPowerOnOutput(enabled: Boolean) {
+        chargerConnectionManager?.setPowerOnOutput(enabled)
+    }
+
+    // --- Charger profiles ---
+
+    private val _savedChargerAddresses = MutableStateFlow(chargerProfileStore.getSavedAddresses())
+    val savedChargerAddresses: StateFlow<Set<String>> = _savedChargerAddresses.asStateFlow()
+
+    fun getSavedChargerProfiles(): List<ChargerProfile> = chargerProfileStore.getSavedProfiles()
+
+    fun getChargerProfile(address: String): ChargerProfile? = chargerProfileStore.getProfile(address)
+
+    fun saveChargerProfile(profile: ChargerProfile) {
+        chargerProfileStore.saveProfile(profile)
+        _savedChargerAddresses.value = chargerProfileStore.getSavedAddresses()
+    }
+
+    fun forgetChargerProfile(address: String) {
+        chargerProfileStore.deleteProfile(address)
+        _savedChargerAddresses.value = chargerProfileStore.getSavedAddresses()
+    }
+
+    private fun autoSaveChargerProfile(address: String) {
+        val existing = chargerProfileStore.getProfile(address)
+        chargerProfileStore.saveProfile(
+            ChargerProfile(
+                address = address,
+                displayName = existing?.displayName ?: "HW Charger",
+                password = existing?.password ?: "",
+                lastConnectedMs = System.currentTimeMillis()
+            )
+        )
+        _savedChargerAddresses.value = chargerProfileStore.getSavedAddresses()
     }
 
     // --- Dashboard & Navigation config ---
