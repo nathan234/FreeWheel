@@ -205,19 +205,9 @@ struct ScanView: View {
         .frame(maxWidth: .infinity)
     }
 
-    /// Saved wheels — always visible. Uses live scan data if available, otherwise a placeholder.
+    /// Saved wheels — only those currently visible in the BLE scan.
     private var myWheels: [DiscoveredDevice] {
-        let discovered = Dictionary(
-            wheelManager.discoveredDevices.map { ($0.address, $0) },
-            uniquingKeysWith: { first, _ in first }
-        )
-        return wheelManager.savedAddresses.map { address in
-            discovered[address] ?? DiscoveredDevice(
-                address: address,
-                name: wheelManager.getSavedDisplayName(address: address) ?? ScanLabels.shared.UNKNOWN_DEVICE,
-                rssi: -100
-            )
-        }
+        wheelManager.discoveredDevices.filter { wheelManager.savedAddresses.contains($0.address) }
     }
 
     /// New devices — discovered devices that are NOT in the saved list.
@@ -227,7 +217,7 @@ struct ScanView: View {
 
     private var deviceList: some View {
         List {
-            // "My Wheels" section — always shown if saved wheels exist
+            // "My Wheels" section — shown when saved wheels are detected nearby
             if !myWheels.isEmpty {
                 Section {
                     ForEach(myWheels) { device in
