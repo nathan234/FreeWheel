@@ -73,6 +73,7 @@ fun VicoLineChart(
     timeFormatPattern: String = "HH:mm",
     marker: CartesianMarker? = null,
     zoomEnabled: Boolean = true,
+    yAxisUnit: String? = null,
 ) {
     if (samples.isEmpty() || seriesList.isEmpty()) return
 
@@ -133,6 +134,17 @@ fun VicoLineChart(
                 scrollState = scrollState,
                 zoomState = zoomState,
                 modifier = Modifier.fillMaxSize(),
+            )
+        }
+
+        if (!yAxisUnit.isNullOrEmpty()) {
+            Text(
+                yAxisUnit,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(4.dp),
             )
         }
 

@@ -118,6 +118,13 @@ struct MetricDetailView: View {
                         }
                         .padding(4)
                     }
+                    .overlay(alignment: .topLeading) {
+                        Text(displayUnit)
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                            .padding(.leading, 4)
+                            .padding(.top, 2)
+                    }
                     .frame(height: 280)
                     .padding(.horizontal)
                 }

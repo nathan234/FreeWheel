@@ -171,6 +171,12 @@ fun ChartScreen(
 
                 if (visibleSeries.isNotEmpty()) {
                     val marker = rememberChartMarker(samples, visibleMarkerInfo, timeFormatPattern)
+                    val yAxisUnits = buildList {
+                        if (showSpeed || showGpsSpeed) add(speedUnit)
+                        if (showCurrent) add("A")
+                        if (showPower) add("W")
+                        if (showTemperature) add(tempUnit)
+                    }
                     // Main telemetry chart
                     VicoLineChart(
                         samples = samples,
@@ -181,6 +187,7 @@ fun ChartScreen(
                             .padding(horizontal = 16.dp),
                         timeFormatPattern = timeFormatPattern,
                         marker = marker,
+                        yAxisUnit = yAxisUnits.joinToString(" · ").ifEmpty { null },
                     )
                 }
 
@@ -208,6 +215,7 @@ fun ChartScreen(
                         .padding(horizontal = 16.dp),
                     timeFormatPattern = timeFormatPattern,
                     marker = voltageMarker,
+                    yAxisUnit = "V",
                 )
 
                 Spacer(Modifier.height(16.dp))

@@ -78,6 +78,15 @@ struct TelemetryChartView: View {
         DisplayUtils.shared.temperatureUnit(useFahrenheit: wheelManager.useFahrenheit)
     }
 
+    private var mainChartYAxisUnit: String {
+        var units: [String] = []
+        if showSpeed || showGpsSpeed { units.append(speedUnit) }
+        if showCurrent { units.append("A") }
+        if showPower { units.append("W") }
+        if showTemperature { units.append(tempUnit) }
+        return units.joined(separator: " · ")
+    }
+
     var body: some View {
         ScrollView {
             VStack(spacing: 16) {
@@ -127,6 +136,15 @@ struct TelemetryChartView: View {
                             mainChartBaseDomain = domain
                         }
                         .padding(4)
+                    }
+                    .overlay(alignment: .topLeading) {
+                        if !mainChartYAxisUnit.isEmpty {
+                            Text(mainChartYAxisUnit)
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                                .padding(.leading, 4)
+                                .padding(.top, 2)
+                        }
                     }
                     .frame(height: 250)
                     .padding(.horizontal)
@@ -299,6 +317,13 @@ struct VoltageChartView: View {
                     baseDomain = domain
                 }
                 .padding(4)
+            }
+            .overlay(alignment: .topLeading) {
+                Text("V")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                    .padding(.leading, 4)
+                    .padding(.top, 2)
             }
             .frame(height: 200)
             .padding(.horizontal)

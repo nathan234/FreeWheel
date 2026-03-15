@@ -38,6 +38,16 @@ struct TripDetailView: View {
         DisplayUtils.shared.temperatureUnit(useFahrenheit: wheelManager.useFahrenheit)
     }
 
+    private var mainChartYAxisUnit: String {
+        var units: [String] = []
+        if showSpeed || showGpsSpeed { units.append(speedUnit) }
+        if showCurrent { units.append("A") }
+        if showPower { units.append("W") }
+        if showTemperature { units.append(tempUnit) }
+        if showPwm { units.append("%") }
+        return units.joined(separator: " · ")
+    }
+
     var body: some View {
         Group {
             if isLoading {
@@ -69,6 +79,15 @@ struct TripDetailView: View {
                                 }
                                 .padding(.trailing, 20)
                                 .padding(.top, 4)
+                            }
+                            .overlay(alignment: .topLeading) {
+                                if !mainChartYAxisUnit.isEmpty {
+                                    Text(mainChartYAxisUnit)
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+                                        .padding(.leading, 20)
+                                        .padding(.top, 4)
+                                }
                             }
                             voltageChart
                         }

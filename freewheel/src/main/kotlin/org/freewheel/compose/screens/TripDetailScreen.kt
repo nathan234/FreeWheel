@@ -241,6 +241,13 @@ fun TripDetailScreen(
 
                     if (visibleSeries.isNotEmpty()) {
                         val marker = rememberChartMarker(s.samples, visibleMarkerInfo, timeFormatPattern)
+                        val yAxisUnits = buildList {
+                            if (showSpeed || showGpsSpeed) add(speedUnit)
+                            if (showCurrent) add("A")
+                            if (showPower) add("W")
+                            if (showTemperature) add(tempUnit)
+                            if (showPwm) add("%")
+                        }
                         VicoLineChart(
                             samples = s.samples,
                             seriesList = visibleSeries,
@@ -249,6 +256,7 @@ fun TripDetailScreen(
                                 .height(250.dp)
                                 .padding(horizontal = 16.dp),
                             marker = marker,
+                            yAxisUnit = yAxisUnits.joinToString(" · ").ifEmpty { null },
                         )
                     }
 
@@ -275,6 +283,7 @@ fun TripDetailScreen(
                             .height(200.dp)
                             .padding(horizontal = 16.dp),
                         marker = voltageMarker,
+                        yAxisUnit = "V",
                     )
 
                     Spacer(Modifier.height(16.dp))

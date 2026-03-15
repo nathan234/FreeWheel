@@ -134,6 +134,7 @@ fun MetricDetailScreen(
                         .padding(horizontal = 16.dp),
                     timeFormatPattern = timeFormatPattern,
                     marker = marker,
+                    yAxisUnit = displayUnit,
                 )
             }
 
