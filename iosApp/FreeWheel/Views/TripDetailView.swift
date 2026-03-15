@@ -459,7 +459,7 @@ private struct RideReplayControlsView: View {
         VStack(spacing: 4) {
             // Scrubber
             HStack {
-                Text(formatTime(controller.elapsedMs))
+                Text(DisplayUtils.shared.formatDurationCompact(seconds: Int32(controller.elapsedMs / 1000)))
                     .font(.caption)
                     .monospacedDigit()
                 Slider(
@@ -469,7 +469,7 @@ private struct RideReplayControlsView: View {
                     ),
                     in: 0...1
                 )
-                Text(formatTime(controller.totalDurationMs))
+                Text(DisplayUtils.shared.formatDurationCompact(seconds: Int32(controller.totalDurationMs / 1000)))
                     .font(.caption)
                     .monospacedDigit()
             }
@@ -523,15 +523,5 @@ private struct RideReplayControlsView: View {
         .background(.bar)
     }
 
-    private func formatTime(_ ms: Int64) -> String {
-        let totalSeconds = ms / 1000
-        let hours = totalSeconds / 3600
-        let minutes = (totalSeconds % 3600) / 60
-        let seconds = totalSeconds % 60
-        if hours > 0 {
-            return String(format: "%d:%02d:%02d", hours, minutes, seconds)
-        }
-        return String(format: "%d:%02d", minutes, seconds)
-    }
 }
 
