@@ -39,4 +39,9 @@ data class ChargerState(
 
     /** Calculated: dcCurrent > 0.1A */
     val isCharging: Boolean get() = dcCurrent > 0.1f
+
+    companion object {
+        /** Swift-friendly factory (KMP data class default params not accessible from Swift). */
+        fun empty(): ChargerState = ChargerState()
+    }
 }

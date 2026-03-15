@@ -40,6 +40,8 @@
 		K1000001221F0000000027 /* CustomTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = K1000001221F0000000017 /* CustomTabView.swift */; };
 		K1000001221F0000000028 /* CustomTabEditView.swift in Sources */ = {isa = PBXBuildFile; fileRef = K1000001221F0000000018 /* CustomTabEditView.swift */; };
 		L1000001221F0000000029 /* BleCaptureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = L1000001221F0000000019 /* BleCaptureView.swift */; };
+		M1000001221F000000002A /* ChargerManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = M1000001221F000000001A /* ChargerManager.swift */; };
+		M1000001221F000000002B /* ChargerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = M1000001221F000000001B /* ChargerView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -78,6 +80,8 @@
 		K1000001221F0000000017 /* CustomTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomTabView.swift; sourceTree = "<group>"; };
 		K1000001221F0000000018 /* CustomTabEditView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomTabEditView.swift; sourceTree = "<group>"; };
 		L1000001221F0000000019 /* BleCaptureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BleCaptureView.swift; sourceTree = "<group>"; };
+		M1000001221F000000001A /* ChargerManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChargerManager.swift; sourceTree = "<group>"; };
+		M1000001221F000000001B /* ChargerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChargerView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -139,6 +143,7 @@
 				B1000001221F0000000006 /* RideStore.swift */,
 				B1000001221F0000000007 /* TelemetryBuffer.swift */,
 				E1000001221F000000000E /* TelemetryHistory.swift */,
+				M1000001221F000000001A /* ChargerManager.swift */,
 			);
 			path = Bridge;
 			sourceTree = "<group>";
@@ -168,6 +173,7 @@
 				K1000001221F0000000017 /* CustomTabView.swift */,
 				K1000001221F0000000018 /* CustomTabEditView.swift */,
 				L1000001221F0000000019 /* BleCaptureView.swift */,
+				M1000001221F000000001B /* ChargerView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -296,6 +302,8 @@
 				K1000001221F0000000027 /* CustomTabView.swift in Sources */,
 				K1000001221F0000000028 /* CustomTabEditView.swift in Sources */,
 				L1000001221F0000000029 /* BleCaptureView.swift in Sources */,
+				M1000001221F000000002A /* ChargerManager.swift in Sources */,
+				M1000001221F000000002B /* ChargerView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

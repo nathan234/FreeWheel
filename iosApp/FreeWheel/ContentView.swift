@@ -39,6 +39,8 @@ struct ContentView: View {
             RidesView()
         } else if tab is NavigationTab.WheelSettings {
             WheelSettingsView()
+        } else if tab is NavigationTab.Charger {
+            ChargerView()
         } else if tab is NavigationTab.Settings {
             SettingsView()
         } else if let custom = tab as? NavigationTab.Custom {

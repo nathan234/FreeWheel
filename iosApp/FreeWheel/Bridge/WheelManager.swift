@@ -442,7 +442,7 @@ class WheelManager: ObservableObject {
     private func setupKmpComponents() {
         // Initialize KMP BLE manager
         bleManager = BleManager()
-        bleManager?.initialize()
+        bleManager?.initialize(restoreIdentifier: "FreeWheelBLE")
 
         // Create WheelConnectionManager using iOS factory
         guard let ble = bleManager else { return }

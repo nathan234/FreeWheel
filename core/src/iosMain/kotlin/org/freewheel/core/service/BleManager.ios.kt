@@ -86,15 +86,23 @@ actual class BleManager : BleManagerPort {
     /**
      * Initialize the CBCentralManager.
      * Must be called before any BLE operations.
+     *
+     * @param restoreIdentifier CoreBluetooth restore identifier. Each concurrent
+     *   CBCentralManager must use a unique identifier. Pass null to disable state restoration.
      */
-    fun initialize() {
+    fun initialize(restoreIdentifier: String? = "FreeWheelBLE") {
         if (centralManager == null) {
             centralDelegate = CBCentralManagerDelegateImpl(this)
             peripheralDelegate = CBPeripheralDelegateImpl(this)
+            val options: Map<Any?, Any>? = if (restoreIdentifier != null) {
+                mapOf(CBCentralManagerOptionRestoreIdentifierKey to restoreIdentifier)
+            } else {
+                null
+            }
             centralManager = CBCentralManager(
                 delegate = centralDelegate,
                 queue = null,
-                options = mapOf(CBCentralManagerOptionRestoreIdentifierKey to "FreeWheelBLE")
+                options = options
             )
         }
     }
