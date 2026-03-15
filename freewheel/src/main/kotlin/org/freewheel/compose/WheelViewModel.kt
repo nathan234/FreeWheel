@@ -27,6 +27,10 @@ import org.freewheel.core.service.BluetoothAdapterState
 import org.freewheel.core.service.ConnectionState
 import org.freewheel.core.service.DemoDataProvider
 import org.freewheel.core.service.WheelConnectionManager
+import org.freewheel.core.replay.BleCaptureReader
+import org.freewheel.core.replay.ReplayEngine
+import org.freewheel.core.replay.ReplayPosition
+import org.freewheel.core.replay.ReplayState
 import org.freewheel.core.ble.BleUuids
 import org.freewheel.core.charger.ChargerConnectionManager
 import org.freewheel.core.charger.ChargerState
@@ -61,6 +65,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -117,9 +122,19 @@ class WheelViewModel(
     // Track the connect coroutine so we can cancel the scan-stop + connect call
     private var connectJob: Job? = null
 
-    // Demo mode
-    private val _isDemo = MutableStateFlow(false)
-    val isDemo: StateFlow<Boolean> = _isDemo.asStateFlow()
+    // Data source: LIVE (real wheel), DEMO, or REPLAY
+    enum class WheelDataSource { LIVE, DEMO, REPLAY }
+    private val _dataSource = MutableStateFlow(WheelDataSource.LIVE)
+
+    // Backward-compatible isDemo: true for both DEMO and REPLAY (hides wheel controls)
+    val isDemo: StateFlow<Boolean> = _dataSource.map { it != WheelDataSource.LIVE }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    val dataSource: StateFlow<WheelDataSource> = _dataSource.asStateFlow()
+
+    // Replay engine
+    val replayEngine = ReplayEngine()
+    private val captureReader = BleCaptureReader()
 
     // Scanning
     private val _isScanning = MutableStateFlow(false)
@@ -141,13 +156,18 @@ class WheelViewModel(
     private val _capabilities = MutableStateFlow(CapabilitySet())
     val capabilities: StateFlow<CapabilitySet> = _capabilities.asStateFlow()
 
-    // Wheel state — combines real and demo sources
+    // Wheel state — combines real, demo, and replay sources
     val wheelState: StateFlow<WheelState> = combine(
-        _isDemo,
+        _dataSource,
         _realWheelState,
-        demoDataProvider.wheelState
-    ) { demo, realState, demoState ->
-        if (demo) demoState else realState
+        demoDataProvider.wheelState,
+        replayEngine.wheelState
+    ) { source, realState, demoState, replayState ->
+        when (source) {
+            WheelDataSource.LIVE -> realState
+            WheelDataSource.DEMO -> demoState
+            WheelDataSource.REPLAY -> replayState
+        }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), WheelState())
 
     // Alarms
@@ -344,7 +364,7 @@ class WheelViewModel(
         }
         connectionCollectionJob = viewModelScope.launch {
             cm.connectionState.collect { state ->
-                if (!_isDemo.value) {
+                if (_dataSource.value == WheelDataSource.LIVE) {
                     _connectionState.value = state
                 }
                 // Auto-save profile when connected
@@ -411,7 +431,7 @@ class WheelViewModel(
     // --- Demo mode ---
 
     fun startDemo() {
-        _isDemo.value = true
+        _dataSource.value = WheelDataSource.DEMO
         _connectionState.value = ConnectionState.Connected("demo", "Demo Wheel")
         // Don't persist history for demo mode
         demoDataProvider.start(viewModelScope)
@@ -421,13 +441,42 @@ class WheelViewModel(
         if (captureLogger.isCapturing) stopCapture()
         if (rideLogger.isLogging) stopLogging()
         demoDataProvider.stop()
-        _isDemo.value = false
+        _dataSource.value = WheelDataSource.LIVE
         _connectionState.value = ConnectionState.Disconnected
         telemetryBuffer.clear()
         _telemetrySamples.value = emptyList()
         alarmChecker.reset()
         _activeAlarms.value = emptySet()
     }
+
+    // --- Replay mode ---
+
+    fun startReplay(file: File) {
+        val csvContent = file.readText()
+        val capture = captureReader.parse(csvContent) ?: return
+        if (!replayEngine.load(capture)) return
+
+        _dataSource.value = WheelDataSource.REPLAY
+        val wheelName = capture.header.wheelName.ifBlank { capture.header.wheelTypeName }
+        _connectionState.value = ConnectionState.Connected("replay", wheelName)
+        replayEngine.start(viewModelScope)
+    }
+
+    fun pauseReplay() = replayEngine.pause()
+
+    fun resumeReplay() = replayEngine.resume(viewModelScope)
+
+    fun stopReplay() {
+        replayEngine.stop()
+        _dataSource.value = WheelDataSource.LIVE
+        _connectionState.value = ConnectionState.Disconnected
+        telemetryBuffer.clear()
+        _telemetrySamples.value = emptyList()
+    }
+
+    fun setReplaySpeed(multiplier: Float) = replayEngine.setSpeed(multiplier)
+
+    fun seekReplay(progress: Float) = replayEngine.seekTo(progress, viewModelScope)
 
     // --- BLE operations ---
 
@@ -479,7 +528,11 @@ class WheelViewModel(
     }
 
     fun disconnect() {
-        if (_isDemo.value) {
+        if (_dataSource.value == WheelDataSource.REPLAY) {
+            stopReplay()
+            return
+        }
+        if (_dataSource.value == WheelDataSource.DEMO) {
             stopDemo()
             return
         }
@@ -508,7 +561,7 @@ class WheelViewModel(
 
         if (state == BluetoothAdapterState.POWERED_OFF) {
             _isScanning.value = false
-            if (!_isDemo.value) {
+            if (_dataSource.value == WheelDataSource.LIVE) {
                 _connectionState.value = ConnectionState.Disconnected
             }
         }

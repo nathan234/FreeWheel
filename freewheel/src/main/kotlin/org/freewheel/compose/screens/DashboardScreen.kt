@@ -20,13 +20,19 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import org.freewheel.compose.WheelViewModel
 import org.freewheel.compose.components.DashboardContent
+import org.freewheel.compose.components.ReplayControls
 import org.freewheel.core.domain.SpeedDisplayMode
 import org.freewheel.core.domain.PreferenceKeys
+import org.freewheel.core.replay.ReplayState
 
 // CROSS-PLATFORM SYNC: This screen mirrors iosApp/FreeWheel/Views/DashboardView.swift.
 // Layout is now driven by DashboardLayout (configurable per-wheel).
@@ -52,6 +58,11 @@ fun DashboardScreen(
     val gpsSpeed by viewModel.gpsSpeedKmh.collectAsStateWithLifecycle()
     val dashboardLayout by viewModel.dashboardLayout.collectAsStateWithLifecycle()
     val rangeEstimateKm by viewModel.rangeEstimateKm.collectAsStateWithLifecycle()
+    val dataSource by viewModel.dataSource.collectAsStateWithLifecycle()
+    val replayState by viewModel.replayEngine.replayState.collectAsStateWithLifecycle()
+    val replayPosition by viewModel.replayEngine.position.collectAsStateWithLifecycle()
+    val replaySpeed by viewModel.replayEngine.speed.collectAsStateWithLifecycle()
+    val isReplay = dataSource == WheelViewModel.WheelDataSource.REPLAY
     val useMph = viewModel.getGlobalBool(PreferenceKeys.USE_MPH, false)
     val useFahrenheit = viewModel.getGlobalBool(PreferenceKeys.USE_FAHRENHEIT, false)
 
@@ -94,30 +105,50 @@ fun DashboardScreen(
             )
         }
     ) { contentPadding ->
-        DashboardContent(
-            layout = dashboardLayout,
-            wheelState = wheelState,
-            connectionState = connectionState,
-            activeAlarms = activeAlarms,
-            isDemo = isDemo,
-            gpsSpeed = gpsSpeed,
-            useMph = useMph,
-            useFahrenheit = useFahrenheit,
-            telemetryBuffer = viewModel.telemetryBuffer,
-            samples = samples,
-            speedDisplayMode = speedDisplayMode,
-            onSpeedDisplayModeChange = { mode ->
-                speedDisplayMode = mode
-                viewModel.setGlobalInt(PreferenceKeys.SPEED_DISPLAY_MODE, mode.ordinal)
-            },
-            onNavigateToChart = onNavigateToChart,
-            onNavigateToBms = onNavigateToBms,
-            onNavigateToMetric = onNavigateToMetric,
-            onNavigateToWheelSettings = onNavigateToWheelSettings,
-            onDisconnect = { viewModel.disconnect() },
-            onEditDashboard = onNavigateToEditDashboard,
-            rangeEstimateKm = rangeEstimateKm,
-            modifier = Modifier.padding(contentPadding)
-        )
+        Column(modifier = Modifier.fillMaxSize().padding(contentPadding)) {
+            DashboardContent(
+                layout = dashboardLayout,
+                wheelState = wheelState,
+                connectionState = connectionState,
+                activeAlarms = activeAlarms,
+                isDemo = isDemo,
+                gpsSpeed = gpsSpeed,
+                useMph = useMph,
+                useFahrenheit = useFahrenheit,
+                telemetryBuffer = viewModel.telemetryBuffer,
+                samples = samples,
+                speedDisplayMode = speedDisplayMode,
+                onSpeedDisplayModeChange = { mode ->
+                    speedDisplayMode = mode
+                    viewModel.setGlobalInt(PreferenceKeys.SPEED_DISPLAY_MODE, mode.ordinal)
+                },
+                onNavigateToChart = onNavigateToChart,
+                onNavigateToBms = onNavigateToBms,
+                onNavigateToMetric = onNavigateToMetric,
+                onNavigateToWheelSettings = onNavigateToWheelSettings,
+                onDisconnect = { viewModel.disconnect() },
+                onEditDashboard = onNavigateToEditDashboard,
+                rangeEstimateKm = rangeEstimateKm,
+                modifier = Modifier.weight(1f)
+            )
+
+            if (isReplay) {
+                ReplayControls(
+                    replayState = replayState,
+                    position = replayPosition,
+                    speed = replaySpeed,
+                    onPlayPause = {
+                        when (replayState) {
+                            ReplayState.PLAYING -> viewModel.pauseReplay()
+                            ReplayState.PAUSED, ReplayState.FINISHED -> viewModel.resumeReplay()
+                            else -> {}
+                        }
+                    },
+                    onStop = { viewModel.stopReplay() },
+                    onSeek = { viewModel.seekReplay(it) },
+                    onSpeedChange = { viewModel.setReplaySpeed(it) }
+                )
+            }
+        }
     }
 }

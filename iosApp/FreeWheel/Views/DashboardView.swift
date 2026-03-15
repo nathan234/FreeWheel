@@ -13,18 +13,24 @@ struct DashboardView: View {
     @State private var showEditDashboard = false
 
     var body: some View {
-        DashboardContentView(
-            layout: wheelManager.dashboardLayout,
-            selectedMetric: $selectedMetric,
-            showChart: $showChart,
-            showBms: $showBms,
-            showEditDashboard: $showEditDashboard
-        )
+        VStack(spacing: 0) {
+            DashboardContentView(
+                layout: wheelManager.dashboardLayout,
+                selectedMetric: $selectedMetric,
+                showChart: $showChart,
+                showBms: $showBms,
+                showEditDashboard: $showEditDashboard
+            )
+
+            if wheelManager.isReplayMode {
+                ReplayControlsView()
+            }
+        }
         .navigationTitle(wheelManager.wheelState.displayName)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItemGroup(placement: .navigationBarTrailing) {
-                if wheelManager.connectionState.isConnected && !wheelManager.isMockMode && !wheelManager.isTestMode {
+                if wheelManager.connectionState.isConnected && !wheelManager.isMockMode && !wheelManager.isTestMode && !wheelManager.isReplayMode {
                     Button(action: { wheelManager.wheelBeep() }) {
                         Image(systemName: "speaker.wave.2.fill")
                     }

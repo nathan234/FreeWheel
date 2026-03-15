@@ -14,6 +14,7 @@ import FreeWheelCore
 
 struct BleCaptureView: View {
     @EnvironmentObject var wheelManager: WheelManager
+    @Environment(\.dismiss) private var dismiss
 
     @State private var markerText = ""
     @State private var captureFiles: [URL] = []
@@ -132,6 +133,10 @@ struct BleCaptureView: View {
                             }
                             .buttonStyle(.borderless)
                         }
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            replayCapture(file)
+                        }
                     }
                     .onDelete(perform: deleteCaptures)
                 }
@@ -211,6 +216,12 @@ struct BleCaptureView: View {
     private func fileSize(_ file: URL) -> String {
         let size = (try? FileManager.default.attributesOfItem(atPath: file.path)[.size] as? Int64) ?? 0
         return "\(size / 1024) KB"
+    }
+
+    private func replayCapture(_ file: URL) {
+        guard let csvContent = try? String(contentsOf: file, encoding: .utf8) else { return }
+        wheelManager.startReplay(csvContent: csvContent)
+        dismiss()
     }
 
     private func formatElapsed(_ seconds: Int) -> String {

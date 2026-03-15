@@ -3,6 +3,7 @@ package org.freewheel.compose.screens
 import android.content.Intent
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -76,7 +77,8 @@ import java.io.File
 @Composable
 fun BleCaptureScreen(
     viewModel: WheelViewModel,
-    onBack: () -> Unit = {}
+    onBack: () -> Unit = {},
+    onReplay: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val isCapturing by viewModel.isCapturing.collectAsStateWithLifecycle()
@@ -321,6 +323,10 @@ fun BleCaptureScreen(
                                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                 }
                                 context.startActivity(Intent.createChooser(shareIntent, "Share Capture"))
+                            },
+                            onReplay = {
+                                viewModel.startReplay(file)
+                                onReplay()
                             }
                         )
                     }
@@ -334,12 +340,14 @@ fun BleCaptureScreen(
 @Composable
 private fun CaptureRow(
     file: File,
-    onShare: () -> Unit
+    onShare: () -> Unit,
+    onReplay: () -> Unit = {}
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.surface)
+            .clickable(onClick = onReplay)
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

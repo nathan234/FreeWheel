@@ -177,6 +177,21 @@ class WheelManager: ObservableObject {
     @Published private(set) var captureMarkerCount: Int = 0
     @Published private(set) var captureStartTime: Date? = nil
 
+    // BLE Replay
+    private let replayEngine: ReplayEngine = WheelConnectionManagerHelper.shared.createReplayEngine()
+    @Published private(set) var isReplayMode: Bool = false
+    @Published private(set) var replayStateName: String = "IDLE"
+    @Published private(set) var replayProgress: Float = 0
+    @Published private(set) var replayCurrentTimeMs: Int64 = 0
+    @Published private(set) var replayTotalDurationMs: Int64 = 0
+    @Published private(set) var replayPacketIndex: Int32 = 0
+    @Published private(set) var replayTotalPackets: Int32 = 0
+    @Published private(set) var replaySpeed: Float = 1.0
+    private var replayWheelStateObserver: FlowObservation?
+    private var replayStateObserver: FlowObservation?
+    private var replayPositionObserver: FlowObservation?
+    private var replaySpeedObserver: FlowObservation?
+
     // MARK: - Dashboard & Navigation Config
 
     @Published var dashboardLayout: DashboardLayout = DashboardLayout.companion.default() {
@@ -423,7 +438,12 @@ class WheelManager: ObservableObject {
         autoConnectingObserver?.close()
         reconnectStateObserver?.close()
         demoStateObserver?.close()
+        replayWheelStateObserver?.close()
+        replayStateObserver?.close()
+        replayPositionObserver?.close()
+        replaySpeedObserver?.close()
         WheelConnectionManagerHelper.shared.stopDemo(provider: demoProvider)
+        WheelConnectionManagerHelper.shared.stopReplay(engine: replayEngine)
 
         // Finalize ride recording if still active
         if Thread.isMainThread {
@@ -1210,6 +1230,98 @@ class WheelManager: ObservableObject {
         return docs.appendingPathComponent("captures")
     }
 
+    // MARK: - BLE Replay
+
+    func startReplay(csvContent: String) {
+        let helper = WheelConnectionManagerHelper.shared
+        guard helper.loadCapture(engine: replayEngine, csvContent: csvContent) else { return }
+
+        isReplayMode = true
+        let wheelName = helper.getReplayWheelName(engine: replayEngine)
+        let typeName = helper.getReplayWheelTypeName(engine: replayEngine)
+        let displayName = wheelName.isEmpty ? typeName : wheelName
+        connectionState = .connected(address: "replay", wheelName: displayName)
+
+        startReplayObserving()
+        helper.startReplay(engine: replayEngine)
+    }
+
+    func pauseReplay() {
+        WheelConnectionManagerHelper.shared.pauseReplay(engine: replayEngine)
+    }
+
+    func resumeReplay() {
+        WheelConnectionManagerHelper.shared.resumeReplay(engine: replayEngine)
+    }
+
+    func stopReplay() {
+        stopReplayObserving()
+        WheelConnectionManagerHelper.shared.stopReplay(engine: replayEngine)
+        isReplayMode = false
+        connectionState = .disconnected
+        wheelState = WheelState.companion.empty()
+        replayStateName = "IDLE"
+        replayProgress = 0
+        replayCurrentTimeMs = 0
+        replayTotalDurationMs = 0
+        replayPacketIndex = 0
+        replayTotalPackets = 0
+        replaySpeed = 1.0
+        telemetryBuffer.clear()
+    }
+
+    func seekReplay(progress: Float) {
+        WheelConnectionManagerHelper.shared.seekReplay(engine: replayEngine, progress: progress)
+    }
+
+    func setReplaySpeed(_ speed: Float) {
+        WheelConnectionManagerHelper.shared.setReplaySpeed(engine: replayEngine, speed: speed)
+    }
+
+    private func startReplayObserving() {
+        let helper = WheelConnectionManagerHelper.shared
+
+        replayWheelStateObserver = helper.observeReplayWheelState(engine: replayEngine) { [weak self] state in
+            Task { @MainActor in
+                guard let self = self, self.isReplayMode else { return }
+                self.wheelState = state
+            }
+        }
+
+        replayStateObserver = helper.observeReplayState(engine: replayEngine) { [weak self] stateName in
+            Task { @MainActor in
+                self?.replayStateName = stateName
+            }
+        }
+
+        replayPositionObserver = helper.observeReplayPosition(engine: replayEngine) { [weak self] progress, currentMs, totalMs, packetIdx, totalPkts in
+            Task { @MainActor in
+                self?.replayProgress = progress.floatValue
+                self?.replayCurrentTimeMs = currentMs.int64Value
+                self?.replayTotalDurationMs = totalMs.int64Value
+                self?.replayPacketIndex = packetIdx.int32Value
+                self?.replayTotalPackets = totalPkts.int32Value
+            }
+        }
+
+        replaySpeedObserver = helper.observeReplaySpeed(engine: replayEngine) { [weak self] speed in
+            Task { @MainActor in
+                self?.replaySpeed = speed.floatValue
+            }
+        }
+    }
+
+    private func stopReplayObserving() {
+        replayWheelStateObserver?.close()
+        replayWheelStateObserver = nil
+        replayStateObserver?.close()
+        replayStateObserver = nil
+        replayPositionObserver?.close()
+        replayPositionObserver = nil
+        replaySpeedObserver?.close()
+        replaySpeedObserver = nil
+    }
+
     // MARK: - Background Mode (Feature 4)
 
     func onEnterBackground() {
@@ -1301,6 +1413,10 @@ class WheelManager: ObservableObject {
     }
 
     func disconnect() {
+        if isReplayMode {
+            stopReplay()
+            return
+        }
         guard let connectionManager = connectionManager else { return }
 
         // Explicit disconnect — stop reconnection and clear saved address

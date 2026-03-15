@@ -4,6 +4,9 @@ import org.freewheel.core.alarm.AlarmChecker
 import org.freewheel.core.alarm.AlarmConfig
 import org.freewheel.core.alarm.AlarmResult
 import org.freewheel.core.logging.BlePacketDirection
+import org.freewheel.core.replay.BleCaptureReader
+import org.freewheel.core.replay.ReplayEngine
+import org.freewheel.core.replay.ReplayState
 import org.freewheel.core.domain.BmsState
 import org.freewheel.core.domain.CapabilitySet
 import org.freewheel.core.domain.TelemetryState
@@ -503,6 +506,106 @@ object WheelConnectionManagerHelper {
 
     fun resetAlarmChecker(checker: AlarmChecker) {
         checker.reset()
+    }
+
+    // MARK: - Replay Engine
+
+    fun createReplayEngine(): ReplayEngine {
+        return ReplayEngine()
+    }
+
+    fun loadCapture(engine: ReplayEngine, csvContent: String): Boolean {
+        val reader = BleCaptureReader()
+        val capture = reader.parse(csvContent) ?: return false
+        return engine.load(capture)
+    }
+
+    fun startReplay(engine: ReplayEngine) {
+        engine.start(demoScope)
+    }
+
+    fun pauseReplay(engine: ReplayEngine) {
+        engine.pause()
+    }
+
+    fun resumeReplay(engine: ReplayEngine) {
+        engine.resume(demoScope)
+    }
+
+    fun stopReplay(engine: ReplayEngine) {
+        engine.stop()
+    }
+
+    fun seekReplay(engine: ReplayEngine, progress: Float) {
+        engine.seekTo(progress, demoScope)
+    }
+
+    fun setReplaySpeed(engine: ReplayEngine, speed: Float) {
+        engine.setSpeed(speed)
+    }
+
+    fun getReplayStateName(engine: ReplayEngine): String {
+        return engine.replayState.value.name
+    }
+
+    fun getReplayProgress(engine: ReplayEngine): Float {
+        return engine.position.value.progress
+    }
+
+    fun getReplayCurrentTimeMs(engine: ReplayEngine): Long {
+        return engine.position.value.currentTimeMs
+    }
+
+    fun getReplayTotalDurationMs(engine: ReplayEngine): Long {
+        return engine.position.value.totalDurationMs
+    }
+
+    fun getReplayPacketIndex(engine: ReplayEngine): Int {
+        return engine.position.value.packetIndex
+    }
+
+    fun getReplayTotalPackets(engine: ReplayEngine): Int {
+        return engine.position.value.totalPackets
+    }
+
+    fun getReplaySpeed(engine: ReplayEngine): Float {
+        return engine.speed.value
+    }
+
+    fun getReplayWheelTypeName(engine: ReplayEngine): String {
+        return engine.captureHeader.value?.wheelTypeName ?: ""
+    }
+
+    fun getReplayWheelName(engine: ReplayEngine): String {
+        return engine.captureHeader.value?.wheelName ?: ""
+    }
+
+    fun observeReplayWheelState(engine: ReplayEngine, onChange: (WheelState) -> Unit): FlowObservation {
+        val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+        scope.launch { engine.wheelState.collect { onChange(it) } }
+        return FlowObservation(scope)
+    }
+
+    fun observeReplayState(engine: ReplayEngine, onChange: (String) -> Unit): FlowObservation {
+        val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+        scope.launch { engine.replayState.collect { onChange(it.name) } }
+        return FlowObservation(scope)
+    }
+
+    fun observeReplayPosition(engine: ReplayEngine, onChange: (Float, Long, Long, Int, Int) -> Unit): FlowObservation {
+        val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+        scope.launch {
+            engine.position.collect { pos ->
+                onChange(pos.progress, pos.currentTimeMs, pos.totalDurationMs, pos.packetIndex, pos.totalPackets)
+            }
+        }
+        return FlowObservation(scope)
+    }
+
+    fun observeReplaySpeed(engine: ReplayEngine, onChange: (Float) -> Unit): FlowObservation {
+        val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+        scope.launch { engine.speed.collect { onChange(it) } }
+        return FlowObservation(scope)
     }
 
     /**

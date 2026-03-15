@@ -248,7 +248,17 @@ fun AppNavigation(viewModel: WheelViewModel) {
             composable(Routes.BLE_CAPTURE) {
                 BleCaptureScreen(
                     viewModel = viewModel,
-                    onBack = { navController.popBackStack() }
+                    onBack = { navController.popBackStack() },
+                    onReplay = {
+                        // Navigate to Devices tab (shows Dashboard when connected)
+                        navController.navigate(NavigationTab.Devices.route) {
+                            popUpTo(navController.graph.findStartDestination().id) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = false
+                        }
+                    }
                 )
             }
         }
