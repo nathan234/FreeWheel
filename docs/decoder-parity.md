@@ -64,16 +64,23 @@ Tests: `KingsongDecoderTest.kt` · `KingsongDecoderComparisonTest.kt`
 
 ### Frame Parsing
 - [x] Frame 0xA9: live telemetry
-- [x] Frame 0xB9: distance, time, fan, temp2
-- [x] Frame 0xBB: name/type
+- [x] Frame 0xB9: distance, time, fan, temp2, rideTime, topSpeed, lightMode, mute
+- [x] Frame 0xBB: name/type (with checksum validation for fw >= 1.17)
 - [x] Frame 0xB3: serial number
-- [x] Frame 0xF5: CPU load, PWM
-- [x] Frame 0xF6: speed limit
-- [x] Frame 0xA4/0xB5: max speed and alarm settings
+- [x] Frame 0xF5: CPU load, PWM, hardware faults
+- [x] Frame 0xF6: speed limit, BMS SOC (off-by-1 corrected), totalOnTime
+- [x] Frame 0xA4/0xB5: max speed and alarm settings (surfaced in WheelState)
 - [x] Frame 0xF1/0xF2: BMS data (dual BMS)
 - [x] Frame 0xE1/0xE2: BMS serial
 - [x] Frame 0xE5/0xE6: BMS firmware
 - [x] Frame 0xD0: extended BMS (F-series)
+- [x] Frame 0xA2: ride mode change confirmation
+- [x] Frame 0xC9: battery temperature + charge flag
+- [x] Frame 0x46: password login result
+- [x] Frame 0x4C: lift sensor status
+- [x] Frame 0x55: headlight mode readback
+- [x] Frame 0x4D: LED mode readback
+- [x] Frame 0x3F: turn-off timer
 
 ### Telemetry
 - [x] KS-18L distance scaling (0.83x)
@@ -81,15 +88,23 @@ Tests: `KingsongDecoderTest.kt` · `KingsongDecoderComparisonTest.kt`
 - [x] Custom battery percent curves
 
 ### Commands
-- [x] Beep (0x88), light mode (0x73), pedals mode (0x87)
+- [x] Beep (0x88), light mode (0x73, voice-safe: byte[3]=0), pedals mode (0x87)
 - [x] Calibrate (0x89), power off (0x40)
-- [x] LED mode (0x6C), strobe mode (0x53)
+- [x] Color LED on/off (0x6C, inverted logic), LED pattern mode (0x4D), strobe mode (0x53)
+- [x] Mute/unmute voice (0x73 with current light mode preserved)
+- [x] Lift sensor on/off (0x7E)
+- [x] Display brightness (0x54, range 50-100)
 - [x] Alarm/speed combo (0x85), alarm settings request (0x98)
 - [x] BMS data request (serial/moreData/firmware)
+- [x] Init: request light status (0x5B), lift sensor (0x81) on connect
 
 ### Known Gaps
 - [ ] **[P2]** Auto-request BMS serial (0xE1/0xE2) and firmware (0xE5/0xE6) when first BMS F1/F2 data arrives (legacy triggers these automatically)
 - [ ] **[P2]** 0xA4 response should also request BMS data for new wheels
+- [ ] **[P2]** Lock command requires password-based protocol (0x41/0x42 with challenge-response from 0x5F)
+- [ ] **[P3]** Volume up/down (0x95) — KS uses relative +/- buttons, not absolute slider
+- [ ] **[P3]** Extended settings readback frames (0x87, 0x8A, 0x8B) — sub-typed, informational
+- [ ] **[P3]** Date/time frame (0xF9) — informational only
 
 ---
 

@@ -16,6 +16,11 @@ data class WheelSettingsState(
     val ledMode: Int = -1,
     val cutoutAngle: Int = -1,
     val beeperVolume: Int = -1,
+    // Kingsong alarm/tiltback speeds
+    val ksAlarm1Speed: Int = -1,
+    val ksAlarm2Speed: Int = -1,
+    val ksAlarm3Speed: Int = -1,
+    val ksTiltbackSpeed: Int = -1,
     // Begode extended settings
     val weakMagnetism: Int = -1,
     val extendedRollAngle: Int = -1,

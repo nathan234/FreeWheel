@@ -762,12 +762,14 @@ class KingsongDecoderTest {
     // ==================== getInitCommands Tests ====================
 
     @Test
-    fun `getInitCommands returns name serial and alarm requests`() {
+    fun `getInitCommands returns name serial alarm and settings requests`() {
         val commands = decoder.getInitCommands()
-        assertEquals(3, commands.size, "Should return 3 init commands")
+        assertEquals(5, commands.size, "Should return 5 init commands")
         assertTrue(commands[0] is WheelCommand.SendBytes, "First should be SendBytes (name request)")
         assertTrue(commands[1] is WheelCommand.SendDelayed, "Second should be SendDelayed (serial)")
         assertTrue(commands[2] is WheelCommand.SendDelayed, "Third should be SendDelayed (alarms)")
+        assertTrue(commands[3] is WheelCommand.SendDelayed, "Fourth should be SendDelayed (light status)")
+        assertTrue(commands[4] is WheelCommand.SendDelayed, "Fifth should be SendDelayed (lift sensor)")
     }
 
     // ==================== BMS Data (0xF1) Tests ====================
@@ -1142,32 +1144,68 @@ class KingsongDecoderTest {
     // ==================== Speed Limit / BMS SOC / Energy / Fault Code (0xF6) Tests ====================
 
     @Test
-    fun `speed limit frame 0xF6 parses BMS SOC`() {
+    fun `speed limit frame 0xF6 parses BMS SOC with off-by-1 correction`() {
         decoder.reset()
         val data = ByteArray(14)
         // Speed limit at data[0-1]
         data[0] = (3000 and 0xFF).toByte()
         data[1] = ((3000 shr 8) and 0xFF).toByte()
-        // BMS SOC at byte 4 (data[2])
-        data[2] = 85.toByte()
+        // BMS SOC at byte 4 (data[2]) — raw 86 → 85% (raw 1-101 maps to 0-100)
+        data[2] = 86.toByte()
         val packet = buildKsFrame(0xF6, data)
 
         val result = decoder.decode(packet, defaultState, defaultConfig)
         assertNotNull(result)
-        assertEquals(85, result.newState.bmsSoc, "BMS SOC should be 85%")
+        assertEquals(85, result.newState.bmsSoc, "BMS SOC raw 86 should be 85%")
         assertEquals(30.0, result.newState.speedLimit, 0.01, "Speed limit should still be parsed")
     }
 
     @Test
-    fun `speed limit frame 0xF6 clamps BMS SOC to 100`() {
+    fun `speed limit frame 0xF6 BMS SOC raw 1 maps to 0`() {
         decoder.reset()
         val data = ByteArray(14)
-        data[2] = 120.toByte() // > 100
+        data[2] = 1.toByte() // raw 1 → 0%
         val packet = buildKsFrame(0xF6, data)
 
         val result = decoder.decode(packet, defaultState, defaultConfig)
         assertNotNull(result)
-        assertEquals(100, result.newState.bmsSoc, "BMS SOC should be clamped to 100")
+        assertEquals(0, result.newState.bmsSoc, "BMS SOC raw 1 should be 0%")
+    }
+
+    @Test
+    fun `speed limit frame 0xF6 BMS SOC raw 101 maps to 100`() {
+        decoder.reset()
+        val data = ByteArray(14)
+        data[2] = 101.toByte() // raw 101 → 100%
+        val packet = buildKsFrame(0xF6, data)
+
+        val result = decoder.decode(packet, defaultState, defaultConfig)
+        assertNotNull(result)
+        assertEquals(100, result.newState.bmsSoc, "BMS SOC raw 101 should be 100%")
+    }
+
+    @Test
+    fun `speed limit frame 0xF6 BMS SOC raw 0 is unknown`() {
+        decoder.reset()
+        val data = ByteArray(14)
+        data[2] = 0.toByte() // raw 0 → unknown (-1)
+        val packet = buildKsFrame(0xF6, data)
+
+        val result = decoder.decode(packet, defaultState, defaultConfig)
+        assertNotNull(result)
+        assertEquals(-1, result.newState.bmsSoc, "BMS SOC raw 0 should be unknown (-1)")
+    }
+
+    @Test
+    fun `speed limit frame 0xF6 BMS SOC out of range is unknown`() {
+        decoder.reset()
+        val data = ByteArray(14)
+        data[2] = 120.toByte() // > 101 → unknown (-1)
+        val packet = buildKsFrame(0xF6, data)
+
+        val result = decoder.decode(packet, defaultState, defaultConfig)
+        assertNotNull(result)
+        assertEquals(-1, result.newState.bmsSoc, "BMS SOC > 101 should be unknown (-1)")
     }
 
     @Test
@@ -1219,7 +1257,7 @@ class KingsongDecoderTest {
     // ==================== 16-bit Alarm Speed (0xA4/0xB5) Tests ====================
 
     @Test
-    fun `alert frame 0xA4 reads 16-bit alarm speeds`() {
+    fun `alert frame 0xA4 reads 16-bit alarm speeds and surfaces in state`() {
         decoder.reset()
         val data = ByteArray(14)
         // alarm1Speed at frame bytes 4-5 (data[2-3]) — LE
@@ -1242,9 +1280,11 @@ class KingsongDecoderTest {
 
         val result = decoder.decode(packet, defaultState, defaultConfig)
         assertNotNull(result)
-        // Verify via getCapabilities or just that decode succeeds —
-        // the alarm speeds are stored in decoder-internal state, not in WheelState directly
         assertTrue(result.commands.isNotEmpty(), "0xA4 should trigger alarm request")
+        assertEquals(300, result.newState.ksAlarm1Speed, "Alarm 1 speed should be surfaced")
+        assertEquals(350, result.newState.ksAlarm2Speed, "Alarm 2 speed should be surfaced")
+        assertEquals(400, result.newState.ksAlarm3Speed, "Alarm 3 speed should be surfaced")
+        assertEquals(500, result.newState.ksTiltbackSpeed, "Tiltback speed should be surfaced")
     }
 
     @Test
@@ -1261,6 +1301,10 @@ class KingsongDecoderTest {
         val result = decoder.decode(packet, defaultState, defaultConfig)
         assertNotNull(result)
         assertTrue(result.commands.isEmpty(), "0xB5 should NOT trigger command")
+        assertEquals(30, result.newState.ksAlarm1Speed, "Alarm 1 should be 30")
+        assertEquals(35, result.newState.ksAlarm2Speed, "Alarm 2 should be 35")
+        assertEquals(40, result.newState.ksAlarm3Speed, "Alarm 3 should be 40")
+        assertEquals(50, result.newState.ksTiltbackSpeed, "Tiltback should be 50")
     }
 
     // ==================== Keep-Alive Tests ====================
@@ -1288,21 +1332,12 @@ class KingsongDecoderTest {
     // ==================== Lock/Unlock Tests ====================
 
     @Test
-    fun `buildCommand SetLock locked sends lock command`() {
-        val commands = decoder.buildCommand(WheelCommand.SetLock(locked = true))
-        assertTrue(commands.isNotEmpty())
-        val frame = (commands[0] as WheelCommand.SendBytes).data
-        assertEquals(0x7C.toByte(), frame[16], "Lock command type should be 0x7C")
-        assertEquals(0x00.toByte(), frame[2], "Lock (locked=true) should send 0x00 at data[2]")
-    }
-
-    @Test
-    fun `buildCommand SetLock unlocked sends unlock command`() {
-        val commands = decoder.buildCommand(WheelCommand.SetLock(locked = false))
-        assertTrue(commands.isNotEmpty())
-        val frame = (commands[0] as WheelCommand.SendBytes).data
-        assertEquals(0x7C.toByte(), frame[16], "Unlock command type should be 0x7C")
-        assertEquals(0x01.toByte(), frame[2], "Unlock (locked=false) should send 0x01 at data[2]")
+    fun `buildCommand SetLock returns empty list for both lock and unlock`() {
+        // Lock requires password protocol (0x41/0x42) — not implemented yet
+        val lockCmds = decoder.buildCommand(WheelCommand.SetLock(locked = true))
+        assertTrue(lockCmds.isEmpty(), "SetLock(true) should return empty")
+        val unlockCmds = decoder.buildCommand(WheelCommand.SetLock(locked = false))
+        assertTrue(unlockCmds.isEmpty(), "SetLock(false) should return empty")
     }
 
     @Test
@@ -1368,10 +1403,444 @@ class KingsongDecoderTest {
     }
 
     @Test
-    fun `LOCK is in supported commands`() {
-        assertTrue(
+    fun `LOCK is not in supported commands`() {
+        assertFalse(
             SettingsCommandId.LOCK in KingsongDecoder.SUPPORTED_COMMANDS,
-            "LOCK should be in SUPPORTED_COMMANDS"
+            "LOCK should not be in SUPPORTED_COMMANDS (requires password protocol)"
         )
+    }
+
+    // ==================== Bug Fix Tests ====================
+
+    @Test
+    fun `light mode command does not clobber voice`() {
+        val commands = decoder.buildCommand(WheelCommand.SetLightMode(1))
+        assertTrue(commands.isNotEmpty())
+        val frame = (commands[0] as WheelCommand.SendBytes).data
+        assertEquals(0x00.toByte(), frame[3], "Byte[3] should be 0 to preserve voice on")
+    }
+
+    @Test
+    fun `SetLock returns empty list`() {
+        val commands = decoder.buildCommand(WheelCommand.SetLock(true))
+        assertTrue(commands.isEmpty(), "SetLock should return empty (needs password protocol)")
+    }
+
+    // ==================== New 0xB9 Fields Tests ====================
+
+    @Test
+    fun `distance frame 0xB9 parses rideTime`() {
+        decoder.reset()
+        val data = ByteArray(14)
+        // rideTime at bytes 6-7 → data[4-5] in 14-byte payload
+        val rideTime = 3600  // 1 hour in seconds
+        data[4] = (rideTime and 0xFF).toByte()
+        data[5] = ((rideTime shr 8) and 0xFF).toByte()
+        val packet = buildKsFrame(0xB9, data)
+
+        val result = decoder.decode(packet, defaultState, defaultConfig)
+        assertNotNull(result)
+        assertEquals(3600, result.newState.rideTime, "Ride time should be 3600 seconds")
+    }
+
+    @Test
+    fun `distance frame 0xB9 parses topSpeed`() {
+        decoder.reset()
+        val data = ByteArray(14)
+        // topSpeed at bytes 8-9 → data[6-7] in 14-byte payload
+        val topSpeed = 4200  // 42.00 km/h
+        data[6] = (topSpeed and 0xFF).toByte()
+        data[7] = ((topSpeed shr 8) and 0xFF).toByte()
+        val packet = buildKsFrame(0xB9, data)
+
+        val result = decoder.decode(packet, defaultState, defaultConfig)
+        assertNotNull(result)
+        assertEquals(4200, result.newState.topSpeed, "Top speed should be 4200 (42.00 km/h)")
+    }
+
+    @Test
+    fun `distance frame 0xB9 parses lightMode`() {
+        decoder.reset()
+        val data = ByteArray(14)
+        // lightMode at byte 10 → data[8] in 14-byte payload
+        data[8] = 0x14.toByte()  // 0x14 = auto → normalized to 2
+        val packet = buildKsFrame(0xB9, data)
+
+        val result = decoder.decode(packet, defaultState, defaultConfig)
+        assertNotNull(result)
+        assertEquals(2, result.newState.lightMode, "Light mode 0x14 should normalize to 2 (auto)")
+    }
+
+    @Test
+    fun `distance frame 0xB9 parses lightMode off`() {
+        decoder.reset()
+        val data = ByteArray(14)
+        data[8] = 0x12.toByte()  // 0x12 = off → normalized to 0
+        val packet = buildKsFrame(0xB9, data)
+
+        val result = decoder.decode(packet, defaultState, defaultConfig)
+        assertNotNull(result)
+        assertEquals(0, result.newState.lightMode, "Light mode 0x12 should normalize to 0 (off)")
+    }
+
+    @Test
+    fun `distance frame 0xB9 parses mute`() {
+        decoder.reset()
+        val data = ByteArray(14)
+        // voiceOff at byte 11 → data[9] in 14-byte payload
+        data[9] = 1.toByte()  // 1 = voice off = muted
+        val packet = buildKsFrame(0xB9, data)
+
+        val result = decoder.decode(packet, defaultState, defaultConfig)
+        assertNotNull(result)
+        assertTrue(result.newState.mute, "Voice off flag 1 should set mute=true")
+    }
+
+    @Test
+    fun `distance frame 0xB9 parses not muted`() {
+        decoder.reset()
+        val data = ByteArray(14)
+        data[9] = 0.toByte()  // 0 = voice on = not muted
+        val packet = buildKsFrame(0xB9, data)
+
+        val result = decoder.decode(packet, defaultState, defaultConfig)
+        assertNotNull(result)
+        assertFalse(result.newState.mute, "Voice off flag 0 should set mute=false")
+    }
+
+    // ==================== New 0xF6 Fields Tests ====================
+
+    @Test
+    fun `speed limit frame 0xF6 parses totalOnTime`() {
+        decoder.reset()
+        val data = ByteArray(14)
+        // totalOnTime at bytes 12-13 → data[10-11] in 14-byte payload
+        val onTime = 12345  // within signed 16-bit range
+        data[10] = (onTime and 0xFF).toByte()
+        data[11] = ((onTime shr 8) and 0xFF).toByte()
+        val packet = buildKsFrame(0xF6, data)
+
+        val result = decoder.decode(packet, defaultState, defaultConfig)
+        assertNotNull(result)
+        assertEquals(12345, result.newState.totalOnTime, "Total on time should be 12345 seconds")
+    }
+
+    // ==================== New Frame Type Tests ====================
+
+    @Test
+    fun `ride mode confirm 0xA2 success updates pedalsMode`() {
+        decoder.reset()
+        val data = ByteArray(14)
+        data[0] = 1  // success flag at byte 2
+        data[1] = 0  // success flag at byte 3
+        data[2] = 2  // new mode at byte 4 (2=study/soft)
+        val packet = buildKsFrame(0xA2, data)
+
+        val result = decoder.decode(packet, defaultState, defaultConfig)
+        assertNotNull(result)
+        assertEquals(2, result.newState.pedalsMode, "Pedals mode should be updated to 2 on success")
+    }
+
+    @Test
+    fun `ride mode confirm 0xA2 failure does not update`() {
+        decoder.reset()
+        val data = ByteArray(14)
+        data[0] = 0  // failure
+        data[1] = 0
+        data[2] = 2
+        val packet = buildKsFrame(0xA2, data)
+
+        val stateWithMode = defaultState.copy(pedalsMode = 1)
+        val result = decoder.decode(packet, stateWithMode, defaultConfig)
+        assertNotNull(result)
+        assertEquals(1, result.newState.pedalsMode, "Pedals mode should not change on failure")
+    }
+
+    @Test
+    fun `battery temp 0xC9 parses temperature and charging`() {
+        decoder.reset()
+        val data = ByteArray(14)
+        // temperature at bytes 4-5 → data[2-3]
+        val temp = 3500
+        data[2] = (temp and 0xFF).toByte()
+        data[3] = ((temp shr 8) and 0xFF).toByte()
+        // charge flag at byte 15 bit4 → data[13]
+        data[13] = 0x10.toByte()  // bit4 set = charging
+        val packet = buildKsFrame(0xC9, data)
+
+        val result = decoder.decode(packet, defaultState, defaultConfig)
+        assertNotNull(result)
+        assertEquals(3500, result.newState.temperature2, "Battery temp should be 3500")
+        assertEquals(1, result.newState.chargingStatus, "Charging flag should be 1")
+    }
+
+    @Test
+    fun `battery temp 0xC9 not charging`() {
+        decoder.reset()
+        val data = ByteArray(14)
+        data[13] = 0x00.toByte()  // bit4 not set
+        val packet = buildKsFrame(0xC9, data)
+
+        val result = decoder.decode(packet, defaultState, defaultConfig)
+        assertNotNull(result)
+        assertEquals(0, result.newState.chargingStatus, "Charging flag should be 0")
+    }
+
+    @Test
+    fun `password login 0x46 locked`() {
+        decoder.reset()
+        val data = ByteArray(14)
+        data[0] = 1  // need password = locked
+        val packet = buildKsFrame(0x46, data)
+
+        val result = decoder.decode(packet, defaultState, defaultConfig)
+        assertNotNull(result)
+        assertEquals(1, result.newState.lockState, "Lock state should be 1 (locked)")
+    }
+
+    @Test
+    fun `password login 0x46 unlocked`() {
+        decoder.reset()
+        val data = ByteArray(14)
+        data[0] = 0  // logged in
+        val packet = buildKsFrame(0x46, data)
+
+        val result = decoder.decode(packet, defaultState, defaultConfig)
+        assertNotNull(result)
+        assertEquals(0, result.newState.lockState, "Lock state should be 0 (unlocked)")
+    }
+
+    @Test
+    fun `lift sensor 0x4C on`() {
+        decoder.reset()
+        val data = ByteArray(14)
+        data[0] = 1  // enabled
+        val packet = buildKsFrame(0x4C, data)
+
+        val result = decoder.decode(packet, defaultState, defaultConfig)
+        assertNotNull(result)
+        assertTrue(result.newState.handleButton, "Handle button should be true when lift sensor on")
+    }
+
+    @Test
+    fun `lift sensor 0x4C off`() {
+        decoder.reset()
+        val data = ByteArray(14)
+        data[0] = 0  // disabled
+        val packet = buildKsFrame(0x4C, data)
+
+        val result = decoder.decode(packet, defaultState, defaultConfig)
+        assertNotNull(result)
+        assertFalse(result.newState.handleButton, "Handle button should be false when lift sensor off")
+    }
+
+    @Test
+    fun `headlight mode 0x55 normal`() {
+        decoder.reset()
+        val data = ByteArray(14)
+        data[0] = 0  // normal
+        val packet = buildKsFrame(0x55, data)
+
+        val result = decoder.decode(packet, defaultState, defaultConfig)
+        assertNotNull(result)
+        assertEquals(1, result.newState.lightMode, "Normal headlight mode should map to lightMode 1 (on)")
+    }
+
+    @Test
+    fun `headlight mode 0x55 strobe`() {
+        decoder.reset()
+        val data = ByteArray(14)
+        data[0] = 1  // strobe
+        val packet = buildKsFrame(0x55, data)
+
+        val result = decoder.decode(packet, defaultState, defaultConfig)
+        assertNotNull(result)
+        assertEquals(2, result.newState.lightMode, "Strobe headlight mode should map to lightMode 2")
+    }
+
+    @Test
+    fun `LED mode readback 0x4D sets ledMode`() {
+        decoder.reset()
+        val data = ByteArray(14)
+        data[0] = 5  // LED mode 5
+        val packet = buildKsFrame(0x4D, data)
+
+        val result = decoder.decode(packet, defaultState, defaultConfig)
+        assertNotNull(result)
+        assertEquals(5, result.newState.ledMode, "LED mode should be 5")
+    }
+
+    @Test
+    fun `turn off timer 0x3F parses timer`() {
+        decoder.reset()
+        val data = ByteArray(14)
+        data[0] = 0  // type=0 means timer value follows
+        // timer at bytes 4-5 → data[2-3]
+        val minutes = 30
+        data[2] = (minutes and 0xFF).toByte()
+        data[3] = ((minutes shr 8) and 0xFF).toByte()
+        val packet = buildKsFrame(0x3F, data)
+
+        val result = decoder.decode(packet, defaultState, defaultConfig)
+        assertNotNull(result)
+        assertEquals(1800, result.newState.autoOffTime, "Timer 30 min should be 1800 seconds")
+    }
+
+    // ==================== New Command Tests ====================
+
+    @Test
+    fun `buildCommand SetLed on sends inverted byte`() {
+        val commands = decoder.buildCommand(WheelCommand.SetLed(true))
+        assertTrue(commands.isNotEmpty())
+        val frame = (commands[0] as WheelCommand.SendBytes).data
+        assertEquals(0x00.toByte(), frame[2], "LED on should send 0x00 (inverted)")
+        assertEquals(0x6C.toByte(), frame[16], "Should use LED_ON_OFF cmd byte 0x6C")
+    }
+
+    @Test
+    fun `buildCommand SetLed off sends inverted byte`() {
+        val commands = decoder.buildCommand(WheelCommand.SetLed(false))
+        assertTrue(commands.isNotEmpty())
+        val frame = (commands[0] as WheelCommand.SendBytes).data
+        assertEquals(0x01.toByte(), frame[2], "LED off should send 0x01 (inverted)")
+    }
+
+    @Test
+    fun `buildCommand SetLedMode uses 0x4D cmd byte`() {
+        val commands = decoder.buildCommand(WheelCommand.SetLedMode(3))
+        assertTrue(commands.isNotEmpty())
+        val frame = (commands[0] as WheelCommand.SendBytes).data
+        assertEquals(3.toByte(), frame[2], "LED mode should be at byte 2")
+        assertEquals(0x4D.toByte(), frame[16], "Should use LED_PATTERN cmd byte 0x4D")
+    }
+
+    @Test
+    fun `buildCommand SetMute on`() {
+        decoder.reset()
+        val commands = decoder.buildCommand(WheelCommand.SetMute(true))
+        assertTrue(commands.isNotEmpty())
+        val frame = (commands[0] as WheelCommand.SendBytes).data
+        assertEquals(0x01.toByte(), frame[3], "Mute=true should set byte[3]=1")
+        assertEquals(0x73.toByte(), frame[16], "Should use LIGHT_MODE cmd byte 0x73")
+    }
+
+    @Test
+    fun `buildCommand SetMute preserves current light mode`() {
+        decoder.reset()
+        // First feed a 0xB9 frame with light mode 0x14 (auto)
+        val b9data = ByteArray(14)
+        b9data[8] = 0x14.toByte()
+        decoder.decode(buildKsFrame(0xB9, b9data), defaultState, defaultConfig)
+
+        // Now send SetMute — should preserve 0x14 in byte[2]
+        val commands = decoder.buildCommand(WheelCommand.SetMute(true))
+        assertTrue(commands.isNotEmpty())
+        val frame = (commands[0] as WheelCommand.SendBytes).data
+        assertEquals(0x14.toByte(), frame[2], "Should preserve light mode 0x14 in byte[2]")
+    }
+
+    @Test
+    fun `buildCommand SetHandleButton on`() {
+        val commands = decoder.buildCommand(WheelCommand.SetHandleButton(true))
+        assertTrue(commands.isNotEmpty())
+        val frame = (commands[0] as WheelCommand.SendBytes).data
+        assertEquals(0x01.toByte(), frame[2], "Lift sensor on should send 1")
+        assertEquals(0x7E.toByte(), frame[16], "Should use LIFT_SENSOR cmd byte 0x7E")
+    }
+
+    @Test
+    fun `buildCommand SetHandleButton off`() {
+        val commands = decoder.buildCommand(WheelCommand.SetHandleButton(false))
+        assertTrue(commands.isNotEmpty())
+        val frame = (commands[0] as WheelCommand.SendBytes).data
+        assertEquals(0x00.toByte(), frame[2], "Lift sensor off should send 0")
+    }
+
+    @Test
+    fun `buildCommand SetLightBrightness sends clamped value`() {
+        val commands = decoder.buildCommand(WheelCommand.SetLightBrightness(75))
+        assertTrue(commands.isNotEmpty())
+        val frame = (commands[0] as WheelCommand.SendBytes).data
+        assertEquals(75.toByte(), frame[4], "Brightness should be at byte 4")
+        assertEquals(0x54.toByte(), frame[16], "Should use INSTRUMENT_BRIGHTNESS cmd byte 0x54")
+    }
+
+    @Test
+    fun `buildCommand SetLightBrightness clamps to 50-100`() {
+        // Below minimum
+        val cmds1 = decoder.buildCommand(WheelCommand.SetLightBrightness(30))
+        val frame1 = (cmds1[0] as WheelCommand.SendBytes).data
+        assertEquals(50.toByte(), frame1[4], "Below minimum should clamp to 50")
+
+        // Above maximum
+        val cmds2 = decoder.buildCommand(WheelCommand.SetLightBrightness(150))
+        val frame2 = (cmds2[0] as WheelCommand.SendBytes).data
+        assertEquals(100.toByte(), frame2[4], "Above maximum should clamp to 100")
+    }
+
+    // ==================== SUPPORTED_COMMANDS Tests ====================
+
+    @Test
+    fun `new commands are in supported commands`() {
+        assertTrue(SettingsCommandId.LED in KingsongDecoder.SUPPORTED_COMMANDS, "LED should be supported")
+        assertTrue(SettingsCommandId.MUTE in KingsongDecoder.SUPPORTED_COMMANDS, "MUTE should be supported")
+        assertTrue(SettingsCommandId.HANDLE_BUTTON in KingsongDecoder.SUPPORTED_COMMANDS, "HANDLE_BUTTON should be supported")
+        assertTrue(SettingsCommandId.LIGHT_BRIGHTNESS in KingsongDecoder.SUPPORTED_COMMANDS, "LIGHT_BRIGHTNESS should be supported")
+    }
+
+    // ==================== Name Checksum Tests ====================
+
+    @Test
+    fun `name frame 0xBB with valid checksum does not re-request`() {
+        decoder.reset()
+        // First set version >= 117 by sending a name with version 200
+        val nameStr = "KS-S18-0200"
+        val packet = ByteArray(20)
+        packet[0] = 0xAA.toByte()
+        packet[1] = 0x55
+        val nameBytes = nameStr.encodeToByteArray()
+        var nameSum = 0
+        for (i in nameBytes.indices) {
+            if (i + 2 < 16) {
+                packet[i + 2] = nameBytes[i]
+                nameSum += nameBytes[i].toInt() and 0xFF
+            }
+        }
+        packet[16] = 0xBB.toByte()
+        packet[17] = 0x14
+        // Set valid checksum at bytes 18-19
+        packet[18] = ((nameSum shr 8) and 0xFF).toByte()
+        packet[19] = (nameSum and 0xFF).toByte()
+
+        val result = decoder.decode(packet, defaultState, defaultConfig)
+        assertNotNull(result)
+        assertTrue(result.commands.isEmpty(), "Valid checksum should not trigger re-request")
+    }
+
+    @Test
+    fun `name frame 0xBB with invalid checksum triggers re-request`() {
+        decoder.reset()
+        // Set version >= 117 by feeding a name first
+        val namePacket1 = buildKsNamePacket("KS-S18-0200")
+        decoder.decode(namePacket1, defaultState, defaultConfig)
+
+        // Now send another name frame with bad checksum (footer 5A5A won't match)
+        val nameStr = "KS-S18-0200"
+        val packet = ByteArray(20)
+        packet[0] = 0xAA.toByte()
+        packet[1] = 0x55
+        val nameBytes = nameStr.encodeToByteArray()
+        for (i in nameBytes.indices) {
+            if (i + 2 < 16) packet[i + 2] = nameBytes[i]
+        }
+        packet[16] = 0xBB.toByte()
+        packet[17] = 0x14
+        // Wrong checksum
+        packet[18] = 0xFF.toByte()
+        packet[19] = 0xFF.toByte()
+
+        val result = decoder.decode(packet, defaultState, defaultConfig)
+        assertNotNull(result)
+        assertTrue(result.commands.isNotEmpty(), "Invalid checksum should trigger name re-request")
     }
 }

@@ -12,12 +12,14 @@ class WheelSettingsConfigTest {
     // ==================== Section Structure Per Wheel Type ====================
 
     @Test
-    fun `KingSong has 3 sections - Lighting, Ride, Dangerous`() {
+    fun `KingSong has 5 sections - Lighting, Ride, Audio, Safety, Dangerous`() {
         val sections = WheelSettingsConfig.sections(WheelType.KINGSONG)
-        assertEquals(3, sections.size)
+        assertEquals(5, sections.size)
         assertEquals("Lighting", sections[0].title)
         assertEquals("Ride", sections[1].title)
-        assertEquals("Dangerous Actions", sections[2].title)
+        assertEquals("Audio", sections[2].title)
+        assertEquals("Safety", sections[3].title)
+        assertEquals("Dangerous Actions", sections[4].title)
     }
 
     @Test
@@ -106,22 +108,28 @@ class WheelSettingsConfigTest {
     // ==================== Specific Controls Per Wheel Type ====================
 
     @Test
-    fun `KingSong Lighting has Light Mode picker, LED Mode picker, Strobe Mode picker`() {
+    fun `KingSong Lighting has 5 controls - Light Mode, Color LEDs, LED Mode, Strobe Mode, Display Brightness`() {
         val lighting = WheelSettingsConfig.sections(WheelType.KINGSONG)[0]
-        assertEquals(3, lighting.controls.size)
+        assertEquals(5, lighting.controls.size)
 
         val lightMode = lighting.controls[0] as ControlSpec.Picker
         assertEquals("Light Mode", lightMode.label)
         assertEquals(listOf("Off", "On", "Auto"), lightMode.options)
         assertEquals(SettingsCommandId.LIGHT_MODE, lightMode.commandId)
 
-        val ledMode = lighting.controls[1] as ControlSpec.Picker
+        val colorLeds = lighting.controls[1] as ControlSpec.Toggle
+        assertEquals("Color LEDs", colorLeds.label)
+
+        val ledMode = lighting.controls[2] as ControlSpec.Picker
         assertEquals("LED Mode", ledMode.label)
         assertEquals(8, ledMode.options.size)
 
-        val strobeMode = lighting.controls[2] as ControlSpec.Picker
+        val strobeMode = lighting.controls[3] as ControlSpec.Picker
         assertEquals("Strobe Mode", strobeMode.label)
         assertEquals(4, strobeMode.options.size)
+
+        val brightness = lighting.controls[4] as ControlSpec.Slider
+        assertEquals("Display Brightness", brightness.label)
     }
 
     @Test
@@ -328,16 +336,16 @@ class WheelSettingsConfigTest {
 
     @Test
     fun `Calibrate button has confirmation title and message`() {
-        val dangerous = WheelSettingsConfig.sections(WheelType.KINGSONG)[2]
-        val calibrate = dangerous.controls[1] as ControlSpec.DangerousButton
+        val dangerous = WheelSettingsConfig.sections(WheelType.KINGSONG)[4]
+        val calibrate = dangerous.controls[0] as ControlSpec.DangerousButton
         assertEquals("Calibrate Wheel", calibrate.confirmTitle)
         assertTrue(calibrate.confirmMessage.contains("flat surface"))
     }
 
     @Test
     fun `Power Off button has confirmation message`() {
-        val dangerous = WheelSettingsConfig.sections(WheelType.KINGSONG)[2]
-        val powerOff = dangerous.controls[2] as ControlSpec.DangerousButton
+        val dangerous = WheelSettingsConfig.sections(WheelType.KINGSONG)[4]
+        val powerOff = dangerous.controls[1] as ControlSpec.DangerousButton
         assertEquals("Power Off", powerOff.confirmTitle)
         assertTrue(powerOff.confirmMessage.contains("power off"))
     }
@@ -726,7 +734,7 @@ class WheelSettingsConfigTest {
             isResolved = true
         )
         val sections = WheelSettingsConfig.sections(WheelType.KINGSONG, caps)
-        // KingSong has Lighting (3 controls), Ride (1), Dangerous (2)
+        // KingSong has Lighting (5 controls), Ride (1), Audio (1), Safety (1), Dangerous (2)
         // Only LIGHT_MODE supported → only Lighting section with 1 control
         assertEquals(1, sections.size)
         assertEquals("Lighting", sections[0].title)

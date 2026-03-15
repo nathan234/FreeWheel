@@ -34,14 +34,21 @@ object WheelSettingsConfig {
     private fun kingsongSections() = listOf(
         SettingsSection("Lighting", listOf(
             ControlSpec.Picker("Light Mode", listOf("Off", "On", "Auto"), SettingsCommandId.LIGHT_MODE),
+            ControlSpec.Toggle("Color LEDs", SettingsCommandId.LED),
             ControlSpec.Picker("LED Mode", (0..7).map { "$it" }, SettingsCommandId.LED_MODE),
-            ControlSpec.Picker("Strobe Mode", (0..3).map { "$it" }, SettingsCommandId.STROBE_MODE)
+            ControlSpec.Picker("Strobe Mode", (0..3).map { "$it" }, SettingsCommandId.STROBE_MODE),
+            ControlSpec.Slider("Display Brightness", 50, 100, "%", 80, SettingsCommandId.LIGHT_BRIGHTNESS)
         )),
         SettingsSection("Ride", listOf(
             ControlSpec.Segmented("Pedals Mode", listOf("Hard", "Medium", "Soft"), SettingsCommandId.PEDALS_MODE)
         )),
+        SettingsSection("Audio", listOf(
+            ControlSpec.Toggle("Mute", SettingsCommandId.MUTE)
+        )),
+        SettingsSection("Safety", listOf(
+            ControlSpec.Toggle("Lift Sensor", SettingsCommandId.HANDLE_BUTTON)
+        )),
         SettingsSection("Dangerous Actions", listOf(
-            lockToggle(),
             calibrateButton(),
             powerOffButton()
         ))

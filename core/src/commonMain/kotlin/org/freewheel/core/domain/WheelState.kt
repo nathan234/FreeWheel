@@ -34,6 +34,12 @@ data class WheelState(
     /** Total energy consumption in Wh. Populated by: KS. */
     val totalEnergyWh: Long = 0,
     val wheelDistance: Long = 0,
+    /** Maximum speed this ride (×100). Populated by: KS. */
+    val topSpeed: Int = 0,
+    /** Elapsed ride time in seconds. Populated by: KS. */
+    val rideTime: Int = 0,
+    /** Total power-on time in seconds. Populated by: KS. */
+    val totalOnTime: Int = 0,
 
     // PWM and output — populated by: KS, GW, VT, IM2
     val output: Int = 0,
@@ -97,6 +103,11 @@ data class WheelState(
     val ledMode: Int = -1,          // 0-9 LED pattern
     val cutoutAngle: Int = -1,      // degrees (45-90, -1=unknown; readback from FRAME_07 bytes 4-5)
     val beeperVolume: Int = -1,     // 0-9 (-1=unknown; readback from FRAME_00 byte 17)
+    // Kingsong alarm/tiltback speeds reported via BLE
+    val ksAlarm1Speed: Int = -1,    // km/h (-1=unknown)
+    val ksAlarm2Speed: Int = -1,    // km/h (-1=unknown)
+    val ksAlarm3Speed: Int = -1,    // km/h (-1=unknown)
+    val ksTiltbackSpeed: Int = -1,  // km/h (-1=unknown)
 
     // Begode extended settings — populated by: GW only
     val weakMagnetism: Int = -1,          // 0-6 (-1=unknown)
@@ -236,6 +247,7 @@ data class WheelState(
         power = power, temperature = temperature, temperature2 = temperature2,
         batteryLevel = batteryLevel, bmsSoc = bmsSoc,
         totalDistance = totalDistance, totalEnergyWh = totalEnergyWh, wheelDistance = wheelDistance,
+        topSpeed = topSpeed, rideTime = rideTime, totalOnTime = totalOnTime,
         output = output, calculatedPwm = calculatedPwm, angle = angle, roll = roll,
         torque = torque, motorPower = motorPower, cpuTemp = cpuTemp, imuTemp = imuTemp,
         cpuLoad = cpuLoad, hwFaults = hwFaults, speedLimit = speedLimit, currentLimit = currentLimit,
@@ -248,6 +260,8 @@ data class WheelState(
         inMiles = inMiles, pedalsMode = pedalsMode, speedAlarms = speedAlarms,
         rollAngle = rollAngle, tiltBackSpeed = tiltBackSpeed, lightMode = lightMode,
         ledMode = ledMode, cutoutAngle = cutoutAngle, beeperVolume = beeperVolume,
+        ksAlarm1Speed = ksAlarm1Speed, ksAlarm2Speed = ksAlarm2Speed,
+        ksAlarm3Speed = ksAlarm3Speed, ksTiltbackSpeed = ksTiltbackSpeed,
         weakMagnetism = weakMagnetism, extendedRollAngle = extendedRollAngle,
         powerAlarm = powerAlarm, plateProtection = plateProtection,
         maxSpeed = maxSpeed, pedalTilt = pedalTilt, pedalSensitivity = pedalSensitivity,

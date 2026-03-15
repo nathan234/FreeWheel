@@ -393,11 +393,11 @@ class DecoderLifecycleTest {
     // ==================== KingsongDecoder Lifecycle ====================
 
     @Test
-    fun `Kingsong getInitCommands emits 0x9B, 0x63, 0x98 with delays`() {
+    fun `Kingsong getInitCommands emits 0x9B, 0x63, 0x98, 0x5B, 0x81 with delays`() {
         val decoder = KingsongDecoder()
         val commands = decoder.getInitCommands()
 
-        assertEquals(3, commands.size, "Should emit 3 init commands")
+        assertEquals(5, commands.size, "Should emit 5 init commands")
 
         // First: 0x9B (name request, immediate)
         val cmd0 = commands[0] as WheelCommand.SendBytes
@@ -415,6 +415,18 @@ class DecoderLifecycleTest {
         assertEquals(20, cmd2.data.size)
         assertEquals(0x98.toByte(), cmd2.data[16], "Third command type should be 0x98")
         assertEquals(200L, cmd2.delayMs)
+
+        // Fourth: 0x5B (light status, delayed 300ms)
+        val cmd3 = commands[3] as WheelCommand.SendDelayed
+        assertEquals(20, cmd3.data.size)
+        assertEquals(0x5B.toByte(), cmd3.data[16], "Fourth command type should be 0x5B")
+        assertEquals(300L, cmd3.delayMs)
+
+        // Fifth: 0x81 (lift sensor, delayed 400ms)
+        val cmd4 = commands[4] as WheelCommand.SendDelayed
+        assertEquals(20, cmd4.data.size)
+        assertEquals(0x81.toByte(), cmd4.data[16], "Fifth command type should be 0x81")
+        assertEquals(400L, cmd4.delayMs)
     }
 
     @Test
