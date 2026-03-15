@@ -1043,6 +1043,45 @@ class VeteranDecoderTest {
         assertEquals(0, result.newState.autoOffTime)
     }
 
+    @Test
+    fun `batteryTempMode normal (111) from bytes 36-37`() {
+        // Build a 38-byte frame (36 base + 2 battery temp bytes)
+        val freshDecoder = VeteranDecoder()
+        val base = buildVeteranFrame()
+        val frame = ByteArray(38)
+        base.copyInto(frame)
+        frame[3] = 34 // update length for 38-byte frame (len + 4 = total)
+        // Set bytes 36-37 to 111 (0x006F) = all zones normal
+        frame[36] = 0x00
+        frame[37] = 0x6F
+        val result = freshDecoder.decode(frame, WheelState(), config)
+        assertNotNull(result)
+        assertEquals(111, result.newState.batteryTempMode)
+    }
+
+    @Test
+    fun `batteryTempMode high temp (100) from bytes 36-37`() {
+        val freshDecoder = VeteranDecoder()
+        val base = buildVeteranFrame()
+        val frame = ByteArray(38)
+        base.copyInto(frame)
+        frame[3] = 34 // update length for 38-byte frame
+        // Set bytes 36-37 to 100 (0x0064) = at least one high-temp zone
+        frame[36] = 0x00
+        frame[37] = 0x64
+        val result = freshDecoder.decode(frame, WheelState(), config)
+        assertNotNull(result)
+        assertEquals(100, result.newState.batteryTempMode)
+    }
+
+    @Test
+    fun `batteryTempMode defaults to 0 for short frame`() {
+        // Standard 36-byte frame — no bytes 36-37
+        val result = decodeSingleFrame()
+        assertNotNull(result)
+        assertEquals(0, result.newState.batteryTempMode)
+    }
+
     // ==================== Extended Frame Builder ====================
 
     /**
@@ -1142,6 +1181,26 @@ class VeteranDecoderTest {
         }
         assertNotNull(result)
         assertEquals(75, result.newState.batteryLevel)
+    }
+
+    @Test
+    fun `sub-type 2 parses fall protection angle from byte 47`() {
+        val result = decodeExtendedFrame(subType = 2) { frame ->
+            frame[47] = 70.toByte()
+        }
+        assertNotNull(result)
+        assertEquals(70, result.newState.lateralCutoffAngle)
+    }
+
+    @Test
+    fun `sub-type 2 parses both fall protection angle and battery override`() {
+        val result = decodeExtendedFrame(subType = 2) { frame ->
+            frame[47] = 55.toByte()
+            frame[50] = 80.toByte()
+        }
+        assertNotNull(result)
+        assertEquals(55, result.newState.lateralCutoffAngle)
+        assertEquals(80, result.newState.batteryLevel)
     }
 
     @Test
@@ -1737,6 +1796,75 @@ class VeteranDecoderTest {
         val freshDecoder = decoderWithVer(1000) // mVer=1
         val commands = freshDecoder.buildCommand(WheelCommand.SetAlarmSpeed(50, 1))
         assertTrue(commands.isEmpty(), "Old firmware should not support SetAlarmSpeed")
+    }
+
+    // ==================== Time Sync on First Connection ====================
+
+    @Test
+    fun `first frame with mVer 3 or higher emits time sync commands`() {
+        val freshDecoder = VeteranDecoder()
+        val frame = buildVeteranFrame(ver = 5000) // mVer=5
+        val result = freshDecoder.decode(frame, WheelState(), config)
+        assertNotNull(result)
+        // Should contain 2 time sync commands (immediate + delayed)
+        val syncCmds = result.commands.filter { cmd ->
+            when (cmd) {
+                is WheelCommand.SendBytes -> cmd.data.size >= 7 &&
+                        cmd.data[0] == 0x4C.toByte() && cmd.data[1] == 0x64.toByte() &&
+                        cmd.data[4] == 0x12.toByte() && cmd.data[6] == 0x05.toByte()
+                is WheelCommand.SendDelayed -> cmd.data.size >= 7 &&
+                        cmd.data[0] == 0x4C.toByte() && cmd.data[1] == 0x64.toByte() &&
+                        cmd.data[4] == 0x12.toByte() && cmd.data[6] == 0x05.toByte()
+                else -> false
+            }
+        }
+        assertEquals(2, syncCmds.size, "Should emit 2 time sync commands on first frame")
+        assertTrue(syncCmds[1] is WheelCommand.SendDelayed, "Second sync should be delayed")
+        assertEquals(2000L, (syncCmds[1] as WheelCommand.SendDelayed).delayMs)
+    }
+
+    @Test
+    fun `second frame does not emit time sync commands`() {
+        val freshDecoder = VeteranDecoder()
+        val frame = buildVeteranFrame(ver = 5000) // mVer=5
+        freshDecoder.decode(frame, WheelState(), config) // first frame
+        val result2 = freshDecoder.decode(frame, WheelState(), config) // second frame
+        assertNotNull(result2)
+        val syncCmds = result2.commands.filter { cmd ->
+            when (cmd) {
+                is WheelCommand.SendBytes -> cmd.data.size >= 7 && cmd.data[4] == 0x12.toByte()
+                is WheelCommand.SendDelayed -> cmd.data.size >= 7 && cmd.data[4] == 0x12.toByte()
+                else -> false
+            }
+        }
+        assertTrue(syncCmds.isEmpty(), "Second frame should not emit time sync commands")
+    }
+
+    @Test
+    fun `mVer less than 3 does not emit time sync commands`() {
+        val freshDecoder = VeteranDecoder()
+        val frame = buildVeteranFrame(ver = 1000) // mVer=1
+        val result = freshDecoder.decode(frame, WheelState(), config)
+        assertNotNull(result)
+        assertTrue(result.commands.isEmpty(), "Old firmware should not get time sync commands")
+    }
+
+    @Test
+    fun `reset clears time sync state for re-emission`() {
+        val freshDecoder = VeteranDecoder()
+        val frame = buildVeteranFrame(ver = 5000) // mVer=5
+        freshDecoder.decode(frame, WheelState(), config) // first frame — syncs
+        freshDecoder.reset()
+        val result = freshDecoder.decode(frame, WheelState(), config) // after reset
+        assertNotNull(result)
+        val syncCmds = result.commands.filter { cmd ->
+            when (cmd) {
+                is WheelCommand.SendBytes -> cmd.data.size >= 7 && cmd.data[4] == 0x12.toByte()
+                is WheelCommand.SendDelayed -> cmd.data.size >= 7 && cmd.data[4] == 0x12.toByte()
+                else -> false
+            }
+        }
+        assertEquals(2, syncCmds.size, "After reset, should re-emit time sync commands")
     }
 
     // ==================== CRC32 Correctness ====================

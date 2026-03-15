@@ -13,6 +13,10 @@ import org.freewheel.core.utils.currentTimeMillis
 import org.freewheel.core.utils.withLock
 import kotlin.math.abs
 import kotlin.math.roundToInt
+import kotlinx.datetime.Clock
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
+import kotlinx.datetime.offsetAt
 
 /**
  * Looks up SOC percentage from a voltage-to-SOC table.
@@ -212,6 +216,7 @@ class VeteranDecoder : WheelDecoder {
 
     private val unpacker = VeteranUnpacker()
     private var lastPacketTime = 0L
+    private var hasSyncedTime = false
     private var mVer = 0
     private var version = ""
     private var bms1 = SmartBms()
@@ -232,10 +237,17 @@ class VeteranDecoder : WheelDecoder {
                     FrameResult(it, hasNewData = true)
                 }
             }?.let { result ->
-                result.copy(newState = result.newState.copy(
-                    bms1 = bms1.toSnapshot(),
-                    bms2 = bms2.toSnapshot()
-                ))
+                val extraCommands = if (!hasSyncedTime && mVer >= 3) {
+                    hasSyncedTime = true
+                    buildTimeSyncCommands()
+                } else emptyList()
+                result.copy(
+                    newState = result.newState.copy(
+                        bms1 = bms1.toSnapshot(),
+                        bms2 = bms2.toSnapshot()
+                    ),
+                    commands = result.commands + extraCommands
+                )
             }
         }
     }
@@ -265,6 +277,7 @@ class VeteranDecoder : WheelDecoder {
         val pedalsMode = ByteUtils.shortFromBytesBE(buff, 30)
         val pitchAngle = ByteUtils.signedShortFromBytesBE(buff, 32)
         val hwPwm = ByteUtils.shortFromBytesBE(buff, 34)
+        val batteryTempMode = if (buff.size >= 38) ByteUtils.shortFromBytesBE(buff, 36) else 0
 
         // Process SmartBMS data for newer wheels
         if (mVer >= 5 && buff.size > 46) {
@@ -322,7 +335,8 @@ class VeteranDecoder : WheelDecoder {
             pedalsMode = pedalsMode,
             version = version,
             model = getModelName(),
-            wheelType = WheelType.VETERAN
+            wheelType = WheelType.VETERAN,
+            batteryTempMode = batteryTempMode
         )
 
         // Merge sub-type settings data
@@ -371,11 +385,17 @@ class VeteranDecoder : WheelDecoder {
                 } else null
             }
             2 -> {
+                // Fall protection angle at byte 47
+                val angle = if (buff.size > 47) {
+                    val raw = buff[47].toInt() and 0xFF
+                    if (raw == 0) null else raw  // 0 = not set
+                } else null
                 // Battery % override at byte 50
                 if (buff.size > 50) {
                     val pct = buff[50].toInt() and 0xFF
-                    if (pct in 0..100) SubTypeData(batteryOverride = pct) else null
-                } else null
+                    if (pct in 0..100) SubTypeData(batteryOverride = pct, lateralCutoffAngle = angle)
+                    else SubTypeData(lateralCutoffAngle = angle)
+                } else SubTypeData(lateralCutoffAngle = angle)
             }
             8 -> parseControlSettings(buff)
             else -> null
@@ -608,11 +628,35 @@ class VeteranDecoder : WheelDecoder {
         stateLock.withLock {
             unpacker.reset()
             lastPacketTime = 0
+            hasSyncedTime = false
             mVer = 0
             version = ""
             bms1 = SmartBms()
             bms2 = SmartBms()
         }
+    }
+
+    /**
+     * Build time sync commands to send on first connection.
+     * Format: [4C 64 41 70 12 00 05 year-2000 month day hour min sec tz_offset] + CRC32
+     * Official apps send twice with 2s delay.
+     */
+    private fun buildTimeSyncCommands(): List<WheelCommand> {
+        val now = Clock.System.now()
+        val tz = TimeZone.currentSystemDefault()
+        val dt = now.toLocalDateTime(tz)
+        val tzOffsetHours = tz.offsetAt(now).totalSeconds / 3600
+        val payload = byteArrayOf(
+            0x4C, 0x64, 0x41, 0x70, 0x12, 0x00, 0x05,
+            (dt.year - 2000).toByte(), dt.monthNumber.toByte(),
+            dt.dayOfMonth.toByte(), dt.hour.toByte(),
+            dt.minute.toByte(), dt.second.toByte(), tzOffsetHours.toByte()
+        )
+        val cmd = appendCrc32(payload)
+        return listOf(
+            WheelCommand.SendBytes(cmd),
+            WheelCommand.SendDelayed(cmd, 2000L)
+        )
     }
 
     /**

@@ -162,6 +162,8 @@ data class WheelState(
     val accelerationLimit: Int = -1,  // 0-100% acceleration reduction (-1=unknown)
     val chargeVoltageBase: Int = 145, // base voltage for charge limit calculation (read-only)
     val wheelDisplayUnit: Int = -1,   // 0=km, 1=miles (-1=unknown)
+    /** Battery temperature alert bitmask. Populated by: VT. 111=normal, 100/101/110=high-temp zone, 0=not reported. */
+    val batteryTempMode: Int = 0,
 
     // Error tracking
     val error: String = "",
