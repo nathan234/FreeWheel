@@ -62,13 +62,11 @@ class WheelConnectionManager(
     private val decoderFactory: WheelDecoderFactory,
     private val scope: CoroutineScope,
     private val dispatcher: CoroutineDispatcher = Dispatchers.Default,
-    private val wheelTypeDetector: WheelTypeDetector = WheelTypeDetector()
+    private val wheelTypeDetector: WheelTypeDetector = WheelTypeDetector(),
+    private val keepAliveTimer: KeepAliveTimer = KeepAliveTimer(scope, dispatcher),
+    private val dataTimeoutTracker: DataTimeoutTracker = DataTimeoutTracker(scope, dispatcher),
+    private val commandScheduler: CommandScheduler = CommandScheduler(scope, dispatcher)
 ) {
-    // ==================== Helpers (timers, scheduler, detector) ====================
-
-    private val keepAliveTimer = KeepAliveTimer(scope, dispatcher)
-    private val dataTimeoutTracker = DataTimeoutTracker(scope, dispatcher)
-    private val commandScheduler = CommandScheduler(scope, dispatcher)
 
     // ==================== BLE Capture Hook ====================
 

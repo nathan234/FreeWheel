@@ -34,9 +34,9 @@ import kotlinx.coroutines.plus
 class ChargerConnectionManager(
     private val bleManager: BleManagerPort,
     private val scope: CoroutineScope,
-    private val dispatcher: CoroutineDispatcher = Dispatchers.Default
+    private val dispatcher: CoroutineDispatcher = Dispatchers.Default,
+    private val decoder: HwChargerDecoder = HwChargerDecoder()
 ) {
-    private val decoder = HwChargerDecoder()
 
     // ── MVI pipeline ───────────────────────────────────────────────
 
