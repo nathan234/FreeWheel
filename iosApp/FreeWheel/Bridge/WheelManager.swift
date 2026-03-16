@@ -459,6 +459,11 @@ class WheelManager: ObservableObject {
         guard let ble = bleManager else { return }
         connectionManager = WheelConnectionManagerHelper.shared.create(bleManager: ble)
 
+        // Wire capture callback if capture was started before connection
+        if isCapturing, let cm = connectionManager {
+            wireCaptureCallback(cm)
+        }
+
         // Wire BLE data to connection manager
         bleManager?.setDataReceivedCallback { [weak self] data in
             self?.connectionManager?.onDataReceived(data: data)
@@ -1118,8 +1123,6 @@ class WheelManager: ObservableObject {
     // MARK: - BLE Capture
 
     func startCapture() {
-        guard let cm = connectionManager else { return }
-
         let capturesDir = Self.capturesDirectory()
         do {
             try FileManager.default.createDirectory(at: capturesDir, withIntermediateDirectories: true)
@@ -1149,6 +1152,18 @@ class WheelManager: ObservableObject {
             currentTimeMs: nowMs
         ) else { return }
 
+        if let cm = connectionManager {
+            wireCaptureCallback(cm)
+        }
+
+        captureRxCount = 0
+        captureTxCount = 0
+        captureMarkerCount = 0
+        captureStartTime = now
+        isCapturing = true
+    }
+
+    private func wireCaptureCallback(_ cm: WheelConnectionManager) {
         WheelConnectionManagerHelper.shared.setCaptureCallback(manager: cm) { [weak self] data, directionStr in
             Task { @MainActor in
                 guard let self = self else { return }
@@ -1162,12 +1177,6 @@ class WheelManager: ObservableObject {
                 }
             }
         }
-
-        captureRxCount = 0
-        captureTxCount = 0
-        captureMarkerCount = 0
-        captureStartTime = now
-        isCapturing = true
     }
 
     func stopCapture() {

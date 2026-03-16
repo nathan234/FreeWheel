@@ -333,6 +333,9 @@ class WheelViewModel(
         chargerConnectionManager = service.chargerConnectionManager
         chargerBleManager = service.chargerBleManager
 
+        // Wire capture callback if capture was started before connection
+        if (captureLogger.isCapturing) wireCaptureCallback(cm)
+
         pushDecoderConfig()
 
         // Create shared auto-connect manager
@@ -1002,7 +1005,6 @@ class WheelViewModel(
     // --- BLE Capture ---
 
     fun startCapture() {
-        val cm = connectionManager ?: return
         val app = getApplication<Application>()
         val capturesDir = File(app.getExternalFilesDir(null), "captures")
         capturesDir.mkdirs()
@@ -1019,16 +1021,20 @@ class WheelViewModel(
         } catch (_: Exception) { "" }
 
         if (captureLogger.start(filePath, wheelTypeName, wheelName, firmware, appVersion, now)) {
-            cm.captureCallback = { data, direction ->
-                captureLogger.logPacket(data, direction, System.currentTimeMillis())
-                val stats = _captureStats.value
-                _captureStats.value = when (direction) {
-                    BlePacketDirection.RX -> stats.copy(rxCount = stats.rxCount + 1)
-                    BlePacketDirection.TX -> stats.copy(txCount = stats.txCount + 1)
-                }
-            }
+            connectionManager?.let { wireCaptureCallback(it) }
             _captureStats.value = CaptureStats(startTimeMs = now)
             _isCapturing.value = true
+        }
+    }
+
+    private fun wireCaptureCallback(cm: WheelConnectionManager) {
+        cm.captureCallback = { data, direction ->
+            captureLogger.logPacket(data, direction, System.currentTimeMillis())
+            val stats = _captureStats.value
+            _captureStats.value = when (direction) {
+                BlePacketDirection.RX -> stats.copy(rxCount = stats.rxCount + 1)
+                BlePacketDirection.TX -> stats.copy(txCount = stats.txCount + 1)
+            }
         }
     }
 

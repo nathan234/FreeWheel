@@ -60,7 +60,6 @@ struct BleCaptureView: View {
                             Text("Start Capture")
                         }
                     }
-                    .disabled(!wheelManager.connectionState.isConnected)
                 }
             }
 

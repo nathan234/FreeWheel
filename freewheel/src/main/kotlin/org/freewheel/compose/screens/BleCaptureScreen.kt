@@ -169,8 +169,7 @@ fun BleCaptureScreen(
                 }
             } else {
                 Button(
-                    onClick = { viewModel.startCapture() },
-                    enabled = isConnected
+                    onClick = { viewModel.startCapture() }
                 ) {
                     Icon(Icons.Default.FiberManualRecord, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(8.dp))
