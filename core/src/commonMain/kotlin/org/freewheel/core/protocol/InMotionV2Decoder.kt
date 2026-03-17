@@ -205,6 +205,10 @@ class InMotionV2Decoder : WheelDecoder {
      * Process a verified message and update state.
      */
     private fun processMessage(message: Message, currentState: WheelState): FrameResult? {
+        // Ensure model is detected from BLE name before any routing decisions.
+        // Without this, early responses (e.g., settings) can arrive before model-specific
+        // init responses, causing fallback parsers to misinterpret frame layouts.
+        detectModelFromName(currentState.btName)
         return when {
             message.flags == Flag.INITIAL -> {
                 when (message.command) {
@@ -604,8 +608,6 @@ class InMotionV2Decoder : WheelDecoder {
      * Process real-time telemetry info.
      */
     private fun processRealTimeInfo(message: Message, currentState: WheelState): FrameResult? {
-        // Fallback: if model unknown after init, detect from BLE device name
-        detectModelFromName(currentState.btName)
         val result = when (model) {
             Model.V11 -> {
                 if (protoVer < 2) parseRealTimeInfoV11Old(message.data, currentState)
