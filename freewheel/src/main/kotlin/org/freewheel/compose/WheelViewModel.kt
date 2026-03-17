@@ -22,17 +22,17 @@ import org.freewheel.core.service.AutoConnectManager
 import org.freewheel.core.service.AutoTorchEngine
 import org.freewheel.core.utils.RangeEstimator
 import org.freewheel.core.service.BleDevice
-import org.freewheel.core.service.BleManager
+import org.freewheel.core.service.BleManagerPort
 import org.freewheel.core.service.BluetoothAdapterState
 import org.freewheel.core.service.ConnectionState
 import org.freewheel.core.service.DemoDataProvider
-import org.freewheel.core.service.WheelConnectionManager
+import org.freewheel.core.service.WheelConnectionManagerPort
 import org.freewheel.core.replay.BleCaptureReader
 import org.freewheel.core.replay.ReplayEngine
 import org.freewheel.core.replay.ReplayPosition
 import org.freewheel.core.replay.ReplayState
 import org.freewheel.core.ble.BleUuids
-import org.freewheel.core.charger.ChargerConnectionManager
+import org.freewheel.core.charger.ChargerConnectionManagerPort
 import org.freewheel.core.charger.ChargerState
 import org.freewheel.core.domain.CapabilitySet
 import org.freewheel.core.domain.AlarmAction
@@ -75,7 +75,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import androidx.core.content.edit
 import org.freewheel.compose.service.AlarmHandler
-import org.freewheel.compose.service.WheelService
+import org.freewheel.compose.service.WheelServiceContract
 
 class WheelViewModel(
     application: Application,
@@ -94,16 +94,16 @@ class WheelViewModel(
 ) : AndroidViewModel(application) {
 
     // Service references (set via attachService/detachService)
-    private var wheelService: WheelService? = null
-    private var connectionManager: WheelConnectionManager? = null
-    private var bleManager: BleManager? = null
+    private var wheelService: WheelServiceContract? = null
+    private var connectionManager: WheelConnectionManagerPort? = null
+    private var bleManager: BleManagerPort? = null
     private var stateCollectionJob: Job? = null
     private var connectionCollectionJob: Job? = null
     private var capabilitiesCollectionJob: Job? = null
 
     // Charger service references
-    private var chargerConnectionManager: ChargerConnectionManager? = null
-    private var chargerBleManager: BleManager? = null
+    private var chargerConnectionManager: ChargerConnectionManagerPort? = null
+    private var chargerBleManager: BleManagerPort? = null
     private var chargerStateCollectionJob: Job? = null
     private var chargerConnectionCollectionJob: Job? = null
 
@@ -326,7 +326,7 @@ class WheelViewModel(
 
     // --- Service binding ---
 
-    fun attachService(service: WheelService, cm: WheelConnectionManager, ble: BleManager) {
+    fun attachService(service: WheelServiceContract, cm: WheelConnectionManagerPort, ble: BleManagerPort) {
         wheelService = service
         connectionManager = cm
         bleManager = ble
@@ -1027,7 +1027,7 @@ class WheelViewModel(
         }
     }
 
-    private fun wireCaptureCallback(cm: WheelConnectionManager) {
+    private fun wireCaptureCallback(cm: WheelConnectionManagerPort) {
         cm.captureCallback = { data, direction ->
             captureLogger.logPacket(data, direction, System.currentTimeMillis())
             val stats = _captureStats.value
@@ -1065,7 +1065,7 @@ class WheelViewModel(
         return DiagnosticSnapshotBuilder.formatAsText(snapshot)
     }
 
-    private fun buildDiagnosticFooter(cm: WheelConnectionManager): String {
+    private fun buildDiagnosticFooter(cm: WheelConnectionManagerPort): String {
         val snapshot = DiagnosticSnapshotBuilder.buildSnapshot(
             wheelState = wheelState.value,
             capabilities = _capabilities.value,

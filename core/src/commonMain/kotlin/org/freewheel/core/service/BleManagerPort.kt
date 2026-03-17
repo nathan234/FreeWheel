@@ -54,4 +54,18 @@ interface BleManagerPort {
         writeServiceUuid: String,
         writeCharUuid: String
     ) {}
+
+    /**
+     * Start scanning for BLE devices advertising a specific service UUID.
+     * Default delegates to [startScan] (ignoring the filter).
+     */
+    suspend fun startScanForService(serviceUuid: String, onDeviceFound: (BleDevice) -> Unit) {
+        startScan(onDeviceFound)
+    }
+
+    /**
+     * Update the adapter-level Bluetooth state (power, permissions).
+     * Default is a no-op; platform implementations track this for reconnect logic.
+     */
+    fun setBluetoothAdapterState(state: BluetoothAdapterState) {}
 }

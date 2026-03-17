@@ -66,7 +66,7 @@ class WheelConnectionManager(
     private val keepAliveTimer: KeepAliveTimer = KeepAliveTimer(scope, dispatcher),
     private val dataTimeoutTracker: DataTimeoutTracker = DataTimeoutTracker(scope, dispatcher),
     private val commandScheduler: CommandScheduler = CommandScheduler(scope, dispatcher)
-) {
+) : WheelConnectionManagerPort {
 
     // ==================== BLE Capture Hook ====================
 
@@ -75,7 +75,7 @@ class WheelConnectionManager(
      * Set by the UI layer to capture raw traffic for protocol debugging.
      * Runs in the WCM event loop (single-threaded) — zero overhead when null.
      */
-    var captureCallback: ((data: ByteArray, direction: BlePacketDirection) -> Unit)? = null
+    override var captureCallback: ((data: ByteArray, direction: BlePacketDirection) -> Unit)? = null
 
     // ==================== Unified state + scan pipeline ====================
 
@@ -109,13 +109,13 @@ class WheelConnectionManager(
     private val derivedScope = scope + dispatcher
 
     /** Current wheel state. */
-    val wheelState: StateFlow<WheelState> = _wcmState
+    override val wheelState: StateFlow<WheelState> = _wcmState
         .map { it.wheelState }
         .distinctUntilChanged()
         .stateIn(derivedScope, SharingStarted.Eagerly, WheelState())
 
     /** Current connection state. */
-    val connectionState: StateFlow<ConnectionState> = _wcmState
+    override val connectionState: StateFlow<ConnectionState> = _wcmState
         .map { it.connectionState }
         .distinctUntilChanged()
         .stateIn(derivedScope, SharingStarted.Eagerly, ConnectionState.Disconnected)
@@ -157,7 +157,7 @@ class WheelConnectionManager(
         .stateIn(derivedScope, SharingStarted.Eagerly, 0)
 
     /** Wheel capabilities. Resolved after model/firmware detection; monotonically expanding. */
-    val capabilities: StateFlow<CapabilitySet> = _wcmState
+    override val capabilities: StateFlow<CapabilitySet> = _wcmState
         .map { it.capabilities }
         .distinctUntilChanged()
         .stateIn(derivedScope, SharingStarted.Eagerly, CapabilitySet())
@@ -171,14 +171,14 @@ class WheelConnectionManager(
      * Update decoder configuration.
      * Call this when user settings change.
      */
-    fun updateConfig(config: DecoderConfig) {
+    override fun updateConfig(config: DecoderConfig) {
         events.trySend(WheelEvent.ConfigUpdated(config))
     }
 
     /**
      * Get the current decoder configuration.
      */
-    fun getConfig(): DecoderConfig = _wcmState.value.decoderConfig
+    override fun getConfig(): DecoderConfig = _wcmState.value.decoderConfig
 
     /**
      * Connect to a wheel at the given address.
@@ -187,7 +187,7 @@ class WheelConnectionManager(
      * @param address BLE MAC address (Android) or peripheral identifier (iOS)
      * @param wheelType Optional wheel type hint; if null, will be auto-detected
      */
-    fun connect(address: String, wheelType: WheelType? = null) {
+    override fun connect(address: String, wheelType: WheelType?) {
         events.trySend(WheelEvent.ConnectRequested(address, wheelType))
     }
 
@@ -195,7 +195,7 @@ class WheelConnectionManager(
      * Disconnect from the current wheel.
      * Fire-and-forget — observe [connectionState] for the result.
      */
-    fun disconnect() {
+    override fun disconnect() {
         events.trySend(WheelEvent.DisconnectRequested)
     }
 
@@ -214,7 +214,7 @@ class WheelConnectionManager(
     /**
      * Send a command to the wheel.
      */
-    fun sendCommand(command: WheelCommand) {
+    override fun sendCommand(command: WheelCommand) {
         events.trySend(WheelEvent.SendCommand(command))
     }
 
@@ -260,7 +260,7 @@ class WheelConnectionManager(
      * Get the connection info for the current wheel.
      * Returns null if not connected or wheel type unknown.
      */
-    fun getConnectionInfo(): WheelConnectionInfo? = _wcmState.value.connectionInfo
+    override fun getConnectionInfo(): WheelConnectionInfo? = _wcmState.value.connectionInfo
 
     /**
      * Get the current decoder.
@@ -270,9 +270,9 @@ class WheelConnectionManager(
 
     // ==================== Convenience command methods ====================
 
-    fun wheelBeep() { sendCommand(WheelCommand.Beep) }
-    fun toggleLight(enabled: Boolean) { sendCommand(WheelCommand.SetLight(enabled)) }
-    fun setPedalsMode(mode: Int) { sendCommand(WheelCommand.SetPedalsMode(mode)) }
+    override fun wheelBeep() { sendCommand(WheelCommand.Beep) }
+    override fun toggleLight(enabled: Boolean) { sendCommand(WheelCommand.SetLight(enabled)) }
+    override fun setPedalsMode(mode: Int) { sendCommand(WheelCommand.SetPedalsMode(mode)) }
     fun setLightMode(mode: Int) { sendCommand(WheelCommand.SetLightMode(mode)) }
     fun setLed(enabled: Boolean) { sendCommand(WheelCommand.SetLed(enabled)) }
     fun setLedMode(mode: Int) { sendCommand(WheelCommand.SetLedMode(mode)) }
@@ -344,7 +344,7 @@ class WheelConnectionManager(
      * Execute a settings command by ID.
      * Used by the shared WheelSettingsConfig to dispatch UI actions.
      */
-    fun executeCommand(commandId: SettingsCommandId, intValue: Int = 0, boolValue: Boolean = false) {
+    override fun executeCommand(commandId: SettingsCommandId, intValue: Int, boolValue: Boolean) {
         when (commandId) {
             SettingsCommandId.LIGHT_MODE -> setLightMode(intValue)
             SettingsCommandId.LED -> setLed(boolValue)

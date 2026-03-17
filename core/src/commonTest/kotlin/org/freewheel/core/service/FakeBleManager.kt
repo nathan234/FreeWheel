@@ -72,7 +72,12 @@ class FakeBleManager : BleManagerPort {
         return true
     }
 
+    /** Number of times [startScan] was called. */
+    var startScanCallCount = 0
+        private set
+
     override suspend fun startScan(onDeviceFound: (BleDevice) -> Unit) {
+        startScanCallCount++
         _connectionState.value = ConnectionState.Scanning
     }
 

@@ -36,7 +36,7 @@ class ChargerConnectionManager(
     private val scope: CoroutineScope,
     private val dispatcher: CoroutineDispatcher = Dispatchers.Default,
     private val decoder: HwChargerDecoder = HwChargerDecoder()
-) {
+) : ChargerConnectionManagerPort {
 
     // ── MVI pipeline ───────────────────────────────────────────────
 
@@ -61,23 +61,23 @@ class ChargerConnectionManager(
 
     private val derivedScope = scope + dispatcher
 
-    val chargerState: StateFlow<ChargerState> = _state
+    override val chargerState: StateFlow<ChargerState> = _state
         .map { it.chargerState }
         .distinctUntilChanged()
         .stateIn(derivedScope, SharingStarted.Eagerly, ChargerState())
 
-    val connectionState: StateFlow<ConnectionState> = _state
+    override val connectionState: StateFlow<ConnectionState> = _state
         .map { it.connectionState }
         .distinctUntilChanged()
         .stateIn(derivedScope, SharingStarted.Eagerly, ConnectionState.Disconnected)
 
     // ── Public methods (emit events) ───────────────────────────────
 
-    fun connect(address: String, password: String) {
+    override fun connect(address: String, password: String) {
         events.trySend(ChargerEvent.ConnectRequested(address, password))
     }
 
-    fun disconnect() {
+    override fun disconnect() {
         events.trySend(ChargerEvent.DisconnectRequested)
     }
 
@@ -100,44 +100,44 @@ class ChargerConnectionManager(
     }
 
     // Charger commands
-    fun setOutputVoltage(voltage: Float) {
+    override fun setOutputVoltage(voltage: Float) {
         events.trySend(ChargerEvent.SendBytes(
             HwChargerProtocol.buildFloatCommand(HwChargerProtocol.CMD_SET_VOLTAGE, voltage)
         ))
     }
 
-    fun setOutputCurrent(current: Float) {
+    override fun setOutputCurrent(current: Float) {
         events.trySend(ChargerEvent.SendBytes(
             HwChargerProtocol.buildFloatCommand(HwChargerProtocol.CMD_SET_CURRENT, current)
         ))
     }
 
-    fun toggleOutput(enable: Boolean) {
+    override fun toggleOutput(enable: Boolean) {
         events.trySend(ChargerEvent.SendBytes(
             HwChargerProtocol.buildOutputToggle(enable)
         ))
     }
 
-    fun setPowerLimit(watts: Int) {
+    override fun setPowerLimit(watts: Int) {
         events.trySend(ChargerEvent.SendBytes(
             HwChargerProtocol.buildPowerLimitCommand(watts)
         ))
     }
 
-    fun setTwoStageCharging(enabled: Boolean) {
+    override fun setTwoStageCharging(enabled: Boolean) {
         val payload = byteArrayOf(if (enabled) 1 else 0)
         events.trySend(ChargerEvent.SendBytes(
             HwChargerProtocol.buildFrame(HwChargerProtocol.CMD_TWO_STAGE, payload)
         ))
     }
 
-    fun setEndOfChargeCurrent(current: Float) {
+    override fun setEndOfChargeCurrent(current: Float) {
         events.trySend(ChargerEvent.SendBytes(
             HwChargerProtocol.buildFloatCommand(HwChargerProtocol.CMD_END_CHARGE_CUR, current)
         ))
     }
 
-    fun setPowerOnOutput(enabled: Boolean) {
+    override fun setPowerOnOutput(enabled: Boolean) {
         val payload = byteArrayOf(if (enabled) 1 else 0)
         events.trySend(ChargerEvent.SendBytes(
             HwChargerProtocol.buildFrame(HwChargerProtocol.CMD_POWER_ON_OUT, payload)

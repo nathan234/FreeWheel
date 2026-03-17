@@ -275,7 +275,7 @@ actual class BleManager : BleManagerPort {
      * Start scanning for devices advertising a specific BLE service UUID.
      * Used for charger discovery (FFE1 service).
      */
-    suspend fun startScanForService(serviceUuid: String, onDeviceFound: (BleDevice) -> Unit) {
+    override suspend fun startScanForService(serviceUuid: String, onDeviceFound: (BleDevice) -> Unit) {
         val central = centralManager ?: run {
             initialize()
             centralManager!!

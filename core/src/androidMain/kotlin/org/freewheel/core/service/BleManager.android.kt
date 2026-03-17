@@ -62,7 +62,7 @@ actual class BleManager : BleManagerPort {
      * Update the Bluetooth adapter state.
      * Called from ComposeActivity's BroadcastReceiver when adapter state changes.
      */
-    fun setBluetoothAdapterState(state: BluetoothAdapterState) {
+    override fun setBluetoothAdapterState(state: BluetoothAdapterState) {
         _bluetoothState.value = state
     }
     private var central: BluetoothCentralManager? = null
@@ -442,7 +442,7 @@ actual class BleManager : BleManagerPort {
      * Start scanning for devices advertising a specific BLE service UUID.
      * Used for charger discovery (FFE1 service).
      */
-    suspend fun startScanForService(serviceUuid: String, onDeviceFound: (BleDevice) -> Unit) {
+    override suspend fun startScanForService(serviceUuid: String, onDeviceFound: (BleDevice) -> Unit) {
         val manager = central ?: return
         scanDeviceFoundCallback = onDeviceFound
         _connectionState.value = ConnectionState.Scanning

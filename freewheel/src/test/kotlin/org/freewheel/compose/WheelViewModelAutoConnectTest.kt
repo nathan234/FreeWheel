@@ -1,52 +1,40 @@
 package org.freewheel.compose
 
-import org.freewheel.compose.service.WheelService
 import android.app.Application
 import androidx.preference.PreferenceManager
 import androidx.test.core.app.ApplicationProvider
-import org.freewheel.AppConfig
-import org.freewheel.core.domain.WheelProfile
-import org.freewheel.core.logging.BleCaptureLogger
-import org.freewheel.core.logging.RideLogger
-import org.freewheel.core.telemetry.PlatformTelemetryFileIO
-import org.freewheel.data.TripDatabase
-import org.freewheel.data.TripRepository
-import org.freewheel.core.domain.CapabilitySet
-import org.freewheel.core.domain.WheelState
-import org.freewheel.core.service.AutoConnectManager
-import org.freewheel.core.charger.ChargerConnectionManager
-import org.freewheel.core.charger.ChargerState
-import org.freewheel.core.service.BleManager
-import org.freewheel.core.service.ConnectionState
-import org.freewheel.core.service.WheelConnectionManager
 import com.google.common.truth.Truth.assertThat
-import io.mockk.coVerify
-import io.mockk.every
-import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import org.freewheel.AppConfig
 import org.freewheel.core.domain.ChargerProfileStore
 import org.freewheel.core.domain.SharedPreferencesKeyValueStore
+import org.freewheel.core.domain.WheelProfile
 import org.freewheel.core.domain.WheelProfileStore
+import org.freewheel.core.logging.BleCaptureLogger
+import org.freewheel.core.logging.RideLogger
+import org.freewheel.core.service.AutoConnectManager
+import org.freewheel.core.service.ConnectionState
 import org.freewheel.core.service.DemoDataProvider
+import org.freewheel.core.telemetry.PlatformTelemetryFileIO
+import org.freewheel.data.TripDatabase
+import org.freewheel.data.TripRepository
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * Integration tests verifying WheelViewModel wires correctly to the shared
- * AutoConnectManager. Detailed state machine tests are in
- * core/commonTest/AutoConnectManagerTest.kt.
+ * AutoConnectManager. Uses fake implementations instead of mocks.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
@@ -59,10 +47,9 @@ class WheelViewModelAutoConnectTest {
     private lateinit var appConfig: AppConfig
     private lateinit var prefs: android.content.SharedPreferences
 
-    private lateinit var mockService: WheelService
-    private lateinit var mockCm: WheelConnectionManager
-    private lateinit var mockBle: BleManager
-    private lateinit var mockConnectionState: MutableStateFlow<ConnectionState>
+    private lateinit var fakeCm: FakeWheelConnectionManager
+    private lateinit var fakeBle: FakeBleManager
+    private lateinit var fakeService: FakeWheelService
 
     @Before
     fun setUp() {
@@ -70,8 +57,6 @@ class WheelViewModelAutoConnectTest {
 
         app = ApplicationProvider.getApplicationContext()
 
-        // Create fresh instances per test (not lazy singletons) since
-        // Robolectric creates a new Application per test method.
         prefs = PreferenceManager.getDefaultSharedPreferences(app)
         prefs.edit().clear().commit()
         appConfig = AppConfig(app, prefs)
@@ -88,20 +73,10 @@ class WheelViewModelAutoConnectTest {
             demoDataProvider = DemoDataProvider()
         )
 
-        mockConnectionState = MutableStateFlow<ConnectionState>(ConnectionState.Disconnected)
-        mockCm = mockk(relaxed = true) {
-            every { connectionState } returns mockConnectionState
-            every { wheelState } returns MutableStateFlow(WheelState())
-            every { capabilities } returns MutableStateFlow(CapabilitySet())
-        }
-        mockBle = mockk(relaxed = true)
-        val mockChargerCm = mockk<ChargerConnectionManager>(relaxed = true) {
-            every { chargerState } returns MutableStateFlow(ChargerState())
-            every { connectionState } returns MutableStateFlow(ConnectionState.Disconnected)
-        }
-        mockService = mockk(relaxed = true) {
-            every { chargerConnectionManager } returns mockChargerCm
-        }
+        fakeCm = FakeWheelConnectionManager()
+        fakeBle = FakeBleManager()
+        val fakeChargerCm = FakeChargerConnectionManager()
+        fakeService = FakeWheelService(fakeChargerCm, fakeBle)
     }
 
     @After
@@ -131,31 +106,35 @@ class WheelViewModelAutoConnectTest {
     // --- ViewModel guards (these stay as integration tests) ---
 
     @Test
-    fun `attemptStartupAutoConnect does nothing when lastMac is empty`() = runTest(testDispatcher) {
+    fun `attemptStartupAutoConnect does nothing when lastMac is empty`() = runTest(testDispatcher, timeout = 5.seconds) {
         setUseReconnect(true)
         setLastMac("")
-        viewModel.attachService(mockService, mockCm, mockBle)
+        viewModel.attachService(fakeService, fakeCm, fakeBle)
         advanceUntilIdle()
 
         viewModel.attemptStartupAutoConnect()
+        advanceUntilIdle()
+
         assertThat(viewModel.isAutoConnecting.value).isFalse()
-        coVerify(exactly = 0) { mockCm.connect(any(), any()) }
+        assertThat(fakeCm.connectCallCount).isEqualTo(0)
     }
 
     @Test
-    fun `attemptStartupAutoConnect does nothing when useReconnect is false`() = runTest(testDispatcher) {
+    fun `attemptStartupAutoConnect does nothing when useReconnect is false`() = runTest(testDispatcher, timeout = 5.seconds) {
         setUseReconnect(false)
         setLastMac("AA:BB:CC:DD:EE:FF")
-        viewModel.attachService(mockService, mockCm, mockBle)
+        viewModel.attachService(fakeService, fakeCm, fakeBle)
         advanceUntilIdle()
 
         viewModel.attemptStartupAutoConnect()
+        advanceUntilIdle()
+
         assertThat(viewModel.isAutoConnecting.value).isFalse()
-        coVerify(exactly = 0) { mockCm.connect(any(), any()) }
+        assertThat(fakeCm.connectCallCount).isEqualTo(0)
     }
 
     @Test
-    fun `attemptStartupAutoConnect does nothing when no service attached`() = runTest(testDispatcher) {
+    fun `attemptStartupAutoConnect does nothing when no service attached`() = runTest(testDispatcher, timeout = 5.seconds) {
         setUseReconnect(true)
         setLastMac("AA:BB:CC:DD:EE:FF")
         // Don't call attachService
@@ -167,24 +146,26 @@ class WheelViewModelAutoConnectTest {
     // --- Wiring verification: delegates to shared manager ---
 
     @Test
-    fun `attemptStartupAutoConnect delegates to shared manager`() = runTest(testDispatcher) {
+    fun `attemptStartupAutoConnect delegates to shared manager`() = runTest(testDispatcher, timeout = 5.seconds) {
         setUseReconnect(true)
         setLastMac("AA:BB:CC:DD:EE:FF")
-        viewModel.attachService(mockService, mockCm, mockBle)
+        viewModel.attachService(fakeService, fakeCm, fakeBle)
         advanceUntilIdle()
 
         viewModel.attemptStartupAutoConnect()
         assertThat(viewModel.isAutoConnecting.value).isTrue()
 
-        advanceTimeBy(100)
-        coVerify { mockCm.connect("AA:BB:CC:DD:EE:FF", null) }
+        // AutoConnectManager dispatches connect on Dispatchers.Default (real thread).
+        // Give it a moment to execute, then verify the fake recorded the call.
+        Thread.sleep(50)
+        assertThat(fakeCm.lastConnectAddress).isEqualTo("AA:BB:CC:DD:EE:FF")
     }
 
     @Test
-    fun `disconnect stops auto-connect and clears lastMac`() = runTest(testDispatcher) {
+    fun `disconnect stops auto-connect and clears lastMac`() = runTest(testDispatcher, timeout = 5.seconds) {
         setUseReconnect(true)
         setLastMac("AA:BB:CC:DD:EE:FF")
-        viewModel.attachService(mockService, mockCm, mockBle)
+        viewModel.attachService(fakeService, fakeCm, fakeBle)
         advanceUntilIdle()
 
         viewModel.attemptStartupAutoConnect()
@@ -198,9 +179,9 @@ class WheelViewModelAutoConnectTest {
     }
 
     @Test
-    fun `connect persists MAC address`() = runTest(testDispatcher) {
+    fun `connect persists MAC address`() = runTest(testDispatcher, timeout = 5.seconds) {
         setLastMac("")
-        viewModel.attachService(mockService, mockCm, mockBle)
+        viewModel.attachService(fakeService, fakeCm, fakeBle)
         advanceUntilIdle()
 
         viewModel.connect("11:22:33:44:55:66")
@@ -212,27 +193,27 @@ class WheelViewModelAutoConnectTest {
     // --- Reconnect-after-loss wiring ---
 
     @Test
-    fun `ConnectionLost triggers reconnect when autoReconnect enabled`() = runTest(testDispatcher) {
+    fun `ConnectionLost triggers reconnect when autoReconnect enabled`() = runTest(testDispatcher, timeout = 5.seconds) {
         setUseReconnect(true)
         setLastMac("AA:BB:CC:DD:EE:FF")
-        viewModel.attachService(mockService, mockCm, mockBle)
+        viewModel.attachService(fakeService, fakeCm, fakeBle)
         advanceUntilIdle()
 
-        // Simulate connection lost
-        mockConnectionState.value = ConnectionState.ConnectionLost("AA:BB:CC:DD:EE:FF", "timeout")
+        // Simulate connection lost via the fake CM's flow
+        fakeCm.setConnectionState(ConnectionState.ConnectionLost("AA:BB:CC:DD:EE:FF", "timeout"))
         advanceUntilIdle()
 
         assertThat(viewModel.reconnectState.value).isNotEqualTo(AutoConnectManager.ReconnectState.Idle)
     }
 
     @Test
-    fun `ConnectionLost does not trigger reconnect when autoReconnect disabled`() = runTest(testDispatcher) {
+    fun `ConnectionLost does not trigger reconnect when autoReconnect disabled`() = runTest(testDispatcher, timeout = 5.seconds) {
         setUseReconnect(false)
         setLastMac("AA:BB:CC:DD:EE:FF")
-        viewModel.attachService(mockService, mockCm, mockBle)
+        viewModel.attachService(fakeService, fakeCm, fakeBle)
         advanceUntilIdle()
 
-        mockConnectionState.value = ConnectionState.ConnectionLost("AA:BB:CC:DD:EE:FF", "timeout")
+        fakeCm.setConnectionState(ConnectionState.ConnectionLost("AA:BB:CC:DD:EE:FF", "timeout"))
         advanceUntilIdle()
 
         assertThat(viewModel.reconnectState.value).isEqualTo(AutoConnectManager.ReconnectState.Idle)
@@ -241,52 +222,52 @@ class WheelViewModelAutoConnectTest {
     // --- Startup scan (scan-then-auto-connect) ---
 
     @Test
-    fun `startupScan does nothing when lastMac is empty`() = runTest(testDispatcher) {
+    fun `startupScan does nothing when lastMac is empty`() = runTest(testDispatcher, timeout = 5.seconds) {
         setLastMac("")
-        viewModel.attachService(mockService, mockCm, mockBle)
+        viewModel.attachService(fakeService, fakeCm, fakeBle)
         advanceUntilIdle()
 
         viewModel.startupScan()
         advanceUntilIdle()
 
         assertThat(viewModel.isScanning.value).isFalse()
-        coVerify(exactly = 0) { mockBle.startScan(any()) }
+        assertThat(fakeBle.startScanCallCount).isEqualTo(0)
     }
 
     @Test
-    fun `startupScan starts scanning when lastMac is set`() = runTest(testDispatcher) {
+    fun `startupScan starts scanning when lastMac is set`() = runTest(testDispatcher, timeout = 5.seconds) {
         setLastMac("AA:BB:CC:DD:EE:FF")
-        viewModel.attachService(mockService, mockCm, mockBle)
+        viewModel.attachService(fakeService, fakeCm, fakeBle)
         advanceUntilIdle()
 
         viewModel.startupScan()
         advanceUntilIdle()
 
         assertThat(viewModel.isScanning.value).isTrue()
-        coVerify { mockBle.startScan(any()) }
+        assertThat(fakeBle.startScanCallCount).isEqualTo(1)
     }
 
     // --- Wheel profile persistence ---
 
     @Test
-    fun `auto-save profile on connection`() = runTest(testDispatcher) {
-        viewModel.attachService(mockService, mockCm, mockBle)
+    fun `auto-save profile on connection`() = runTest(testDispatcher, timeout = 5.seconds) {
+        viewModel.attachService(fakeService, fakeCm, fakeBle)
         advanceUntilIdle()
 
-        // Simulate connection
-        mockConnectionState.value = ConnectionState.Connected("AA:BB:CC:DD:EE:FF", "Test Wheel")
+        // Simulate connection via the fake CM's flow
+        fakeCm.setConnectionState(ConnectionState.Connected("AA:BB:CC:DD:EE:FF", "Test Wheel"))
         advanceUntilIdle()
 
         assertThat(viewModel.savedAddresses.value).contains("AA:BB:CC:DD:EE:FF")
     }
 
     @Test
-    fun `forgetProfile removes address from saved set`() = runTest(testDispatcher) {
+    fun `forgetProfile removes address from saved set`() = runTest(testDispatcher, timeout = 5.seconds) {
         // Pre-save a profile
         viewModel.profileStore.saveProfile(
             WheelProfile("AA:BB:CC:DD:EE:FF", "My Wheel", "KINGSONG", 1000L)
         )
-        viewModel.attachService(mockService, mockCm, mockBle)
+        viewModel.attachService(fakeService, fakeCm, fakeBle)
         advanceUntilIdle()
 
         assertThat(viewModel.savedAddresses.value).contains("AA:BB:CC:DD:EE:FF")
@@ -296,12 +277,12 @@ class WheelViewModelAutoConnectTest {
     }
 
     @Test
-    fun `disconnect does not remove saved profile`() = runTest(testDispatcher) {
+    fun `disconnect does not remove saved profile`() = runTest(testDispatcher, timeout = 5.seconds) {
         // Pre-save a profile
         viewModel.profileStore.saveProfile(
             WheelProfile("AA:BB:CC:DD:EE:FF", "My Wheel", "KINGSONG", 1000L)
         )
-        viewModel.attachService(mockService, mockCm, mockBle)
+        viewModel.attachService(fakeService, fakeCm, fakeBle)
         advanceUntilIdle()
 
         viewModel.disconnect()

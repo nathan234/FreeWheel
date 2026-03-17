@@ -30,7 +30,7 @@ import kotlinx.coroutines.runBlocking
 import org.freewheel.compose.ComposeActivity
 import org.freewheel.compose.di.AppModule
 
-class WheelService : Service() {
+class WheelService : Service(), WheelServiceContract {
 
     lateinit var bleManager: BleManager
         private set
@@ -38,9 +38,9 @@ class WheelService : Service() {
         private set
 
     // Charger BLE (separate connection)
-    lateinit var chargerBleManager: BleManager
+    override lateinit var chargerBleManager: BleManager
         private set
-    lateinit var chargerConnectionManager: ChargerConnectionManager
+    override lateinit var chargerConnectionManager: ChargerConnectionManager
         private set
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
@@ -48,9 +48,9 @@ class WheelService : Service() {
     private var locationManager: LocationManager? = null
     private var notificationManager: NotificationManager? = null
 
-    var onLightToggleRequested: (() -> Unit)? = null
-    var onLogToggleRequested: (() -> Unit)? = null
-    var onGpsLocationUpdate: ((android.location.Location) -> Unit)? = null
+    override var onLightToggleRequested: (() -> Unit)? = null
+    override var onLogToggleRequested: (() -> Unit)? = null
+    override var onGpsLocationUpdate: ((android.location.Location) -> Unit)? = null
 
     private var locationListener: LocationListener? = null
 
@@ -171,7 +171,7 @@ class WheelService : Service() {
         super.onDestroy()
     }
 
-    fun startLocationTracking() {
+    override fun startLocationTracking() {
         if (locationListener != null) return // already tracking
         if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION)
             != PackageManager.PERMISSION_GRANTED
@@ -190,14 +190,14 @@ class WheelService : Service() {
         locationListener = listener
     }
 
-    fun stopLocationTracking() {
+    override fun stopLocationTracking() {
         val listener = locationListener ?: return
         val lm = locationManager ?: return
         lm.removeUpdates(listener)
         locationListener = null
     }
 
-    fun shutdown() {
+    override fun shutdown() {
         stopSelf()
     }
 

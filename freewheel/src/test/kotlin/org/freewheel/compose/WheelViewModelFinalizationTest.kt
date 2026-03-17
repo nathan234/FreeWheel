@@ -1,40 +1,26 @@
 package org.freewheel.compose
 
-import org.freewheel.compose.service.WheelService
 import android.app.Application
 import androidx.preference.PreferenceManager
 import androidx.test.core.app.ApplicationProvider
-import org.freewheel.AppConfig
-import org.freewheel.core.domain.CapabilitySet
-import org.freewheel.core.domain.WheelState
-import org.freewheel.core.logging.BleCaptureLogger
-import org.freewheel.core.logging.RideLogger
-import org.freewheel.core.telemetry.PlatformTelemetryFileIO
-import org.freewheel.data.TripDatabase
-import org.freewheel.data.TripRepository
-import org.freewheel.core.charger.ChargerConnectionManager
-import org.freewheel.core.charger.ChargerState
-import org.freewheel.core.service.BleManager
-import org.freewheel.core.service.ConnectionState
-import org.freewheel.core.service.WheelConnectionManager
-import org.freewheel.data.TripDataDbEntry
 import com.google.common.truth.Truth.assertThat
-import io.mockk.coVerify
-import io.mockk.every
-import io.mockk.mockk
-import io.mockk.slot
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import org.freewheel.AppConfig
 import org.freewheel.core.domain.ChargerProfileStore
 import org.freewheel.core.domain.SharedPreferencesKeyValueStore
 import org.freewheel.core.domain.WheelProfileStore
+import org.freewheel.core.logging.BleCaptureLogger
+import org.freewheel.core.logging.RideLogger
 import org.freewheel.core.service.DemoDataProvider
+import org.freewheel.core.telemetry.PlatformTelemetryFileIO
+import org.freewheel.data.TripDatabase
+import org.freewheel.data.TripRepository
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -43,6 +29,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import java.io.File
 import java.lang.reflect.Method
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * Tests for ride finalization in [WheelViewModel.onCleared].
@@ -59,9 +46,9 @@ class WheelViewModelFinalizationTest {
     private lateinit var app: Application
     private lateinit var viewModel: WheelViewModel
 
-    private lateinit var mockService: WheelService
-    private lateinit var mockCm: WheelConnectionManager
-    private lateinit var mockBle: BleManager
+    private lateinit var fakeCm: FakeWheelConnectionManager
+    private lateinit var fakeBle: FakeBleManager
+    private lateinit var fakeService: FakeWheelService
 
     @Before
     fun setUp() {
@@ -85,20 +72,10 @@ class WheelViewModelFinalizationTest {
             demoDataProvider = DemoDataProvider()
         )
 
-        val mockConnectionState = MutableStateFlow<ConnectionState>(ConnectionState.Disconnected)
-        mockCm = mockk(relaxed = true) {
-            every { connectionState } returns mockConnectionState
-            every { wheelState } returns MutableStateFlow(WheelState())
-            every { capabilities } returns MutableStateFlow(CapabilitySet())
-        }
-        mockBle = mockk(relaxed = true)
-        val mockChargerCm = mockk<ChargerConnectionManager>(relaxed = true) {
-            every { chargerState } returns MutableStateFlow(ChargerState())
-            every { connectionState } returns MutableStateFlow(ConnectionState.Disconnected)
-        }
-        mockService = mockk(relaxed = true) {
-            every { chargerConnectionManager } returns mockChargerCm
-        }
+        fakeCm = FakeWheelConnectionManager()
+        fakeBle = FakeBleManager()
+        val fakeChargerCm = FakeChargerConnectionManager()
+        fakeService = FakeWheelService(fakeChargerCm, fakeBle)
     }
 
     @After
@@ -117,8 +94,8 @@ class WheelViewModelFinalizationTest {
     }
 
     @Test
-    fun `onCleared does nothing when not logging`() = runTest(testDispatcher) {
-        viewModel.attachService(mockService, mockCm, mockBle)
+    fun `onCleared does nothing when not logging`() = runTest(testDispatcher, timeout = 5.seconds) {
+        viewModel.attachService(fakeService, fakeCm, fakeBle)
         advanceUntilIdle()
 
         assertThat(viewModel.isLogging.value).isFalse()
@@ -128,8 +105,8 @@ class WheelViewModelFinalizationTest {
     }
 
     @Test
-    fun `onCleared stops logging and sets isLogging to false`() = runTest(testDispatcher) {
-        viewModel.attachService(mockService, mockCm, mockBle)
+    fun `onCleared stops logging and sets isLogging to false`() = runTest(testDispatcher, timeout = 5.seconds) {
+        viewModel.attachService(fakeService, fakeCm, fakeBle)
         advanceUntilIdle()
 
         startLogging()
@@ -140,8 +117,8 @@ class WheelViewModelFinalizationTest {
     }
 
     @Test
-    fun `onCleared is safe to call twice while logging`() = runTest(testDispatcher) {
-        viewModel.attachService(mockService, mockCm, mockBle)
+    fun `onCleared is safe to call twice while logging`() = runTest(testDispatcher, timeout = 5.seconds) {
+        viewModel.attachService(fakeService, fakeCm, fakeBle)
         advanceUntilIdle()
 
         startLogging()
