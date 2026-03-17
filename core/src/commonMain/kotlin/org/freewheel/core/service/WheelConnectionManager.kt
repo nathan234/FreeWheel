@@ -618,7 +618,7 @@ class WheelConnectionManager(
                 Logger.d(TAG, "Unhandled frame: ${result.reason} (${result.frameData.size} bytes, decoder=${decoder.wheelType})")
                 return WcmTransition(state, listOf(
                     captureEffect,
-                    WcmEffect.NotifyUnhandled(result.reason, result.frameData)
+                    WcmEffect.NotifyUnhandled(result.reason.toString(), result.frameData)
                 ))
             }
             is DecodeResult.Success -> {

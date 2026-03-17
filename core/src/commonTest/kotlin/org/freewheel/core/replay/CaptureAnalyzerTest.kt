@@ -7,6 +7,7 @@ import org.freewheel.core.logging.BlePacketDirection
 import org.freewheel.core.protocol.DecodedData
 import org.freewheel.core.protocol.DecodeResult
 import org.freewheel.core.protocol.DecoderConfig
+import org.freewheel.core.protocol.UnhandledReason
 import org.freewheel.core.protocol.WheelCommand
 import org.freewheel.core.protocol.WheelDecoder
 import org.freewheel.core.protocol.WheelDecoderFactory
@@ -26,7 +27,10 @@ class CaptureAnalyzerTest {
         override fun decode(data: ByteArray, currentState: WheelState, config: DecoderConfig): DecodeResult {
             if (data.size < 2) return DecodeResult.Buffering
             if (data[0] == 0xFF.toByte() && data[1] == 0xFF.toByte()) {
-                return DecodeResult.Unhandled("unknown_command:0xFF", data)
+                return DecodeResult.Unhandled(
+                    UnhandledReason(UnhandledReason.ErrorClass.UNKNOWN_COMMAND, "0xFF"),
+                    data
+                )
             }
             val speed = ((data[0].toInt() and 0xFF) shl 8) or (data[1].toInt() and 0xFF)
             val voltage = if (data.size >= 4) {

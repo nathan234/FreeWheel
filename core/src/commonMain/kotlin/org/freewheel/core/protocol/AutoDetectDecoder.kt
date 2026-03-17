@@ -69,7 +69,7 @@ class AutoDetectDecoder(
 
         // Not enough data or unrecognized header
         return DecodeResult.Unhandled(
-            reason = "unrecognized header",
+            reason = UnhandledReason(UnhandledReason.ErrorClass.UNRECOGNIZED_HEADER),
             frameData = data.copyOf()
         )
     }

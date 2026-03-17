@@ -82,13 +82,56 @@ sealed class DecodeResult {
     data object Buffering : DecodeResult()
 
     /** Got a complete frame but the decoder doesn't recognize it. */
-    data class Unhandled(val reason: String, val frameData: ByteArray) : DecodeResult() {
+    data class Unhandled(val reason: UnhandledReason, val frameData: ByteArray) : DecodeResult() {
         override fun equals(other: Any?): Boolean {
             if (this === other) return true
             if (other !is Unhandled) return false
             return reason == other.reason && frameData.contentEquals(other.frameData)
         }
         override fun hashCode(): Int = 31 * reason.hashCode() + frameData.contentHashCode()
+    }
+}
+
+/**
+ * Structured classification for unhandled frames.
+ *
+ * Replaces free-form reason strings with categorized error classes,
+ * enabling grouping and analysis (e.g., "400 unknown_command:0x15 frames").
+ *
+ * @param errorClass The category of unhandled frame.
+ * @param detail Optional specifics (e.g., "0xa4" for the frame type byte).
+ */
+data class UnhandledReason(
+    val errorClass: ErrorClass,
+    val detail: String = ""
+) {
+    /**
+     * Categories of unhandled frames, ordered by diagnostic signal.
+     */
+    enum class ErrorClass {
+        /** Frame type / command byte not in decoder's table — protocol coverage gap. */
+        UNKNOWN_COMMAND,
+
+        /** Frame header doesn't match any known protocol (AutoDetect). */
+        UNRECOGNIZED_HEADER,
+
+        /** Checksum / XOR verification failed — BLE corruption or bad reassembly. */
+        CHECKSUM_MISMATCH,
+
+        /** Frame buffer shorter than expected — BLE truncation or unpacker issue. */
+        FRAME_TOO_SHORT,
+
+        /** Model / hardware ID not in decoder's table — new hardware variant. */
+        UNKNOWN_MODEL,
+
+        /** Escape sequence parsing failed (InMotion 0xAA / LeaperkimCan 0xA5). */
+        ESCAPE_ERROR
+    }
+
+    override fun toString(): String = if (detail.isEmpty()) {
+        errorClass.name.lowercase()
+    } else {
+        "${errorClass.name.lowercase()}:$detail"
     }
 }
 

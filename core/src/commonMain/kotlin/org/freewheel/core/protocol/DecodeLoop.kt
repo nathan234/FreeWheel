@@ -75,7 +75,7 @@ internal inline fun decodeFrames(
         }
         hadCompleteFrame -> {
             DecodeResult.Unhandled(
-                reason = "frame not recognized by decoder",
+                reason = UnhandledReason(UnhandledReason.ErrorClass.UNKNOWN_COMMAND),
                 frameData = firstUnhandledBuffer ?: byteArrayOf()
             )
         }

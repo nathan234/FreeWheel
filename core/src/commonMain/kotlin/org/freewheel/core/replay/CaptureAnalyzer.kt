@@ -216,9 +216,10 @@ class CaptureAnalyzer(
                             }
                             is DecodeResult.Unhandled -> {
                                 unhandledCount++
-                                unhandledReasons[decodeResult.reason] =
-                                    (unhandledReasons[decodeResult.reason] ?: 0) + 1
-                                packetResult = PacketResult.Unhandled(decodeResult.reason)
+                                val reasonStr = decodeResult.reason.toString()
+                                unhandledReasons[reasonStr] =
+                                    (unhandledReasons[reasonStr] ?: 0) + 1
+                                packetResult = PacketResult.Unhandled(reasonStr)
                             }
                         }
                     } catch (e: Exception) {
