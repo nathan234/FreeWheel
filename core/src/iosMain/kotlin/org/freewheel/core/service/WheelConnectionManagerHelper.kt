@@ -307,6 +307,22 @@ object WheelConnectionManagerHelper {
         }
     }
 
+    // MARK: - Unhandled Frame Callback
+
+    /**
+     * Set an unhandled frame callback on the WheelConnectionManager.
+     * Swift-friendly: passes reason as String and frameData as ByteArray.
+     */
+    fun setUnhandledCallback(manager: WheelConnectionManager, callback: ((String, ByteArray) -> Unit)?) {
+        if (callback == null) {
+            manager.unhandledCallback = null
+        } else {
+            manager.unhandledCallback = { reason, frameData ->
+                callback(reason, frameData)
+            }
+        }
+    }
+
     // MARK: - Auto-Connect Manager
 
     /**

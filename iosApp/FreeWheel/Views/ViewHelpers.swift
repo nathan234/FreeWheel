@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import FreeWheelCore
 
 /// Maps a NavigationTab's iconName to the corresponding SF Symbol.
@@ -20,6 +21,17 @@ func sfSymbol(for iconName: String) -> String {
     case "thermostat": return "thermometer.medium"
     default: return "questionmark"
     }
+}
+
+/// UIActivityViewController wrapper for sharing plain text from SwiftUI.
+struct ShareSheet: UIViewControllerRepresentable {
+    let items: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: items, applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
 
 /// Shared unit conversion helpers used across multiple views.

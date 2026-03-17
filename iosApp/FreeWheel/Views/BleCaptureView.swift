@@ -10,7 +10,8 @@ import FreeWheelCore
 //  3. Start/Stop button
 //  4. Marker input (visible when capturing)
 //  5. Quick-marker buttons (send command + insert marker)
-//  6. Capture history with share/delete
+//  6. Share Unhandled Frames button
+//  7. Capture history with share/delete
 
 struct BleCaptureView: View {
     @EnvironmentObject var wheelManager: WheelManager
@@ -20,6 +21,7 @@ struct BleCaptureView: View {
     @State private var captureFiles: [URL] = []
     @State private var elapsedTimer: Timer? = nil
     @State private var elapsedSeconds: Int = 0
+    @State private var unhandledShareText: String? = nil
 
     var body: some View {
         List {
@@ -108,6 +110,25 @@ struct BleCaptureView: View {
                     }
                 }
                 .disabled(!wheelManager.connectionState.isConnected)
+
+                // Share Unhandled Frames
+                Button(action: {
+                    unhandledShareText = wheelManager.buildUnhandledFramesText()
+                }) {
+                    HStack {
+                        Image(systemName: "square.and.arrow.up")
+                        Text("Share Unhandled Frames (\(wheelManager.unhandledCount))")
+                    }
+                }
+                .disabled(wheelManager.unhandledCount == 0)
+                .sheet(isPresented: Binding(
+                    get: { unhandledShareText != nil },
+                    set: { if !$0 { unhandledShareText = nil } }
+                )) {
+                    if let text = unhandledShareText {
+                        ShareSheet(items: [text])
+                    }
+                }
             }
 
             // Capture history

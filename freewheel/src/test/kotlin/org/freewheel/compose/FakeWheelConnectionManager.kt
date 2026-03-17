@@ -29,6 +29,7 @@ class FakeWheelConnectionManager : WheelConnectionManagerPort {
     override val capabilities: StateFlow<CapabilitySet> = _capabilities.asStateFlow()
 
     override var captureCallback: ((data: ByteArray, direction: BlePacketDirection) -> Unit)? = null
+    override var unhandledCallback: ((reason: String, frameData: ByteArray) -> Unit)? = null
 
     var connectCallCount = 0
         private set

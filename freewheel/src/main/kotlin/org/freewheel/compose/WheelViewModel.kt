@@ -12,6 +12,8 @@ import org.freewheel.core.logging.BleCaptureLogger
 import org.freewheel.core.logging.BleCaptureMetadata
 import org.freewheel.core.logging.BlePacketDirection
 import org.freewheel.core.logging.DiagnosticSnapshotBuilder
+import org.freewheel.core.logging.UnhandledFrameCollector
+import org.freewheel.core.logging.UnhandledFrameFormatter
 import org.freewheel.core.logging.GpsLocation
 import org.freewheel.core.logging.RideLogger
 import org.freewheel.core.telemetry.ChartTimeRange
@@ -218,6 +220,11 @@ class WheelViewModel(
     private val _captureStats = MutableStateFlow(CaptureStats())
     val captureStats: StateFlow<CaptureStats> = _captureStats.asStateFlow()
 
+    // Unhandled frame collection
+    private val unhandledCollector = UnhandledFrameCollector()
+    private val _unhandledCount = MutableStateFlow(0)
+    val unhandledCount: StateFlow<Int> = _unhandledCount.asStateFlow()
+
     // WearOS manager (created when service is attached)
     private var wearOsManager: WearOsManager? = null
 
@@ -336,6 +343,9 @@ class WheelViewModel(
         // Wire capture callback if capture was started before connection
         if (captureLogger.isCapturing) wireCaptureCallback(cm)
 
+        // Wire unhandled frame callback
+        wireUnhandledCallback(cm)
+
         pushDecoderConfig()
 
         // Create shared auto-connect manager
@@ -427,6 +437,7 @@ class WheelViewModel(
         wheelService?.onGpsLocationUpdate = null
         wheelService?.onLightToggleRequested = null
         wheelService?.onLogToggleRequested = null
+        connectionManager?.unhandledCallback = null
         wheelService = null
         connectionManager = null
         bleManager = null
@@ -527,6 +538,9 @@ class WheelViewModel(
         val cm = connectionManager ?: return
         _isScanning.value = false
         appConfig.lastMac = address
+        // Clear unhandled frames from previous session
+        unhandledCollector.clear()
+        _unhandledCount.value = 0
         connectJob = viewModelScope.launch {
             bleManager?.stopScan()
             cm.connect(address)
@@ -1036,6 +1050,29 @@ class WheelViewModel(
                 BlePacketDirection.TX -> stats.copy(txCount = stats.txCount + 1)
             }
         }
+    }
+
+    private fun wireUnhandledCallback(cm: WheelConnectionManagerPort) {
+        cm.unhandledCallback = { reason, frameData ->
+            unhandledCollector.record(reason, frameData, System.currentTimeMillis())
+            _unhandledCount.value = unhandledCollector.count()
+        }
+    }
+
+    /**
+     * Build shareable text of unhandled frames from the current session.
+     * Returns null if no unhandled frames have been recorded.
+     */
+    fun buildUnhandledFramesText(): String? {
+        val state = wheelState.value
+        val caps = _capabilities.value
+        return UnhandledFrameFormatter.format(
+            entries = unhandledCollector.getEntries(),
+            wheelType = state.wheelType.name,
+            model = caps.detectedModel.ifEmpty { state.model },
+            firmware = caps.firmwareVersion.ifEmpty { state.version },
+            platform = "android"
+        )
     }
 
     fun stopCapture(): BleCaptureMetadata? {

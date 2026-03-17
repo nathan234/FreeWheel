@@ -177,6 +177,10 @@ class WheelManager: ObservableObject {
     @Published private(set) var captureMarkerCount: Int = 0
     @Published private(set) var captureStartTime: Date? = nil
 
+    // Unhandled frame collection
+    private let unhandledCollector = UnhandledFrameCollector()
+    @Published private(set) var unhandledCount: Int = 0
+
     // BLE Replay
     private let replayEngine: ReplayEngine = WheelConnectionManagerHelper.shared.createReplayEngine()
     @Published private(set) var isReplayMode: Bool = false
@@ -462,6 +466,11 @@ class WheelManager: ObservableObject {
         // Wire capture callback if capture was started before connection
         if isCapturing, let cm = connectionManager {
             wireCaptureCallback(cm)
+        }
+
+        // Wire unhandled frame callback
+        if let cm = connectionManager {
+            wireUnhandledCallback(cm)
         }
 
         // Wire BLE data to connection manager
@@ -1179,6 +1188,17 @@ class WheelManager: ObservableObject {
         }
     }
 
+    private func wireUnhandledCallback(_ cm: WheelConnectionManager) {
+        WheelConnectionManagerHelper.shared.setUnhandledCallback(manager: cm) { [weak self] reason, frameData in
+            Task { @MainActor in
+                guard let self = self else { return }
+                let currentMs = Int64(Date().timeIntervalSince1970 * 1000)
+                self.unhandledCollector.record(reason: reason, frameData: frameData, currentTimeMs: currentMs)
+                self.unhandledCount = Int(self.unhandledCollector.count())
+            }
+        }
+    }
+
     func stopCapture() {
         if let cm = connectionManager {
             WheelConnectionManagerHelper.shared.setCaptureCallback(manager: cm, callback: nil)
@@ -1188,6 +1208,18 @@ class WheelManager: ObservableObject {
         _ = captureLogger.stop(currentTimeMs: nowMs, diagnosticFooter: footer)
         isCapturing = false
         captureStartTime = nil
+    }
+
+    /// Build shareable text of unhandled frames. Returns nil if none recorded.
+    func buildUnhandledFramesText() -> String? {
+        let caps = capabilities
+        return UnhandledFrameFormatter.shared.format(
+            entries: unhandledCollector.getEntries(),
+            wheelType: wheelState.wheelType.name,
+            model: caps.detectedModel.isEmpty ? wheelState.model : caps.detectedModel,
+            firmware: caps.firmwareVersion.isEmpty ? wheelState.version : caps.firmwareVersion,
+            platform: "ios"
+        )
     }
 
     /// Build diagnostic text for clipboard sharing. Returns nil if not connected.
@@ -1399,6 +1431,10 @@ class WheelManager: ObservableObject {
 
     func connect(address: String) {
         guard let connectionManager = connectionManager else { return }
+
+        // Clear unhandled frames from previous session
+        unhandledCollector.clear()
+        unhandledCount = 0
 
         connectionState = .connecting(address: address)
 

@@ -71,7 +71,8 @@ import java.io.File
 //  3. Start/Stop button
 //  4. Marker input (visible when capturing)
 //  5. Quick-marker buttons (send command + insert marker)
-//  6. Capture history with share/delete
+//  6. Share Unhandled Frames button
+//  7. Capture history with share/delete
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -85,6 +86,7 @@ fun BleCaptureScreen(
     val captureStats by viewModel.captureStats.collectAsStateWithLifecycle()
     val connectionState by viewModel.connectionState.collectAsStateWithLifecycle()
     val isConnected = connectionState.isConnected
+    val unhandledCount by viewModel.unhandledCount.collectAsStateWithLifecycle()
 
     var markerText by remember { mutableStateOf("") }
     var captureFiles by remember { mutableStateOf<List<File>>(emptyList()) }
@@ -251,6 +253,28 @@ fun BleCaptureScreen(
             Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(16.dp))
             Spacer(Modifier.width(8.dp))
             Text("Copy Diagnostic Info")
+        }
+
+        // Share Unhandled Frames button
+        Button(
+            onClick = {
+                val text = viewModel.buildUnhandledFramesText()
+                if (text != null) {
+                    val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_TEXT, text)
+                    }
+                    context.startActivity(Intent.createChooser(shareIntent, "Share Unhandled Frames"))
+                }
+            },
+            enabled = unhandledCount > 0,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 4.dp)
+        ) {
+            Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(8.dp))
+            Text("Share Unhandled Frames ($unhandledCount)")
         }
 
         // Capture history

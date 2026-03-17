@@ -78,6 +78,12 @@ class WheelConnectionManager(
      */
     override var captureCallback: ((data: ByteArray, direction: BlePacketDirection) -> Unit)? = null
 
+    /**
+     * Optional callback invoked when the decoder encounters an unhandled frame.
+     * Set by the UI layer to collect unrecognized protocol data for sharing.
+     */
+    override var unhandledCallback: ((reason: String, frameData: ByteArray) -> Unit)? = null
+
     // ==================== Unified state + scan pipeline ====================
 
     private val _wcmState = MutableStateFlow(WcmState())
@@ -603,7 +609,10 @@ class WheelConnectionManager(
             }
             is DecodeResult.Unhandled -> {
                 Logger.d(TAG, "Unhandled frame: ${result.reason} (${result.frameData.size} bytes, decoder=${decoder.wheelType})")
-                return WcmTransition(state, listOf(captureEffect))
+                return WcmTransition(state, listOf(
+                    captureEffect,
+                    WcmEffect.NotifyUnhandled(result.reason, result.frameData)
+                ))
             }
             is DecodeResult.Success -> {
                 // continue below
@@ -785,6 +794,9 @@ class WheelConnectionManager(
                 }
                 is WcmEffect.CapturePacket -> {
                     captureCallback?.invoke(effect.data, effect.direction)
+                }
+                is WcmEffect.NotifyUnhandled -> {
+                    unhandledCallback?.invoke(effect.reason, effect.frameData)
                 }
                 is WcmEffect.ResetDecoder -> {
                     effect.decoder.reset()
