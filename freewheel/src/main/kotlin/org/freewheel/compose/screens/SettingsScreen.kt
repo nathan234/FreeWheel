@@ -86,6 +86,7 @@ fun SettingsScreen(
 ) {
     val appConfig = viewModel.appConfig
     val wheelState by viewModel.wheelState.collectAsStateWithLifecycle()
+    val wheelSettings = remember(wheelState) { wheelState.toWheelSettings() }
     val connectionState by viewModel.connectionState.collectAsStateWithLifecycle()
     val useMph = viewModel.getGlobalBool(PreferenceKeys.USE_MPH, PreferenceDefaults.USE_MPH)
     val useFahrenheit = viewModel.getGlobalBool(PreferenceKeys.USE_FAHRENHEIT, PreferenceDefaults.USE_FAHRENHEIT)
@@ -405,7 +406,7 @@ fun SettingsScreen(
             for (section in wheelSections) {
                 SectionCard(
                     section = section,
-                    wheelState = wheelState,
+                    wheelSettings = wheelSettings,
                     toggleStates = toggleStates,
                     sliderOverrides = sliderOverrides,
                     onIntCommand = { id, value ->

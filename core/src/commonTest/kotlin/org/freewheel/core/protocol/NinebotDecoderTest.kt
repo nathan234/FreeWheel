@@ -459,7 +459,7 @@ class NinebotDecoderTest {
         val result = decoder.decode(frame, WheelState(), config)
         assertTrue(result is DecodeResult.Success, "LiveData frame should decode")
         val decoded = (result as DecodeResult.Success).data
-        assertEquals(expectedPower, decoded.newState.power,
+        assertEquals(expectedPower, decoded.newState!!.power,
             "Power should be (current/100)*voltage = $expectedPower, not ${voltage * current}")
     }
 
@@ -492,7 +492,7 @@ class NinebotDecoderTest {
         val result = decoder.decode(frame, WheelState(), config)
         assertTrue(result is DecodeResult.Success, "LiveData5 frame should decode")
         val decoded = (result as DecodeResult.Success).data
-        assertEquals(expectedPower, decoded.newState.power,
+        assertEquals(expectedPower, decoded.newState!!.power,
             "LiveData5 power should use same formula as LiveData")
     }
 
@@ -518,7 +518,7 @@ class NinebotDecoderTest {
         val result = decoder.decode(frame, WheelState(), config)
         assertTrue(result is DecodeResult.Success, "LiveData frame should decode")
         val decoded = (result as DecodeResult.Success).data
-        assertEquals(expectedPower, decoded.newState.power,
+        assertEquals(expectedPower, decoded.newState!!.power,
             "Power should be 0 when current is 0")
     }
 

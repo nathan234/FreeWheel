@@ -69,24 +69,24 @@ class GotwayDecoderTest {
         // Default gotwayNegative=0 takes abs() of speed, matching Android legacy default
         // speed = abs(round(-1111 * 3.6)) = abs(-4000) = 4000
         val expectedSpeed = abs((speed * 3.6).roundToInt())
-        assertEquals(expectedSpeed, decoded.newState.speed)
+        assertEquals(expectedSpeed, decoded.newState!!.speed)
 
         // Temperature uses MPU6050 formula: (raw/340 + 36.53) * 100
         // raw = 99, so temp = (99/340 + 36.53) * 100 = 3682
-        assertEquals(3682, decoded.newState.temperature)
+        assertEquals(3682, decoded.newState!!.temperature)
 
         // Phase current is abs() with gotwayNegative=0, matching Android legacy default
-        assertEquals(abs(phaseCurrent.toInt()), decoded.newState.phaseCurrent)
+        assertEquals(abs(phaseCurrent.toInt()), decoded.newState!!.phaseCurrent)
 
         // Voltage is passed through (will be scaled by scaleVoltage if configured)
-        assertEquals(voltage.toInt(), decoded.newState.voltage)
+        assertEquals(voltage.toInt(), decoded.newState!!.voltage)
 
         // Distance from frame
-        assertEquals(distance.toLong(), decoded.newState.wheelDistance)
+        assertEquals(distance.toLong(), decoded.newState!!.wheelDistance)
 
         // Battery level: voltage 6000 -> 60V
         // Standard percent: (6000 - 5290) / 13 = 54
-        assertEquals(54, decoded.newState.batteryLevel)
+        assertEquals(54, decoded.newState!!.batteryLevel)
     }
 
     @Test
@@ -99,14 +99,14 @@ class GotwayDecoderTest {
         var state = WheelState()
 
         val result1 = decoder.decode(byteArray1, state, config)
-        if (result1 is DecodeResult.Success) state = result1.data.newState
+        if (result1 is DecodeResult.Success) state = result1.data.newState!!
 
         val result2 = decoder.decode(byteArray2, state, config)
         assertTrue(result2 is DecodeResult.Success)
-        state = (result2 as DecodeResult.Success).data.newState
+        state = (result2 as DecodeResult.Success).data.newState!!
 
         val result3 = decoder.decode(byteArray3, state, config)
-        if (result3 is DecodeResult.Success) state = result3.data.newState
+        if (result3 is DecodeResult.Success) state = result3.data.newState!!
 
         // Verify decode produced data - values verified against original adapter
         // Speed = 0 (wheel stationary)
@@ -139,7 +139,7 @@ class GotwayDecoderTest {
         for (pass in 1..2) {
             for (data in listOf(byteArray1, byteArray2, byteArray3, byteArray4, byteArray5, byteArray6)) {
                 val result = decoder.decode(data, state, config)
-                if (result is DecodeResult.Success) state = result.data.newState
+                if (result is DecodeResult.Success) state = result.data.newState!!
             }
         }
 
@@ -166,11 +166,11 @@ class GotwayDecoderTest {
         var state = WheelState()
 
         val result1 = veteranDecoder.decode(byteArray1, state, config)
-        if (result1 is DecodeResult.Success) state = result1.data.newState
+        if (result1 is DecodeResult.Success) state = result1.data.newState!!
 
         val result2 = veteranDecoder.decode(byteArray2, state, config)
         assertTrue(result2 is DecodeResult.Success)
-        state = (result2 as DecodeResult.Success).data.newState
+        state = (result2 as DecodeResult.Success).data.newState!!
 
         // Original expected values from VeteranAdapterTest
         // gotwayNegative=0 (default) → abs() applied to speed and phaseCurrent
@@ -199,7 +199,7 @@ class GotwayDecoderTest {
             state,
             config
         )
-        if (result1 is DecodeResult.Success) state = result1.data.newState
+        if (result1 is DecodeResult.Success) state = result1.data.newState!!
 
         // Second packet - live data
         val result2 = ksDecoder.decode(
@@ -209,7 +209,7 @@ class GotwayDecoderTest {
         )
         assertTrue(result2 is DecodeResult.Success)
         val decoded2 = (result2 as DecodeResult.Success).data
-        state = decoded2.newState
+        state = decoded2.newState!!
 
         // Original expected values from KingsongAdapterTest
         assertEquals("KS-S18", state.model)
@@ -228,7 +228,7 @@ class GotwayDecoderTest {
         val decoded = decodeNormalData(voltage = 6000, config = cfg)
         assertNotNull(decoded)
         // 6000 * 1.0 = 6000
-        assertEquals(6000, decoded.newState.voltage)
+        assertEquals(6000, decoded.newState!!.voltage)
     }
 
     @Test
@@ -237,7 +237,7 @@ class GotwayDecoderTest {
         val decoded = decodeNormalData(voltage = 6000, config = cfg)
         assertNotNull(decoded)
         // 6000 * 1.25 = 7500
-        assertEquals(7500, decoded.newState.voltage)
+        assertEquals(7500, decoded.newState!!.voltage)
     }
 
     @Test
@@ -246,7 +246,7 @@ class GotwayDecoderTest {
         val decoded = decodeNormalData(voltage = 6000, config = cfg)
         assertNotNull(decoded)
         // 6000 * 1.5 = 9000
-        assertEquals(9000, decoded.newState.voltage)
+        assertEquals(9000, decoded.newState!!.voltage)
     }
 
     @Test
@@ -255,7 +255,7 @@ class GotwayDecoderTest {
         val decoded = decodeNormalData(voltage = 6000, config = cfg)
         assertNotNull(decoded)
         // 6000 * 1.7380952... = 10428.57... rounds to 10429
-        assertEquals(10429, decoded.newState.voltage)
+        assertEquals(10429, decoded.newState!!.voltage)
     }
 
     @Test
@@ -264,7 +264,7 @@ class GotwayDecoderTest {
         val decoded = decodeNormalData(voltage = 6000, config = cfg)
         assertNotNull(decoded)
         // 6000 * 2.0 = 12000
-        assertEquals(12000, decoded.newState.voltage)
+        assertEquals(12000, decoded.newState!!.voltage)
     }
 
     @Test
@@ -273,7 +273,7 @@ class GotwayDecoderTest {
         val decoded = decodeNormalData(voltage = 6000, config = cfg)
         assertNotNull(decoded)
         // 6000 * 2.5 = 15000
-        assertEquals(15000, decoded.newState.voltage)
+        assertEquals(15000, decoded.newState!!.voltage)
     }
 
     @Test
@@ -282,7 +282,7 @@ class GotwayDecoderTest {
         val decoded = decodeNormalData(voltage = 6000, config = cfg)
         assertNotNull(decoded)
         // 6000 * 2.25 = 13500
-        assertEquals(13500, decoded.newState.voltage)
+        assertEquals(13500, decoded.newState!!.voltage)
     }
 
     @Test
@@ -290,7 +290,7 @@ class GotwayDecoderTest {
         val cfg = config.copy(gotwayVoltage = 99)
         val decoded = decodeNormalData(voltage = 6000, config = cfg)
         assertNotNull(decoded)
-        assertEquals(6000, decoded.newState.voltage)
+        assertEquals(6000, decoded.newState!!.voltage)
     }
 
     // ==================== Veteran Model Names ====================
@@ -366,13 +366,13 @@ class GotwayDecoderTest {
         var state = WheelState()
 
         val r1 = ksDecoder.decode(namePacket, state, config)
-        if (r1 is DecodeResult.Success) state = r1.data.newState
+        if (r1 is DecodeResult.Success) state = r1.data.newState!!
         assertEquals("KS-S16", state.model)
 
         val r2 = ksDecoder.decode(livePacket, state, config)
         assertTrue(r2 is DecodeResult.Success)
         // 84V wheel: 8000 -> (8000-6250)/20 = 87%
-        assertEquals(87, (r2 as DecodeResult.Success).data.newState.batteryLevel)
+        assertEquals(87, (r2 as DecodeResult.Success).data.newState!!.batteryLevel)
     }
 
     @Test
@@ -383,13 +383,13 @@ class GotwayDecoderTest {
         var state = WheelState()
 
         val r1 = ksDecoder.decode(namePacket, state, config)
-        if (r1 is DecodeResult.Success) state = r1.data.newState
+        if (r1 is DecodeResult.Success) state = r1.data.newState!!
         assertEquals("KS-F18P", state.model)
 
         val r2 = ksDecoder.decode(livePacket, state, config)
         assertTrue(r2 is DecodeResult.Success)
         // 151V wheel: (14000-11250)/36 = 76%
-        assertEquals(76, (r2 as DecodeResult.Success).data.newState.batteryLevel)
+        assertEquals(76, (r2 as DecodeResult.Success).data.newState!!.batteryLevel)
     }
 
     @Test
@@ -400,13 +400,13 @@ class GotwayDecoderTest {
         var state = WheelState()
 
         val r1 = ksDecoder.decode(namePacket, state, config)
-        if (r1 is DecodeResult.Success) state = r1.data.newState
+        if (r1 is DecodeResult.Success) state = r1.data.newState!!
         assertEquals("KS-F22P", state.model)
 
         val r2 = ksDecoder.decode(livePacket, state, config)
         assertTrue(r2 is DecodeResult.Success)
         // 176V wheel: (16000-13125)/42 = 68%
-        assertEquals(68, (r2 as DecodeResult.Success).data.newState.batteryLevel)
+        assertEquals(68, (r2 as DecodeResult.Success).data.newState!!.batteryLevel)
     }
 
     @Test
@@ -417,13 +417,13 @@ class GotwayDecoderTest {
         var state = WheelState()
 
         val r1 = ksDecoder.decode(namePacket, state, config)
-        if (r1 is DecodeResult.Success) state = r1.data.newState
+        if (r1 is DecodeResult.Success) state = r1.data.newState!!
         assertEquals("KS-S19", state.model)
 
         val r2 = ksDecoder.decode(livePacket, state, config)
         assertTrue(r2 is DecodeResult.Success)
         // 100V wheel: (9000-7500)/24 = 62%
-        assertEquals(62, (r2 as DecodeResult.Success).data.newState.batteryLevel)
+        assertEquals(62, (r2 as DecodeResult.Success).data.newState!!.batteryLevel)
     }
 
     // ==================== InMotionV2 Model IDs ====================
@@ -493,7 +493,7 @@ class GotwayDecoderTest {
         val result = freshDecoder.decode(liveFrame, WheelState(), config)
 
         assertTrue(result is DecodeResult.Success)
-        assertEquals("", (result as DecodeResult.Success).data.newState.model,
+        assertEquals("", (result as DecodeResult.Success).data.newState!!.model,
             "model should remain empty before NAME response")
     }
 
@@ -504,7 +504,7 @@ class GotwayDecoderTest {
         val result = freshDecoder.decode(nameData, WheelState(), config)
 
         assertTrue(result is DecodeResult.Success)
-        assertEquals("MCM5", (result as DecodeResult.Success).data.newState.model)
+        assertEquals("MCM5", (result as DecodeResult.Success).data.newState!!.model)
     }
 
     @Test
@@ -515,13 +515,13 @@ class GotwayDecoderTest {
         val fwData = "GW1.23".encodeToByteArray()
         var state = WheelState()
         val r1 = freshDecoder.decode(fwData, state, config)
-        if (r1 is DecodeResult.Success) state = r1.data.newState
+        if (r1 is DecodeResult.Success) state = r1.data.newState!!
 
         // 2) NAME response
         val nameData = "NAME MCM5".encodeToByteArray()
         val r2 = freshDecoder.decode(nameData, state, config)
         assertTrue(r2 is DecodeResult.Success)
-        state = (r2 as DecodeResult.Success).data.newState
+        state = (r2 as DecodeResult.Success).data.newState!!
         assertEquals("MCM5", state.model)
 
         // 3) Live data frame — model should persist
@@ -537,7 +537,7 @@ class GotwayDecoderTest {
         val r3 = freshDecoder.decode(liveFrame, state, config)
 
         assertTrue(r3 is DecodeResult.Success)
-        assertEquals("MCM5", (r3 as DecodeResult.Success).data.newState.model,
+        assertEquals("MCM5", (r3 as DecodeResult.Success).data.newState!!.model,
             "model should persist after NAME response")
     }
 
@@ -556,7 +556,7 @@ class GotwayDecoderTest {
         var state = WheelState()
         val r1 = freshDecoder.decode(settingsFrame, state, config)
         assertTrue(r1 is DecodeResult.Success)
-        state = (r1 as DecodeResult.Success).data.newState
+        state = (r1 as DecodeResult.Success).data.newState!!
         assertTrue(state.inMiles, "inMiles should be set after settings frame")
 
         // Now send live data with speed=2800 (28.00 mph from the wheel's perspective)
@@ -565,7 +565,7 @@ class GotwayDecoderTest {
         val liveFrame = buildLiveDataFrame(speed = rawSpeedMph)
         val r2 = freshDecoder.decode(liveFrame, state, config)
         assertTrue(r2 is DecodeResult.Success)
-        state = (r2 as DecodeResult.Success).data.newState
+        state = (r2 as DecodeResult.Success).data.newState!!
 
         // 778 * 3.6 = 2800.8, rounded to 2801 (this is in 1/100 mph)
         // After normalization: 2801 / 0.62137 ≈ 4508 (1/100 km/h)
@@ -585,14 +585,14 @@ class GotwayDecoderTest {
         var state = WheelState()
         val r1 = freshDecoder.decode(settingsFrame, state, config)
         assertTrue(r1 is DecodeResult.Success)
-        state = (r1 as DecodeResult.Success).data.newState
+        state = (r1 as DecodeResult.Success).data.newState!!
         assertFalse(state.inMiles)
 
         // Live data with speed raw=778 → 778 * 3.6 = 2800.8 → 2801 (1/100 km/h)
         val liveFrame = buildLiveDataFrame(speed = 778)
         val r2 = freshDecoder.decode(liveFrame, state, config)
         assertTrue(r2 is DecodeResult.Success)
-        state = (r2 as DecodeResult.Success).data.newState
+        state = (r2 as DecodeResult.Success).data.newState!!
 
         // Should NOT normalize — 2801 stays as 1/100 km/h
         assertEquals(2801, state.speed)
@@ -609,7 +609,7 @@ class GotwayDecoderTest {
         var state = WheelState()
         val r1 = freshDecoder.decode(settingsFrame, state, config)
         assertTrue(r1 is DecodeResult.Success)
-        state = (r1 as DecodeResult.Success).data.newState
+        state = (r1 as DecodeResult.Success).data.newState!!
 
         // Wheel reports distance=1000 (in miles-based units)
         val liveFrame = buildLiveDataFrame(distance = 1000)
@@ -619,7 +619,7 @@ class GotwayDecoderTest {
 
         // 1000 / 0.62137 ≈ 1610 (metric units)
         val expectedDistance = (1000 / ByteUtils.KM_TO_MILES_MULTIPLIER).roundToInt().toLong()
-        assertEquals(expectedDistance, decoded2.newState.wheelDistance)
+        assertEquals(expectedDistance, decoded2.newState!!.wheelDistance)
     }
 
     @Test
@@ -636,7 +636,7 @@ class GotwayDecoderTest {
 
         // 5000000 / 0.62137 ≈ 8047008 (metric)
         val expectedDistance = (5_000_000 / ByteUtils.KM_TO_MILES_MULTIPLIER).roundToLong()
-        assertEquals(expectedDistance, decoded1.newState.totalDistance)
+        assertEquals(expectedDistance, decoded1.newState!!.totalDistance)
     }
 
     @Test
@@ -650,7 +650,7 @@ class GotwayDecoderTest {
         val decoded = (result as DecodeResult.Success).data
 
         // Should stay as-is
-        assertEquals(5_000_000L, decoded.newState.totalDistance)
+        assertEquals(5_000_000L, decoded.newState!!.totalDistance)
     }
 
     @Test
@@ -666,8 +666,8 @@ class GotwayDecoderTest {
         val decoded = (result as DecodeResult.Success).data
 
         // Default inMiles=false, so 778 * 3.6 = 2801, no normalization
-        assertFalse(decoded.newState.inMiles)
-        assertEquals(2801, decoded.newState.speed)
+        assertFalse(decoded.newState!!.inMiles)
+        assertEquals(2801, decoded.newState!!.speed)
     }
 
     @Test
@@ -683,14 +683,14 @@ class GotwayDecoderTest {
         val settingsFrame = buildSettingsFrame(totalDistance = 1_000_000, inMiles = true)
         val r1 = freshDecoder.decode(settingsFrame, state, config)
         assertTrue(r1 is DecodeResult.Success)
-        state = (r1 as DecodeResult.Success).data.newState
+        state = (r1 as DecodeResult.Success).data.newState!!
 
         // 2) Live data: wheel reports ~28 mph
         // Raw speed value 778 → 778 * 3.6 = 2800.8 → 2801 (1/100 mph from wheel)
         val liveFrame = buildLiveDataFrame(speed = 778)
         val r2 = freshDecoder.decode(liveFrame, state, config)
         assertTrue(r2 is DecodeResult.Success)
-        state = (r2 as DecodeResult.Success).data.newState
+        state = (r2 as DecodeResult.Success).data.newState!!
 
         // 3) Display layer: speedMph should be ~28 mph (not 17.4 mph)
         assertEquals(28.0, state.speedMph, 0.5)
@@ -721,7 +721,7 @@ class GotwayDecoderTest {
         val result = freshDecoder.decode(frame, WheelState(), config)
 
         assertTrue(result is DecodeResult.Success)
-        assertEquals(0, (result as DecodeResult.Success).data.newState.pedalsMode,
+        assertEquals(0, (result as DecodeResult.Success).data.newState!!.pedalsMode,
             "Raw 2 → decoded 0 (Hard = Begode 'Strong')")
     }
 
@@ -734,7 +734,7 @@ class GotwayDecoderTest {
         val result = freshDecoder.decode(frame, WheelState(), config)
 
         assertTrue(result is DecodeResult.Success)
-        assertEquals(1, (result as DecodeResult.Success).data.newState.speedAlarms,
+        assertEquals(1, (result as DecodeResult.Success).data.newState!!.speedAlarms,
             "1 = Turn off level 2 alarm")
     }
 
@@ -747,7 +747,7 @@ class GotwayDecoderTest {
         val result = freshDecoder.decode(frame, WheelState(), config)
 
         assertTrue(result is DecodeResult.Success)
-        assertEquals(2, (result as DecodeResult.Success).data.newState.rollAngle, "2 = High")
+        assertEquals(2, (result as DecodeResult.Success).data.newState!!.rollAngle, "2 = High")
     }
 
     @Test
@@ -759,7 +759,7 @@ class GotwayDecoderTest {
         val result = freshDecoder.decode(frame, WheelState(), config)
 
         assertTrue(result is DecodeResult.Success)
-        assertEquals(0, (result as DecodeResult.Success).data.newState.tiltBackSpeed, "0 = Turn off")
+        assertEquals(0, (result as DecodeResult.Success).data.newState!!.tiltBackSpeed, "0 = Turn off")
     }
 
     @Test
@@ -771,7 +771,7 @@ class GotwayDecoderTest {
         val result = freshDecoder.decode(frame, WheelState(), config)
 
         assertTrue(result is DecodeResult.Success)
-        assertEquals(0, (result as DecodeResult.Success).data.newState.ledMode, "0 = LED0")
+        assertEquals(0, (result as DecodeResult.Success).data.newState!!.ledMode, "0 = LED0")
     }
 
     @Test
@@ -790,7 +790,7 @@ class GotwayDecoderTest {
         val result = freshDecoder.decode(frame, WheelState(), config)
 
         assertTrue(result is DecodeResult.Success)
-        val state = (result as DecodeResult.Success).data.newState
+        val state = (result as DecodeResult.Success).data.newState!!
         assertEquals(0, state.pedalsMode)
         assertEquals(1, state.speedAlarms)
         assertEquals(2, state.rollAngle)
@@ -808,7 +808,7 @@ class GotwayDecoderTest {
         val result = freshDecoder.decode(frame, WheelState(), config)
 
         assertTrue(result is DecodeResult.Success)
-        assertEquals(0, (result as DecodeResult.Success).data.newState.tiltBackSpeed,
+        assertEquals(0, (result as DecodeResult.Success).data.newState!!.tiltBackSpeed,
             ">=100 clamps to 0 (off)")
     }
 
@@ -949,7 +949,7 @@ class GotwayDecoderTest {
         val result = freshDecoder.decode(frame, WheelState(), config)
 
         assertTrue(result is DecodeResult.Success)
-        assertEquals(-1, (result as DecodeResult.Success).data.newState.cutoutAngle,
+        assertEquals(-1, (result as DecodeResult.Success).data.newState!!.cutoutAngle,
             "0xFF frame should not set cutoutAngle — cutout angle is read from FRAME_07")
     }
 
@@ -1017,7 +1017,7 @@ class GotwayDecoderTest {
         val fwData = "GW1.23".encodeToByteArray()
         var state = WheelState()
         val r1 = freshDecoder.decode(fwData, state, config)
-        if (r1 is DecodeResult.Success) state = r1.data.newState
+        if (r1 is DecodeResult.Success) state = r1.data.newState!!
 
         // Send live data frame with non-zero voltage
         val liveFrame = buildLiveDataFrame(voltage = 6000)
@@ -1033,7 +1033,7 @@ class GotwayDecoderTest {
         val fwData = "GW1.23".encodeToByteArray()
         var state = WheelState()
         val r1 = freshDecoder.decode(fwData, state, config)
-        if (r1 is DecodeResult.Success) state = r1.data.newState
+        if (r1 is DecodeResult.Success) state = r1.data.newState!!
         val liveFrame = buildLiveDataFrame(voltage = 6000)
         freshDecoder.decode(liveFrame, state, config)
         assertTrue(freshDecoder.isReady())
@@ -1050,7 +1050,7 @@ class GotwayDecoderTest {
         val fwData = "GW1.23".encodeToByteArray()
         var state = WheelState()
         val r1 = freshDecoder.decode(fwData, state, config)
-        if (r1 is DecodeResult.Success) state = r1.data.newState
+        if (r1 is DecodeResult.Success) state = r1.data.newState!!
 
         // Send only an extended frame (0x01) with BMS voltage — no frame 0x00
         val extFrame = buildExtendedFrame(batVoltage = 6700)
@@ -1074,7 +1074,7 @@ class GotwayDecoderTest {
         val liveFrame = buildLiveDataFrame(voltage = 6000)
         val result = freshDecoder.decode(liveFrame, WheelState(), config)
         assertTrue(result is DecodeResult.Success)
-        assertEquals(6000, (result as DecodeResult.Success).data.newState.voltage)
+        assertEquals(6000, (result as DecodeResult.Success).data.newState!!.voltage)
     }
 
     @Test
@@ -1087,7 +1087,7 @@ class GotwayDecoderTest {
         val liveFrame = buildLiveDataFrame(voltage = 6000)
         val r1 = freshDecoder.decode(liveFrame, state, config)
         assertTrue(r1 is DecodeResult.Success)
-        state = (r1 as DecodeResult.Success).data.newState
+        state = (r1 as DecodeResult.Success).data.newState!!
         assertEquals(6000, state.voltage)
 
         // Now frame 0x01 arrives with true voltage 6700 (stored as batVoltage * 10)
@@ -1095,7 +1095,7 @@ class GotwayDecoderTest {
         val r2 = freshDecoder.decode(extFrame, state, config)
         assertTrue(r2 is DecodeResult.Success)
         // Extended frame stores voltage as batVoltage * 10
-        assertEquals(67000, (r2 as DecodeResult.Success).data.newState.voltage)
+        assertEquals(67000, (r2 as DecodeResult.Success).data.newState!!.voltage)
     }
 
     @Test
@@ -1109,20 +1109,20 @@ class GotwayDecoderTest {
         val liveFrame1 = buildLiveDataFrame(voltage = 6000)
         val r1 = freshDecoder.decode(liveFrame1, state, config)
         assertTrue(r1 is DecodeResult.Success)
-        state = (r1 as DecodeResult.Success).data.newState
+        state = (r1 as DecodeResult.Success).data.newState!!
 
         // 2) Frame 0x01 — true voltage override
         val extFrame = buildExtendedFrame(batVoltage = 6700)
         val r2 = freshDecoder.decode(extFrame, state, config)
         assertTrue(r2 is DecodeResult.Success)
-        state = (r2 as DecodeResult.Success).data.newState
+        state = (r2 as DecodeResult.Success).data.newState!!
         assertEquals(67000, state.voltage)
 
         // 3) Another frame 0x00 with different voltage — should NOT overwrite
         val liveFrame2 = buildLiveDataFrame(voltage = 5900)
         val r3 = freshDecoder.decode(liveFrame2, state, config)
         assertTrue(r3 is DecodeResult.Success)
-        assertEquals(67000, (r3 as DecodeResult.Success).data.newState.voltage,
+        assertEquals(67000, (r3 as DecodeResult.Success).data.newState!!.voltage,
             "Frame 0x00 should not overwrite after 0x01")
     }
 
@@ -1138,7 +1138,7 @@ class GotwayDecoderTest {
         var state = WheelState()
         val r1 = freshDecoder.decode(settingsFrame, state, config)
         assertTrue(r1 is DecodeResult.Success)
-        state = (r1 as DecodeResult.Success).data.newState
+        state = (r1 as DecodeResult.Success).data.newState!!
 
         // Live data with distance=1000
         val liveFrame = buildLiveDataFrame(distance = 1000)
@@ -1146,7 +1146,7 @@ class GotwayDecoderTest {
         assertTrue(r2 is DecodeResult.Success)
 
         // Should stay as-is when not in miles mode
-        assertEquals(1000L, (r2 as DecodeResult.Success).data.newState.wheelDistance)
+        assertEquals(1000L, (r2 as DecodeResult.Success).data.newState!!.wheelDistance)
     }
 
     @Test
@@ -1159,7 +1159,7 @@ class GotwayDecoderTest {
         var state = WheelState()
         val r1 = freshDecoder.decode(settingsFrame, state, config)
         assertTrue(r1 is DecodeResult.Success)
-        state = (r1 as DecodeResult.Success).data.newState
+        state = (r1 as DecodeResult.Success).data.newState!!
         assertTrue(state.inMiles)
 
         // Live data with speed=0 and distance=0
@@ -1168,8 +1168,8 @@ class GotwayDecoderTest {
         assertTrue(r2 is DecodeResult.Success)
         val decoded2 = (r2 as DecodeResult.Success).data
 
-        assertEquals(0, decoded2.newState.speed, "Zero speed should stay zero regardless of inMiles")
-        assertEquals(0L, decoded2.newState.wheelDistance, "Zero distance should stay zero regardless of inMiles")
+        assertEquals(0, decoded2.newState!!.speed, "Zero speed should stay zero regardless of inMiles")
+        assertEquals(0L, decoded2.newState!!.wheelDistance, "Zero distance should stay zero regardless of inMiles")
     }
 
     @Test
@@ -1182,13 +1182,13 @@ class GotwayDecoderTest {
         var state = WheelState()
         val r1 = freshDecoder.decode(settingsFrame, state, config)
         assertTrue(r1 is DecodeResult.Success)
-        state = (r1 as DecodeResult.Success).data.newState
+        state = (r1 as DecodeResult.Success).data.newState!!
 
         // First live frame
         val liveFrame1 = buildLiveDataFrame(speed = 778, distance = 1000)
         val r2 = freshDecoder.decode(liveFrame1, state, config)
         assertTrue(r2 is DecodeResult.Success)
-        state = (r2 as DecodeResult.Success).data.newState
+        state = (r2 as DecodeResult.Success).data.newState!!
         val speed1 = state.speed
         val dist1 = state.wheelDistance
 
@@ -1197,8 +1197,8 @@ class GotwayDecoderTest {
         val r3 = freshDecoder.decode(liveFrame2, state, config)
         assertTrue(r3 is DecodeResult.Success)
         val decoded3 = (r3 as DecodeResult.Success).data
-        val speed2 = decoded3.newState.speed
-        val dist2 = decoded3.newState.wheelDistance
+        val speed2 = decoded3.newState!!.speed
+        val dist2 = decoded3.newState!!.wheelDistance
 
         assertEquals(speed1, speed2, "Both frames should normalize speed identically")
         assertEquals(dist1, dist2, "Both frames should normalize distance identically")
@@ -1218,7 +1218,7 @@ class GotwayDecoderTest {
         var state = WheelState()
         val r1 = freshDecoder.decode(settingsFrame, state, ratioConfig)
         assertTrue(r1 is DecodeResult.Success)
-        state = (r1 as DecodeResult.Success).data.newState
+        state = (r1 as DecodeResult.Success).data.newState!!
 
         // Live data: raw speed=778, distance=1000
         val liveFrame = buildLiveDataFrame(speed = 778, distance = 1000)
@@ -1231,12 +1231,12 @@ class GotwayDecoderTest {
         val rawSpeed = (778 * 3.6).roundToInt()    // 2801
         val afterRatio = (rawSpeed * 0.875).roundToInt()  // 2451
         val afterMiles = (afterRatio / ByteUtils.KM_TO_MILES_MULTIPLIER).roundToInt()  // 3945
-        assertEquals(afterMiles, decoded2.newState.speed)
+        assertEquals(afterMiles, decoded2.newState!!.speed)
 
         // Distance: 1000 * 0.875 = 875 → round → 875 / 0.62137 = 1408.4 → round to long → 1408
         val distAfterRatio = (1000 * 0.875).roundToInt().toLong()  // 875
         val distAfterMiles = (distAfterRatio / ByteUtils.KM_TO_MILES_MULTIPLIER).roundToLong()  // 1408
-        assertEquals(distAfterMiles, decoded2.newState.wheelDistance)
+        assertEquals(distAfterMiles, decoded2.newState!!.wheelDistance)
     }
 
     // ==================== Current/PWM Verification ====================
@@ -1268,8 +1268,8 @@ class GotwayDecoderTest {
         // gotwayNegative=0 (default): abs(phaseCurrent) = 500, abs(hwPwm) = 30000
         // calculatedPwm = 30000 / 10000.0 = 3.0
         // current = round(3.0 * 500) = 1500
-        assertEquals(500, decoded.newState.phaseCurrent)
-        assertEquals(1500, decoded.newState.current)
+        assertEquals(500, decoded.newState!!.phaseCurrent)
+        assertEquals(1500, decoded.newState!!.current)
     }
 
     @Test
@@ -1294,8 +1294,8 @@ class GotwayDecoderTest {
         val decoded = (result as DecodeResult.Success).data
 
         // hwPwm = abs(2500 * 10) = 25000 (gotwayNegative=0 takes abs)
-        assertEquals(25000, decoded.newState.output)
-        assertEquals(25000 / 10000.0, decoded.newState.calculatedPwm)
+        assertEquals(25000, decoded.newState!!.output)
+        assertEquals(25000 / 10000.0, decoded.newState!!.calculatedPwm)
     }
 
     // ==================== hasNewData OR Semantics (Intentional Difference) ====================
@@ -1320,7 +1320,7 @@ class GotwayDecoderTest {
         var state = WheelState()
         val r1 = freshDecoder.decode(settingsFrame, state, config)
         assertTrue(r1 is DecodeResult.Success)
-        state = (r1 as DecodeResult.Success).data.newState
+        state = (r1 as DecodeResult.Success).data.newState!!
 
         // Feed live data frame (hasNewData=true)
         val r2 = freshDecoder.decode(liveFrame, state, config)
@@ -1342,7 +1342,7 @@ class GotwayDecoderTest {
         val fwData = "BF1.23".encodeToByteArray()
         var state = WheelState()
         val r1 = freshDecoder.decode(fwData, state, config)
-        if (r1 is DecodeResult.Success) state = r1.data.newState
+        if (r1 is DecodeResult.Success) state = r1.data.newState!!
 
         // Build Alexovik frame 0x00 with battery current flag
         // byte 7 bit 0 = 1 means battery current is present at bytes 8-9
@@ -1355,7 +1355,7 @@ class GotwayDecoderTest {
         assertTrue(r2 is DecodeResult.Success)
 
         // Current should be the stored Alexovik battery current (-250)
-        assertEquals(-250, (r2 as DecodeResult.Success).data.newState.current,
+        assertEquals(-250, (r2 as DecodeResult.Success).data.newState!!.current,
             "Alexovik battery current should be stored in state")
     }
 
@@ -1365,7 +1365,7 @@ class GotwayDecoderTest {
         val fwData = "BF1.23".encodeToByteArray()
         var state = WheelState()
         val r1 = freshDecoder.decode(fwData, state, config)
-        if (r1 is DecodeResult.Success) state = r1.data.newState
+        if (r1 is DecodeResult.Success) state = r1.data.newState!!
 
         // Build Alexovik frame 0x00 WITHOUT battery current flag
         val frame = buildAlexovikLiveDataFrame(
@@ -1378,7 +1378,7 @@ class GotwayDecoderTest {
 
         // Should use calculated current (calculatedPwm * phaseCurrent), not alexovik battery current
         // With phaseCurrent=0, current should be 0
-        assertEquals(0, (r2 as DecodeResult.Success).data.newState.current,
+        assertEquals(0, (r2 as DecodeResult.Success).data.newState!!.current,
             "Without battery current flag, should use calculated current")
     }
 
@@ -1390,7 +1390,7 @@ class GotwayDecoderTest {
         var state = WheelState()
         val liveFrame = buildLiveDataFrame(voltage = 6000)
         val r1 = freshDecoder.decode(liveFrame, state, config)
-        if (r1 is DecodeResult.Success) state = r1.data.newState
+        if (r1 is DecodeResult.Success) state = r1.data.newState!!
 
         // Send first frame 0x01 with bmsCurrentVal = -50 (negative triggers bmsCurrent=true via bmsCurrentVal > 0 check)
         // Actually, bmsCurrent starts as false. Looking at the code:
@@ -1415,7 +1415,7 @@ class GotwayDecoderTest {
         val r2 = freshDecoder.decode(extFrame, state, config)
         assertTrue(r2 is DecodeResult.Success)
         // Current should remain from the live data frame's calculated value
-        assertEquals(state.current, (r2 as DecodeResult.Success).data.newState.current,
+        assertEquals(state.current, (r2 as DecodeResult.Success).data.newState!!.current,
             "Frame 0x01 should not overwrite current when bmsCurrent is false")
     }
 
@@ -1429,14 +1429,14 @@ class GotwayDecoderTest {
         var state = WheelState()
         val r1 = freshDecoder.decode(liveFrame, state, config)
         assertTrue(r1 is DecodeResult.Success)
-        state = (r1 as DecodeResult.Success).data.newState
+        state = (r1 as DecodeResult.Success).data.newState!!
         val originalCurrent = state.current
 
         // Frame 0x01 with bmsCurrent=false (default) should preserve current
         val extFrame = buildExtendedFrame(batVoltage = 6700)
         val r2 = freshDecoder.decode(extFrame, state, config)
         assertTrue(r2 is DecodeResult.Success)
-        assertEquals(originalCurrent, (r2 as DecodeResult.Success).data.newState.current,
+        assertEquals(originalCurrent, (r2 as DecodeResult.Success).data.newState!!.current,
             "Frame 0x01 should preserve current when bmsCurrent is false")
     }
 
@@ -1455,21 +1455,21 @@ class GotwayDecoderTest {
         val liveFrame1 = buildLiveDataFrame(voltage = 6000)
         val r1 = freshDecoder.decode(liveFrame1, state, cfg)
         assertTrue(r1 is DecodeResult.Success)
-        state = (r1 as DecodeResult.Success).data.newState
+        state = (r1 as DecodeResult.Success).data.newState!!
         assertEquals(6000, state.voltage)
 
         // Frame 0x01 sets trueVoltage=true and writes BMS voltage
         val extFrame = buildExtendedFrame(batVoltage = 6700)
         val r2 = freshDecoder.decode(extFrame, state, cfg)
         assertTrue(r2 is DecodeResult.Success)
-        state = (r2 as DecodeResult.Success).data.newState
+        state = (r2 as DecodeResult.Success).data.newState!!
         assertEquals(67000, state.voltage)
 
         // Subsequent frame 0x00 should NOT overwrite (trueVoltage && autoVoltage = true)
         val liveFrame2 = buildLiveDataFrame(voltage = 5900)
         val r3 = freshDecoder.decode(liveFrame2, state, cfg)
         assertTrue(r3 is DecodeResult.Success)
-        assertEquals(67000, (r3 as DecodeResult.Success).data.newState.voltage,
+        assertEquals(67000, (r3 as DecodeResult.Success).data.newState!!.voltage,
             "autoVoltage=true: frame 0x00 voltage should be blocked after frame 0x01")
     }
 
@@ -1483,13 +1483,13 @@ class GotwayDecoderTest {
         val liveFrame1 = buildLiveDataFrame(voltage = 6000)
         val r1 = freshDecoder.decode(liveFrame1, state, cfg)
         assertTrue(r1 is DecodeResult.Success)
-        state = (r1 as DecodeResult.Success).data.newState
+        state = (r1 as DecodeResult.Success).data.newState!!
 
         // Frame 0x01 — sets trueVoltage=true but autoVoltage=false
         val extFrame = buildExtendedFrame(batVoltage = 6700)
         val r2 = freshDecoder.decode(extFrame, state, cfg)
         assertTrue(r2 is DecodeResult.Success)
-        state = (r2 as DecodeResult.Success).data.newState
+        state = (r2 as DecodeResult.Success).data.newState!!
         // With autoVoltage=false, frame 0x01 should NOT write BMS voltage
         assertEquals(6000, state.voltage,
             "autoVoltage=false: frame 0x01 should NOT write BMS voltage")
@@ -1498,7 +1498,7 @@ class GotwayDecoderTest {
         val liveFrame2 = buildLiveDataFrame(voltage = 5900)
         val r3 = freshDecoder.decode(liveFrame2, state, cfg)
         assertTrue(r3 is DecodeResult.Success)
-        assertEquals(5900, (r3 as DecodeResult.Success).data.newState.voltage,
+        assertEquals(5900, (r3 as DecodeResult.Success).data.newState!!.voltage,
             "autoVoltage=false: frame 0x00 voltage should always be written")
     }
 
@@ -1512,14 +1512,14 @@ class GotwayDecoderTest {
         val liveFrame = buildLiveDataFrame(voltage = 6000)
         val r1 = freshDecoder.decode(liveFrame, state, cfg)
         assertTrue(r1 is DecodeResult.Success)
-        state = (r1 as DecodeResult.Success).data.newState
+        state = (r1 as DecodeResult.Success).data.newState!!
         assertEquals(6000, state.voltage)
 
         // Frame 0x01 with BMS voltage 6700 — should NOT write because autoVoltage=false
         val extFrame = buildExtendedFrame(batVoltage = 6700)
         val r2 = freshDecoder.decode(extFrame, state, cfg)
         assertTrue(r2 is DecodeResult.Success)
-        assertEquals(6000, (r2 as DecodeResult.Success).data.newState.voltage,
+        assertEquals(6000, (r2 as DecodeResult.Success).data.newState!!.voltage,
             "autoVoltage=false: BMS voltage should not be written")
     }
 
@@ -1533,13 +1533,13 @@ class GotwayDecoderTest {
         val liveFrame = buildLiveDataFrame(voltage = 6000)
         val r1 = freshDecoder.decode(liveFrame, state, cfg)
         assertTrue(r1 is DecodeResult.Success)
-        state = (r1 as DecodeResult.Success).data.newState
+        state = (r1 as DecodeResult.Success).data.newState!!
 
         // Frame 0x01 with BMS voltage 6700 — should write because autoVoltage=true
         val extFrame = buildExtendedFrame(batVoltage = 6700)
         val r2 = freshDecoder.decode(extFrame, state, cfg)
         assertTrue(r2 is DecodeResult.Success)
-        assertEquals(67000, (r2 as DecodeResult.Success).data.newState.voltage,
+        assertEquals(67000, (r2 as DecodeResult.Success).data.newState!!.voltage,
             "autoVoltage=true: BMS voltage should be written")
     }
 
@@ -1557,7 +1557,7 @@ class GotwayDecoderTest {
         var state = WheelState()
         val r1 = freshDecoder.decode(liveFrame, state, config)
         assertTrue(r1 is DecodeResult.Success)
-        state = (r1 as DecodeResult.Success).data.newState
+        state = (r1 as DecodeResult.Success).data.newState!!
 
         // First frame 0x01 - trueVoltage was false before this frame
         // hasNewData should be computed as: bmsCurrent(false) || (!trueCurrent(false) && trueVoltage(false)) = false
@@ -1576,12 +1576,12 @@ class GotwayDecoderTest {
         var state = WheelState()
         val liveFrame = buildLiveDataFrame(voltage = 6000)
         val r1 = freshDecoder.decode(liveFrame, state, config)
-        if (r1 is DecodeResult.Success) state = r1.data.newState
+        if (r1 is DecodeResult.Success) state = r1.data.newState!!
 
         // First frame 0x01 — sets trueVoltage=true
         val extFrame1 = buildExtendedFrame(batVoltage = 6700)
         val r2 = freshDecoder.decode(extFrame1, state, config)
-        if (r2 is DecodeResult.Success) state = r2.data.newState
+        if (r2 is DecodeResult.Success) state = r2.data.newState!!
 
         // Second frame 0x01 — trueVoltage is now true, trueCurrent still false
         // hasNewData = bmsCurrent(false) || (!trueCurrent(false) && trueVoltage(true)) = true
@@ -1600,7 +1600,7 @@ class GotwayDecoderTest {
         var state = WheelState()
         val liveFrame = buildLiveDataFrame(voltage = 6000)
         val r1 = freshDecoder.decode(liveFrame, state, config)
-        if (r1 is DecodeResult.Success) state = r1.data.newState
+        if (r1 is DecodeResult.Success) state = r1.data.newState!!
 
         // First frame 0x07 — trueCurrent was false before this frame
         // hasNewData = trueCurrent(false) && !bmsCurrent(false) = false
@@ -1619,12 +1619,12 @@ class GotwayDecoderTest {
         var state = WheelState()
         val liveFrame = buildLiveDataFrame(voltage = 6000)
         val r1 = freshDecoder.decode(liveFrame, state, config)
-        if (r1 is DecodeResult.Success) state = r1.data.newState
+        if (r1 is DecodeResult.Success) state = r1.data.newState!!
 
         // First frame 0x07 — sets trueCurrent=true
         val currentFrame1 = buildCurrentTempFrame(batteryCurrent = 100, motorTemp = 40, hwPwm = 0)
         val r2 = freshDecoder.decode(currentFrame1, state, config)
-        if (r2 is DecodeResult.Success) state = r2.data.newState
+        if (r2 is DecodeResult.Success) state = r2.data.newState!!
 
         // Second frame 0x07 — trueCurrent is now true, bmsCurrent still false
         // hasNewData = trueCurrent(true) && !bmsCurrent(false) = true
@@ -1649,7 +1649,7 @@ class GotwayDecoderTest {
         val result = freshDecoder.decode(frame, WheelState(), config)
 
         assertTrue(result is DecodeResult.Success)
-        assertEquals(45, (result as DecodeResult.Success).data.newState.cutoutAngle)
+        assertEquals(45, (result as DecodeResult.Success).data.newState!!.cutoutAngle)
     }
 
     @Test
@@ -1664,7 +1664,7 @@ class GotwayDecoderTest {
         val result = freshDecoder.decode(frame, WheelState(), config)
 
         assertTrue(result is DecodeResult.Success)
-        assertEquals(90, (result as DecodeResult.Success).data.newState.cutoutAngle)
+        assertEquals(90, (result as DecodeResult.Success).data.newState!!.cutoutAngle)
     }
 
     @Test
@@ -1676,7 +1676,7 @@ class GotwayDecoderTest {
         val result = freshDecoder.decode(frame, WheelState(), config)
 
         assertTrue(result is DecodeResult.Success)
-        assertEquals(60, (result as DecodeResult.Success).data.newState.cutoutAngle,
+        assertEquals(60, (result as DecodeResult.Success).data.newState!!.cutoutAngle,
             "step 3 = 3*5 + 45 = 60°")
     }
 
@@ -1689,7 +1689,7 @@ class GotwayDecoderTest {
         val result = freshDecoder.decode(frame, WheelState(), config)
 
         assertTrue(result is DecodeResult.Success)
-        assertEquals(-1, (result as DecodeResult.Success).data.newState.cutoutAngle,
+        assertEquals(-1, (result as DecodeResult.Success).data.newState!!.cutoutAngle,
             "Out-of-range step should not set cutoutAngle")
     }
 
@@ -1704,7 +1704,7 @@ class GotwayDecoderTest {
         val result = freshDecoder.decode(frame, WheelState(), config)
 
         assertTrue(result is DecodeResult.Success)
-        assertEquals(3, (result as DecodeResult.Success).data.newState.beeperVolume)
+        assertEquals(3, (result as DecodeResult.Success).data.newState!!.beeperVolume)
     }
 
     @Test
@@ -1717,7 +1717,7 @@ class GotwayDecoderTest {
         val result = freshDecoder.decode(frame, WheelState(), config)
 
         assertTrue(result is DecodeResult.Success)
-        assertEquals(7, (result as DecodeResult.Success).data.newState.beeperVolume)
+        assertEquals(7, (result as DecodeResult.Success).data.newState!!.beeperVolume)
     }
 
     @Test
@@ -1729,7 +1729,7 @@ class GotwayDecoderTest {
         val result = freshDecoder.decode(frame, WheelState(), config)
 
         assertTrue(result is DecodeResult.Success)
-        assertEquals(-1, (result as DecodeResult.Success).data.newState.beeperVolume)
+        assertEquals(-1, (result as DecodeResult.Success).data.newState!!.beeperVolume)
     }
 
     // ==================== BMS Cell Accumulation (Frame 0x02/0x03) ====================
@@ -1773,7 +1773,7 @@ class GotwayDecoderTest {
         assertTrue(result is DecodeResult.Success)
         val decoded = (result as DecodeResult.Success).data
 
-        val snapshot = decoded.newState.bms1
+        val snapshot = decoded.newState!!.bms1
         assertNotNull(snapshot)
         assertEquals(4.200, snapshot.cells[0], 0.001)
         assertEquals(4.190, snapshot.cells[1], 0.001)
@@ -1794,7 +1794,7 @@ class GotwayDecoderTest {
         assertTrue(result is DecodeResult.Success)
         val decoded = (result as DecodeResult.Success).data
 
-        val snapshot = decoded.newState.bms2
+        val snapshot = decoded.newState!!.bms2
         assertNotNull(snapshot)
         assertEquals(4.100, snapshot.cells[0], 0.001)
         assertEquals(4.030, snapshot.cells[7], 0.001)
@@ -1817,7 +1817,7 @@ class GotwayDecoderTest {
         val result = freshDecoder.decode(liveFrame, WheelState(), config)
         assertTrue(result is DecodeResult.Success)
 
-        val snapshot = (result as DecodeResult.Success).data.newState.bms1!!
+        val snapshot = (result as DecodeResult.Success).data.newState!!.bms1!!
         assertEquals(4.200, snapshot.cells[0], 0.001)
         assertEquals(4.200, snapshot.cells[7], 0.001)
         assertEquals(4.100, snapshot.cells[8], 0.001)
@@ -1837,7 +1837,7 @@ class GotwayDecoderTest {
         val result = freshDecoder.decode(liveFrame, WheelState(), config)
         assertTrue(result is DecodeResult.Success)
 
-        val snapshot = (result as DecodeResult.Success).data.newState.bms1!!
+        val snapshot = (result as DecodeResult.Success).data.newState!!.bms1!!
         assertEquals(4.200, snapshot.maxCell, 0.001)
         assertEquals(3.850, snapshot.minCell, 0.001)
         assertEquals(0.350, snapshot.cellDiff, 0.001)
@@ -1959,7 +1959,7 @@ class GotwayDecoderTest {
         var state = WheelState()
         val result = vetDecoder.decode(frame, state, config)
         assertTrue(result is DecodeResult.Success, "Veteran frame should decode for mVer=$mVer")
-        return (result as DecodeResult.Success).data.newState
+        return (result as DecodeResult.Success).data.newState!!
     }
 
     /**

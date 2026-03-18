@@ -252,44 +252,70 @@ data class WheelState(
         torque = torque, motorPower = motorPower, cpuTemp = cpuTemp, imuTemp = imuTemp,
         cpuLoad = cpuLoad, hwFaults = hwFaults, speedLimit = speedLimit, currentLimit = currentLimit,
         fanStatus = fanStatus, chargingStatus = chargingStatus, wheelAlarm = wheelAlarm,
-        faultCode = faultCode, alert = alert, timestamp = timestamp
+        error = error, faultCode = faultCode, alert = alert, timestamp = timestamp
     )
 
-    /** Extract settings fields (rare updates, only when wheel reports new settings). */
-    fun toSettingsState() = WheelSettingsState(
-        inMiles = inMiles, pedalsMode = pedalsMode, speedAlarms = speedAlarms,
-        rollAngle = rollAngle, tiltBackSpeed = tiltBackSpeed, lightMode = lightMode,
-        ledMode = ledMode, cutoutAngle = cutoutAngle, beeperVolume = beeperVolume,
-        ksAlarm1Speed = ksAlarm1Speed, ksAlarm2Speed = ksAlarm2Speed,
-        ksAlarm3Speed = ksAlarm3Speed, ksTiltbackSpeed = ksTiltbackSpeed,
-        weakMagnetism = weakMagnetism, extendedRollAngle = extendedRollAngle,
-        powerAlarm = powerAlarm, plateProtection = plateProtection,
-        maxSpeed = maxSpeed, pedalTilt = pedalTilt, pedalSensitivity = pedalSensitivity,
-        rideMode = rideMode, fancierMode = fancierMode, speakerVolume = speakerVolume,
-        mute = mute, handleButton = handleButton, drl = drl,
-        lightBrightness = lightBrightness, transportMode = transportMode,
-        goHomeMode = goHomeMode, fanQuiet = fanQuiet,
-        bermAngleMode = bermAngleMode, bermAngle = bermAngle,
-        turningSensitivity = turningSensitivity, onePedalMode = onePedalMode,
-        speedingBrakingMode = speedingBrakingMode, speedingBrakingAngle = speedingBrakingAngle,
-        soundWave = soundWave, soundWaveSensitivity = soundWaveSensitivity,
-        safeSpeedLimit = safeSpeedLimit, backwardOverspeedAlert = backwardOverspeedAlert,
-        tailLightMode = tailLightMode, turnSignalMode = turnSignalMode,
-        logoLightBrightness = logoLightBrightness, autoHeadlight = autoHeadlight,
-        lightEffect = lightEffect, lightEffectMode = lightEffectMode,
-        twoBatteryMode = twoBatteryMode, lowBatterySafeMode = lowBatterySafeMode,
-        spinKill = spinKill, cruise = cruise, loadDetect = loadDetect,
-        standbyTime = standbyTime, chargeLimit = chargeLimit,
-        highSpeedMode = highSpeedMode, lowVoltageMode = lowVoltageMode,
-        keyTone = keyTone, lockState = lockState,
-        alertSpeed = alertSpeed, autoOffTime = autoOffTime,
-        screenBacklight = screenBacklight, stopSpeed = stopSpeed,
-        pwmLimit = pwmLimit, voltageCorrection = voltageCorrection,
-        maxChargeVoltage = maxChargeVoltage, brakePressureAlarm = brakePressureAlarm,
-        lateralCutoffAngle = lateralCutoffAngle,
-        dynamicAssist = dynamicAssist, accelerationLimit = accelerationLimit,
-        chargeVoltageBase = chargeVoltageBase, wheelDisplayUnit = wheelDisplayUnit
-    )
+    /** Extract settings fields as a type-safe sealed class per wheel type. */
+    fun toWheelSettings(): WheelSettings = when (wheelType) {
+        WheelType.GOTWAY, WheelType.GOTWAY_VIRTUAL -> WheelSettings.Begode(
+            pedalsMode = pedalsMode, speedAlarms = speedAlarms, rollAngle = rollAngle,
+            tiltBackSpeed = tiltBackSpeed, lightMode = lightMode, ledMode = ledMode,
+            cutoutAngle = cutoutAngle, beeperVolume = beeperVolume, inMiles = inMiles,
+            weakMagnetism = weakMagnetism, extendedRollAngle = extendedRollAngle,
+            powerAlarm = powerAlarm, plateProtection = plateProtection
+        )
+        WheelType.KINGSONG -> WheelSettings.Kingsong(
+            pedalsMode = pedalsMode, lightMode = lightMode, ledMode = ledMode,
+            mute = mute, handleButton = handleButton,
+            ksAlarm1Speed = ksAlarm1Speed, ksAlarm2Speed = ksAlarm2Speed,
+            ksAlarm3Speed = ksAlarm3Speed, ksTiltbackSpeed = ksTiltbackSpeed,
+            autoOffTime = autoOffTime, lockState = lockState
+        )
+        WheelType.VETERAN -> WheelSettings.Veteran(
+            pedalsMode = pedalsMode, lightMode = lightMode, tiltBackSpeed = tiltBackSpeed,
+            alertSpeed = alertSpeed, autoOffTime = autoOffTime, lockState = lockState,
+            highSpeedMode = highSpeedMode, lowVoltageMode = lowVoltageMode,
+            voltageCorrection = voltageCorrection, transportMode = transportMode,
+            keyTone = keyTone, pedalSensitivity = pedalSensitivity, stopSpeed = stopSpeed,
+            pwmLimit = pwmLimit, screenBacklight = screenBacklight,
+            maxChargeVoltage = maxChargeVoltage, brakePressureAlarm = brakePressureAlarm,
+            lateralCutoffAngle = lateralCutoffAngle, dynamicAssist = dynamicAssist,
+            accelerationLimit = accelerationLimit, chargeVoltageBase = chargeVoltageBase,
+            wheelDisplayUnit = wheelDisplayUnit, batteryTempMode = batteryTempMode
+        )
+        WheelType.LEAPERKIM -> WheelSettings.LeaperkimCan(
+            pedalTilt = pedalTilt, lightMode = lightMode, pedalSensitivity = pedalSensitivity,
+            rideMode = rideMode, handleButton = handleButton, ledMode = ledMode,
+            transportMode = transportMode
+        )
+        WheelType.INMOTION_V2 -> WheelSettings.InMotionV2(
+            pedalsMode = pedalsMode, maxSpeed = maxSpeed, pedalTilt = pedalTilt,
+            pedalSensitivity = pedalSensitivity, rideMode = rideMode, fancierMode = fancierMode,
+            speakerVolume = speakerVolume, mute = mute, handleButton = handleButton,
+            drl = drl, lightBrightness = lightBrightness, transportMode = transportMode,
+            goHomeMode = goHomeMode, fanQuiet = fanQuiet, lightMode = lightMode,
+            ledMode = ledMode, cutoutAngle = cutoutAngle,
+            bermAngleMode = bermAngleMode, bermAngle = bermAngle,
+            turningSensitivity = turningSensitivity, onePedalMode = onePedalMode,
+            speedingBrakingMode = speedingBrakingMode, speedingBrakingAngle = speedingBrakingAngle,
+            soundWave = soundWave, soundWaveSensitivity = soundWaveSensitivity,
+            safeSpeedLimit = safeSpeedLimit, backwardOverspeedAlert = backwardOverspeedAlert,
+            tailLightMode = tailLightMode, turnSignalMode = turnSignalMode,
+            logoLightBrightness = logoLightBrightness, autoHeadlight = autoHeadlight,
+            lightEffect = lightEffect, lightEffectMode = lightEffectMode,
+            twoBatteryMode = twoBatteryMode, lowBatterySafeMode = lowBatterySafeMode,
+            spinKill = spinKill, cruise = cruise, loadDetect = loadDetect,
+            standbyTime = standbyTime, chargeLimit = chargeLimit
+        )
+        WheelType.INMOTION -> WheelSettings.InMotionV1(lightMode = lightMode)
+        WheelType.NINEBOT -> WheelSettings.Ninebot
+        WheelType.NINEBOT_Z -> WheelSettings.NinebotZ(
+            lightMode = lightMode, drl = drl, ledMode = ledMode,
+            handleButton = handleButton, pedalsMode = pedalsMode,
+            pedalSensitivity = pedalSensitivity, speakerVolume = speakerVolume
+        )
+        WheelType.Unknown -> WheelSettings.None
+    }
 
     /** Extract identity fields (set once per connection). */
     fun toIdentity() = WheelIdentity(
@@ -306,5 +332,88 @@ data class WheelState(
 
         /** Creates a default empty WheelState. Useful from Swift/ObjC where default-parameter constructors aren't available. */
         fun empty(): WheelState = WheelState()
+
+        /**
+         * Compose a [WheelState] from domain sub-states.
+         * Used by [WcmState.wheelState] to provide decoder input and legacy consumer access.
+         */
+        fun compose(
+            telemetry: TelemetryState,
+            identity: WheelIdentity,
+            bms: BmsState,
+            settings: WheelSettings
+        ): WheelState = WheelState(
+            // Telemetry (35 fields)
+            speed = telemetry.speed, voltage = telemetry.voltage,
+            current = telemetry.current, phaseCurrent = telemetry.phaseCurrent,
+            power = telemetry.power, temperature = telemetry.temperature,
+            temperature2 = telemetry.temperature2, batteryLevel = telemetry.batteryLevel,
+            bmsSoc = telemetry.bmsSoc, totalDistance = telemetry.totalDistance,
+            totalEnergyWh = telemetry.totalEnergyWh, wheelDistance = telemetry.wheelDistance,
+            topSpeed = telemetry.topSpeed, rideTime = telemetry.rideTime,
+            totalOnTime = telemetry.totalOnTime, output = telemetry.output,
+            calculatedPwm = telemetry.calculatedPwm, angle = telemetry.angle,
+            roll = telemetry.roll, torque = telemetry.torque,
+            motorPower = telemetry.motorPower, cpuTemp = telemetry.cpuTemp,
+            imuTemp = telemetry.imuTemp, cpuLoad = telemetry.cpuLoad,
+            hwFaults = telemetry.hwFaults, speedLimit = telemetry.speedLimit,
+            currentLimit = telemetry.currentLimit, fanStatus = telemetry.fanStatus,
+            chargingStatus = telemetry.chargingStatus, wheelAlarm = telemetry.wheelAlarm,
+            error = telemetry.error, faultCode = telemetry.faultCode,
+            alert = telemetry.alert, timestamp = telemetry.timestamp,
+            // Identity (7 fields)
+            wheelType = identity.wheelType, name = identity.name,
+            model = identity.model, modeStr = identity.modeStr,
+            version = identity.version, serialNumber = identity.serialNumber,
+            btName = identity.btName,
+            // BMS (2 fields)
+            bms1 = bms.bms1, bms2 = bms.bms2,
+            // Settings (via extension properties)
+            inMiles = settings.inMiles, pedalsMode = settings.pedalsMode,
+            speedAlarms = settings.speedAlarms, rollAngle = settings.rollAngle,
+            tiltBackSpeed = settings.tiltBackSpeed, lightMode = settings.lightMode,
+            ledMode = settings.ledMode, cutoutAngle = settings.cutoutAngle,
+            beeperVolume = settings.beeperVolume,
+            ksAlarm1Speed = settings.ksAlarm1Speed, ksAlarm2Speed = settings.ksAlarm2Speed,
+            ksAlarm3Speed = settings.ksAlarm3Speed, ksTiltbackSpeed = settings.ksTiltbackSpeed,
+            weakMagnetism = settings.weakMagnetism, extendedRollAngle = settings.extendedRollAngle,
+            powerAlarm = settings.powerAlarm, plateProtection = settings.plateProtection,
+            maxSpeed = settings.maxSpeed, pedalTilt = settings.pedalTilt,
+            pedalSensitivity = settings.pedalSensitivity, rideMode = settings.rideMode,
+            fancierMode = settings.fancierMode, speakerVolume = settings.speakerVolume,
+            mute = settings.mute, handleButton = settings.handleButton,
+            drl = settings.drl, lightBrightness = settings.lightBrightness,
+            transportMode = settings.transportMode, goHomeMode = settings.goHomeMode,
+            fanQuiet = settings.fanQuiet,
+            bermAngleMode = settings.bermAngleMode, bermAngle = settings.bermAngle,
+            turningSensitivity = settings.turningSensitivity, onePedalMode = settings.onePedalMode,
+            speedingBrakingMode = settings.speedingBrakingMode,
+            speedingBrakingAngle = settings.speedingBrakingAngle,
+            soundWave = settings.soundWave, soundWaveSensitivity = settings.soundWaveSensitivity,
+            safeSpeedLimit = settings.safeSpeedLimit,
+            backwardOverspeedAlert = settings.backwardOverspeedAlert,
+            tailLightMode = settings.tailLightMode, turnSignalMode = settings.turnSignalMode,
+            logoLightBrightness = settings.logoLightBrightness,
+            autoHeadlight = settings.autoHeadlight, lightEffect = settings.lightEffect,
+            lightEffectMode = settings.lightEffectMode,
+            twoBatteryMode = settings.twoBatteryMode,
+            lowBatterySafeMode = settings.lowBatterySafeMode,
+            spinKill = settings.spinKill, cruise = settings.cruise,
+            loadDetect = settings.loadDetect, standbyTime = settings.standbyTime,
+            chargeLimit = settings.chargeLimit,
+            highSpeedMode = settings.highSpeedMode, lowVoltageMode = settings.lowVoltageMode,
+            keyTone = settings.keyTone, lockState = settings.lockState,
+            alertSpeed = settings.alertSpeed, autoOffTime = settings.autoOffTime,
+            screenBacklight = settings.screenBacklight, stopSpeed = settings.stopSpeed,
+            pwmLimit = settings.pwmLimit, voltageCorrection = settings.voltageCorrection,
+            maxChargeVoltage = settings.maxChargeVoltage,
+            brakePressureAlarm = settings.brakePressureAlarm,
+            lateralCutoffAngle = settings.lateralCutoffAngle,
+            dynamicAssist = settings.dynamicAssist,
+            accelerationLimit = settings.accelerationLimit,
+            chargeVoltageBase = settings.chargeVoltageBase,
+            wheelDisplayUnit = settings.wheelDisplayUnit,
+            batteryTempMode = settings.batteryTempMode
+        )
     }
 }

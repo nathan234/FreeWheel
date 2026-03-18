@@ -1,7 +1,11 @@
 package org.freewheel.core.service
 
 import org.freewheel.core.ble.WheelConnectionInfo
+import org.freewheel.core.domain.BmsState
 import org.freewheel.core.domain.CapabilitySet
+import org.freewheel.core.domain.TelemetryState
+import org.freewheel.core.domain.WheelIdentity
+import org.freewheel.core.domain.WheelSettings
 import org.freewheel.core.domain.WheelState
 import org.freewheel.core.logging.BlePacketDirection
 import org.freewheel.core.protocol.DecoderConfig
@@ -11,12 +15,18 @@ import org.freewheel.core.protocol.WheelDecoder
 /**
  * Single source of truth for all [WheelConnectionManager] state.
  *
- * Replaces the previous 7 MutableStateFlows + var fields with one immutable
- * data class. Sub-states (telemetry, settings, identity, BMS) are derived
- * automatically via `map().distinctUntilChanged().stateIn()`.
+ * Primary domain state is held as separate types ([telemetry], [identity],
+ * [bms], [settings]) so only the changed domain is copied per BLE frame.
+ * [wheelState] is a computed property that composes all domains into a
+ * single [WheelState] for legacy consumers and decoder input.
  */
 data class WcmState(
-    val wheelState: WheelState = WheelState(),
+    // Primary domain state
+    val telemetry: TelemetryState = TelemetryState(),
+    val identity: WheelIdentity = WheelIdentity(),
+    val bms: BmsState = BmsState(),
+    val settings: WheelSettings = WheelSettings.None,
+    // Connection / decoder metadata
     val connectionState: ConnectionState = ConnectionState.Disconnected,
     val capabilities: CapabilitySet = CapabilitySet(),
     val consecutiveDecodeErrors: Int = 0,
@@ -25,7 +35,10 @@ data class WcmState(
     val decoder: WheelDecoder? = null,
     val decoderConfig: DecoderConfig = DecoderConfig(),
     val connectionInfo: WheelConnectionInfo? = null,
-)
+) {
+    /** Compose [WheelState] for decoder input and legacy consumers. */
+    val wheelState: WheelState get() = WheelState.compose(telemetry, identity, bms, settings)
+}
 
 /**
  * Side effects produced by the reducer. Executed after the state transition.

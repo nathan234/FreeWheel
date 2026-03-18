@@ -40,6 +40,7 @@ data class TelemetryState(
     val fanStatus: Int = 0,
     val chargingStatus: Int = 0,
     val wheelAlarm: Boolean = false,
+    val error: String = "",
     val faultCode: Int = 0,
     val alert: String = "",
     val timestamp: Long = 0

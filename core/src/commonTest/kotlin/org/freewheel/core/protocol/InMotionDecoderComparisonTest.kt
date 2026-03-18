@@ -52,7 +52,7 @@ class InMotionDecoderComparisonTest {
         // Feed slow info packets
         for (hex in slowPackets) {
             val result = decoder.decode(hex.hexToByteArray(), state, defaultConfig)
-            if (result is DecodeResult.Success) state = result.data.newState
+            if (result is DecodeResult.Success) state = result.data.newState!!
         }
 
         // Verify slow info results (model/serial/version)
@@ -65,7 +65,7 @@ class InMotionDecoderComparisonTest {
         for (hex in fastPackets) {
             val result = decoder.decode(hex.hexToByteArray(), state, defaultConfig)
             if (result is DecodeResult.Success) {
-                state = result.data.newState
+                state = result.data.newState!!
                 if (result.data.hasNewData) hasNewData = true
             }
         }
@@ -120,7 +120,7 @@ class InMotionDecoderComparisonTest {
 
         for (hex in slowPackets) {
             val result = decoder.decode(hex.hexToByteArray(), state, defaultConfig)
-            if (result is DecodeResult.Success) state = result.data.newState
+            if (result is DecodeResult.Success) state = result.data.newState!!
         }
 
         assertEquals("14604A5EBD9B000E", state.serialNumber, "Serial should match legacy")
@@ -131,7 +131,7 @@ class InMotionDecoderComparisonTest {
         for (hex in fastPackets) {
             val result = decoder.decode(hex.hexToByteArray(), state, defaultConfig)
             if (result is DecodeResult.Success) {
-                state = result.data.newState
+                state = result.data.newState!!
                 if (result.data.hasNewData) hasNewData = true
             }
         }
@@ -186,7 +186,7 @@ class InMotionDecoderComparisonTest {
 
         for (hex in slowPackets) {
             val result = decoder.decode(hex.hexToByteArray(), state, defaultConfig)
-            if (result is DecodeResult.Success) state = result.data.newState
+            if (result is DecodeResult.Success) state = result.data.newState!!
         }
 
         assertEquals("InMotion V8F", state.model, "Model should match legacy")
@@ -196,7 +196,7 @@ class InMotionDecoderComparisonTest {
         for (hex in fastPackets) {
             val result = decoder.decode(hex.hexToByteArray(), state, defaultConfig)
             if (result is DecodeResult.Success) {
-                state = result.data.newState
+                state = result.data.newState!!
                 if (result.data.hasNewData) hasNewData = true
             }
         }
@@ -250,7 +250,7 @@ class InMotionDecoderComparisonTest {
 
         for (hex in slowPackets) {
             val result = decoder.decode(hex.hexToByteArray(), state, defaultConfig)
-            if (result is DecodeResult.Success) state = result.data.newState
+            if (result is DecodeResult.Success) state = result.data.newState!!
         }
 
         assertEquals("1571AA5EBD460106", state.serialNumber, "Serial should match legacy")
@@ -261,7 +261,7 @@ class InMotionDecoderComparisonTest {
         for (hex in fastPackets) {
             val result = decoder.decode(hex.hexToByteArray(), state, defaultConfig)
             if (result is DecodeResult.Success) {
-                state = result.data.newState
+                state = result.data.newState!!
                 if (result.data.hasNewData) hasNewData = true
             }
         }
@@ -304,7 +304,7 @@ class InMotionDecoderComparisonTest {
 
         for (hex in packets) {
             val result = decoder.decode(hex.hexToByteArray(), state, defaultConfig)
-            if (result is DecodeResult.Success) state = result.data.newState
+            if (result is DecodeResult.Success) state = result.data.newState!!
         }
 
         // Legacy test: only control packets (no telemetry), so result is false

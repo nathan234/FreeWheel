@@ -58,7 +58,7 @@ class DecodeLoopTest {
 
         assertTrue(result is DecodeResult.Success)
         val decoded = (result as DecodeResult.Success).data
-        assertEquals(state, decoded.newState)
+        assertEquals(state, decoded.newState!!)
         assertEquals(false, decoded.hasNewData)
     }
 

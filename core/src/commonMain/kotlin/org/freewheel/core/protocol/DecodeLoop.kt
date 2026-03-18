@@ -74,7 +74,13 @@ internal inline fun decodeFrames(
 
     return when {
         frameProcessed || hasNewData || newState != currentState -> {
-            DecodeResult.Success(DecodedData(newState, commands, hasNewData, news, frameTypes))
+            DecodeResult.Success(DecodedData(
+                newState = newState,
+                commands = commands,
+                hasNewData = hasNewData,
+                news = news,
+                frameTypes = frameTypes
+            ))
         }
         hadCompleteFrame -> {
             DecodeResult.Unhandled(

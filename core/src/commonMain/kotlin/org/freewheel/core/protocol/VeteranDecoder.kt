@@ -261,11 +261,9 @@ class VeteranDecoder : WheelDecoder {
                         hasSyncedTime = true
                         buildTimeSyncCommands()
                     } else emptyList()
+                    val ws = loopResult.data.newState!!
                     DecodeResult.Success(loopResult.data.copy(
-                        newState = loopResult.data.newState.copy(
-                            bms1 = bms1.toSnapshot(),
-                            bms2 = bms2.toSnapshot()
-                        ),
+                        newState = ws.copy(bms1 = bms1.toSnapshot(), bms2 = bms2.toSnapshot()),
                         commands = loopResult.data.commands + extraCommands
                     ))
                 }

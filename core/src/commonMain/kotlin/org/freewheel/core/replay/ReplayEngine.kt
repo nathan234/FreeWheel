@@ -168,7 +168,7 @@ class ReplayEngine(
         for (i in 0 until targetIndex) {
             val result = dec.decode(packets[i].data, state, config)
             if (result is DecodeResult.Success) {
-                state = result.data.newState
+                result.data.newState?.let { state = it }
             }
         }
 
@@ -224,7 +224,7 @@ class ReplayEngine(
 
             val result = dec.decode(packets[i].data, state, config)
             if (result is DecodeResult.Success) {
-                state = result.data.newState
+                result.data.newState?.let { state = it }
                 _wheelState.value = state
                 // Commands are intentionally discarded — no BLE to send to during replay
             }

@@ -76,44 +76,44 @@ enum class SettingsCommandId {
         CALIBRATE, POWER_OFF, LOCK, RESET_TRIP -> false
     }
 
-    /** Read current int value from WheelState, or null if no readback. */
-    fun readInt(state: WheelState): Int? = when (this) {
-        PEDALS_MODE -> state.pedalsMode.takeIf { it >= 0 }
-        LIGHT_MODE -> state.lightMode.takeIf { it >= 0 }
-        LED_MODE -> state.ledMode.takeIf { it >= 0 }
-        ROLL_ANGLE_MODE -> state.rollAngle.takeIf { it >= 0 }
-        CUTOUT_ANGLE -> state.cutoutAngle.takeIf { it >= 0 }
-        MAX_SPEED -> state.maxSpeed.takeIf { it >= 0 }
-        PEDAL_TILT -> state.pedalTilt.takeIf { it >= 0 }?.let { it / 10 }
-        PEDAL_SENSITIVITY -> state.pedalSensitivity.takeIf { it >= 0 }
-        SPEAKER_VOLUME -> state.speakerVolume.takeIf { it >= 0 }
-        BEEPER_VOLUME -> state.beeperVolume.takeIf { it >= 0 }
-        LIGHT_BRIGHTNESS -> state.lightBrightness.takeIf { it >= 0 }
-        BERM_ANGLE -> state.bermAngle.takeIf { it >= 0 }
-        TURNING_SENSITIVITY -> state.turningSensitivity.takeIf { it >= 0 }
-        SPEEDING_BRAKING_ANGLE -> state.speedingBrakingAngle.takeIf { it >= 0 }
-        SOUND_WAVE_SENSITIVITY -> state.soundWaveSensitivity.takeIf { it >= 0 }
-        TAIL_LIGHT_MODE -> state.tailLightMode.takeIf { it >= 0 }
-        TURN_SIGNAL_MODE -> state.turnSignalMode.takeIf { it >= 0 }
-        LOGO_LIGHT_BRIGHTNESS -> state.logoLightBrightness.takeIf { it >= 0 }
-        LIGHT_EFFECT_MODE -> state.lightEffectMode.takeIf { it >= 0 }
-        STANDBY_TIME -> state.standbyTime.takeIf { it >= 0 }
-        CHARGE_LIMIT -> state.chargeLimit.takeIf { it >= 0 }
-        WEAK_MAGNETISM -> state.weakMagnetism.takeIf { it >= 0 }
-        EXTENDED_ROLL_ANGLE -> state.extendedRollAngle.takeIf { it >= 0 }
-        POWER_ALARM -> state.powerAlarm.takeIf { it >= 0 }
-        KEY_TONE -> state.keyTone.takeIf { it >= 0 }
-        SCREEN_BACKLIGHT -> state.screenBacklight.takeIf { it >= 0 }
-        STOP_SPEED -> state.stopSpeed.takeIf { it >= 0 }
-        VETERAN_PWM_LIMIT -> state.pwmLimit.takeIf { it >= 0 }
-        VOLTAGE_CORRECTION -> state.voltageCorrection.takeIf { it > -16 } // -15..+15, raw signed
-        MAX_CHARGE_VOLTAGE -> state.maxChargeVoltage.takeIf { it >= 0 }
-        BRAKE_PRESSURE_ALARM -> state.brakePressureAlarm.takeIf { it >= 0 }
-        LATERAL_CUTOFF_ANGLE -> state.lateralCutoffAngle.takeIf { it >= 0 }
-        DYNAMIC_ASSIST -> state.dynamicAssist.takeIf { it >= 0 }
-        ACCELERATION_LIMIT -> state.accelerationLimit.takeIf { it >= 0 }
-        WHEEL_DISPLAY_UNIT -> state.wheelDisplayUnit.takeIf { it >= 0 }
-        // No int readback: bool-only, action-only, or no WheelState field
+    /** Read current int value from settings, or null if no readback. */
+    fun readInt(settings: WheelSettings): Int? = when (this) {
+        PEDALS_MODE -> settings.pedalsMode.takeIf { it >= 0 }
+        LIGHT_MODE -> settings.lightMode.takeIf { it >= 0 }
+        LED_MODE -> settings.ledMode.takeIf { it >= 0 }
+        ROLL_ANGLE_MODE -> settings.rollAngle.takeIf { it >= 0 }
+        CUTOUT_ANGLE -> settings.cutoutAngle.takeIf { it >= 0 }
+        MAX_SPEED -> settings.maxSpeed.takeIf { it >= 0 }
+        PEDAL_TILT -> settings.pedalTilt.takeIf { it >= 0 }?.let { it / 10 }
+        PEDAL_SENSITIVITY -> settings.pedalSensitivity.takeIf { it >= 0 }
+        SPEAKER_VOLUME -> settings.speakerVolume.takeIf { it >= 0 }
+        BEEPER_VOLUME -> settings.beeperVolume.takeIf { it >= 0 }
+        LIGHT_BRIGHTNESS -> settings.lightBrightness.takeIf { it >= 0 }
+        BERM_ANGLE -> settings.bermAngle.takeIf { it >= 0 }
+        TURNING_SENSITIVITY -> settings.turningSensitivity.takeIf { it >= 0 }
+        SPEEDING_BRAKING_ANGLE -> settings.speedingBrakingAngle.takeIf { it >= 0 }
+        SOUND_WAVE_SENSITIVITY -> settings.soundWaveSensitivity.takeIf { it >= 0 }
+        TAIL_LIGHT_MODE -> settings.tailLightMode.takeIf { it >= 0 }
+        TURN_SIGNAL_MODE -> settings.turnSignalMode.takeIf { it >= 0 }
+        LOGO_LIGHT_BRIGHTNESS -> settings.logoLightBrightness.takeIf { it >= 0 }
+        LIGHT_EFFECT_MODE -> settings.lightEffectMode.takeIf { it >= 0 }
+        STANDBY_TIME -> settings.standbyTime.takeIf { it >= 0 }
+        CHARGE_LIMIT -> settings.chargeLimit.takeIf { it >= 0 }
+        WEAK_MAGNETISM -> settings.weakMagnetism.takeIf { it >= 0 }
+        EXTENDED_ROLL_ANGLE -> settings.extendedRollAngle.takeIf { it >= 0 }
+        POWER_ALARM -> settings.powerAlarm.takeIf { it >= 0 }
+        KEY_TONE -> settings.keyTone.takeIf { it >= 0 }
+        SCREEN_BACKLIGHT -> settings.screenBacklight.takeIf { it >= 0 }
+        STOP_SPEED -> settings.stopSpeed.takeIf { it >= 0 }
+        VETERAN_PWM_LIMIT -> settings.pwmLimit.takeIf { it >= 0 }
+        VOLTAGE_CORRECTION -> settings.voltageCorrection.takeIf { it > -16 } // -15..+15, raw signed
+        MAX_CHARGE_VOLTAGE -> settings.maxChargeVoltage.takeIf { it >= 0 }
+        BRAKE_PRESSURE_ALARM -> settings.brakePressureAlarm.takeIf { it >= 0 }
+        LATERAL_CUTOFF_ANGLE -> settings.lateralCutoffAngle.takeIf { it >= 0 }
+        DYNAMIC_ASSIST -> settings.dynamicAssist.takeIf { it >= 0 }
+        ACCELERATION_LIMIT -> settings.accelerationLimit.takeIf { it >= 0 }
+        WHEEL_DISPLAY_UNIT -> settings.wheelDisplayUnit.takeIf { it >= 0 }
+        // No int readback: bool-only, action-only, or no readback field
         LED, STROBE_MODE, TAIL_LIGHT, DRL, HANDLE_BUTTON, BRAKE_ASSIST,
         RIDE_MODE, GO_HOME_MODE, FANCIER_MODE, TRANSPORT_MODE,
         LIMITED_MODE, LIMITED_SPEED,
@@ -128,34 +128,34 @@ enum class SettingsCommandId {
         HIGH_SPEED_MODE, LOW_VOLTAGE_MODE, SCREEN_AUTO_OFF -> null
     }
 
-    /** Read current bool value from WheelState, or null if no readback. */
-    fun readBool(state: WheelState): Boolean? = when (this) {
-        LED -> state.ledMode.takeIf { it >= 0 }?.let { it > 0 }
-        RIDE_MODE -> state.rideMode
-        FANCIER_MODE -> state.fancierMode
-        MUTE -> state.mute
-        HANDLE_BUTTON -> state.handleButton
-        DRL -> state.drl
-        TRANSPORT_MODE -> state.transportMode
-        GO_HOME_MODE -> state.goHomeMode
-        FAN_QUIET -> state.fanQuiet
-        BERM_ANGLE_MODE -> state.bermAngleMode
-        ONE_PEDAL_MODE -> state.onePedalMode
-        SPEEDING_BRAKING_MODE -> state.speedingBrakingMode
-        SOUND_WAVE -> state.soundWave
-        SAFE_SPEED_LIMIT -> state.safeSpeedLimit
-        BACKWARD_OVERSPEED_ALERT -> state.backwardOverspeedAlert
-        AUTO_HEADLIGHT -> state.autoHeadlight
-        LIGHT_EFFECT -> state.lightEffect
-        TWO_BATTERY_MODE -> state.twoBatteryMode
-        LOW_BATTERY_SAFE_MODE -> state.lowBatterySafeMode
-        SPIN_KILL -> state.spinKill
-        CRUISE -> state.cruise
-        LOAD_DETECT -> state.loadDetect
-        PLATE_PROTECTION -> state.plateProtection
-        HIGH_SPEED_MODE -> state.highSpeedMode
-        LOW_VOLTAGE_MODE -> state.lowVoltageMode
-        // No bool readback: int-only, action-only, or no WheelState field
+    /** Read current bool value from settings, or null if no readback. */
+    fun readBool(settings: WheelSettings): Boolean? = when (this) {
+        LED -> settings.ledMode.takeIf { it >= 0 }?.let { it > 0 }
+        RIDE_MODE -> settings.rideMode
+        FANCIER_MODE -> settings.fancierMode
+        MUTE -> settings.mute
+        HANDLE_BUTTON -> settings.handleButton
+        DRL -> settings.drl
+        TRANSPORT_MODE -> settings.transportMode
+        GO_HOME_MODE -> settings.goHomeMode
+        FAN_QUIET -> settings.fanQuiet
+        BERM_ANGLE_MODE -> settings.bermAngleMode
+        ONE_PEDAL_MODE -> settings.onePedalMode
+        SPEEDING_BRAKING_MODE -> settings.speedingBrakingMode
+        SOUND_WAVE -> settings.soundWave
+        SAFE_SPEED_LIMIT -> settings.safeSpeedLimit
+        BACKWARD_OVERSPEED_ALERT -> settings.backwardOverspeedAlert
+        AUTO_HEADLIGHT -> settings.autoHeadlight
+        LIGHT_EFFECT -> settings.lightEffect
+        TWO_BATTERY_MODE -> settings.twoBatteryMode
+        LOW_BATTERY_SAFE_MODE -> settings.lowBatterySafeMode
+        SPIN_KILL -> settings.spinKill
+        CRUISE -> settings.cruise
+        LOAD_DETECT -> settings.loadDetect
+        PLATE_PROTECTION -> settings.plateProtection
+        HIGH_SPEED_MODE -> settings.highSpeedMode
+        LOW_VOLTAGE_MODE -> settings.lowVoltageMode
+        // No bool readback: int-only, action-only, or no readback field
         PEDALS_MODE, LIGHT_MODE, LED_MODE, STROBE_MODE, TAIL_LIGHT,
         ROLL_ANGLE_MODE, CUTOUT_ANGLE, BRAKE_ASSIST, LIGHT_BRIGHTNESS,
         PEDAL_TILT, PEDAL_SENSITIVITY, MAX_SPEED, LIMITED_MODE, LIMITED_SPEED,
@@ -173,6 +173,12 @@ enum class SettingsCommandId {
         LATERAL_CUTOFF_ANGLE, DYNAMIC_ASSIST, ACCELERATION_LIMIT,
         WHEEL_DISPLAY_UNIT, SCREEN_AUTO_OFF -> null
     }
+
+    /** @deprecated Use [readInt] with [WheelSettings] instead. */
+    fun readInt(state: WheelState): Int? = readInt(state.toWheelSettings())
+
+    /** @deprecated Use [readBool] with [WheelSettings] instead. */
+    fun readBool(state: WheelState): Boolean? = readBool(state.toWheelSettings())
 }
 
 /** Describes a single UI control in wheel settings. */

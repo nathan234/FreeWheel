@@ -243,9 +243,11 @@ class CaptureAnalyzer(
                         when (val decodeResult = decoder.decode(packet.data, state, config)) {
                             is DecodeResult.Success -> {
                                 val newState = decodeResult.data.newState
-                                stateChanges = diffStates(state, newState)
+                                if (newState != null) {
+                                    stateChanges = diffStates(state, newState)
+                                    state = newState
+                                }
                                 commandNames = decodeResult.data.commands.map { it::class.simpleName ?: "?" }
-                                state = newState
                                 successCount++
                                 packetResult = PacketResult.Success
                                 for (ft in decodeResult.data.frameTypes) {

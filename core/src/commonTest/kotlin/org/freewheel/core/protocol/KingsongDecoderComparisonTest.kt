@@ -46,7 +46,7 @@ class KingsongDecoderComparisonTest {
         for (packet in listOf(byteArray1, byteArray2, byteArray3, byteArray4, byteArray5)) {
             val result = decoder.decode(packet, state, defaultConfig)
             if (result is DecodeResult.Success) {
-                state = result.data.newState
+                state = result.data.newState!!
             }
         }
 
@@ -368,11 +368,11 @@ class KingsongDecoderComparisonTest {
         var state = defaultState
 
         val nameResult = decoder.decode(namePacket, state, defaultConfig)
-        if (nameResult is DecodeResult.Success) state = nameResult.data.newState
+        if (nameResult is DecodeResult.Success) state = nameResult.data.newState!!
 
         val cpuResult = decoder.decode(cpuPacket, state, defaultConfig)
         assertTrue(cpuResult is DecodeResult.Success, "F5 frame should be decoded")
-        state = (cpuResult as DecodeResult.Success).data.newState
+        state = (cpuResult as DecodeResult.Success).data.newState!!
 
         // byte 14 = 0x40 = 64 (cpuLoad)
         assertEquals(64, state.cpuLoad, "CPU load should be 64")
@@ -406,11 +406,11 @@ class KingsongDecoderComparisonTest {
         decoder.reset()
         var state = defaultState
         val nameResult = decoder.decode(namePacket, state, defaultConfig)
-        if (nameResult is DecodeResult.Success) state = nameResult.data.newState
+        if (nameResult is DecodeResult.Success) state = nameResult.data.newState!!
 
         val result = decoder.decode(packet, state, defaultConfig)
         assertTrue(result is DecodeResult.Success, "F6 frame should be decoded")
-        assertEquals(32.05, (result as DecodeResult.Success).data.newState.speedLimit, 0.01, "Speed limit should be 32.05 km/h")
+        assertEquals(32.05, (result as DecodeResult.Success).data.newState!!.speedLimit, 0.01, "Speed limit should be 32.05 km/h")
     }
 
     // ==================== Battery Calculation for 84V Wheel ====================
@@ -425,7 +425,7 @@ class KingsongDecoderComparisonTest {
         decoder.reset()
         var state = defaultState
         val nameResult = decoder.decode(namePacket, state, defaultConfig)
-        if (nameResult is DecodeResult.Success) state = nameResult.data.newState
+        if (nameResult is DecodeResult.Success) state = nameResult.data.newState!!
 
         val testCases = listOf(
             6250 to 0,    // Empty
@@ -453,9 +453,9 @@ class KingsongDecoderComparisonTest {
             val result = decoder.decode(packet, state, defaultConfig)
             assertTrue(result is DecodeResult.Success, "Should decode 0xA9 frame at voltage $voltage")
             val decoded = (result as DecodeResult.Success).data
-            assertEquals(expectedBattery, decoded.newState.batteryLevel,
+            assertEquals(expectedBattery, decoded.newState!!.batteryLevel,
                 "Battery at ${voltage / 100.0}V for 84V wheel should be $expectedBattery%")
-            state = decoded.newState
+            state = decoded.newState!!
         }
     }
 
@@ -470,7 +470,7 @@ class KingsongDecoderComparisonTest {
         decoder.reset()
         var state = defaultState
         val nameResult = decoder.decode(namePacket, state, defaultConfig)
-        if (nameResult is DecodeResult.Success) state = nameResult.data.newState
+        if (nameResult is DecodeResult.Success) state = nameResult.data.newState!!
 
         val testCases = listOf(
             9375 to 0,    // Empty
@@ -497,9 +497,9 @@ class KingsongDecoderComparisonTest {
             val result = decoder.decode(packet, state, defaultConfig)
             assertTrue(result is DecodeResult.Success, "Should decode 0xA9 frame at voltage $voltage")
             val decoded = (result as DecodeResult.Success).data
-            assertEquals(expectedBattery, decoded.newState.batteryLevel,
+            assertEquals(expectedBattery, decoded.newState!!.batteryLevel,
                 "Battery at ${voltage / 100.0}V for 126V wheel should be $expectedBattery%")
-            state = decoded.newState
+            state = decoded.newState!!
         }
     }
 
@@ -529,7 +529,7 @@ class KingsongDecoderComparisonTest {
         val namePacket = "aa554b532d5331382d30323035000000bb1484fd".hexToByteArray()
         var state = defaultState
         val r1 = freshDecoder.decode(namePacket, state, defaultConfig)
-        if (r1 is DecodeResult.Success) state = r1.data.newState
+        if (r1 is DecodeResult.Success) state = r1.data.newState!!
 
         val livePacket = buildKsLivePacket(voltage = 6505)
         freshDecoder.decode(livePacket, state, defaultConfig)
@@ -545,7 +545,7 @@ class KingsongDecoderComparisonTest {
         val namePacket = "aa554b532d5331382d30323035000000bb1484fd".hexToByteArray()
         var state = defaultState
         val r1 = freshDecoder.decode(namePacket, state, defaultConfig)
-        if (r1 is DecodeResult.Success) state = r1.data.newState
+        if (r1 is DecodeResult.Success) state = r1.data.newState!!
         val livePacket = buildKsLivePacket(voltage = 6505)
         freshDecoder.decode(livePacket, state, defaultConfig)
         assertTrue(freshDecoder.isReady())
@@ -563,7 +563,7 @@ class KingsongDecoderComparisonTest {
         val namePacket = "aa554b532d5331382d30323035000000bb1484fd".hexToByteArray()
         var state = defaultState
         val r1 = freshDecoder.decode(namePacket, state, defaultConfig)
-        if (r1 is DecodeResult.Success) state = r1.data.newState
+        if (r1 is DecodeResult.Success) state = r1.data.newState!!
 
         // Send live data (0xA9) but NO BMS data (0xF1)
         val livePacket = buildKsLivePacket(voltage = 6505)
@@ -614,11 +614,11 @@ class KingsongDecoderComparisonTest {
         decoder.reset()
         var state = defaultState
         val nameResult = decoder.decode(namePacket, state, defaultConfig)
-        if (nameResult is DecodeResult.Success) state = nameResult.data.newState
+        if (nameResult is DecodeResult.Success) state = nameResult.data.newState!!
 
         val result = decoder.decode(packet, state, defaultConfig)
         assertTrue(result is DecodeResult.Success, "F1 frame should be decoded")
-        val bms1 = (result as DecodeResult.Success).data.newState.bms1
+        val bms1 = (result as DecodeResult.Success).data.newState!!.bms1
         assertTrue(bms1 != null, "BMS1 should be populated")
         assertEquals(84.0, bms1!!.voltage, 0.01, "BMS voltage should be 84.00V")
         assertEquals(1.0, bms1.current, 0.01, "BMS current should be 1.00A")

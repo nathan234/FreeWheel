@@ -7,7 +7,7 @@ import org.freewheel.core.domain.BmsState
 import org.freewheel.core.domain.CapabilitySet
 import org.freewheel.core.domain.TelemetryState
 import org.freewheel.core.domain.WheelIdentity
-import org.freewheel.core.domain.WheelSettingsState
+import org.freewheel.core.domain.WheelSettings
 import org.freewheel.core.domain.WheelState
 import org.freewheel.core.domain.WheelType
 import org.freewheel.core.protocol.DecodeResult
@@ -129,25 +129,25 @@ class WheelConnectionManager(
 
     /** Telemetry sub-state (speed, voltage, current, etc.). Updated on every BLE notification. */
     val telemetryState: StateFlow<TelemetryState> = _wcmState
-        .map { it.wheelState.toTelemetryState() }
+        .map { it.telemetry }
         .distinctUntilChanged()
         .stateIn(derivedScope, SharingStarted.Eagerly, TelemetryState())
 
     /** Settings sub-state (pedals mode, light mode, etc.). Updated rarely. */
-    val settingsState: StateFlow<WheelSettingsState> = _wcmState
-        .map { it.wheelState.toSettingsState() }
+    val settingsState: StateFlow<WheelSettings> = _wcmState
+        .map { it.settings }
         .distinctUntilChanged()
-        .stateIn(derivedScope, SharingStarted.Eagerly, WheelSettingsState())
+        .stateIn(derivedScope, SharingStarted.Eagerly, WheelSettings.None)
 
     /** Identity sub-state (wheel type, model, serial, etc.). Set once per connection. */
     val identityState: StateFlow<WheelIdentity> = _wcmState
-        .map { it.wheelState.toIdentity() }
+        .map { it.identity }
         .distinctUntilChanged()
         .stateIn(derivedScope, SharingStarted.Eagerly, WheelIdentity())
 
     /** BMS sub-state (battery pack snapshots). Updated periodically. */
     val bmsState: StateFlow<BmsState> = _wcmState
-        .map { it.wheelState.toBmsState() }
+        .map { it.bms }
         .distinctUntilChanged()
         .stateIn(derivedScope, SharingStarted.Eagerly, BmsState())
 
@@ -526,7 +526,7 @@ class WheelConnectionManager(
         Logger.d(TAG, "onServicesDiscovered: deviceName=${event.deviceName}, services=${event.services.serviceUuids()}")
         var newState = state
         if (!event.deviceName.isNullOrBlank()) {
-            newState = newState.copy(wheelState = newState.wheelState.copy(btName = event.deviceName))
+            newState = newState.copy(identity = newState.identity.copy(btName = event.deviceName))
         }
 
         val result = wheelTypeDetector.detect(event.services, event.deviceName)
@@ -628,10 +628,18 @@ class WheelConnectionManager(
 
         val decoded = result.data
 
+        // Determine display name for Connected state (from legacy or domain pieces)
+        val displayName = if (decoded.newState != null) {
+            decoded.newState.displayName
+        } else {
+            val id = decoded.identity ?: state.identity
+            id.displayName
+        }
+
         val newConnectionState = if (decoder.isReady() && state.connectionState !is ConnectionState.Connected) {
             val address = getCurrentAddress(state) ?: ""
             Logger.d(TAG, "Decoder ready, transitioning to Connected")
-            ConnectionState.Connected(address = address, wheelName = decoded.newState.displayName)
+            ConnectionState.Connected(address = address, wheelName = displayName)
         } else {
             if (!decoder.isReady()) {
                 Logger.d(TAG, "Decoded OK but isReady()=false (decoder=${decoder.wheelType})")
@@ -654,16 +662,38 @@ class WheelConnectionManager(
             state.capabilities
         }
 
-        return WcmTransition(
-            state = state.copy(
-                wheelState = decoded.newState,
-                connectionState = newConnectionState,
-                capabilities = mergedCapabilities,
-                consecutiveDecodeErrors = 0,
-                consecutiveBleErrors = 0
-            ),
-            effects = effects
-        )
+        if (decoded.newState != null) {
+            // Legacy path: unmigrated decoder returned full WheelState
+            val ws = decoded.newState
+            return WcmTransition(
+                state = state.copy(
+                    telemetry = ws.toTelemetryState(),
+                    identity = ws.toIdentity(),
+                    bms = ws.toBmsState(),
+                    settings = ws.toWheelSettings(),
+                    connectionState = newConnectionState,
+                    capabilities = mergedCapabilities,
+                    consecutiveDecodeErrors = 0,
+                    consecutiveBleErrors = 0
+                ),
+                effects = effects
+            )
+        } else {
+            // Migrated path: decoder returned domain pieces
+            return WcmTransition(
+                state = state.copy(
+                    telemetry = decoded.telemetry ?: state.telemetry,
+                    identity = decoded.identity ?: state.identity,
+                    bms = decoded.bms ?: state.bms,
+                    settings = decoded.settings ?: state.settings,
+                    connectionState = newConnectionState,
+                    capabilities = mergedCapabilities,
+                    consecutiveDecodeErrors = 0,
+                    consecutiveBleErrors = 0
+                ),
+                effects = effects
+            )
+        }
     }
 
     private fun reduceBleError(state: WcmState): WcmTransition {
@@ -725,7 +755,7 @@ class WheelConnectionManager(
         val decoder = decoderFactory.createDecoder(wheelType)
         val newState = state.copy(
             decoder = decoder,
-            wheelState = state.wheelState.copy(wheelType = wheelType)
+            identity = state.identity.copy(wheelType = wheelType)
         )
 
         decoder?.getInitCommands()?.let { cmds ->

@@ -1,5 +1,6 @@
 package org.freewheel.core.protocol
 
+import org.freewheel.core.domain.WheelIdentity
 import org.freewheel.core.domain.WheelState
 import org.freewheel.core.domain.WheelType
 
@@ -76,9 +77,16 @@ class AutoDetectDecoder(
 
     /** Stamps wheelType on success results from delegated decoders. */
     private fun DecodeResult.withWheelType(type: WheelType): DecodeResult = when (this) {
-        is DecodeResult.Success -> DecodeResult.Success(data.copy(
-            newState = data.newState.copy(wheelType = type)
-        ))
+        is DecodeResult.Success -> {
+            val ws = data.newState
+            if (ws != null) {
+                DecodeResult.Success(data.copy(newState = ws.copy(wheelType = type)))
+            } else {
+                // Migrated decoder: stamp identity instead
+                val id = data.identity ?: WheelIdentity()
+                DecodeResult.Success(data.copy(identity = id.copy(wheelType = type)))
+            }
+        }
         is DecodeResult.Buffering -> this
         is DecodeResult.Unhandled -> this
     }

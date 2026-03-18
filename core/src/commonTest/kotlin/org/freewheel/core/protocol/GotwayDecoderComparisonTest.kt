@@ -41,7 +41,7 @@ class GotwayDecoderComparisonTest {
         val result = decoder.decode(byteArray, defaultState, defaultConfig)
 
         assertTrue(result is DecodeResult.Success && result.data.hasNewData, "Should decode successfully")
-        val state = (result as DecodeResult.Success).data.newState
+        val state = (result as DecodeResult.Success).data.newState!!
 
         // With gotwayNegative=0 (default), speed should be absolute value
         // Legacy: speed = abs(round(-1111 * 3.6)) = abs(-3999.6) = abs(-4000) = 4000
@@ -77,7 +77,7 @@ class GotwayDecoderComparisonTest {
         for (packet in listOf(byteArray1, byteArray2, byteArray3)) {
             val result = decoder.decode(packet, state, defaultConfig)
             if (result is DecodeResult.Success) {
-                state = result.data.newState
+                state = result.data.newState!!
                 if (result.data.hasNewData) lastResult = result.data
             }
         }
@@ -119,7 +119,7 @@ class GotwayDecoderComparisonTest {
         for (packet in packets) {
             val result = decoder.decode(packet, state, defaultConfig)
             if (result is DecodeResult.Success) {
-                state = result.data.newState
+                state = result.data.newState!!
                 if (result.data.hasNewData) decodedCount++
             }
         }
@@ -128,7 +128,7 @@ class GotwayDecoderComparisonTest {
         for (packet in packets) {
             val result = decoder.decode(packet, state, defaultConfig)
             if (result is DecodeResult.Success) {
-                state = result.data.newState
+                state = result.data.newState!!
                 if (result.data.hasNewData) decodedCount++
             }
         }
@@ -211,7 +211,7 @@ class GotwayDecoderComparisonTest {
         if (result is DecodeResult.Success && result.data.hasNewData) {
             val expectedTemp = ((99.0 / 340.0 + 36.53) * 100).roundToInt()
             // Temperature in WheelState is in 1/100 degrees
-            assertTrue(result.data.newState.temperature > 3000, "Temperature should be reasonable")
+            assertTrue(result.data.newState!!.temperature > 3000, "Temperature should be reasonable")
         }
     }
 
@@ -275,7 +275,7 @@ class GotwayDecoderComparisonTest {
 
         assertTrue(result is DecodeResult.Success && result.data.hasNewData)
         val decoded = (result as DecodeResult.Success).data
-        val speed = decoded.newState.speed
+        val speed = decoded.newState!!.speed
 
         // Legacy: abs(round(-500 * 3.6)) = abs(-1800) = 1800
         val expected = abs((-500 * 3.6).roundToInt())
@@ -295,7 +295,7 @@ class GotwayDecoderComparisonTest {
 
         assertTrue(result is DecodeResult.Success && result.data.hasNewData)
         val decoded = (result as DecodeResult.Success).data
-        val speed = decoded.newState.speed
+        val speed = decoded.newState!!.speed
 
         // Legacy: speed * 1 = round(-500 * 3.6) * 1 = -1800
         val expected = (-500 * 3.6).roundToInt() * 1
@@ -315,7 +315,7 @@ class GotwayDecoderComparisonTest {
 
         assertTrue(result is DecodeResult.Success && result.data.hasNewData)
         val decoded = (result as DecodeResult.Success).data
-        val speed = decoded.newState.speed
+        val speed = decoded.newState!!.speed
 
         // Legacy: speed * -1 = round(-500 * 3.6) * -1 = -1800 * -1 = 1800
         val expected = (-500 * 3.6).roundToInt() * -1
@@ -334,7 +334,7 @@ class GotwayDecoderComparisonTest {
         val result = decoder.decode(byteArray, defaultState, config)
 
         assertTrue(result is DecodeResult.Success && result.data.hasNewData)
-        assertEquals(abs(rawPhaseCurrent.toInt()), (result as DecodeResult.Success).data.newState.phaseCurrent,
+        assertEquals(abs(rawPhaseCurrent.toInt()), (result as DecodeResult.Success).data.newState!!.phaseCurrent,
             "Phase current should be absolute with gotwayNegative=0")
     }
 
@@ -352,7 +352,7 @@ class GotwayDecoderComparisonTest {
 
         assertTrue(result is DecodeResult.Success && result.data.hasNewData)
         val decoded = (result as DecodeResult.Success).data
-        val speed = decoded.newState.speed
+        val speed = decoded.newState!!.speed
 
         // Legacy: round(abs(round(1000 * 3.6)) * 0.875) = round(3600 * 0.875) = round(3150) = 3150
         val rawConvertedSpeed = abs((1000 * 3.6).roundToInt())
@@ -372,7 +372,7 @@ class GotwayDecoderComparisonTest {
 
         assertTrue(result is DecodeResult.Success && result.data.hasNewData)
         val decoded = (result as DecodeResult.Success).data
-        val distance = decoded.newState.wheelDistance
+        val distance = decoded.newState!!.wheelDistance
 
         // Legacy: round(10000 * 0.875) = 8750
         val expected = (10000 * 0.875).roundToInt().toLong()
@@ -405,7 +405,7 @@ class GotwayDecoderComparisonTest {
         if (result is DecodeResult.Success) {
             // Legacy: round(100000 * 0.875) = 87500
             val expected = (100000 * 0.875).roundToInt().toLong()
-            assertEquals(expected, result.data.newState.totalDistance,
+            assertEquals(expected, result.data.newState!!.totalDistance,
                 "useRatio should scale totalDistance by 0.875")
         }
     }
@@ -424,8 +424,8 @@ class GotwayDecoderComparisonTest {
         val decoded = (result as DecodeResult.Success).data
 
         val expectedSpeed = abs((1000 * 3.6).roundToInt())
-        assertEquals(expectedSpeed, decoded.newState.speed, "Speed unscaled without useRatio")
-        assertEquals(10000L, decoded.newState.wheelDistance, "Distance unscaled without useRatio")
+        assertEquals(expectedSpeed, decoded.newState!!.speed, "Speed unscaled without useRatio")
+        assertEquals(10000L, decoded.newState!!.wheelDistance, "Distance unscaled without useRatio")
     }
 
     // ==================== inMiles from Wheel Settings ====================
@@ -440,7 +440,7 @@ class GotwayDecoderComparisonTest {
         val result = decoder.decode(packet, defaultState, defaultConfig)
 
         assertTrue(result is DecodeResult.Success)
-        assertTrue((result as DecodeResult.Success).data.newState.inMiles, "Wheel reporting miles mode should set inMiles=true")
+        assertTrue((result as DecodeResult.Success).data.newState!!.inMiles, "Wheel reporting miles mode should set inMiles=true")
     }
 
     @Test
@@ -452,7 +452,7 @@ class GotwayDecoderComparisonTest {
         val result = decoder.decode(packet, defaultState, defaultConfig)
 
         assertTrue(result is DecodeResult.Success)
-        assertFalse((result as DecodeResult.Success).data.newState.inMiles, "Wheel reporting km mode should set inMiles=false")
+        assertFalse((result as DecodeResult.Success).data.newState!!.inMiles, "Wheel reporting km mode should set inMiles=false")
     }
 
     @Test
@@ -464,7 +464,7 @@ class GotwayDecoderComparisonTest {
         val result = decoder.decode(packet, defaultState, defaultConfig)
 
         assertTrue(result is DecodeResult.Success)
-        assertTrue((result as DecodeResult.Success).data.newState.inMiles, "inMiles should only check LSB")
+        assertTrue((result as DecodeResult.Success).data.newState!!.inMiles, "inMiles should only check LSB")
 
         // Settings word 0x6000 = same upper bits, LSB = 0 (km)
         val packet2 = buildTotalDistancePacket(totalDistance = 50000L, settingsWord = 0x6000)
@@ -473,7 +473,7 @@ class GotwayDecoderComparisonTest {
         val result2 = decoder.decode(packet2, defaultState, defaultConfig)
 
         assertTrue(result2 is DecodeResult.Success)
-        assertFalse((result2 as DecodeResult.Success).data.newState.inMiles, "inMiles should be false when LSB is 0")
+        assertFalse((result2 as DecodeResult.Success).data.newState!!.inMiles, "inMiles should be false when LSB is 0")
     }
 
     // ==================== Frame 0x04 Wheel Settings ====================
@@ -490,7 +490,7 @@ class GotwayDecoderComparisonTest {
             val result = decoder.decode(packet, defaultState, defaultConfig)
 
             assertTrue(result is DecodeResult.Success)
-            assertEquals(2 - rawMode, (result as DecodeResult.Success).data.newState.pedalsMode,
+            assertEquals(2 - rawMode, (result as DecodeResult.Success).data.newState!!.pedalsMode,
                 "Raw pedalsMode=$rawMode should become ${2 - rawMode} after inversion")
         }
     }
@@ -503,7 +503,7 @@ class GotwayDecoderComparisonTest {
         val result = decoder.decode(packet, defaultState, defaultConfig)
 
         assertTrue(result is DecodeResult.Success)
-        assertEquals(45, (result as DecodeResult.Success).data.newState.tiltBackSpeed, "Tilt-back speed should be 45 km/h")
+        assertEquals(45, (result as DecodeResult.Success).data.newState!!.tiltBackSpeed, "Tilt-back speed should be 45 km/h")
     }
 
     @Test
@@ -514,7 +514,7 @@ class GotwayDecoderComparisonTest {
         val result = decoder.decode(packet, defaultState, defaultConfig)
 
         assertTrue(result is DecodeResult.Success)
-        assertEquals(0, (result as DecodeResult.Success).data.newState.tiltBackSpeed,
+        assertEquals(0, (result as DecodeResult.Success).data.newState!!.tiltBackSpeed,
             "Tilt-back speed >= 100 should be clamped to 0")
     }
 
@@ -527,7 +527,7 @@ class GotwayDecoderComparisonTest {
             val result = decoder.decode(packet, defaultState, defaultConfig)
 
             assertTrue(result is DecodeResult.Success)
-            assertEquals(mode, (result as DecodeResult.Success).data.newState.lightMode,
+            assertEquals(mode, (result as DecodeResult.Success).data.newState!!.lightMode,
                 "Light mode should be $mode")
         }
     }
@@ -541,7 +541,7 @@ class GotwayDecoderComparisonTest {
             val result = decoder.decode(packet, defaultState, defaultConfig)
 
             assertTrue(result is DecodeResult.Success)
-            assertEquals(mode, (result as DecodeResult.Success).data.newState.ledMode,
+            assertEquals(mode, (result as DecodeResult.Success).data.newState!!.ledMode,
                 "LED mode should be $mode")
         }
     }
@@ -556,7 +556,7 @@ class GotwayDecoderComparisonTest {
             val result = decoder.decode(packet, defaultState, defaultConfig)
 
             assertTrue(result is DecodeResult.Success)
-            assertEquals(alarmVal, (result as DecodeResult.Success).data.newState.speedAlarms,
+            assertEquals(alarmVal, (result as DecodeResult.Success).data.newState!!.speedAlarms,
                 "Speed alarms should be $alarmVal")
         }
     }
@@ -571,7 +571,7 @@ class GotwayDecoderComparisonTest {
             val result = decoder.decode(packet, defaultState, defaultConfig)
 
             assertTrue(result is DecodeResult.Success)
-            assertEquals(rollVal, (result as DecodeResult.Success).data.newState.rollAngle,
+            assertEquals(rollVal, (result as DecodeResult.Success).data.newState!!.rollAngle,
                 "Roll angle should be $rollVal")
         }
     }
@@ -592,7 +592,7 @@ class GotwayDecoderComparisonTest {
         val result = decoder.decode(packet, defaultState, defaultConfig)
 
         assertTrue(result is DecodeResult.Success)
-        val state = (result as DecodeResult.Success).data.newState
+        val state = (result as DecodeResult.Success).data.newState!!
         assertEquals(1, state.pedalsMode, "pedalsMode: raw 1 → inverted 1 (Medium)")
         assertEquals(2, state.speedAlarms, "speedAlarms should be 2")
         assertEquals(1, state.rollAngle, "rollAngle should be 1 (Medium)")
@@ -745,7 +745,7 @@ class GotwayDecoderComparisonTest {
             val result = decoder.decode(packet, defaultState, defaultConfig)
 
             if (result is DecodeResult.Success && result.data.hasNewData) {
-                val battery = result.data.newState.batteryLevel
+                val battery = result.data.newState!!.batteryLevel
                 assertTrue(battery in 0..100,
                     "Battery for voltage $voltage should be 0-100%, got $battery")
             }
@@ -767,9 +767,9 @@ class GotwayDecoderComparisonTest {
         val result = decoder.decode(packetWithAlert, defaultState, defaultConfig)
         assertTrue(result is DecodeResult.Success)
         val decoded = (result as DecodeResult.Success).data
-        assertTrue(decoded.newState.alert.isNotEmpty(),
+        assertTrue(decoded.newState!!.alert.isNotEmpty(),
             "Non-zero alert flags should produce non-empty alert string")
-        assertTrue(decoded.newState.alert.contains("Speed"),
+        assertTrue(decoded.newState!!.alert.contains("Speed"),
             "Alert string should contain speed alarm text")
 
         // Alert = 0x00: no alarms
@@ -779,7 +779,7 @@ class GotwayDecoderComparisonTest {
         decoder.reset()
         val resultNoAlert = decoder.decode(packetNoAlert, defaultState, defaultConfig)
         assertTrue(resultNoAlert is DecodeResult.Success)
-        assertEquals("", (resultNoAlert as DecodeResult.Success).data.newState.alert,
+        assertEquals("", (resultNoAlert as DecodeResult.Success).data.newState!!.alert,
             "Zero alert flags should produce empty alert string")
     }
 
@@ -802,7 +802,7 @@ class GotwayDecoderComparisonTest {
             decoder.reset()
             val result = decoder.decode(packet, defaultState, defaultConfig)
             assertTrue(result is DecodeResult.Success && result.data.hasNewData, "Voltage $voltage should decode")
-            assertEquals(expectedBattery, (result as DecodeResult.Success).data.newState.batteryLevel,
+            assertEquals(expectedBattery, (result as DecodeResult.Success).data.newState!!.batteryLevel,
                 "Battery at ${voltage / 100.0}V should be $expectedBattery%")
         }
     }
@@ -824,7 +824,7 @@ class GotwayDecoderComparisonTest {
             decoder.reset()
             val result = decoder.decode(packet, defaultState, customConfig)
             assertTrue(result is DecodeResult.Success && result.data.hasNewData, "Voltage $voltage should decode")
-            assertEquals(expectedBattery, (result as DecodeResult.Success).data.newState.batteryLevel,
+            assertEquals(expectedBattery, (result as DecodeResult.Success).data.newState!!.batteryLevel,
                 "Custom battery at ${voltage / 100.0}V should be $expectedBattery%")
         }
     }
@@ -844,7 +844,7 @@ class GotwayDecoderComparisonTest {
 
         assertTrue(result is DecodeResult.Success && result.data.hasNewData)
         val decoded = (result as DecodeResult.Success).data
-        val state = decoded.newState
+        val state = decoded.newState!!
 
         // speed = round(-1000 * 3.6) * 1 = -3600
         val expectedSpeed = (-1000 * 3.6).roundToInt() * 1
@@ -868,9 +868,9 @@ class GotwayDecoderComparisonTest {
 
             assertTrue(result is DecodeResult.Success && result.data.hasNewData)
             val decoded = (result as DecodeResult.Success).data
-            assertEquals(0, decoded.newState.speed,
+            assertEquals(0, decoded.newState!!.speed,
                 "Zero speed should stay zero with gotwayNegative=$mode")
-            assertEquals(0, decoded.newState.phaseCurrent,
+            assertEquals(0, decoded.newState!!.phaseCurrent,
                 "Zero phaseCurrent should stay zero with gotwayNegative=$mode")
         }
     }
@@ -884,7 +884,7 @@ class GotwayDecoderComparisonTest {
         decoder.reset()
         var result = decoder.decode(packetMax, defaultState, defaultConfig)
         assertTrue(result is DecodeResult.Success)
-        assertEquals(99, (result as DecodeResult.Success).data.newState.tiltBackSpeed,
+        assertEquals(99, (result as DecodeResult.Success).data.newState!!.tiltBackSpeed,
             "TiltBackSpeed 99 should be valid")
 
         // Test tiltBackSpeed=100 (should clamp to 0)
@@ -892,7 +892,7 @@ class GotwayDecoderComparisonTest {
         decoder.reset()
         result = decoder.decode(packetOver, defaultState, defaultConfig)
         assertTrue(result is DecodeResult.Success)
-        assertEquals(0, (result as DecodeResult.Success).data.newState.tiltBackSpeed,
+        assertEquals(0, (result as DecodeResult.Success).data.newState!!.tiltBackSpeed,
             "TiltBackSpeed 100 should clamp to 0")
 
         // Test pedalsMode raw=3 (should remain 3 since inversion only applies to 0/1/2)
@@ -904,7 +904,7 @@ class GotwayDecoderComparisonTest {
         result = decoder.decode(packetPedals3, defaultState, defaultConfig)
         assertTrue(result is DecodeResult.Success)
         // raw 3 → 2-3 = -1
-        assertEquals(-1, (result as DecodeResult.Success).data.newState.pedalsMode,
+        assertEquals(-1, (result as DecodeResult.Success).data.newState!!.pedalsMode,
             "PedalsMode raw 3 should become -1 after inversion (2-3)")
 
         // Test all LED modes 0-9
@@ -913,7 +913,7 @@ class GotwayDecoderComparisonTest {
             decoder.reset()
             result = decoder.decode(p, defaultState, defaultConfig)
             assertTrue(result is DecodeResult.Success)
-            assertEquals(led, (result as DecodeResult.Success).data.newState.ledMode, "LED mode $led should be set correctly")
+            assertEquals(led, (result as DecodeResult.Success).data.newState!!.ledMode, "LED mode $led should be set correctly")
         }
     }
 }

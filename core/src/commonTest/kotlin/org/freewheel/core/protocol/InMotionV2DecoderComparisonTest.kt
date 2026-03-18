@@ -25,7 +25,7 @@ class InMotionV2DecoderComparisonTest {
         var state = defaultState
         for (hex in hexPackets) {
             val result = decoder.decode(hex.hexToByteArray(), state, defaultConfig)
-            if (result is DecodeResult.Success) state = result.data.newState
+            if (result is DecodeResult.Success) state = result.data.newState!!
         }
         return state
     }

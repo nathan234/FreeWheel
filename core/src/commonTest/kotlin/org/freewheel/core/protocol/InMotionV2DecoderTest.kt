@@ -121,7 +121,7 @@ class InMotionV2DecoderTest {
         for (packet in listOf(wheelType, serialNumber, versions, settings, statistics, totals, realTimeData)) {
             val result = decoder.decode(packet, state, defaultConfig)
             if (result is DecodeResult.Success) {
-                state = result.data.newState
+                state = result.data.newState!!
             }
         }
 
@@ -168,7 +168,7 @@ class InMotionV2DecoderTest {
 
         // First establish model
         val modelResult = decoder.decode(wheelType, state, defaultConfig)
-        if (modelResult is DecodeResult.Success) state = modelResult.data.newState
+        if (modelResult is DecodeResult.Success) state = modelResult.data.newState!!
 
         // Then decode packet with escape bytes
         val result = decoder.decode(packet, state, defaultConfig)
@@ -178,7 +178,7 @@ class InMotionV2DecoderTest {
         val decoded = (result as DecodeResult.Success).data
         assertTrue(decoded.hasNewData, "Should decode packet with escape bytes")
 
-        val finalState = decoded.newState
+        val finalState = decoded.newState!!
 
         // Expected from legacy test:
         // speedDouble = 6.16, temperature = 20, temperature2 = 39
@@ -211,7 +211,7 @@ class InMotionV2DecoderTest {
         for (packet in listOf(wheelType, serialNumber, versions, statistics, totals, realTimeData)) {
             val result = decoder.decode(packet, state, defaultConfig)
             if (result is DecodeResult.Success) {
-                state = result.data.newState
+                state = result.data.newState!!
             }
         }
 
@@ -241,7 +241,7 @@ class InMotionV2DecoderTest {
         var state = defaultState
 
         val result1 = decoder.decode(wheelType, state, defaultConfig)
-        if (result1 is DecodeResult.Success) state = result1.data.newState
+        if (result1 is DecodeResult.Success) state = result1.data.newState!!
 
         val result2 = decoder.decode(realTimeData, state, defaultConfig)
 
@@ -249,7 +249,7 @@ class InMotionV2DecoderTest {
         val decoded2 = (result2 as DecodeResult.Success).data
         assertTrue(decoded2.hasNewData, "Should decode real-time data")
 
-        val finalState = decoded2.newState
+        val finalState = decoded2.newState!!
 
         // Expected from legacy test:
         // speedDouble = 49.85, temperature = 45, temperature2 = 41
@@ -279,7 +279,7 @@ class InMotionV2DecoderTest {
         for (packet in listOf(wheelType, serialNumber, versions, realTimeData)) {
             val result = decoder.decode(packet, state, defaultConfig)
             if (result is DecodeResult.Success) {
-                state = result.data.newState
+                state = result.data.newState!!
             }
         }
 
@@ -314,7 +314,7 @@ class InMotionV2DecoderTest {
         for (packet in listOf(wheelType, serialNumber, versions, realTimeData)) {
             val result = decoder.decode(packet, state, defaultConfig)
             if (result is DecodeResult.Success) {
-                state = result.data.newState
+                state = result.data.newState!!
             }
         }
 
@@ -350,7 +350,7 @@ class InMotionV2DecoderTest {
         for (packet in listOf(wheelType, serialNumber, versions, realTimeData)) {
             val result = decoder.decode(packet, state, defaultConfig)
             if (result is DecodeResult.Success) {
-                state = result.data.newState
+                state = result.data.newState!!
             }
         }
 
@@ -385,7 +385,7 @@ class InMotionV2DecoderTest {
         for (packet in listOf(wheelType, serialNumber, versions, realTimeData)) {
             val result = decoder.decode(packet, state, defaultConfig)
             if (result is DecodeResult.Success) {
-                state = result.data.newState
+                state = result.data.newState!!
             }
         }
 
@@ -420,7 +420,7 @@ class InMotionV2DecoderTest {
         for (packet in listOf(wheelType, serialNumber, versions, realTimeData)) {
             val result = decoder.decode(packet, state, defaultConfig)
             if (result is DecodeResult.Success) {
-                state = result.data.newState
+                state = result.data.newState!!
             }
         }
 
@@ -455,7 +455,7 @@ class InMotionV2DecoderTest {
         for (packet in listOf(wheelType, serialNumber, versions, realTimeData)) {
             val result = decoder.decode(packet, state, defaultConfig)
             if (result is DecodeResult.Success) {
-                state = result.data.newState
+                state = result.data.newState!!
             }
         }
 
@@ -777,11 +777,11 @@ class InMotionV2DecoderTest {
         var state = defaultState
 
         val r1 = decoder.decode(wheelType, state, defaultConfig)
-        if (r1 is DecodeResult.Success) state = r1.data.newState
+        if (r1 is DecodeResult.Success) state = r1.data.newState!!
 
         val r2 = decoder.decode(settings, state, defaultConfig)
         assertTrue(r2 is DecodeResult.Success, "Settings should be parsed")
-        state = (r2 as DecodeResult.Success).data.newState
+        state = (r2 as DecodeResult.Success).data.newState!!
 
         // Verify parsed settings
         // data[1..2] = 7C 15 → LE short = 0x157C = 5500 → /100 = 55
@@ -839,11 +839,11 @@ class InMotionV2DecoderTest {
         var state = defaultState
 
         val r1 = decoder.decode(wheelType, state, defaultConfig)
-        if (r1 is DecodeResult.Success) state = r1.data.newState
+        if (r1 is DecodeResult.Success) state = r1.data.newState!!
 
         val r2 = decoder.decode(settingsFrame, state, defaultConfig)
         assertTrue(r2 is DecodeResult.Success, "V13 settings should be parsed")
-        state = (r2 as DecodeResult.Success).data.newState
+        state = (r2 as DecodeResult.Success).data.newState!!
 
         assertEquals(70, state.maxSpeed, "Max speed should be 70 km/h")
         assertEquals(-1, state.pedalTilt, "Pedal tilt should be -1 (wire -10 / 10)")
@@ -889,11 +889,11 @@ class InMotionV2DecoderTest {
         var state = defaultState
 
         val r1 = decoder.decode(wheelType, state, defaultConfig)
-        if (r1 is DecodeResult.Success) state = r1.data.newState
+        if (r1 is DecodeResult.Success) state = r1.data.newState!!
 
         val r2 = decoder.decode(settingsFrame, state, defaultConfig)
         assertTrue(r2 is DecodeResult.Success, "V11Y settings should be parsed")
-        state = (r2 as DecodeResult.Success).data.newState
+        state = (r2 as DecodeResult.Success).data.newState!!
 
         assertEquals(60, state.maxSpeed, "Max speed should be 60 km/h")
         assertEquals(0, state.pedalTilt, "Pedal tilt should be 0 (wire 5 / 10)")
@@ -936,11 +936,11 @@ class InMotionV2DecoderTest {
         var state = defaultState
 
         val r1 = decoder.decode(wheelType, state, defaultConfig)
-        if (r1 is DecodeResult.Success) state = r1.data.newState
+        if (r1 is DecodeResult.Success) state = r1.data.newState!!
 
         val r2 = decoder.decode(settingsFrame, state, defaultConfig)
         assertTrue(r2 is DecodeResult.Success, "V12 settings should be parsed")
-        state = (r2 as DecodeResult.Success).data.newState
+        state = (r2 as DecodeResult.Success).data.newState!!
 
         assertEquals(50, state.maxSpeed, "Max speed should be 50 km/h")
         assertEquals(1, state.pedalTilt, "Pedal tilt should be 1 (wire 15 / 10)")
@@ -987,11 +987,11 @@ class InMotionV2DecoderTest {
         var state = defaultState
 
         val r1 = decoder.decode(wheelType, state, defaultConfig)
-        if (r1 is DecodeResult.Success) state = r1.data.newState
+        if (r1 is DecodeResult.Success) state = r1.data.newState!!
 
         val r2 = decoder.decode(settingsFrame, state, defaultConfig)
         assertTrue(r2 is DecodeResult.Success, "V9 settings should be parsed")
-        state = (r2 as DecodeResult.Success).data.newState
+        state = (r2 as DecodeResult.Success).data.newState!!
 
         assertEquals(45, state.maxSpeed, "Max speed should be 45 km/h")
         assertEquals(0, state.pedalTilt, "Pedal tilt should be 0")
@@ -1746,8 +1746,8 @@ class InMotionV2DecoderTest {
         val result = decoder.decode(frame, defaultState, defaultConfig)
         assertTrue(result is DecodeResult.Success, "Extended init response should be decoded")
         val decoded = (result as DecodeResult.Success).data
-        assertEquals("InMotion P6", decoded.newState.model)
-        assertEquals("A1421A1150002437", decoded.newState.serialNumber)
+        assertEquals("InMotion P6", decoded.newState!!.model)
+        assertEquals("A1421A1150002437", decoded.newState!!.serialNumber)
     }
 
     @Test
@@ -1781,11 +1781,11 @@ class InMotionV2DecoderTest {
         val result = decoder.decode(frame, defaultState, defaultConfig)
         assertTrue(result is DecodeResult.Success, "Extended telemetry should be decoded")
         val decoded = (result as DecodeResult.Success).data
-        assertEquals(21858, decoded.newState.voltage, "Voltage should be 21858 (raw centivolts)")
-        assertEquals(-36, decoded.newState.current, "Current should be -36")
-        assertEquals(12490, decoded.newState.speed, "Speed should be 12490")
-        assertEquals(97, decoded.newState.batteryLevel, "Battery should be 97% (100 - 278/100)")
-        assertEquals(1800, decoded.newState.temperature, "MosTemp should be 18°C × 100")
+        assertEquals(21858, decoded.newState!!.voltage, "Voltage should be 21858 (raw centivolts)")
+        assertEquals(-36, decoded.newState!!.current, "Current should be -36")
+        assertEquals(12490, decoded.newState!!.speed, "Speed should be 12490")
+        assertEquals(97, decoded.newState!!.batteryLevel, "Battery should be 97% (100 - 278/100)")
+        assertEquals(1800, decoded.newState!!.temperature, "MosTemp should be 18°C × 100")
     }
 
     @Test
@@ -1804,7 +1804,7 @@ class InMotionV2DecoderTest {
         val frame1 = buildIM2Frame(0x16, 0x21, byteArrayOf(0x02, 0x87.toByte(), 0x01, 0x00) + payload1)
         val r1 = decoder.decode(frame1, defaultState, defaultConfig)
         assertTrue(r1 is DecodeResult.Success)
-        assertEquals(97, (r1 as DecodeResult.Success).data.newState.batteryLevel, "278 discharge → 97% remaining")
+        assertEquals(97, (r1 as DecodeResult.Success).data.newState!!.batteryLevel, "278 discharge → 97% remaining")
 
         // Test with discharge=5000 → battery=50%
         val payload2 = ByteArray(96)
@@ -1813,7 +1813,7 @@ class InMotionV2DecoderTest {
         val frame2 = buildIM2Frame(0x16, 0x21, byteArrayOf(0x02, 0x87.toByte(), 0x01, 0x00) + payload2)
         val r2 = decoder.decode(frame2, defaultState, defaultConfig)
         assertTrue(r2 is DecodeResult.Success)
-        assertEquals(50, (r2 as DecodeResult.Success).data.newState.batteryLevel, "5000 discharge → 50% remaining")
+        assertEquals(50, (r2 as DecodeResult.Success).data.newState!!.batteryLevel, "5000 discharge → 50% remaining")
 
         // Test with discharge=9900 → battery=1%
         val payload3 = ByteArray(96)
@@ -1822,7 +1822,7 @@ class InMotionV2DecoderTest {
         val frame3 = buildIM2Frame(0x16, 0x21, byteArrayOf(0x02, 0x87.toByte(), 0x01, 0x00) + payload3)
         val r3 = decoder.decode(frame3, defaultState, defaultConfig)
         assertTrue(r3 is DecodeResult.Success)
-        assertEquals(1, (r3 as DecodeResult.Success).data.newState.batteryLevel, "9900 discharge → 1% remaining")
+        assertEquals(1, (r3 as DecodeResult.Success).data.newState!!.batteryLevel, "9900 discharge → 1% remaining")
 
         // Test with discharge=0 → battery=100%
         val payload4 = ByteArray(96)
@@ -1831,7 +1831,7 @@ class InMotionV2DecoderTest {
         val frame4 = buildIM2Frame(0x16, 0x21, byteArrayOf(0x02, 0x87.toByte(), 0x01, 0x00) + payload4)
         val r4 = decoder.decode(frame4, defaultState, defaultConfig)
         assertTrue(r4 is DecodeResult.Success)
-        assertEquals(100, (r4 as DecodeResult.Success).data.newState.batteryLevel, "0 discharge → 100% remaining")
+        assertEquals(100, (r4 as DecodeResult.Success).data.newState!!.batteryLevel, "0 discharge → 100% remaining")
     }
 
     @Test
@@ -1850,7 +1850,7 @@ class InMotionV2DecoderTest {
         val frame = buildIM2Frame(0x16, 0x21, statsData)
         val result = decoder.decode(frame, defaultState, defaultConfig)
         assertTrue(result is DecodeResult.Success, "Extended total stats should be decoded")
-        assertEquals(116780L, (result as DecodeResult.Success).data.newState.totalDistance)
+        assertEquals(116780L, (result as DecodeResult.Success).data.newState!!.totalDistance)
     }
 
     @Test
@@ -2011,7 +2011,7 @@ class InMotionV2DecoderTest {
         val result = decoder.decode(frame, stateWithName, defaultConfig)
 
         assertTrue(result is DecodeResult.Success, "Should decode telemetry")
-        assertEquals("InMotion P6", (result as DecodeResult.Success).data.newState.model, "Model should be detected from btName")
+        assertEquals("InMotion P6", (result as DecodeResult.Success).data.newState!!.model, "Model should be detected from btName")
     }
 
     @Test
@@ -2028,7 +2028,7 @@ class InMotionV2DecoderTest {
         val result = decoder.decode(frame, stateWithName, defaultConfig)
 
         assertTrue(result is DecodeResult.Success)
-        assertEquals("InMotion V11", (result as DecodeResult.Success).data.newState.model, "Protocol detection takes precedence over name")
+        assertEquals("InMotion V11", (result as DecodeResult.Success).data.newState!!.model, "Protocol detection takes precedence over name")
     }
 
     @Test
@@ -2080,7 +2080,7 @@ class InMotionV2DecoderTest {
         val result = d.decode(frame, defaultState, defaultConfig)
         assertTrue(result is DecodeResult.Success)
         val decoded = (result as DecodeResult.Success).data
-        val bms = decoded.newState.bms1
+        val bms = decoded.newState!!.bms1
         assertNotNull(bms)
         assertEquals(56, bms.cellNum)
         // First cell: 3650 mV = 3.650V
@@ -2123,7 +2123,7 @@ class InMotionV2DecoderTest {
         val result = d.decode(frame, defaultState, defaultConfig)
         assertTrue(result is DecodeResult.Success)
         val decoded = (result as DecodeResult.Success).data
-        val bms = decoded.newState.bms1
+        val bms = decoded.newState!!.bms1
         assertNotNull(bms)
         assertTrue(abs(bms.voltage - 201.60) < 0.1, "Voltage should be ~201.6V, got ${bms.voltage}")
         assertTrue(abs(bms.current - (-5.0)) < 0.1, "Current should be ~-5.0A, got ${bms.current}")
@@ -2145,7 +2145,7 @@ class InMotionV2DecoderTest {
         val result = d.decode(frame, defaultState, defaultConfig)
         assertTrue(result is DecodeResult.Success)
         val decoded = (result as DecodeResult.Success).data
-        val bms = decoded.newState.bms1
+        val bms = decoded.newState!!.bms1
         assertNotNull(bms)
         assertEquals("P6SERIAL12345678ABCD", bms.serialNumber)
         assertEquals(56, bms.cellNum)

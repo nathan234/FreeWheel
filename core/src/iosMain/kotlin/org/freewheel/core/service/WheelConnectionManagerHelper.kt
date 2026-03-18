@@ -11,7 +11,7 @@ import org.freewheel.core.domain.BmsState
 import org.freewheel.core.domain.CapabilitySet
 import org.freewheel.core.domain.TelemetryState
 import org.freewheel.core.domain.WheelIdentity
-import org.freewheel.core.domain.WheelSettingsState
+import org.freewheel.core.domain.WheelSettings
 import org.freewheel.core.domain.WheelState
 import org.freewheel.core.protocol.DecoderConfig
 import org.freewheel.core.protocol.DefaultWheelDecoderFactory
@@ -107,7 +107,7 @@ object WheelConnectionManagerHelper {
         return manager.telemetryState.value
     }
 
-    fun getSettingsState(manager: WheelConnectionManager): WheelSettingsState {
+    fun getSettingsState(manager: WheelConnectionManager): WheelSettings {
         return manager.settingsState.value
     }
 
@@ -445,7 +445,7 @@ object WheelConnectionManagerHelper {
         return FlowObservation(scope)
     }
 
-    fun observeSettingsState(manager: WheelConnectionManager, onChange: (WheelSettingsState) -> Unit): FlowObservation {
+    fun observeSettingsState(manager: WheelConnectionManager, onChange: (WheelSettings) -> Unit): FlowObservation {
         val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
         scope.launch { manager.settingsState.collect { onChange(it) } }
         return FlowObservation(scope)

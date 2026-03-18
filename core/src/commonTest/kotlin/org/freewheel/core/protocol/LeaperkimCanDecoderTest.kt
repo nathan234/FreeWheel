@@ -186,7 +186,7 @@ class LeaperkimCanDecoderTest {
 
         assertTrue(result is DecodeResult.Success)
         val decoded = (result as DecodeResult.Success).data
-        assertEquals(expectedSpeed, decoded.newState.speed)
+        assertEquals(expectedSpeed, decoded.newState!!.speed)
     }
 
     @Test
@@ -202,7 +202,7 @@ class LeaperkimCanDecoderTest {
 
         assertTrue(result is DecodeResult.Success)
         val decoded = (result as DecodeResult.Success).data
-        assertEquals(8400, decoded.newState.voltage)
+        assertEquals(8400, decoded.newState!!.voltage)
     }
 
     @Test
@@ -219,7 +219,7 @@ class LeaperkimCanDecoderTest {
 
         assertTrue(result is DecodeResult.Success)
         val decoded = (result as DecodeResult.Success).data
-        assertEquals(49, decoded.newState.batteryLevel)
+        assertEquals(49, decoded.newState!!.batteryLevel)
     }
 
     @Test
@@ -234,7 +234,7 @@ class LeaperkimCanDecoderTest {
 
         assertTrue(result is DecodeResult.Success)
         val decoded = (result as DecodeResult.Success).data
-        assertEquals(0, decoded.newState.batteryLevel)
+        assertEquals(0, decoded.newState!!.batteryLevel)
     }
 
     @Test
@@ -249,7 +249,7 @@ class LeaperkimCanDecoderTest {
 
         assertTrue(result is DecodeResult.Success)
         val decoded = (result as DecodeResult.Success).data
-        assertEquals(100, decoded.newState.batteryLevel)
+        assertEquals(100, decoded.newState!!.batteryLevel)
     }
 
     @Test
@@ -266,7 +266,7 @@ class LeaperkimCanDecoderTest {
 
         assertTrue(result is DecodeResult.Success)
         val decoded = (result as DecodeResult.Success).data
-        assertEquals(3500, decoded.newState.temperature)
+        assertEquals(3500, decoded.newState!!.temperature)
     }
 
     @Test
@@ -283,7 +283,7 @@ class LeaperkimCanDecoderTest {
 
         assertTrue(result is DecodeResult.Success)
         val decoded = (result as DecodeResult.Success).data
-        assertEquals(1500, decoded.newState.phaseCurrent)
+        assertEquals(1500, decoded.newState!!.phaseCurrent)
     }
 
     @Test
@@ -299,7 +299,7 @@ class LeaperkimCanDecoderTest {
 
         assertTrue(result is DecodeResult.Success)
         val decoded = (result as DecodeResult.Success).data
-        assertEquals(5000L, decoded.newState.wheelDistance)
+        assertEquals(5000L, decoded.newState!!.wheelDistance)
     }
 
     @Test
@@ -315,7 +315,7 @@ class LeaperkimCanDecoderTest {
 
         assertTrue(result is DecodeResult.Success)
         val decoded = (result as DecodeResult.Success).data
-        assertEquals(2.0, decoded.newState.angle, 0.001)
+        assertEquals(2.0, decoded.newState!!.angle, 0.001)
     }
 
     @Test
@@ -328,7 +328,7 @@ class LeaperkimCanDecoderTest {
 
         assertTrue(result is DecodeResult.Success)
         val decoded = (result as DecodeResult.Success).data
-        assertEquals(WheelType.LEAPERKIM, decoded.newState.wheelType)
+        assertEquals(WheelType.LEAPERKIM, decoded.newState!!.wheelType)
     }
 
     // ==================== Status Parsing ====================
@@ -350,7 +350,7 @@ class LeaperkimCanDecoderTest {
 
         assertTrue(result is DecodeResult.Success)
         val decoded = (result as DecodeResult.Success).data
-        assertEquals("123456789ABCDEF", decoded.newState.serialNumber)
+        assertEquals("123456789ABCDEF", decoded.newState!!.serialNumber)
     }
 
     @Test
@@ -370,7 +370,7 @@ class LeaperkimCanDecoderTest {
 
         assertTrue(result is DecodeResult.Success)
         val decoded = (result as DecodeResult.Success).data
-        assertEquals("2.1.5", decoded.newState.version)
+        assertEquals("2.1.5", decoded.newState!!.version)
     }
 
     @Test
@@ -388,7 +388,7 @@ class LeaperkimCanDecoderTest {
 
         assertTrue(result is DecodeResult.Success)
         val decoded = (result as DecodeResult.Success).data
-        assertEquals("Sherman", decoded.newState.model)
+        assertEquals("Sherman", decoded.newState!!.model)
     }
 
     @Test
@@ -406,7 +406,7 @@ class LeaperkimCanDecoderTest {
 
         assertTrue(result is DecodeResult.Success)
         val decoded = (result as DecodeResult.Success).data
-        assertEquals("Abrams", decoded.newState.model)
+        assertEquals("Abrams", decoded.newState!!.model)
     }
 
     @Test
@@ -424,7 +424,7 @@ class LeaperkimCanDecoderTest {
 
         assertTrue(result is DecodeResult.Success)
         val decoded = (result as DecodeResult.Success).data
-        assertEquals(1, decoded.newState.lightMode)
+        assertEquals(1, decoded.newState!!.lightMode)
     }
 
     @Test
@@ -442,7 +442,7 @@ class LeaperkimCanDecoderTest {
 
         assertTrue(result is DecodeResult.Success)
         val decoded = (result as DecodeResult.Success).data
-        assertTrue(decoded.newState.handleButton)
+        assertTrue(decoded.newState!!.handleButton)
     }
 
     @Test
@@ -460,7 +460,7 @@ class LeaperkimCanDecoderTest {
 
         assertTrue(result is DecodeResult.Success)
         val decoded = (result as DecodeResult.Success).data
-        assertTrue(decoded.newState.transportMode)
+        assertTrue(decoded.newState!!.transportMode)
     }
 
     // ==================== Escape Handling ====================
@@ -481,7 +481,7 @@ class LeaperkimCanDecoderTest {
 
         assertTrue(result is DecodeResult.Success)
         val decoded = (result as DecodeResult.Success).data
-        assertEquals(16500, decoded.newState.temperature) // 165 * 100
+        assertEquals(16500, decoded.newState!!.temperature) // 165 * 100
     }
 
     // ==================== Command Encoding ====================
@@ -661,8 +661,8 @@ class LeaperkimCanDecoderTest {
 
         assertTrue(result is DecodeResult.Success)
         val decoded = (result as DecodeResult.Success).data
-        assertEquals("Glide 3", decoded.newState.model)
-        assertEquals(1, decoded.newState.lightMode)
+        assertEquals("Glide 3", decoded.newState!!.model)
+        assertEquals(1, decoded.newState!!.lightMode)
     }
 
     // ==================== buildCanFrame verification ====================

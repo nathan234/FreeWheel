@@ -1,6 +1,10 @@
 package org.freewheel.core.protocol
 
+import org.freewheel.core.domain.BmsState
 import org.freewheel.core.domain.CapabilitySet
+import org.freewheel.core.domain.TelemetryState
+import org.freewheel.core.domain.WheelIdentity
+import org.freewheel.core.domain.WheelSettings
 import org.freewheel.core.domain.WheelState
 import org.freewheel.core.domain.WheelType
 
@@ -143,12 +147,29 @@ data class UnhandledReason(
 
 /**
  * Result from decoding wheel data.
+ *
+ * Supports two paths:
+ * - **Legacy** (unmigrated decoders): set [newState] to a full WheelState.
+ * - **Migrated** (Phase 2+): set domain pieces ([telemetry], [identity], [bms], [settings]);
+ *   leave [newState] null. The reducer merges only the pieces that changed.
  */
 data class DecodedData(
     /**
-     * Updated wheel state with new values.
+     * Legacy: full updated wheel state. Set by unmigrated decoders.
+     * Null when the decoder returns domain pieces instead.
      */
-    val newState: WheelState,
+    val newState: WheelState? = null,
+
+    // --- Domain pieces (set by migrated decoders; non-null = changed) ---
+
+    /** High-frequency telemetry update. */
+    val telemetry: TelemetryState? = null,
+    /** Wheel identity update (model, serial, version, etc.). */
+    val identity: WheelIdentity? = null,
+    /** BMS snapshot update. */
+    val bms: BmsState? = null,
+    /** Settings update. */
+    val settings: WheelSettings? = null,
 
     /**
      * Commands to send back to the wheel (e.g., acknowledgments, requests).

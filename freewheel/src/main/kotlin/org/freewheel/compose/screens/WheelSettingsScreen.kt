@@ -51,6 +51,7 @@ import org.freewheel.core.domain.WheelSettingsConfig
 @Composable
 fun WheelSettingsScreen(viewModel: WheelViewModel, onBack: () -> Unit) {
     val wheelState by viewModel.wheelState.collectAsStateWithLifecycle()
+    val wheelSettings = remember(wheelState) { wheelState.toWheelSettings() }
     val capabilities by viewModel.capabilities.collectAsStateWithLifecycle()
     val sections = remember(wheelState.wheelType, capabilities) {
         WheelSettingsConfig.sections(wheelState.wheelType, capabilities)
@@ -116,7 +117,7 @@ fun WheelSettingsScreen(viewModel: WheelViewModel, onBack: () -> Unit) {
                     item(key = section.title) {
                         SectionCard(
                             section = section,
-                            wheelState = wheelState,
+                            wheelSettings = wheelSettings,
                             toggleStates = toggleStates,
                             sliderOverrides = sliderOverrides,
                             onIntCommand = { id, value ->

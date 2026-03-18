@@ -39,12 +39,12 @@ import androidx.compose.ui.unit.sp
 import org.freewheel.core.domain.ControlSpec
 import org.freewheel.core.domain.SettingsCommandId
 import org.freewheel.core.domain.SettingsSection
-import org.freewheel.core.domain.WheelState
+import org.freewheel.core.domain.WheelSettings
 
 @Composable
 internal fun SectionCard(
     section: SettingsSection,
-    wheelState: WheelState,
+    wheelSettings: WheelSettings,
     toggleStates: Map<SettingsCommandId, Boolean>,
     sliderOverrides: Map<SettingsCommandId, Int> = emptyMap(),
     onIntCommand: (SettingsCommandId, Int) -> Unit,
@@ -75,14 +75,14 @@ internal fun SectionCard(
                 if (control is ControlSpec.Slider && control.visibleWhen != null) {
                     val gateValue = toggleStates[control.visibleWhen]
                         ?: control.visibleWhen?.let { SettingsCommandId.entries.find { e -> e == it } }
-                            ?.readBool(wheelState)
+                            ?.readBool(wheelSettings)
                         ?: false
                     if (!gateValue) return@forEachIndexed
                 }
 
                 RenderControl(
                     control = control,
-                    wheelState = wheelState,
+                    wheelSettings = wheelSettings,
                     toggleStates = toggleStates,
                     sliderOverrides = sliderOverrides,
                     onIntCommand = onIntCommand,
@@ -101,7 +101,7 @@ internal fun SectionCard(
 @Composable
 internal fun RenderControl(
     control: ControlSpec,
-    wheelState: WheelState,
+    wheelSettings: WheelSettings,
     toggleStates: Map<SettingsCommandId, Boolean>,
     sliderOverrides: Map<SettingsCommandId, Int> = emptyMap(),
     onIntCommand: (SettingsCommandId, Int) -> Unit,
@@ -109,10 +109,10 @@ internal fun RenderControl(
     onDangerousAction: (ControlSpec) -> Unit
 ) {
     when (control) {
-        is ControlSpec.Toggle -> ToggleControl(control, wheelState, toggleStates, onBoolCommand)
-        is ControlSpec.Segmented -> SegmentedControl(control, wheelState, onIntCommand)
-        is ControlSpec.Picker -> PickerControl(control, wheelState, onIntCommand)
-        is ControlSpec.Slider -> SliderControl(control, wheelState, sliderOverrides[control.commandId], onIntCommand)
+        is ControlSpec.Toggle -> ToggleControl(control, wheelSettings, toggleStates, onBoolCommand)
+        is ControlSpec.Segmented -> SegmentedControl(control, wheelSettings, onIntCommand)
+        is ControlSpec.Picker -> PickerControl(control, wheelSettings, onIntCommand)
+        is ControlSpec.Slider -> SliderControl(control, wheelSettings, sliderOverrides[control.commandId], onIntCommand)
         is ControlSpec.DangerousButton -> DangerousButtonControl(control, onDangerousAction)
         is ControlSpec.DangerousToggle -> DangerousToggleControl(control, toggleStates, onBoolCommand, onDangerousAction)
     }
@@ -121,11 +121,11 @@ internal fun RenderControl(
 @Composable
 internal fun ToggleControl(
     control: ControlSpec.Toggle,
-    wheelState: WheelState,
+    wheelSettings: WheelSettings,
     toggleStates: Map<SettingsCommandId, Boolean>,
     onBoolCommand: (SettingsCommandId, Boolean) -> Unit
 ) {
-    val readback = control.commandId.readBool(wheelState)
+    val readback = control.commandId.readBool(wheelSettings)
     val checked = toggleStates[control.commandId] ?: readback ?: false
 
     Row(
@@ -145,10 +145,10 @@ internal fun ToggleControl(
 @Composable
 internal fun SegmentedControl(
     control: ControlSpec.Segmented,
-    wheelState: WheelState,
+    wheelSettings: WheelSettings,
     onIntCommand: (SettingsCommandId, Int) -> Unit
 ) {
-    val readback = control.commandId.readInt(wheelState)
+    val readback = control.commandId.readInt(wheelSettings)
     var selected by remember(readback) { mutableIntStateOf(readback ?: 0) }
 
     Column {
@@ -178,10 +178,10 @@ internal fun SegmentedControl(
 @Composable
 internal fun PickerControl(
     control: ControlSpec.Picker,
-    wheelState: WheelState,
+    wheelSettings: WheelSettings,
     onIntCommand: (SettingsCommandId, Int) -> Unit
 ) {
-    val readback = control.commandId.readInt(wheelState)
+    val readback = control.commandId.readInt(wheelSettings)
     var selected by remember(readback) { mutableIntStateOf(readback?.coerceIn(0, control.options.lastIndex) ?: 0) }
     var expanded by remember { mutableStateOf(false) }
 
@@ -217,11 +217,11 @@ internal fun PickerControl(
 @Composable
 internal fun SliderControl(
     control: ControlSpec.Slider,
-    wheelState: WheelState,
+    wheelSettings: WheelSettings,
     persistedValue: Int?,
     onIntCommand: (SettingsCommandId, Int) -> Unit
 ) {
-    val readback = control.commandId.readInt(wheelState)
+    val readback = control.commandId.readInt(wheelSettings)
     val initial = readback ?: persistedValue ?: control.defaultValue
     var value by remember(readback) { mutableFloatStateOf(initial.toFloat()) }
 
