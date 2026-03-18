@@ -132,7 +132,10 @@ class DataTimeoutTracker(
 ) {
     private val lock = Lock()
     private var timeoutJob: Job? = null
-    private var lastDataTime: Long = 0
+    // Lock-free timestamp — MutableStateFlow provides thread-safe reads/writes
+    // from the BLE callback thread (onDataReceived called 50+ times/sec)
+    // without blocking the callback
+    private val lastDataTime = MutableStateFlow(0L)
     private var timeoutMs: Long = DEFAULT_TIMEOUT_MS
 
     private val _isTimedOut = MutableStateFlow(false)
@@ -155,14 +158,14 @@ class DataTimeoutTracker(
         stop_internal()
 
         this.timeoutMs = timeoutMs
-        lastDataTime = currentTimeMillis()
+        lastDataTime.value = currentTimeMillis()
         _isTimedOut.value = false
 
         timeoutJob = scope.launch(dispatcher) {
             while (isActive) {
                 delay(1000) // Check every second
 
-                val elapsed = currentTimeMillis() - lock.withLock { lastDataTime }
+                val elapsed = currentTimeMillis() - lastDataTime.value
                 if (elapsed > timeoutMs) {
                     if (!_isTimedOut.value) {
                         _isTimedOut.value = true
@@ -196,18 +199,17 @@ class DataTimeoutTracker(
 
     /**
      * Call this when data is received to reset the timeout.
+     * Lock-free — safe to call from BLE callback thread at high frequency.
      */
-    fun onDataReceived() = lock.withLock {
-        lastDataTime = currentTimeMillis()
+    fun onDataReceived() {
+        lastDataTime.value = currentTimeMillis()
         _isTimedOut.value = false
     }
 
     /**
      * Get the time since last data in milliseconds.
      */
-    fun timeSinceLastDataMs(): Long = lock.withLock {
-        currentTimeMillis() - lastDataTime
-    }
+    fun timeSinceLastDataMs(): Long = currentTimeMillis() - lastDataTime.value
 }
 
 /**

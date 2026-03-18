@@ -4,7 +4,9 @@ import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattService
 import android.content.Context
 import android.os.Handler
+import android.os.HandlerThread
 import android.os.Looper
+import com.welie.blessed.ConnectionPriority
 import org.freewheel.core.ble.DiscoveredService
 import org.freewheel.core.ble.DiscoveredServices
 import org.freewheel.core.utils.Lock
@@ -86,7 +88,8 @@ actual class BleManager : BleManagerPort {
     // Scan callback
     private var scanDeviceFoundCallback: ((BleDevice) -> Unit)? = null
 
-    // Disconnect tracking
+    // Disconnect tracking — accessed from BLE thread + coroutine dispatcher
+    @Volatile
     private var disconnectRequested = false
 
     actual override val connectionState: StateFlow<ConnectionState>
@@ -168,10 +171,14 @@ actual class BleManager : BleManagerPort {
      */
     fun initialize(context: Context) {
         if (central != null) return
+        // Dedicated BLE thread — keeps all Blessed callbacks off the main thread
+        // so UI rendering, GC pauses, and Compose recomposition can't block
+        // BLE notification processing (critical at 40+ notifications/sec)
+        val bleThread = HandlerThread("FreeWheel-BLE").apply { start() }
         central = BluetoothCentralManager(
             context,
             centralCallback,
-            Handler(Looper.getMainLooper())
+            Handler(bleThread.looper)
         )
     }
 
@@ -246,6 +253,10 @@ actual class BleManager : BleManagerPort {
 
     private val peripheralCallback = object : BluetoothPeripheralCallback() {
         override fun onServicesDiscovered(peripheral: BluetoothPeripheral) {
+            // Request high connection priority for low-latency telemetry (~7.5ms interval
+            // vs default balanced ~30ms). Critical for protocols with 25ms keep-alive.
+            peripheral.requestConnectionPriority(ConnectionPriority.HIGH)
+
             _connectionState.value = ConnectionState.DiscoveringServices(peripheral.address)
 
             val discoveredServices = peripheral.services.map { service ->
