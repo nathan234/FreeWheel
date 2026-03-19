@@ -449,6 +449,13 @@ class WheelConnectionManager(
     }
 
     private fun reduceConnect(state: WcmState, event: WheelEvent.ConnectRequested): WcmTransition {
+        // De-duplicate: if already connecting to the same address, no-op.
+        // Prevents double-tap from causing unnecessary BLE teardown/setup.
+        val cs = state.connectionState
+        if (cs is ConnectionState.Connecting && cs.address == event.address) {
+            return WcmTransition(state)
+        }
+
         var newState = WcmState(
             decoderConfig = state.decoderConfig,
             connectionState = ConnectionState.Connecting(event.address)
