@@ -2,7 +2,7 @@ package org.freewheel.core.charger
 
 /**
  * Immutable state of an HW Charger (Roger/Pidzoom).
- * All values are native floats — no Int×100 scaling like WheelState.
+ * All values are native floats — no Int×100 scaling like TelemetryState.
  * Decoders return currentState.copy(field = newValue).
  */
 data class ChargerState(

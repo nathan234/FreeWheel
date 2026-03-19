@@ -11,7 +11,7 @@ import kotlin.math.roundToInt
  * Pure business logic for checking wheel alarms.
  *
  * This class contains no platform-specific code - it only performs calculations
- * based on [WheelState] and [AlarmConfig] to determine which alarms should trigger.
+ * based on [TelemetryState] and [AlarmConfig] to determine which alarms should trigger.
  *
  * Platform-specific effects (vibration, sound, notifications) should be handled
  * by the caller based on the [AlarmResult].

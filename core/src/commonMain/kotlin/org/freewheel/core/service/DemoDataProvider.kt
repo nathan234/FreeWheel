@@ -23,7 +23,7 @@ import kotlin.math.sin
  * Cross-platform demo data provider that generates realistic wheel telemetry.
  * Useful for testing on iOS Simulator (no BLE) or demonstrating the app.
  *
- * Produces [WheelState] updates at 10Hz with a 60-second ride cycle:
+ * Produces telemetry updates at 10Hz with a 60-second ride cycle:
  * accelerate → cruise → decelerate → stop.
  */
 class DemoDataProvider {

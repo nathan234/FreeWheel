@@ -18,7 +18,7 @@ import kotlin.math.abs
  * Renders a [DashboardMetric] as a [GaugeTile] composable.
  *
  * Bridges the KMP metric model to the existing GaugeTile component by:
- * - Extracting the value from WheelState (with unit conversion)
+ * - Extracting the value from TelemetryState (with unit conversion)
  * - Computing progress and color from the metric's thresholds
  * - Providing sparkline data via sparklineKey mapping
  */

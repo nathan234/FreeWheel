@@ -142,7 +142,7 @@ sealed class WheelSettings {
 // ==================== Extension Properties ====================
 //
 // Provide flat field access across all variants, used by
-// SettingsCommandId.readInt/readBool and WheelState.compose().
+// SettingsCommandId.readInt/readBool.
 // Returns -1 (Int) or false (Boolean) for variants that don't have the field.
 
 // --- Int fields ---

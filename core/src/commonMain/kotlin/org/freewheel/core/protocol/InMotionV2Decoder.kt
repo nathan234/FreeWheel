@@ -1339,7 +1339,7 @@ class InMotionV2Decoder : WheelDecoder {
                 controlMsg(0x26, (command.volume.coerceIn(0, 100) and 0xFF).toByte())
 
             is WheelCommand.SetPedalTilt -> {
-                // angle is in 1/10 degree (WheelState units), wire format is degrees × 100
+                // angle is in 1/10 degree (internal units), wire format is degrees × 100
                 val value = (command.angle * 10).toShort()
                 controlMsg(0x22, leShortLo(value), leShortHi(value))
             }

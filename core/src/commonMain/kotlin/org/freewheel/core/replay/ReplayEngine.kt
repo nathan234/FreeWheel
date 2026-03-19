@@ -35,7 +35,7 @@ data class ReplayPosition(
 /**
  * Replays BLE capture files through real protocol decoders.
  *
- * Follows the [DemoDataProvider] pattern: standalone class, exposes [StateFlow<WheelState>],
+ * Follows the [DemoDataProvider] pattern: standalone class, exposes granular StateFlows,
  * merged via combine() in the ViewModel.
  *
  * Packets are fed through the actual decoder for the captured wheel type, exercising

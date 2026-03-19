@@ -20,7 +20,7 @@ import org.freewheel.core.domain.BmsSnapshot
 import org.freewheel.core.utils.DisplayUtils
 
 /**
- * BMS screen driven by KMP WheelState via ViewModel (used in Compose Navigation).
+ * BMS screen driven by KMP BmsState via ViewModel (used in Compose Navigation).
  */
 @Composable
 fun SmartBmsScreen(viewModel: WheelViewModel) {
