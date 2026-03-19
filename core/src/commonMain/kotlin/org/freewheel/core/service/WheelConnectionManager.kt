@@ -517,8 +517,11 @@ class WheelConnectionManager(
     }
 
     private fun reduceBleResult(state: WcmState, event: WheelEvent.BleConnectResult): WcmTransition {
-        // Ignore stale results (e.g., already disconnected by a concurrent call)
-        if (state.connectionState !is ConnectionState.Connecting) {
+        // Ignore stale results: wrong state, or result for a different address
+        // (e.g., rapid disconnect → reconnect produces a stale result from the first attempt)
+        val connecting = state.connectionState as? ConnectionState.Connecting
+            ?: return WcmTransition(state)
+        if (connecting.address != event.address) {
             return WcmTransition(state)
         }
 
@@ -869,8 +872,18 @@ class WheelConnectionManager(
     private fun launchBleConnect(address: String) {
         bleConnectJob = scope.launch(dispatcher) {
             try {
-                val success = bleManager.connect(address)
-                events.send(WheelEvent.BleConnectResult(success, address))
+                val success = kotlinx.coroutines.withTimeoutOrNull(BLE_CONNECT_TIMEOUT_MS) {
+                    bleManager.connect(address)
+                }
+                if (success == null) {
+                    events.send(WheelEvent.BleConnectResult(
+                        success = false,
+                        address = address,
+                        error = "Connection timed out"
+                    ))
+                } else {
+                    events.send(WheelEvent.BleConnectResult(success, address))
+                }
             } catch (e: kotlinx.coroutines.CancellationException) {
                 // Cancelled by disconnect — don't send result
             } catch (e: Exception) {
@@ -920,6 +933,8 @@ class WheelConnectionManager(
         private const val TAG = "WheelConnectionManager"
         /** Consecutive BLE errors before triggering ConnectionLost. */
         internal const val MAX_BLE_ERRORS = 50
+        /** Timeout for BLE connect phase (30 seconds). */
+        private const val BLE_CONNECT_TIMEOUT_MS = 30_000L
     }
 }
 
