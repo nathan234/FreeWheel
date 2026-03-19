@@ -165,6 +165,34 @@ class WheelConnectionManagerLifecycleTest {
         assertEquals(1, fakeBle.disconnectCallCount)
     }
 
+    @Test
+    fun `connect to new address while connected disconnects old connection`() = runTest(timeout = 0.1.seconds) {
+        val manager = createManager()
+
+        // Connect to address A and reach Connected state
+        manager.connect("AA:AA:AA:AA:AA:AA")
+        manager.onWheelTypeDetected(WheelType.KINGSONG)
+        runCurrent()
+
+        fakeDecoder.decodeResult = DecodeResult.Success(DecodedData(
+            telemetry = TelemetryState(speed = 2500),
+            identity = WheelIdentity(name = "KS-S18")
+        ))
+        fakeDecoder.ready = true
+        manager.onDataReceived(byteArrayOf(0x01))
+        runCurrent()
+
+        assertTrue(manager.connectionState.value is ConnectionState.Connected)
+        assertEquals(0, fakeBle.disconnectCallCount)
+
+        // Now connect to address B — should disconnect A first
+        manager.connect("BB:BB:BB:BB:BB:BB")
+        runCurrent()
+
+        assertEquals(1, fakeBle.disconnectCallCount)
+        assertEquals("BB:BB:BB:BB:BB:BB", fakeBle.lastConnectAddress)
+    }
+
     // ==================== Service Discovery ====================
 
     @Test

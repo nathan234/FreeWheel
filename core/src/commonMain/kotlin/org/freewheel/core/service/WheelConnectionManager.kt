@@ -30,6 +30,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.scan
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.plus
 
@@ -469,10 +470,20 @@ class WheelConnectionManager(
             decoderEffects = effects
         }
 
-        // Cleanup effects must precede setup/connect effects to ensure
-        // previous connection resources are released before new ones start
+        // Emit cleanup effects based on what the current state requires.
+        // Connecting → cancel the in-progress BLE job
+        // Connected/DiscoveringServices → disconnect the established OS connection
+        // Disconnected/Failed → nothing to clean up
         val effects = buildList {
-            add(WcmEffect.CancelBleConnect)
+            when (state.connectionState) {
+                is ConnectionState.Connecting -> add(WcmEffect.CancelBleConnect)
+                is ConnectionState.Connected,
+                is ConnectionState.DiscoveringServices,
+                is ConnectionState.ConnectionLost -> add(WcmEffect.BleDisconnect)
+                is ConnectionState.Disconnected,
+                is ConnectionState.Failed,
+                is ConnectionState.Scanning -> { /* nothing to tear down */ }
+            }
             add(WcmEffect.StopTimers)
             add(WcmEffect.CancelCommands)
             state.decoder?.let { add(WcmEffect.ResetDecoder(it)) }
@@ -484,11 +495,18 @@ class WheelConnectionManager(
 
     private fun reduceDisconnect(state: WcmState): WcmTransition {
         val effects = buildList {
-            add(WcmEffect.CancelBleConnect)
+            when (state.connectionState) {
+                is ConnectionState.Connecting -> add(WcmEffect.CancelBleConnect)
+                is ConnectionState.Connected,
+                is ConnectionState.DiscoveringServices,
+                is ConnectionState.ConnectionLost -> add(WcmEffect.BleDisconnect)
+                is ConnectionState.Disconnected,
+                is ConnectionState.Failed,
+                is ConnectionState.Scanning -> { /* nothing to tear down */ }
+            }
             add(WcmEffect.StopTimers)
             add(WcmEffect.CancelCommands)
             state.decoder?.let { add(WcmEffect.ResetDecoder(it)) }
-            add(WcmEffect.BleDisconnect)
         }
         // Atomic reset — impossible to forget a field
         return WcmTransition(
@@ -799,8 +817,11 @@ class WheelConnectionManager(
                     dataTimeoutTracker.stop()
                 }
                 is WcmEffect.CancelBleConnect -> {
-                    bleConnectJob?.cancel()
+                    // Only emitted when state is Connecting, so there should
+                    // be an active connect job to cancel.
+                    bleConnectJob?.cancelAndJoin()
                     bleConnectJob = null
+                    bleManager.disconnect()
                 }
                 is WcmEffect.CancelCommands -> {
                     commandScheduler.cancelAll()
