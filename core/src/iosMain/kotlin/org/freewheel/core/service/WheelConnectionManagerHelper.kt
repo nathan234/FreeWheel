@@ -12,7 +12,6 @@ import org.freewheel.core.domain.CapabilitySet
 import org.freewheel.core.domain.TelemetryState
 import org.freewheel.core.domain.WheelIdentity
 import org.freewheel.core.domain.WheelSettings
-import org.freewheel.core.domain.WheelState
 import org.freewheel.core.protocol.DecoderConfig
 import org.freewheel.core.protocol.DefaultWheelDecoderFactory
 import org.freewheel.core.domain.SettingsCommandId
@@ -76,14 +75,6 @@ object WheelConnectionManagerHelper {
      */
     fun updateDecoderConfig(manager: WheelConnectionManager, useMph: Boolean, useFahrenheit: Boolean) {
         manager.updateConfig(DecoderConfig(useMph = useMph, useFahrenheit = useFahrenheit))
-    }
-
-    /**
-     * Get current wheel state from a WheelConnectionManager.
-     * Swift-friendly accessor that avoids StateFlow.value access.
-     */
-    fun getWheelState(manager: WheelConnectionManager): WheelState {
-        return manager.wheelState.value
     }
 
     /**
@@ -427,12 +418,6 @@ object WheelConnectionManagerHelper {
     // Swift callbacks on the main thread (Dispatchers.Main = main dispatch queue).
     // Return a FlowObservation handle — call close() to stop collecting.
 
-    fun observeWheelState(manager: WheelConnectionManager, onChange: (WheelState) -> Unit): FlowObservation {
-        val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
-        scope.launch { manager.wheelState.collect { onChange(it) } }
-        return FlowObservation(scope)
-    }
-
     fun observeConnectionState(manager: WheelConnectionManager, onChange: (ConnectionState) -> Unit): FlowObservation {
         val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
         scope.launch { manager.connectionState.collect { onChange(it) } }
@@ -539,11 +524,11 @@ object WheelConnectionManagerHelper {
 
     fun checkAlarms(
         checker: AlarmChecker,
-        state: WheelState,
+        telemetry: TelemetryState,
         config: AlarmConfig,
         currentTimeMs: Long
     ): AlarmResult {
-        return checker.check(state.toTelemetryState(), config, currentTimeMs)
+        return checker.check(telemetry, config, currentTimeMs)
     }
 
     fun resetAlarmChecker(checker: AlarmChecker) {

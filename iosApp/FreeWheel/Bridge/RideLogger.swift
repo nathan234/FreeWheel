@@ -93,10 +93,6 @@ class RideLogger: ObservableObject {
 
     // MARK: - Write Sample
 
-    func writeSample(state: WheelState, location: CLLocation?, includeGPS: Bool) {
-        writeTelemetrySample(telemetry: state.toTelemetryState(), modeStr: state.modeStr, location: location, includeGPS: includeGPS)
-    }
-
     func writeTelemetrySample(telemetry: TelemetryState, modeStr: String, location: CLLocation?, includeGPS: Bool) {
         let currentTimeMs = Int64(Date().timeIntervalSince1970 * 1000)
 

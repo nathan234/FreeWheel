@@ -194,7 +194,7 @@ class WheelManager: ObservableObject {
     @Published private(set) var replayPacketIndex: Int32 = 0
     @Published private(set) var replayTotalPackets: Int32 = 0
     @Published private(set) var replaySpeed: Float = 1.0
-    private var replayWheelStateObserver: FlowObservation?
+    private var replayTelemetryObserver: FlowObservation?
     private var replayStateObserver: FlowObservation?
     private var replayPositionObserver: FlowObservation?
     private var replaySpeedObserver: FlowObservation?
@@ -446,7 +446,7 @@ class WheelManager: ObservableObject {
         demoTelemetryObserver?.close()
         demoIdentityObserver?.close()
         demoBmsObserver?.close()
-        replayWheelStateObserver?.close()
+        replayTelemetryObserver?.close()
         replayStateObserver?.close()
         replayPositionObserver?.close()
         replaySpeedObserver?.close()
@@ -1362,7 +1362,7 @@ class WheelManager: ObservableObject {
     private func startReplayObserving() {
         let helper = WheelConnectionManagerHelper.shared
 
-        replayWheelStateObserver = helper.observeReplayTelemetry(engine: replayEngine) { [weak self] tel in
+        replayTelemetryObserver = helper.observeReplayTelemetry(engine: replayEngine) { [weak self] tel in
             Task { @MainActor in
                 guard let self = self, self.isReplayMode else { return }
                 self.telemetry = tel
@@ -1412,8 +1412,8 @@ class WheelManager: ObservableObject {
     }
 
     private func stopReplayObserving() {
-        replayWheelStateObserver?.close()
-        replayWheelStateObserver = nil
+        replayTelemetryObserver?.close()
+        replayTelemetryObserver = nil
         replayStateObserver?.close()
         replayStateObserver = nil
         replayPositionObserver?.close()
