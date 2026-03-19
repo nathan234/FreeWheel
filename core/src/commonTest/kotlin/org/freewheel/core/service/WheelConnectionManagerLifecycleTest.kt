@@ -9,7 +9,8 @@ import kotlinx.coroutines.test.runTest
 import org.freewheel.core.ble.BleUuids
 import org.freewheel.core.ble.DiscoveredService
 import org.freewheel.core.ble.DiscoveredServices
-import org.freewheel.core.domain.WheelState
+import org.freewheel.core.domain.TelemetryState
+import org.freewheel.core.domain.WheelIdentity
 import org.freewheel.core.protocol.DecoderState
 import org.freewheel.core.domain.WheelType
 import org.freewheel.core.protocol.DecodedData
@@ -143,7 +144,8 @@ class WheelConnectionManagerLifecycleTest {
 
         // Make decoder ready → Connected
         fakeDecoder.decodeResult = DecodeResult.Success(DecodedData(
-            newState = WheelState(speed = 2500, name = "KS-S18")
+            telemetry = TelemetryState(speed = 2500),
+            identity = WheelIdentity(name = "KS-S18")
         ))
         fakeDecoder.ready = true
         manager.onDataReceived(byteArrayOf(0x01))
@@ -156,7 +158,8 @@ class WheelConnectionManagerLifecycleTest {
         runCurrent()
 
         assertEquals(ConnectionState.Disconnected, manager.connectionState.value)
-        assertEquals(WheelState(), manager.wheelState.value)
+        assertEquals(TelemetryState(), manager.telemetryState.value)
+        assertEquals(WheelIdentity(), manager.identityState.value)
         assertNull(manager.getCurrentDecoder())
         assertFalse(manager.isKeepAliveRunning.value)
         assertEquals(1, fakeBle.disconnectCallCount)
@@ -175,7 +178,7 @@ class WheelConnectionManagerLifecycleTest {
 
         assertNotNull(manager.getCurrentDecoder())
         assertEquals(WheelType.KINGSONG, fakeFactory.lastCreatedType)
-        assertEquals(WheelType.KINGSONG, manager.wheelState.value.wheelType)
+        assertEquals(WheelType.KINGSONG, manager.identityState.value.wheelType)
     }
 
     @Test
@@ -245,7 +248,7 @@ class WheelConnectionManagerLifecycleTest {
         manager.onServicesDiscovered(kingsongServices, "KS-S18")
         runCurrent()
 
-        assertEquals("KS-S18", manager.wheelState.value.btName)
+        assertEquals("KS-S18", manager.identityState.value.btName)
     }
 
     // ==================== onWheelTypeDetected ====================
@@ -261,7 +264,7 @@ class WheelConnectionManagerLifecycleTest {
 
         assertNotNull(manager.getCurrentDecoder())
         assertEquals(WheelType.VETERAN, fakeFactory.lastCreatedType)
-        assertEquals(WheelType.VETERAN, manager.wheelState.value.wheelType)
+        assertEquals(WheelType.VETERAN, manager.identityState.value.wheelType)
     }
 
     // ==================== Init Commands ====================
@@ -316,15 +319,15 @@ class WheelConnectionManagerLifecycleTest {
         runCurrent()
 
         fakeDecoder.decodeResult = DecodeResult.Success(DecodedData(
-            newState = WheelState(speed = 2500, voltage = 8400, batteryLevel = 85)
+            telemetry = TelemetryState(speed = 2500, voltage = 8400, batteryLevel = 85)
         ))
 
         manager.onDataReceived(byteArrayOf(0x01))
         runCurrent()
 
-        assertEquals(2500, manager.wheelState.value.speed)
-        assertEquals(8400, manager.wheelState.value.voltage)
-        assertEquals(85, manager.wheelState.value.batteryLevel)
+        assertEquals(2500, manager.telemetryState.value.speed)
+        assertEquals(8400, manager.telemetryState.value.voltage)
+        assertEquals(85, manager.telemetryState.value.batteryLevel)
     }
 
     @Test
@@ -337,7 +340,7 @@ class WheelConnectionManagerLifecycleTest {
         manager.onDataReceived(byteArrayOf(0x01))
         runCurrent()
 
-        assertEquals(0, manager.wheelState.value.speed)
+        assertEquals(0, manager.telemetryState.value.speed)
     }
 
     @Test
@@ -349,11 +352,11 @@ class WheelConnectionManagerLifecycleTest {
 
         // Set initial state via a decode
         fakeDecoder.decodeResult = DecodeResult.Success(DecodedData(
-            newState = WheelState(speed = 2500)
+            telemetry = TelemetryState(speed = 2500)
         ))
         manager.onDataReceived(byteArrayOf(0x01))
         runCurrent()
-        assertEquals(2500, manager.wheelState.value.speed)
+        assertEquals(2500, manager.telemetryState.value.speed)
 
         // Now return Buffering (incomplete frame)
         fakeDecoder.decodeResult = DecodeResult.Buffering
@@ -361,7 +364,7 @@ class WheelConnectionManagerLifecycleTest {
         runCurrent()
 
         // State should be unchanged
-        assertEquals(2500, manager.wheelState.value.speed)
+        assertEquals(2500, manager.telemetryState.value.speed)
     }
 
     // ==================== Decoder Ready → Connected ====================
@@ -374,7 +377,8 @@ class WheelConnectionManagerLifecycleTest {
         runCurrent()
 
         fakeDecoder.decodeResult = DecodeResult.Success(DecodedData(
-            newState = WheelState(speed = 2500, name = "KS-S18")
+            telemetry = TelemetryState(speed = 2500),
+            identity = WheelIdentity(name = "KS-S18")
         ))
         fakeDecoder.ready = true
 
@@ -394,7 +398,7 @@ class WheelConnectionManagerLifecycleTest {
         runCurrent()
 
         fakeDecoder.decodeResult = DecodeResult.Success(DecodedData(
-            newState = WheelState(speed = 2500)
+            telemetry = TelemetryState(speed = 2500)
         ))
         fakeDecoder.ready = false
 
@@ -415,7 +419,8 @@ class WheelConnectionManagerLifecycleTest {
         runCurrent()
 
         fakeDecoder.decodeResult = DecodeResult.Success(DecodedData(
-            newState = WheelState(speed = 2500, name = "KS-S18")
+            telemetry = TelemetryState(speed = 2500),
+            identity = WheelIdentity(name = "KS-S18")
         ))
         fakeDecoder.ready = true
 
@@ -425,7 +430,8 @@ class WheelConnectionManagerLifecycleTest {
 
         // Send more data — state should remain Connected (same instance)
         fakeDecoder.decodeResult = DecodeResult.Success(DecodedData(
-            newState = WheelState(speed = 3000, name = "KS-S18")
+            telemetry = TelemetryState(speed = 3000),
+            identity = WheelIdentity(name = "KS-S18")
         ))
         manager.onDataReceived(byteArrayOf(0x02))
         runCurrent()
@@ -458,7 +464,8 @@ class WheelConnectionManagerLifecycleTest {
         runCurrent()
 
         fakeDecoder.decodeResult = DecodeResult.Success(DecodedData(
-            newState = WheelState(speed = 100, name = "KS-S18")
+            telemetry = TelemetryState(speed = 100),
+            identity = WheelIdentity(name = "KS-S18")
         ))
         fakeDecoder.ready = true
         manager.onDataReceived(byteArrayOf(0x01))
@@ -507,7 +514,7 @@ class WheelConnectionManagerLifecycleTest {
 
         // Decoder returns a response command (like KS 0xA4 → 0x98 acknowledgment)
         fakeDecoder.decodeResult = DecodeResult.Success(DecodedData(
-            newState = WheelState(speed = 2500),
+            telemetry = TelemetryState(speed = 2500),
             commands = listOf(WheelCommand.SendBytes(responseData))
         ))
 
@@ -531,7 +538,7 @@ class WheelConnectionManagerLifecycleTest {
         fakeBle.clearWrittenData()
 
         fakeDecoder.decodeResult = DecodeResult.Success(DecodedData(
-            newState = WheelState(speed = 2500),
+            telemetry = TelemetryState(speed = 2500),
             commands = listOf(
                 WheelCommand.SendBytes(resp1),
                 WheelCommand.SendBytes(resp2)
@@ -638,7 +645,7 @@ class WheelConnectionManagerLifecycleTest {
 
         // Successful data resets the counter
         fakeDecoder.decodeResult = DecodeResult.Success(DecodedData(
-            newState = WheelState(speed = 2500)
+            telemetry = TelemetryState(speed = 2500)
         ))
         manager.onDataReceived(byteArrayOf(0x01))
         runCurrent()
@@ -655,7 +662,8 @@ class WheelConnectionManagerLifecycleTest {
 
         // Make decoder ready → Connected
         fakeDecoder.decodeResult = DecodeResult.Success(DecodedData(
-            newState = WheelState(speed = 2500, name = "KS-S18")
+            telemetry = TelemetryState(speed = 2500),
+            identity = WheelIdentity(name = "KS-S18")
         ))
         fakeDecoder.ready = true
         manager.onDataReceived(byteArrayOf(0x01))

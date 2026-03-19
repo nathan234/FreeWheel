@@ -53,7 +53,7 @@ class DecodeLoopTest {
         val unpacker = FakeUnpacker(frameAtByte = mapOf(0 to byteArrayOf(1)))
 
         val result = decodeFrames(byteArrayOf(0x42), unpacker, state) { _, s ->
-            FrameResult(state = s.toWheelState()) // same state, no new data
+            FrameResult(telemetry = s.telemetry) // same state, no new data
         }
 
         assertTrue(result is DecodeResult.Success)
@@ -71,7 +71,7 @@ class DecodeLoopTest {
 
         val result = decodeFrames(byteArrayOf(0x01, 0x02, 0x03), unpacker, state) { _, _ ->
             processFrameCalled = true
-            FrameResult(state = state.toWheelState())
+            FrameResult(telemetry = state.telemetry)
         }
 
         assertTrue(result is DecodeResult.Buffering)
@@ -91,9 +91,9 @@ class DecodeLoopTest {
         val result = decodeFrames(byteArrayOf(0x01, 0x02), unpacker, state) { _, s ->
             callCount++
             if (callCount == 1) {
-                FrameResult(state = s.toWheelState(), hasNewData = true)
+                FrameResult(telemetry = s.telemetry, hasNewData = true)
             } else {
-                FrameResult(state = s.toWheelState(), hasNewData = false)
+                FrameResult(telemetry = s.telemetry, hasNewData = false)
             }
         }
 
@@ -115,9 +115,9 @@ class DecodeLoopTest {
         val result = decodeFrames(byteArrayOf(0x01, 0x02), unpacker, state) { _, s ->
             callCount++
             if (callCount == 1) {
-                FrameResult(state = s.toWheelState(), commands = listOf(cmd1))
+                FrameResult(telemetry = s.telemetry, commands = listOf(cmd1))
             } else {
-                FrameResult(state = s.toWheelState(), commands = listOf(cmd2))
+                FrameResult(telemetry = s.telemetry, commands = listOf(cmd2))
             }
         }
 
@@ -139,7 +139,7 @@ class DecodeLoopTest {
 
         // 3 bytes: frame at byte 0, nothing at byte 1, frame at byte 2
         decodeFrames(byteArrayOf(0x01, 0x02, 0x03), unpacker, state) { _, s ->
-            FrameResult(state = s.toWheelState())
+            FrameResult(telemetry = s.telemetry)
         }
 
         // reset() should have been called twice — once after each frame extraction

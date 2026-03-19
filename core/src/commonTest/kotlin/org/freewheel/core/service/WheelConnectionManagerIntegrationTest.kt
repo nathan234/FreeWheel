@@ -9,7 +9,9 @@ import kotlinx.coroutines.test.runTest
 import org.freewheel.core.ble.BleUuids
 import org.freewheel.core.ble.DiscoveredService
 import org.freewheel.core.ble.DiscoveredServices
-import org.freewheel.core.domain.WheelState
+import org.freewheel.core.domain.TelemetryState
+import org.freewheel.core.domain.WheelIdentity
+import org.freewheel.core.domain.WheelSettings
 import org.freewheel.core.domain.WheelType
 import org.freewheel.core.protocol.DefaultWheelDecoderFactory
 import org.freewheel.core.protocol.buildKsAlertFrame
@@ -120,9 +122,9 @@ class WheelConnectionManagerIntegrationTest {
         val state = manager.connectionState.value
         assertTrue(state is ConnectionState.Connected, "Expected Connected, got $state")
         assertEquals("AA:BB:CC:DD:EE:FF", state.address)
-        assertEquals("KS-S18", manager.wheelState.value.model)
-        assertEquals(6505, manager.wheelState.value.voltage)
-        assertEquals(1500, manager.wheelState.value.speed)
+        assertEquals("KS-S18", manager.identityState.value.model)
+        assertEquals(6505, manager.telemetryState.value.voltage)
+        assertEquals(1500, manager.telemetryState.value.speed)
     }
 
     @Test
@@ -171,14 +173,15 @@ class WheelConnectionManagerIntegrationTest {
         manager.onDataReceived(buildKsDistancePacket(distance = 50000, temperature2 = 3800))
         runCurrent()
 
-        val ws = manager.wheelState.value
-        assertEquals("KS-S18", ws.model)
-        assertEquals(8400, ws.voltage)
-        assertEquals(2500, ws.speed)
-        assertEquals(4200, ws.temperature)
-        assertTrue(ws.serialNumber.isNotEmpty(), "Serial number should be populated")
-        assertEquals(50000, ws.wheelDistance)
-        assertEquals(3800, ws.temperature2)
+        val tel = manager.telemetryState.value
+        val id = manager.identityState.value
+        assertEquals("KS-S18", id.model)
+        assertEquals(8400, tel.voltage)
+        assertEquals(2500, tel.speed)
+        assertEquals(4200, tel.temperature)
+        assertTrue(id.serialNumber.isNotEmpty(), "Serial number should be populated")
+        assertEquals(50000, tel.wheelDistance)
+        assertEquals(3800, tel.temperature2)
     }
 
     @Test
@@ -264,7 +267,7 @@ class WheelConnectionManagerIntegrationTest {
         manager.onDataReceived(buildKsBmsCellFrame(0x03, listOf(4130, 4120, 4110, 4100, 4090, 4080, 4070)))
         runCurrent()
 
-        val bms1 = manager.wheelState.value.bms1
+        val bms1 = manager.bmsState.value.bms1
         assertTrue(bms1 != null, "BMS1 should be populated after BMS frames")
         // BMS info should be populated
         assertEquals(83.5, bms1!!.voltage, 0.01)
@@ -288,7 +291,7 @@ class WheelConnectionManagerIntegrationTest {
         manager.onDataReceived(buildKsLivePacket(voltage = 8400, speed = 2500))
         runCurrent()
         assertTrue(manager.connectionState.value is ConnectionState.Connected)
-        assertEquals(2500, manager.wheelState.value.speed)
+        assertEquals(2500, manager.telemetryState.value.speed)
 
         // Disconnect
         manager.disconnect()
@@ -296,7 +299,8 @@ class WheelConnectionManagerIntegrationTest {
 
         // Verify cleanup
         assertEquals(ConnectionState.Disconnected, manager.connectionState.value)
-        assertEquals(WheelState(), manager.wheelState.value)
+        assertEquals(TelemetryState(), manager.telemetryState.value)
+        assertEquals(WheelIdentity(), manager.identityState.value)
         assertNull(manager.getCurrentDecoder())
     }
 
@@ -314,12 +318,12 @@ class WheelConnectionManagerIntegrationTest {
         manager.onDataReceived(buildGotwayLiveDataFrame(voltage = 6000, speed = 100))
         runCurrent()
 
-        val ws = manager.wheelState.value
+        val tel = manager.telemetryState.value
         // GotwayDecoder: voltage is passed through scaleVoltage (default scaler=1.0)
-        assertEquals(6000, ws.voltage)
+        assertEquals(6000, tel.voltage)
         // GotwayDecoder: speed = signedShort * 3.6, with gotwayNegative=0 → abs()
         // speed = abs(100 * 3.6) = 360
-        assertEquals(360, ws.speed)
+        assertEquals(360, tel.speed)
     }
 
     @Test
@@ -343,12 +347,14 @@ class WheelConnectionManagerIntegrationTest {
         ))
         runCurrent()
 
-        val ws = manager.wheelState.value
+        val settings = manager.settingsState.value
+        assertTrue(settings is WheelSettings.Begode, "Expected Begode settings, got $settings")
+        val begode = settings as WheelSettings.Begode
         // Gotway pedalsMode is decoded as: 2 - pedalsMode from frame
-        assertEquals(1, ws.pedalsMode)
-        assertEquals(45, ws.tiltBackSpeed)
-        assertEquals(3, ws.ledMode)
-        assertEquals(1, ws.lightMode)
+        assertEquals(1, begode.pedalsMode)
+        assertEquals(45, begode.tiltBackSpeed)
+        assertEquals(3, begode.ledMode)
+        assertEquals(1, begode.lightMode)
     }
 
     @Test
@@ -371,7 +377,7 @@ class WheelConnectionManagerIntegrationTest {
             state is ConnectionState.Connected,
             "Expected Connected after fallback, got $state"
         )
-        assertEquals("Begode", manager.wheelState.value.model)
+        assertEquals("Begode", manager.identityState.value.model)
     }
 
     // ==================== Gotway Frame Builders ====================

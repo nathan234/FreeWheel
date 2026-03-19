@@ -80,19 +80,20 @@ class WheelConnectionManagerPipelineTest {
         manager.onDataReceived(ksCpuLoadPacket)
         manager.onDataReceived(ksOutputPacket)
 
-        val state = manager.wheelState.value
+        val tel = manager.telemetryState.value
+        val id = manager.identityState.value
 
         // Voltage: 6505 (65.05V)
-        assertEquals(6505, state.voltage, "Voltage should be 6505 (65.05V)")
+        assertEquals(6505, tel.voltage, "Voltage should be 6505 (65.05V)")
 
         // Model should be extracted from name packet
-        assertEquals("KS-S18", state.model, "Model should be KS-S18")
+        assertEquals("KS-S18", id.model, "Model should be KS-S18")
 
         // Name should include version suffix
-        assertTrue(state.name.startsWith("KS-S18"), "Name should start with KS-S18")
+        assertTrue(id.name.startsWith("KS-S18"), "Name should start with KS-S18")
 
         // Wheel type should be preserved
-        assertEquals(WheelType.KINGSONG, state.wheelType)
+        assertEquals(WheelType.KINGSONG, id.wheelType)
     }
 
     @Test
@@ -105,13 +106,13 @@ class WheelConnectionManagerPipelineTest {
         manager.onDataReceived(ksNamePacket)
         manager.onDataReceived(ksLiveDataPacket)
 
-        val state = manager.wheelState.value
+        val tel = manager.telemetryState.value
 
         // Speed from live data packet
-        assertTrue(state.speed > 0, "Speed should be positive after live data")
+        assertTrue(tel.speed > 0, "Speed should be positive after live data")
 
         // Temperature from live data packet
-        assertTrue(state.temperature > 0, "Temperature should be set from live data")
+        assertTrue(tel.temperature > 0, "Temperature should be set from live data")
     }
 
     // ==================== connectionState transitions ====================
@@ -178,14 +179,15 @@ class WheelConnectionManagerPipelineTest {
         // Set initial state with a valid packet
         manager.onDataReceived(ksNamePacket)
         manager.onDataReceived(ksLiveDataPacket)
-        val stateAfterValid = manager.wheelState.value
+        val telAfterValid = manager.telemetryState.value
+        val idAfterValid = manager.identityState.value
 
         // Feed incomplete frame (too short for Kingsong 20-byte frame)
         manager.onDataReceived(byteArrayOf(0xAA.toByte(), 0x55))
 
         // State should be unchanged
-        assertEquals(stateAfterValid.voltage, manager.wheelState.value.voltage)
-        assertEquals(stateAfterValid.model, manager.wheelState.value.model)
+        assertEquals(telAfterValid.voltage, manager.telemetryState.value.voltage)
+        assertEquals(idAfterValid.model, manager.identityState.value.model)
     }
 
     @Test
@@ -199,7 +201,7 @@ class WheelConnectionManagerPipelineTest {
         manager.onDataReceived(byteArrayOf())
 
         // Should still be in default state
-        assertEquals(0, manager.wheelState.value.speed)
+        assertEquals(0, manager.telemetryState.value.speed)
     }
 
     // ==================== consecutiveDecodeErrors ====================
@@ -364,12 +366,13 @@ class WheelConnectionManagerPipelineTest {
         manager.onDataReceived(ksCpuLoadPacket)
         manager.onDataReceived(ksOutputPacket)
 
-        val state = manager.wheelState.value
+        val tel = manager.telemetryState.value
+        val id = manager.identityState.value
 
         // After full sequence, should have: model, voltage, speed, battery, distance
-        assertTrue(state.model.isNotEmpty(), "Model should be set")
-        assertTrue(state.voltage > 0, "Voltage should be set")
-        assertTrue(state.batteryLevel > 0, "Battery level should be computed")
+        assertTrue(id.model.isNotEmpty(), "Model should be set")
+        assertTrue(tel.voltage > 0, "Voltage should be set")
+        assertTrue(tel.batteryLevel > 0, "Battery level should be computed")
         assertTrue(
             manager.connectionState.value is ConnectionState.Connected,
             "Should be Connected after full sequence"
@@ -396,7 +399,7 @@ class WheelConnectionManagerPipelineTest {
 
         assertEquals(0, manager.consecutiveDecodeErrors.value,
             "Errors should remain 0 after valid data")
-        assertTrue(manager.wheelState.value.voltage > 0,
+        assertTrue(manager.telemetryState.value.voltage > 0,
             "State should update after recovery")
         assertTrue(
             manager.connectionState.value is ConnectionState.Connected,
@@ -429,7 +432,7 @@ class WheelConnectionManagerPipelineTest {
         manager.onWheelTypeDetected(WheelType.KINGSONG)
         runCurrent()
 
-        val stateBefore = manager.wheelState.value
+        val voltageBefore = manager.telemetryState.value.voltage
 
         // Feed data — decoder throws, but manager catches it
         manager.onDataReceived(ksLiveDataPacket)
@@ -441,7 +444,7 @@ class WheelConnectionManagerPipelineTest {
         )
 
         // State should be unchanged
-        assertEquals(stateBefore.voltage, manager.wheelState.value.voltage,
+        assertEquals(voltageBefore, manager.telemetryState.value.voltage,
             "State should not change when decoder throws")
     }
 }

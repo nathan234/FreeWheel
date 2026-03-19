@@ -1,5 +1,6 @@
 package org.freewheel.core.domain
 
+import org.freewheel.core.utils.ByteUtils
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -31,10 +32,10 @@ class WheelStateTest {
     }
 
     @Test
-    fun `companion empty returns same defaults as constructor`() {
-        val fromConstructor = WheelState()
-        val fromEmpty = WheelState.empty()
-        assertEquals(fromConstructor, fromEmpty)
+    fun `default constructor produces zero-valued state`() {
+        val state = WheelState()
+        assertEquals(0, state.speed)
+        assertEquals(0, state.voltage)
     }
 
     @Test
@@ -358,7 +359,7 @@ class WheelStateTest {
     @Test
     fun `KM_TO_MILES constant is accurate`() {
         // 1 km = 0.621371 miles (approximately)
-        assertEquals(0.62137119223733, WheelState.KM_TO_MILES, 0.00000001)
+        assertEquals(0.62137119223733, ByteUtils.KM_TO_MILES_MULTIPLIER, 0.00000001)
     }
 
     // ==================== Display-Layer Unit Conversion ====================
@@ -383,7 +384,7 @@ class WheelStateTest {
         for (i in speeds.indices) {
             // Verify speedKmh * KM_TO_MILES == speedMph (same formula both platforms use)
             assertEquals(
-                speeds[i].speedKmh * WheelState.KM_TO_MILES,
+                speeds[i].speedKmh * ByteUtils.KM_TO_MILES_MULTIPLIER,
                 speeds[i].speedMph,
                 0.001,
                 "speedMph should equal speedKmh * KM_TO_MILES for speed=${speeds[i].speed}"
@@ -406,7 +407,7 @@ class WheelStateTest {
         val expectedMiles = listOf(0.31, 3.11, 15.53, 49.71)
 
         for (i in distances.indices) {
-            val miles = distances[i].wheelDistanceKm * WheelState.KM_TO_MILES
+            val miles = distances[i].wheelDistanceKm * ByteUtils.KM_TO_MILES_MULTIPLIER
             assertEquals(expectedMiles[i], miles, 0.01, "miles at ${distances[i].wheelDistanceKm} km")
         }
     }
@@ -422,7 +423,7 @@ class WheelStateTest {
         val expectedMiles = listOf(62.1, 932.1, 6213.7)
 
         for (i in distances.indices) {
-            val miles = distances[i].totalDistanceKm * WheelState.KM_TO_MILES
+            val miles = distances[i].totalDistanceKm * ByteUtils.KM_TO_MILES_MULTIPLIER
             assertEquals(expectedMiles[i], miles, 0.1, "miles at ${distances[i].totalDistanceKm} km")
         }
     }
@@ -460,18 +461,18 @@ class WheelStateTest {
     @Test
     fun `conversion constant matches Android MathsUtil kmToMilesMultiplier`() {
         // Android: MathsUtil.kmToMilesMultiplier = 0.62137119223733
-        // KMP:     WheelState.KM_TO_MILES         = 0.62137119223733
+        // KMP:     ByteUtils.KM_TO_MILES_MULTIPLIER         = 0.62137119223733
         // iOS:     DashboardView.kmToMiles         = 0.62137119223733
         // All three must be identical to avoid display discrepancies
-        assertEquals(0.62137119223733, WheelState.KM_TO_MILES)
+        assertEquals(0.62137119223733, ByteUtils.KM_TO_MILES_MULTIPLIER)
     }
 
     @Test
     fun `imperial conversion roundtrip preserves reasonable precision`() {
         // Converting km→mi→km should not accumulate significant error
         val originalKm = 42.195  // Marathon distance
-        val miles = originalKm * WheelState.KM_TO_MILES
-        val backToKm = miles / WheelState.KM_TO_MILES
+        val miles = originalKm * ByteUtils.KM_TO_MILES_MULTIPLIER
+        val backToKm = miles / ByteUtils.KM_TO_MILES_MULTIPLIER
 
         assertEquals(originalKm, backToKm, 0.0001)
         assertEquals(26.22, miles, 0.01)  // Marathon is ~26.22 miles

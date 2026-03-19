@@ -371,60 +371,60 @@ class WheelSettingsConfigTest {
     @Test
     fun `readInt returns pedalsMode from WheelState when known`() {
         val state = WheelState(wheelType = WheelType.GOTWAY, pedalsMode = 1)
-        assertEquals(1, SettingsCommandId.PEDALS_MODE.readInt(state))
+        assertEquals(1, SettingsCommandId.PEDALS_MODE.readInt(state.toWheelSettings()))
     }
 
     @Test
     fun `readInt returns null for pedalsMode when unknown (-1)`() {
         val state = WheelState(wheelType = WheelType.GOTWAY, pedalsMode = -1)
-        assertNull(SettingsCommandId.PEDALS_MODE.readInt(state))
+        assertNull(SettingsCommandId.PEDALS_MODE.readInt(state.toWheelSettings()))
     }
 
     @Test
     fun `readInt returns lightMode from WheelState`() {
         val state = WheelState(wheelType = WheelType.GOTWAY, lightMode = 2)
-        assertEquals(2, SettingsCommandId.LIGHT_MODE.readInt(state))
+        assertEquals(2, SettingsCommandId.LIGHT_MODE.readInt(state.toWheelSettings()))
     }
 
     @Test
     fun `readInt returns ledMode from WheelState`() {
         val state = WheelState(wheelType = WheelType.GOTWAY, ledMode = 5)
-        assertEquals(5, SettingsCommandId.LED_MODE.readInt(state))
+        assertEquals(5, SettingsCommandId.LED_MODE.readInt(state.toWheelSettings()))
     }
 
     @Test
     fun `readInt returns rollAngle from WheelState`() {
         val state = WheelState(wheelType = WheelType.GOTWAY, rollAngle = 2)
-        assertEquals(2, SettingsCommandId.ROLL_ANGLE_MODE.readInt(state))
+        assertEquals(2, SettingsCommandId.ROLL_ANGLE_MODE.readInt(state.toWheelSettings()))
     }
 
     @Test
     fun `readInt returns cutoutAngle from FRAME_07 bytes 4-5`() {
         val state = WheelState(wheelType = WheelType.GOTWAY, cutoutAngle = 70)
-        assertEquals(70, SettingsCommandId.CUTOUT_ANGLE.readInt(state))
+        assertEquals(70, SettingsCommandId.CUTOUT_ANGLE.readInt(state.toWheelSettings()))
 
         val stateUnknown = WheelState(wheelType = WheelType.GOTWAY, cutoutAngle = -1)
-        assertNull(SettingsCommandId.CUTOUT_ANGLE.readInt(stateUnknown))
+        assertNull(SettingsCommandId.CUTOUT_ANGLE.readInt(stateUnknown.toWheelSettings()))
     }
 
     @Test
     fun `readInt returns null for write-only commands`() {
         val state = WheelState()
-        assertNull(SettingsCommandId.MAX_SPEED.readInt(state))
-        assertNull(SettingsCommandId.SPEAKER_VOLUME.readInt(state))
-        assertNull(SettingsCommandId.CALIBRATE.readInt(state))
+        assertNull(SettingsCommandId.MAX_SPEED.readInt(state.toWheelSettings()))
+        assertNull(SettingsCommandId.SPEAKER_VOLUME.readInt(state.toWheelSettings()))
+        assertNull(SettingsCommandId.CALIBRATE.readInt(state.toWheelSettings()))
     }
 
     @Test
     fun `readBool returns LED state from ledMode`() {
         val stateOn = WheelState(wheelType = WheelType.GOTWAY, ledMode = 3)
-        assertEquals(true, SettingsCommandId.LED.readBool(stateOn))
+        assertEquals(true, SettingsCommandId.LED.readBool(stateOn.toWheelSettings()))
 
         val stateOff = WheelState(wheelType = WheelType.GOTWAY, ledMode = 0)
-        assertEquals(false, SettingsCommandId.LED.readBool(stateOff))
+        assertEquals(false, SettingsCommandId.LED.readBool(stateOff.toWheelSettings()))
 
         val stateUnknown = WheelState(wheelType = WheelType.GOTWAY, ledMode = -1)
-        assertNull(SettingsCommandId.LED.readBool(stateUnknown))
+        assertNull(SettingsCommandId.LED.readBool(stateUnknown.toWheelSettings()))
     }
 
     // ==================== Veteran New Settings Readback ====================
@@ -432,55 +432,55 @@ class WheelSettingsConfigTest {
     @Test
     fun `readInt returns screenBacklight from WheelState`() {
         val state = WheelState(wheelType = WheelType.VETERAN, screenBacklight = 80)
-        assertEquals(80, SettingsCommandId.SCREEN_BACKLIGHT.readInt(state))
+        assertEquals(80, SettingsCommandId.SCREEN_BACKLIGHT.readInt(state.toWheelSettings()))
 
         val stateUnknown = WheelState(wheelType = WheelType.VETERAN, screenBacklight = -1)
-        assertNull(SettingsCommandId.SCREEN_BACKLIGHT.readInt(stateUnknown))
+        assertNull(SettingsCommandId.SCREEN_BACKLIGHT.readInt(stateUnknown.toWheelSettings()))
     }
 
     @Test
     fun `readInt returns stopSpeed from WheelState`() {
         val state = WheelState(wheelType = WheelType.VETERAN, stopSpeed = 50)
-        assertEquals(50, SettingsCommandId.STOP_SPEED.readInt(state))
+        assertEquals(50, SettingsCommandId.STOP_SPEED.readInt(state.toWheelSettings()))
 
         val stateUnknown = WheelState(wheelType = WheelType.VETERAN, stopSpeed = -1)
-        assertNull(SettingsCommandId.STOP_SPEED.readInt(stateUnknown))
+        assertNull(SettingsCommandId.STOP_SPEED.readInt(stateUnknown.toWheelSettings()))
     }
 
     @Test
     fun `readInt returns pwmLimit from WheelState`() {
         val state = WheelState(wheelType = WheelType.VETERAN, pwmLimit = 70)
-        assertEquals(70, SettingsCommandId.VETERAN_PWM_LIMIT.readInt(state))
+        assertEquals(70, SettingsCommandId.VETERAN_PWM_LIMIT.readInt(state.toWheelSettings()))
     }
 
     @Test
     fun `readInt returns voltageCorrection from WheelState`() {
         val state = WheelState(wheelType = WheelType.VETERAN, voltageCorrection = 5)
-        assertEquals(5, SettingsCommandId.VOLTAGE_CORRECTION.readInt(state))
+        assertEquals(5, SettingsCommandId.VOLTAGE_CORRECTION.readInt(state.toWheelSettings()))
 
         val stateNeg = WheelState(wheelType = WheelType.VETERAN, voltageCorrection = -10)
-        assertEquals(-10, SettingsCommandId.VOLTAGE_CORRECTION.readInt(stateNeg))
+        assertEquals(-10, SettingsCommandId.VOLTAGE_CORRECTION.readInt(stateNeg.toWheelSettings()))
 
         val stateZero = WheelState(wheelType = WheelType.VETERAN, voltageCorrection = 0)
-        assertEquals(0, SettingsCommandId.VOLTAGE_CORRECTION.readInt(stateZero))
+        assertEquals(0, SettingsCommandId.VOLTAGE_CORRECTION.readInt(stateZero.toWheelSettings()))
     }
 
     @Test
     fun `readInt returns maxChargeVoltage from WheelState`() {
         val state = WheelState(wheelType = WheelType.VETERAN, maxChargeVoltage = 100)
-        assertEquals(100, SettingsCommandId.MAX_CHARGE_VOLTAGE.readInt(state))
+        assertEquals(100, SettingsCommandId.MAX_CHARGE_VOLTAGE.readInt(state.toWheelSettings()))
 
         val stateUnknown = WheelState(wheelType = WheelType.VETERAN, maxChargeVoltage = -1)
-        assertNull(SettingsCommandId.MAX_CHARGE_VOLTAGE.readInt(stateUnknown))
+        assertNull(SettingsCommandId.MAX_CHARGE_VOLTAGE.readInt(stateUnknown.toWheelSettings()))
     }
 
     @Test
     fun `readInt returns lateralCutoffAngle from WheelState`() {
         val state = WheelState(wheelType = WheelType.VETERAN, lateralCutoffAngle = 70)
-        assertEquals(70, SettingsCommandId.LATERAL_CUTOFF_ANGLE.readInt(state))
+        assertEquals(70, SettingsCommandId.LATERAL_CUTOFF_ANGLE.readInt(state.toWheelSettings()))
 
         val stateUnknown = WheelState(wheelType = WheelType.VETERAN, lateralCutoffAngle = -1)
-        assertNull(SettingsCommandId.LATERAL_CUTOFF_ANGLE.readInt(stateUnknown))
+        assertNull(SettingsCommandId.LATERAL_CUTOFF_ANGLE.readInt(stateUnknown.toWheelSettings()))
     }
 
     // ==================== Slider Visibility Gating ====================
@@ -529,23 +529,23 @@ class WheelSettingsConfigTest {
             ledMode = 0,      // LED0
             rollAngle = 2     // High
         )
-        assertEquals(0, SettingsCommandId.PEDALS_MODE.readInt(state))
-        assertEquals(1, SettingsCommandId.LIGHT_MODE.readInt(state))
-        assertEquals(0, SettingsCommandId.LED_MODE.readInt(state))
-        assertEquals(2, SettingsCommandId.ROLL_ANGLE_MODE.readInt(state))
+        assertEquals(0, SettingsCommandId.PEDALS_MODE.readInt(state.toWheelSettings()))
+        assertEquals(1, SettingsCommandId.LIGHT_MODE.readInt(state.toWheelSettings()))
+        assertEquals(0, SettingsCommandId.LED_MODE.readInt(state.toWheelSettings()))
+        assertEquals(2, SettingsCommandId.ROLL_ANGLE_MODE.readInt(state.toWheelSettings()))
     }
 
     @Test
     fun `Gotway beeperVolume defaults to unknown before readback`() {
         val state = WheelState()
-        assertNull(SettingsCommandId.BEEPER_VOLUME.readInt(state),
+        assertNull(SettingsCommandId.BEEPER_VOLUME.readInt(state.toWheelSettings()),
             "beeperVolume should be null when -1 (unknown)")
     }
 
     @Test
     fun `Gotway beeperVolume readback from FRAME_00 byte 17`() {
         val state = WheelState(wheelType = WheelType.GOTWAY, beeperVolume = 3)
-        assertEquals(3, SettingsCommandId.BEEPER_VOLUME.readInt(state))
+        assertEquals(3, SettingsCommandId.BEEPER_VOLUME.readInt(state.toWheelSettings()))
     }
 
     @Test

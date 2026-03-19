@@ -65,5 +65,12 @@ internal fun DecodedData.decoderStateFrom(currentState: DecoderState): DecoderSt
  */
 internal fun DecodedData.stateFrom(currentState: DecoderState): WheelState {
     val ds = decoderStateFrom(currentState)
-    return WheelState.compose(ds.telemetry, ds.identity, ds.bms, ds.settings)
+    return ds.toWheelState()
 }
+
+/**
+ * Compose a flat [WheelState] from this [DecoderState].
+ * Test-only utility for assertions on individual WheelState fields.
+ */
+internal fun DecoderState.toWheelState(): WheelState =
+    WheelState.compose(telemetry, identity, bms, settings)
