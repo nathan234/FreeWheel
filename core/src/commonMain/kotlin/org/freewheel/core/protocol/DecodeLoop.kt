@@ -1,16 +1,27 @@
 package org.freewheel.core.protocol
 
+import org.freewheel.core.domain.BmsState
+import org.freewheel.core.domain.TelemetryState
+import org.freewheel.core.domain.WheelIdentity
+import org.freewheel.core.domain.WheelSettings
 import org.freewheel.core.domain.WheelState
 
 /**
  * Result from processing a single unpacked frame within a decoder.
  *
- * Replaces the per-decoder private result types (GotwayDecoder.FrameResult,
- * NinebotDecoder.FrameResult, InMotionV2Decoder.ProcessResult, etc.)
- * with a single shared type.
+ * Supports two paths:
+ * - **Legacy**: set [state] to a full WheelState. Domain pieces are extracted automatically.
+ * - **Migrated**: set domain piece fields ([telemetry], [identity], [bms], [settings]) directly;
+ *   leave [state] null. Only non-null pieces are merged into accumulated state.
  */
 data class FrameResult(
-    val state: WheelState,
+    /** Legacy: full updated WheelState. Set by unmigrated processFrame methods. */
+    val state: WheelState? = null,
+    // Domain pieces (set by migrated processFrame methods; non-null = changed)
+    val telemetry: TelemetryState? = null,
+    val identity: WheelIdentity? = null,
+    val bms: BmsState? = null,
+    val settings: WheelSettings? = null,
     val hasNewData: Boolean = false,
     val commands: List<WheelCommand> = emptyList(),
     val news: String? = null,
@@ -26,6 +37,10 @@ data class FrameResult(
  * The unpacker is automatically reset after each frame extraction, enabling
  * multi-frame BLE notifications for all decoders.
  *
+ * Accumulates state as [DecoderState] (domain pieces). The lambda receives the
+ * accumulated [DecoderState] and returns a [FrameResult] with either a legacy
+ * [WheelState] or domain pieces directly.
+ *
  * Returns a [DecodeResult] that distinguishes between:
  * - [DecodeResult.Success] — at least one frame was processed successfully
  * - [DecodeResult.Unhandled] — unpacker yielded frame(s) but none were recognized
@@ -33,7 +48,7 @@ data class FrameResult(
  *
  * @param data Raw bytes from a BLE notification
  * @param unpacker The protocol-specific frame unpacker
- * @param currentState Current wheel state to build upon
+ * @param currentState Current decoder state (domain sub-states) to build upon
  * @param processFrame Lambda that processes a single complete frame buffer,
  *   returning a [FrameResult] or null if the frame is invalid/unrecognized
  * @return [DecodeResult] indicating success, unhandled, or buffering
@@ -41,10 +56,10 @@ data class FrameResult(
 internal inline fun decodeFrames(
     data: ByteArray,
     unpacker: Unpacker,
-    currentState: WheelState,
-    processFrame: (buffer: ByteArray, state: WheelState) -> FrameResult?
+    currentState: DecoderState,
+    processFrame: (buffer: ByteArray, state: DecoderState) -> FrameResult?
 ): DecodeResult {
-    var newState = currentState
+    var state = currentState
     var hasNewData = false
     var frameProcessed = false
     val commands = mutableListOf<WheelCommand>()
@@ -58,10 +73,26 @@ internal inline fun decodeFrames(
             val buffer = unpacker.getBuffer()
             unpacker.reset()
             hadCompleteFrame = true
-            val result = processFrame(buffer, newState)
+            val result = processFrame(buffer, state)
             if (result != null) {
                 frameProcessed = true
-                newState = result.state
+                state = if (result.state != null) {
+                    // Legacy path: extract domain pieces from WheelState
+                    DecoderState(
+                        telemetry = result.state.toTelemetryState(),
+                        identity = result.state.toIdentity(),
+                        bms = result.state.toBmsState(),
+                        settings = result.state.toWheelSettings()
+                    )
+                } else {
+                    // Migrated path: merge domain pieces directly
+                    DecoderState(
+                        telemetry = result.telemetry ?: state.telemetry,
+                        identity = result.identity ?: state.identity,
+                        bms = result.bms ?: state.bms,
+                        settings = result.settings ?: state.settings
+                    )
+                }
                 hasNewData = hasNewData || result.hasNewData
                 commands.addAll(result.commands)
                 result.news?.let { news = it }
@@ -73,9 +104,12 @@ internal inline fun decodeFrames(
     }
 
     return when {
-        frameProcessed || hasNewData || newState != currentState -> {
+        frameProcessed || hasNewData || state != currentState -> {
             DecodeResult.Success(DecodedData(
-                newState = newState,
+                telemetry = state.telemetry.takeIf { it != currentState.telemetry },
+                identity = state.identity.takeIf { it != currentState.identity },
+                bms = state.bms.takeIf { it != currentState.bms },
+                settings = state.settings.takeIf { it != currentState.settings },
                 commands = commands,
                 hasNewData = hasNewData,
                 news = news,

@@ -1,5 +1,6 @@
 package org.freewheel.core.protocol
 
+import org.freewheel.core.domain.BmsState
 import org.freewheel.core.domain.CapabilityMap
 import org.freewheel.core.domain.CapabilitySet
 import org.freewheel.core.domain.SettingsCommandId
@@ -138,35 +139,40 @@ class InMotionV2Decoder : WheelDecoder {
     }
 
     override fun decode(data: ByteArray, currentState: DecoderState, config: DecoderConfig): DecodeResult = stateLock.withLock {
-        val ws = currentState.toWheelState()
-        val loopResult = decodeFrames(data, unpacker, ws) { buffer, state ->
+        val loopResult = decodeFrames(data, unpacker, currentState) { buffer, state ->
+            val ws = state.toWheelState().let {
+                if (it.wheelType == WheelType.Unknown) it.copy(wheelType = WheelType.INMOTION_V2) else it
+            }
             val msg = verifyAndParse(buffer) ?: return@decodeFrames null
-            processMessage(msg, state)
+            processMessage(msg, ws)
         }
 
-        val successData = (loopResult as? DecodeResult.Success)?.data ?: return@withLock loopResult
-        var finalState = successData.newState ?: ws
-
-        // Ensure wheelType is always INMOTION_V2 for domain piece extraction
-        if (finalState.wheelType == WheelType.Unknown) {
-            finalState = finalState.copy(wheelType = WheelType.INMOTION_V2)
+        when (loopResult) {
+            is DecodeResult.Success -> {
+                val bmsSnapshot = BmsState(bms1 = bms1.toSnapshot(), bms2 = bms2.toSnapshot())
+                // Ensure wheelType is INMOTION_V2
+                val resolvedIdentity = when {
+                    loopResult.data.identity != null && loopResult.data.identity.wheelType == WheelType.Unknown ->
+                        loopResult.data.identity.copy(wheelType = WheelType.INMOTION_V2)
+                    loopResult.data.identity != null -> loopResult.data.identity
+                    currentState.identity.wheelType == WheelType.Unknown ->
+                        currentState.identity.copy(wheelType = WheelType.INMOTION_V2)
+                    else -> null
+                }
+                DecodeResult.Success(DecodedData(
+                    telemetry = loopResult.data.telemetry,
+                    identity = resolvedIdentity?.takeIf { it != currentState.identity },
+                    bms = bmsSnapshot.takeIf { it != currentState.bms },
+                    settings = loopResult.data.settings?.takeIf { it != currentState.settings },
+                    commands = loopResult.data.commands,
+                    hasNewData = loopResult.data.hasNewData,
+                    news = loopResult.data.news,
+                    frameTypes = loopResult.data.frameTypes
+                ))
+            }
+            is DecodeResult.Buffering -> loopResult
+            is DecodeResult.Unhandled -> loopResult
         }
-
-        // Extract domain pieces, only including those that changed
-        val initialTelemetry = currentState.telemetry
-        val initialIdentity = currentState.identity
-        val initialBms = currentState.bms
-        val initialSettings = currentState.settings
-        DecodeResult.Success(DecodedData(
-            telemetry = finalState.toTelemetryState().takeIf { it != initialTelemetry },
-            identity = finalState.toIdentity().takeIf { it != initialIdentity },
-            bms = finalState.toBmsState().takeIf { it != initialBms },
-            settings = finalState.toWheelSettings().takeIf { it != initialSettings },
-            commands = successData.commands,
-            hasNewData = successData.hasNewData,
-            news = successData.news,
-            frameTypes = successData.frameTypes
-        ))
     }
 
     /**
@@ -353,7 +359,7 @@ class InMotionV2Decoder : WheelDecoder {
             }
         }
 
-        return FrameResult(newState, false, frameType = "MAIN_INFO")
+        return FrameResult(state = newState, hasNewData = false, frameType = "MAIN_INFO")
     }
 
     // ==================== P6 Extended Protocol ====================
@@ -382,7 +388,7 @@ class InMotionV2Decoder : WheelDecoder {
             wheelType = WheelType.INMOTION_V2
         )
 
-        return FrameResult(newState, false, frameType = "EXT_INIT")
+        return FrameResult(state = newState, hasNewData = false, frameType = "EXT_INIT")
     }
 
     /**
@@ -415,8 +421,8 @@ class InMotionV2Decoder : WheelDecoder {
         if (data.size < 6) return null
         val totalDistance = ByteUtils.intFromBytesLE(data, 2).toLong() * 10
         return FrameResult(
-            currentState.copy(totalDistance = totalDistance),
-            false,
+            state = currentState.copy(totalDistance = totalDistance),
+            hasNewData = false,
             frameType = "EXT_TOTAL_STATS"
         )
     }
@@ -487,11 +493,11 @@ class InMotionV2Decoder : WheelDecoder {
 
         bmsInitDone = true
         return FrameResult(
-            currentState.copy(
+            state = currentState.copy(
                 bms1 = bms1.toSnapshot(),
                 bms2 = if (model.batteryCount > 1) bms2.toSnapshot() else currentState.bms2
             ),
-            false,
+            hasNewData = false,
             frameType = "BMS${bmsNum}_SERIAL"
         )
     }
@@ -527,11 +533,11 @@ class InMotionV2Decoder : WheelDecoder {
         }
 
         return FrameResult(
-            currentState.copy(
+            state = currentState.copy(
                 bms1 = bms1.toSnapshot(),
                 bms2 = if (model.batteryCount > 1) bms2.toSnapshot() else currentState.bms2
             ),
-            false,
+            hasNewData = false,
             frameType = "BMS${bmsNum}_STATUS"
         )
     }
@@ -555,11 +561,11 @@ class InMotionV2Decoder : WheelDecoder {
         updateBmsCellStats(bms, cellCount)
 
         return FrameResult(
-            currentState.copy(
+            state = currentState.copy(
                 bms1 = bms1.toSnapshot(),
                 bms2 = if (model.batteryCount > 1) bms2.toSnapshot() else currentState.bms2
             ),
-            false,
+            hasNewData = false,
             frameType = "BMS${bmsNum}_VOLTAGES"
         )
     }
@@ -600,8 +606,8 @@ class InMotionV2Decoder : WheelDecoder {
         val totalDistance = ByteUtils.intFromBytesLE(data, 0).toLong() * 10
 
         return FrameResult(
-            currentState.copy(totalDistance = totalDistance),
-            false,
+            state = currentState.copy(totalDistance = totalDistance),
+            hasNewData = false,
             frameType = "TOTAL_STATS"
         )
     }

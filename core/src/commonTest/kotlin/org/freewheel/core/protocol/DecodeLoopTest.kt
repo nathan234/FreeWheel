@@ -1,8 +1,8 @@
 package org.freewheel.core.protocol
 
-import org.freewheel.core.domain.WheelState
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -49,29 +49,29 @@ class DecodeLoopTest {
     fun frameProcessedButStateUnchanged_returnsSuccess() {
         // A frame is processed but processFrame returns the same state unchanged.
         // Result should be Success (frame was processed).
-        val state = WheelState()
+        val state = DecoderState()
         val unpacker = FakeUnpacker(frameAtByte = mapOf(0 to byteArrayOf(1)))
 
         val result = decodeFrames(byteArrayOf(0x42), unpacker, state) { _, s ->
-            FrameResult(s) // same state, no new data
+            FrameResult(state = s.toWheelState()) // same state, no new data
         }
 
         assertTrue(result is DecodeResult.Success)
         val decoded = (result as DecodeResult.Success).data
-        assertEquals(state, decoded.newState!!)
+        assertNull(decoded.telemetry)
         assertEquals(false, decoded.hasNewData)
     }
 
     @Test
     fun noFrameAssembled_returnsBuffering() {
         // Unpacker never returns true, processFrame is never called.
-        val state = WheelState()
+        val state = DecoderState()
         val unpacker = FakeUnpacker() // no frames configured
         var processFrameCalled = false
 
         val result = decodeFrames(byteArrayOf(0x01, 0x02, 0x03), unpacker, state) { _, _ ->
             processFrameCalled = true
-            FrameResult(state)
+            FrameResult(state = state.toWheelState())
         }
 
         assertTrue(result is DecodeResult.Buffering)
@@ -82,7 +82,7 @@ class DecodeLoopTest {
     fun hasNewDataUsesOrSemantics() {
         // Two frames: first has hasNewData=true, second has hasNewData=false.
         // Result should have hasNewData=true (sticky OR).
-        val state = WheelState()
+        val state = DecoderState()
         val frame1 = byteArrayOf(1)
         val frame2 = byteArrayOf(2)
         val unpacker = FakeUnpacker(frameAtByte = mapOf(0 to frame1, 1 to frame2))
@@ -91,9 +91,9 @@ class DecodeLoopTest {
         val result = decodeFrames(byteArrayOf(0x01, 0x02), unpacker, state) { _, s ->
             callCount++
             if (callCount == 1) {
-                FrameResult(s, hasNewData = true)
+                FrameResult(state = s.toWheelState(), hasNewData = true)
             } else {
-                FrameResult(s, hasNewData = false)
+                FrameResult(state = s.toWheelState(), hasNewData = false)
             }
         }
 
@@ -104,7 +104,7 @@ class DecodeLoopTest {
     @Test
     fun commandsAccumulateAcrossFrames() {
         // Two frames each return a command. Result should contain both.
-        val state = WheelState()
+        val state = DecoderState()
         val frame1 = byteArrayOf(1)
         val frame2 = byteArrayOf(2)
         val unpacker = FakeUnpacker(frameAtByte = mapOf(0 to frame1, 1 to frame2))
@@ -115,9 +115,9 @@ class DecodeLoopTest {
         val result = decodeFrames(byteArrayOf(0x01, 0x02), unpacker, state) { _, s ->
             callCount++
             if (callCount == 1) {
-                FrameResult(s, commands = listOf(cmd1))
+                FrameResult(state = s.toWheelState(), commands = listOf(cmd1))
             } else {
-                FrameResult(s, commands = listOf(cmd2))
+                FrameResult(state = s.toWheelState(), commands = listOf(cmd2))
             }
         }
 
@@ -132,14 +132,14 @@ class DecodeLoopTest {
     fun unpackerResetBetweenFrames() {
         // Verify reset() is called after each frame extraction, enabling
         // the unpacker to detect the next frame in the same BLE notification.
-        val state = WheelState()
+        val state = DecoderState()
         val frame1 = byteArrayOf(1)
         val frame2 = byteArrayOf(2)
         val unpacker = FakeUnpacker(frameAtByte = mapOf(0 to frame1, 2 to frame2))
 
         // 3 bytes: frame at byte 0, nothing at byte 1, frame at byte 2
         decodeFrames(byteArrayOf(0x01, 0x02, 0x03), unpacker, state) { _, s ->
-            FrameResult(s)
+            FrameResult(state = s.toWheelState())
         }
 
         // reset() should have been called twice — once after each frame extraction
@@ -150,7 +150,7 @@ class DecodeLoopTest {
     fun framesExtractedButAllUnrecognized_returnsUnhandled() {
         // Unpacker yields a complete frame but processFrame returns null
         // for all frames. Result should be Unhandled.
-        val state = WheelState()
+        val state = DecoderState()
         val unpacker = FakeUnpacker(frameAtByte = mapOf(0 to byteArrayOf(0xFF.toByte())))
 
         val result = decodeFrames(byteArrayOf(0x42), unpacker, state) { _, _ ->

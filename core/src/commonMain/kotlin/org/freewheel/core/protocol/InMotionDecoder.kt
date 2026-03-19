@@ -48,34 +48,38 @@ class InMotionDecoder : WheelDecoder {
 
     override fun decode(data: ByteArray, currentState: DecoderState, config: DecoderConfig): DecodeResult {
         return stateLock.withLock {
-            val ws = currentState.toWheelState()
-            val loopResult = decodeFrames(data, unpacker, ws) { buffer, state ->
-                processFrame(buffer, state, config)
+            val loopResult = decodeFrames(data, unpacker, currentState) { buffer, state ->
+                val ws = state.toWheelState().let {
+                    if (it.wheelType == WheelType.Unknown) it.copy(wheelType = WheelType.INMOTION) else it
+                }
+                processFrame(buffer, ws, config)
             }
 
-            val successData = (loopResult as? DecodeResult.Success)?.data ?: return@withLock loopResult
-            var finalState = successData.newState ?: ws
-
-            // Ensure wheelType is always INMOTION for domain piece extraction
-            if (finalState.wheelType == WheelType.Unknown) {
-                finalState = finalState.copy(wheelType = WheelType.INMOTION)
+            when (loopResult) {
+                is DecodeResult.Success -> {
+                    // Ensure wheelType is INMOTION
+                    val resolvedIdentity = when {
+                        loopResult.data.identity != null && loopResult.data.identity.wheelType == WheelType.Unknown ->
+                            loopResult.data.identity.copy(wheelType = WheelType.INMOTION)
+                        loopResult.data.identity != null -> loopResult.data.identity
+                        currentState.identity.wheelType == WheelType.Unknown ->
+                            currentState.identity.copy(wheelType = WheelType.INMOTION)
+                        else -> null
+                    }
+                    DecodeResult.Success(DecodedData(
+                        telemetry = loopResult.data.telemetry,
+                        identity = resolvedIdentity?.takeIf { it != currentState.identity },
+                        bms = loopResult.data.bms,
+                        settings = loopResult.data.settings?.takeIf { it != currentState.settings },
+                        commands = loopResult.data.commands,
+                        hasNewData = loopResult.data.hasNewData,
+                        news = loopResult.data.news,
+                        frameTypes = loopResult.data.frameTypes
+                    ))
+                }
+                is DecodeResult.Buffering -> loopResult
+                is DecodeResult.Unhandled -> loopResult
             }
-
-            // Extract domain pieces, only including those that changed
-            val initialTelemetry = currentState.telemetry
-            val initialIdentity = currentState.identity
-            val initialBms = currentState.bms
-            val initialSettings = currentState.settings
-            DecodeResult.Success(DecodedData(
-                telemetry = finalState.toTelemetryState().takeIf { it != initialTelemetry },
-                identity = finalState.toIdentity().takeIf { it != initialIdentity },
-                bms = finalState.toBmsState().takeIf { it != initialBms },
-                settings = finalState.toWheelSettings().takeIf { it != initialSettings },
-                commands = successData.commands,
-                hasNewData = successData.hasNewData,
-                news = successData.news,
-                frameTypes = successData.frameTypes
-            ))
         }
     }
 

@@ -1,9 +1,12 @@
 package org.freewheel.core.protocol
 
+import org.freewheel.core.domain.BmsState
 import org.freewheel.core.domain.CapabilitySet
 import org.freewheel.core.domain.SettingsCommandId
 import org.freewheel.core.domain.SmartBms
-import org.freewheel.core.domain.WheelState
+import org.freewheel.core.domain.TelemetryState
+import org.freewheel.core.domain.WheelIdentity
+import org.freewheel.core.domain.WheelSettings
 import org.freewheel.core.domain.WheelType
 import org.freewheel.core.utils.ByteUtils
 import org.freewheel.core.utils.Lock
@@ -67,9 +70,17 @@ class KingsongDecoder : WheelDecoder {
     private var currentLightMode = 0x13  // last-known light mode byte (default: on), for SetMute
     private var versionNum = 0           // firmware version number (e.g., 205 for v2.05)
 
+    /** Result from a single Kingsong frame handler. */
+    private data class KsFrameOutput(
+        val telemetry: TelemetryState? = null,
+        val identity: WheelIdentity? = null,
+        val settings: WheelSettings.Kingsong? = null,
+        val hasNewData: Boolean = false,
+        val commands: List<WheelCommand> = emptyList()
+    )
+
     override fun decode(data: ByteArray, currentState: DecoderState, config: DecoderConfig): DecodeResult {
         if (data.size < 20) return DecodeResult.Buffering
-        val ws = currentState.toWheelState()
 
         // Check header (AA 55)
         val a1 = data[0].toInt() and 0xFF
@@ -77,52 +88,66 @@ class KingsongDecoder : WheelDecoder {
         if (a1 != 0xAA || a2 != 0x55) return DecodeResult.Buffering
 
         val frameType = data[16].toInt() and 0xFF
-        val commands = mutableListOf<WheelCommand>()
 
         return stateLock.withLock {
-            val newState = when (frameType) {
-                FrameType.LIVE_DATA -> processLiveData(data, ws, config)
-                FrameType.DISTANCE_TIME -> processDistanceTimeData(data, ws)
-                FrameType.NAME_TYPE -> processNameTypeData(data, ws, commands)
-                FrameType.SERIAL_NUMBER -> processSerialNumber(data, ws, commands)
-                FrameType.CPU_LOAD_PWM -> processCpuLoadPwm(data, ws)
-                FrameType.SPEED_LIMIT -> processSpeedLimit(data, ws)
-                FrameType.MAX_SPEED_ALERTS, FrameType.MAX_SPEED_ALERTS_2 -> processMaxSpeedAlerts(data, ws, commands)
-                FrameType.BMS_DATA_1, FrameType.BMS_DATA_2 -> processBmsData(data, ws, frameType)
-                FrameType.BMS_SERIAL_1, FrameType.BMS_SERIAL_2 -> processBmsSerial(data, frameType)
-                FrameType.BMS_FW_1, FrameType.BMS_FW_2 -> processBmsFirmware(data, frameType)
-                FrameType.LOCK_STATUS -> processLockStatus(data, ws)
-                FrameType.LOCK_RESULT -> processLockResult(data, ws)
-                FrameType.RIDE_MODE_CONFIRM -> processRideModeConfirm(data, ws)
-                FrameType.BATTERY_TEMP -> processBatteryTemp(data, ws)
-                FrameType.PASSWORD_LOGIN -> processPasswordLogin(data, ws)
-                FrameType.LIFT_SENSOR -> processLiftSensor(data, ws)
-                FrameType.HEADLIGHT_MODE -> processHeadlightMode(data, ws)
-                FrameType.LED_MODE_READBACK -> processLedModeReadback(data, ws)
-                FrameType.TURN_OFF_TIMER -> processTurnOffTimer(data, ws)
+            val tel = currentState.telemetry
+            val id = currentState.identity
+            val ks = currentState.settings as? WheelSettings.Kingsong ?: WheelSettings.Kingsong()
+
+            val output: KsFrameOutput? = when (frameType) {
+                FrameType.LIVE_DATA -> processLiveData(data, tel, id, config)
+                FrameType.DISTANCE_TIME -> processDistanceTimeData(data, tel, ks)
+                FrameType.NAME_TYPE -> processNameTypeData(data, id)
+                FrameType.SERIAL_NUMBER -> processSerialNumber(data, id)
+                FrameType.CPU_LOAD_PWM -> processCpuLoadPwm(data, tel)
+                FrameType.SPEED_LIMIT -> processSpeedLimit(data, tel)
+                FrameType.MAX_SPEED_ALERTS, FrameType.MAX_SPEED_ALERTS_2 ->
+                    processMaxSpeedAlerts(data, ks, frameType)
+                FrameType.BMS_DATA_1, FrameType.BMS_DATA_2 -> {
+                    processBmsData(data, frameType)
+                    KsFrameOutput()
+                }
+                FrameType.BMS_SERIAL_1, FrameType.BMS_SERIAL_2 -> {
+                    processBmsSerial(data, frameType)
+                    null
+                }
+                FrameType.BMS_FW_1, FrameType.BMS_FW_2 -> {
+                    processBmsFirmware(data, frameType)
+                    null
+                }
+                FrameType.LOCK_STATUS -> processLockStatus(data, ks)
+                FrameType.LOCK_RESULT -> processLockResult(data, ks)
+                FrameType.RIDE_MODE_CONFIRM -> processRideModeConfirm(data, ks)
+                FrameType.BATTERY_TEMP -> processBatteryTemp(data, tel)
+                FrameType.PASSWORD_LOGIN -> processPasswordLogin(data, ks)
+                FrameType.LIFT_SENSOR -> processLiftSensor(data, ks)
+                FrameType.HEADLIGHT_MODE -> processHeadlightMode(data, ks)
+                FrameType.LED_MODE_READBACK -> processLedModeReadback(data, ks)
+                FrameType.TURN_OFF_TIMER -> processTurnOffTimer(data, ks)
                 else -> null
             }
 
             val typeName = FRAME_TYPE_NAMES[frameType] ?: "0x${frameType.toString(16)}"
 
-            if (newState != null) {
-                // Ensure wheelType is set for proper WheelSettings extraction
-                var finalState = newState.copy(bms1 = bms1.toSnapshot(), bms2 = bms2.toSnapshot())
-                if (finalState.wheelType == WheelType.Unknown) {
-                    finalState = finalState.copy(wheelType = WheelType.KINGSONG)
+            if (output != null) {
+                val bmsSnapshot = BmsState(bms1 = bms1.toSnapshot(), bms2 = bms2.toSnapshot())
+
+                // Ensure wheelType is KINGSONG
+                val resolvedIdentity = when {
+                    output.identity != null && output.identity.wheelType == WheelType.Unknown ->
+                        output.identity.copy(wheelType = WheelType.KINGSONG)
+                    output.identity != null -> output.identity
+                    id.wheelType == WheelType.Unknown -> id.copy(wheelType = WheelType.KINGSONG)
+                    else -> null
                 }
-                // Extract domain pieces, only including those that changed
-                val initialTelemetry = currentState.telemetry
-                val initialIdentity = currentState.identity
-                val initialBms = currentState.bms
-                val initialSettings = currentState.settings
+
                 DecodeResult.Success(DecodedData(
-                    telemetry = finalState.toTelemetryState().takeIf { it != initialTelemetry },
-                    identity = finalState.toIdentity().takeIf { it != initialIdentity },
-                    bms = finalState.toBmsState().takeIf { it != initialBms },
-                    settings = finalState.toWheelSettings().takeIf { it != initialSettings },
-                    commands = commands,
-                    hasNewData = frameType == 0xA9 || frameType == 0xA4 || frameType == 0xB5,
+                    telemetry = output.telemetry?.takeIf { it != tel },
+                    identity = resolvedIdentity?.takeIf { it != id },
+                    bms = bmsSnapshot.takeIf { it != currentState.bms },
+                    settings = output.settings?.takeIf { it != currentState.settings },
+                    commands = output.commands,
+                    hasNewData = output.hasNewData,
                     frameTypes = listOf(typeName)
                 ))
             } else {
@@ -142,9 +167,10 @@ class KingsongDecoder : WheelDecoder {
      */
     private fun processLiveData(
         data: ByteArray,
-        currentState: WheelState,
+        tel: TelemetryState,
+        id: WheelIdentity,
         config: DecoderConfig
-    ): WheelState {
+    ): KsFrameOutput {
         val voltage = ByteUtils.getInt2R(data, 2)
         if (voltage > 0) hasReceivedVoltage = true
         val speed = ByteUtils.getInt2R(data, 4)
@@ -169,20 +195,18 @@ class KingsongDecoder : WheelDecoder {
         // Calculate power
         val power = ((current / 100.0) * voltage).roundToInt()
 
-        return currentState.copy(
-            speed = speed,
-            voltage = voltage,
-            current = current,
-            power = power,
-            temperature = temperature,
-            totalDistance = totalDistance,
-            batteryLevel = battery,
-            modeStr = mMode.toString(),
-            model = model,
-            name = name,
-            serialNumber = serialNumber,
-            version = version,
-            wheelType = WheelType.KINGSONG
+        return KsFrameOutput(
+            telemetry = tel.copy(
+                speed = speed, voltage = voltage, current = current,
+                power = power, temperature = temperature,
+                totalDistance = totalDistance, batteryLevel = battery
+            ),
+            identity = id.copy(
+                modeStr = mMode.toString(), model = model, name = name,
+                serialNumber = serialNumber, version = version,
+                wheelType = WheelType.KINGSONG
+            ),
+            hasNewData = true
         )
     }
 
@@ -198,7 +222,11 @@ class KingsongDecoder : WheelDecoder {
      * Byte 13:     charging status
      * Bytes 14-15: temperature2
      */
-    private fun processDistanceTimeData(data: ByteArray, currentState: WheelState): WheelState {
+    private fun processDistanceTimeData(
+        data: ByteArray,
+        tel: TelemetryState,
+        ks: WheelSettings.Kingsong
+    ): KsFrameOutput {
         val distance = ByteUtils.getInt4R(data, 2).toLong()
         val rideTime = ByteUtils.getInt2R(data, 6)
         val topSpeed = ByteUtils.getInt2R(data, 8)
@@ -212,15 +240,13 @@ class KingsongDecoder : WheelDecoder {
         currentLightMode = rawLightMode
         val lightMode = if (rawLightMode in 0x12..0x14) rawLightMode - 0x12 else -1
 
-        return currentState.copy(
-            wheelDistance = distance,
-            rideTime = rideTime,
-            topSpeed = topSpeed,
-            lightMode = lightMode,
-            mute = voiceOff,
-            fanStatus = fanStatus,
-            chargingStatus = chargingStatus,
-            temperature2 = temperature2
+        return KsFrameOutput(
+            telemetry = tel.copy(
+                wheelDistance = distance, rideTime = rideTime, topSpeed = topSpeed,
+                fanStatus = fanStatus, chargingStatus = chargingStatus,
+                temperature2 = temperature2
+            ),
+            settings = ks.copy(lightMode = lightMode, mute = voiceOff)
         )
     }
 
@@ -232,9 +258,8 @@ class KingsongDecoder : WheelDecoder {
      */
     private fun processNameTypeData(
         data: ByteArray,
-        currentState: WheelState,
-        commands: MutableList<WheelCommand>
-    ): WheelState {
+        id: WheelIdentity
+    ): KsFrameOutput {
         var end = 0
         var i = 0
         while (i < 14 && data[i + 2].toInt() != 0) {
@@ -264,6 +289,8 @@ class KingsongDecoder : WheelDecoder {
             }
         }
 
+        val commands = mutableListOf<WheelCommand>()
+
         // Checksum validation for firmware >= 1.17
         if (versionNum >= 117) {
             var nameSum = 0
@@ -276,10 +303,9 @@ class KingsongDecoder : WheelDecoder {
             }
         }
 
-        return currentState.copy(
-            name = name,
-            model = model,
-            version = version
+        return KsFrameOutput(
+            identity = id.copy(name = name, model = model, version = version),
+            commands = commands
         )
     }
 
@@ -288,9 +314,8 @@ class KingsongDecoder : WheelDecoder {
      */
     private fun processSerialNumber(
         data: ByteArray,
-        currentState: WheelState,
-        commands: MutableList<WheelCommand>
-    ): WheelState {
+        id: WheelIdentity
+    ): KsFrameOutput {
         val snData = ByteArray(18)
         data.copyInto(snData, 0, 2, 16)
         data.copyInto(snData, 14, 17, 20)
@@ -298,10 +323,10 @@ class KingsongDecoder : WheelDecoder {
 
         serialNumber = snData.decodeToString().trim { it <= ' ' || it == '\u0000' }
 
-        // Request alarm and speed settings after getting serial
-        commands.add(WheelCommand.SendBytes(createRequest(InitCmd.REQUEST_ALARMS)))
-
-        return currentState.copy(serialNumber = serialNumber)
+        return KsFrameOutput(
+            identity = id.copy(serialNumber = serialNumber),
+            commands = listOf(WheelCommand.SendBytes(createRequest(InitCmd.REQUEST_ALARMS)))
+        )
     }
 
     /**
@@ -310,7 +335,7 @@ class KingsongDecoder : WheelDecoder {
      * Bytes 2-9 contain hardware fault indicators (non-zero = fault active).
      * Bytes 14-15 contain CPU load and PWM as before.
      */
-    private fun processCpuLoadPwm(data: ByteArray, currentState: WheelState): WheelState {
+    private fun processCpuLoadPwm(data: ByteArray, tel: TelemetryState): KsFrameOutput {
         // Hardware faults from bytes 2-9
         var faults = 0
         if (ByteUtils.getInt2R(data, 2) != 0) faults = faults or HwFault.CURRENT_AMPLITUDE
@@ -336,12 +361,11 @@ class KingsongDecoder : WheelDecoder {
         val output = (data[15].toInt() and 0xFF) * 100
         val calculatedPwm = output / 10000.0
 
-        return currentState.copy(
-            hwFaults = faults,
-            alert = alert,
-            cpuLoad = cpuLoad,
-            output = output,
-            calculatedPwm = calculatedPwm
+        return KsFrameOutput(
+            telemetry = tel.copy(
+                hwFaults = faults, alert = alert, cpuLoad = cpuLoad,
+                output = output, calculatedPwm = calculatedPwm
+            )
         )
     }
 
@@ -354,7 +378,7 @@ class KingsongDecoder : WheelDecoder {
      * - Bytes 12-13: Total power-on time in seconds
      * - Bytes 14-15: Fault code
      */
-    private fun processSpeedLimit(data: ByteArray, currentState: WheelState): WheelState {
+    private fun processSpeedLimit(data: ByteArray, tel: TelemetryState): KsFrameOutput {
         mSpeedLimit = ByteUtils.getInt2R(data, 2) / 100.0
 
         // BMS SOC raw range is 1-101, maps to 0-100%. 0 or >101 = unknown.
@@ -366,13 +390,12 @@ class KingsongDecoder : WheelDecoder {
         val faultCode = ByteUtils.getInt2R(data, 14)
         val error = if (faultCode != 0) "Fault code: $faultCode" else ""
 
-        return currentState.copy(
-            speedLimit = mSpeedLimit,
-            bmsSoc = bmsSoc,
-            totalEnergyWh = totalEnergyWh,
-            totalOnTime = totalOnTime,
-            faultCode = faultCode,
-            error = error
+        return KsFrameOutput(
+            telemetry = tel.copy(
+                speedLimit = mSpeedLimit, bmsSoc = bmsSoc,
+                totalEnergyWh = totalEnergyWh, totalOnTime = totalOnTime,
+                faultCode = faultCode, error = error
+            )
         )
     }
 
@@ -384,33 +407,40 @@ class KingsongDecoder : WheelDecoder {
      */
     private fun processMaxSpeedAlerts(
         data: ByteArray,
-        currentState: WheelState,
-        commands: MutableList<WheelCommand>
-    ): WheelState {
+        ks: WheelSettings.Kingsong,
+        frameType: Int
+    ): KsFrameOutput {
         wheelMaxSpeed = ByteUtils.getInt2R(data, 10)
         ksAlarm3Speed = ByteUtils.getInt2R(data, 8)
         ksAlarm2Speed = ByteUtils.getInt2R(data, 6)
         ksAlarm1Speed = ByteUtils.getInt2R(data, 4)
 
+        val commands = mutableListOf<WheelCommand>()
+
         // Respond to 0xA4 with alarm settings request
-        if ((data[16].toInt() and 0xFF) == FrameType.MAX_SPEED_ALERTS) {
+        if (frameType == FrameType.MAX_SPEED_ALERTS) {
             val response = data.copyOf()
             response[16] = InitCmd.REQUEST_ALARMS.toByte()
             commands.add(WheelCommand.SendBytes(response))
         }
 
-        return currentState.copy(
-            ksAlarm1Speed = ksAlarm1Speed,
-            ksAlarm2Speed = ksAlarm2Speed,
-            ksAlarm3Speed = ksAlarm3Speed,
-            ksTiltbackSpeed = wheelMaxSpeed
+        return KsFrameOutput(
+            settings = ks.copy(
+                ksAlarm1Speed = ksAlarm1Speed, ksAlarm2Speed = ksAlarm2Speed,
+                ksAlarm3Speed = ksAlarm3Speed, ksTiltbackSpeed = wheelMaxSpeed
+            ),
+            hasNewData = true,
+            commands = commands
         )
     }
 
     /**
      * Frame 0xF1/0xF2: BMS data
+     *
+     * Modifies internal SmartBms objects. BMS snapshots are applied in decode()
+     * via the BmsState comparison at the end.
      */
-    private fun processBmsData(data: ByteArray, currentState: WheelState, frameType: Int): WheelState {
+    private fun processBmsData(data: ByteArray, frameType: Int) {
         val bmsNum = (frameType and 0xFF) - 0xF0
         val bms = if (bmsNum == 1) bms1 else bms2
         val pNum = data[17].toInt() and 0xFF
@@ -459,8 +489,6 @@ class KingsongDecoder : WheelDecoder {
                 processExtendedBmsPacket(data, bms)
             }
         }
-
-        return currentState
     }
 
     private fun processExtendedBmsPacket(data: ByteArray, bms: SmartBms) {
@@ -507,8 +535,10 @@ class KingsongDecoder : WheelDecoder {
 
     /**
      * Frame 0xE1/0xE2: BMS Serial Number
+     *
+     * Modifies internal SmartBms serial; returns no state update (Unhandled path).
      */
-    private fun processBmsSerial(data: ByteArray, frameType: Int): WheelState? {
+    private fun processBmsSerial(data: ByteArray, frameType: Int) {
         val bmsNum = (frameType and 0xFF) - 0xE0
         val bms = if (bmsNum == 1) bms1 else bms2
 
@@ -518,13 +548,14 @@ class KingsongDecoder : WheelDecoder {
         snData[17] = 0
 
         bms.serialNumber = snData.decodeToString().trim { it <= ' ' || it == '\u0000' }
-        return null
     }
 
     /**
      * Frame 0xE5/0xE6: BMS Firmware Version
+     *
+     * Modifies internal SmartBms firmware; returns no state update (Unhandled path).
      */
-    private fun processBmsFirmware(data: ByteArray, frameType: Int): WheelState? {
+    private fun processBmsFirmware(data: ByteArray, frameType: Int) {
         val bmsNum = (frameType and 0xFF) - 0xE4
         val bms = if (bmsNum == 1) bms1 else bms2
 
@@ -534,30 +565,29 @@ class KingsongDecoder : WheelDecoder {
         snData[18] = 0
 
         bms.versionNumber = snData.decodeToString().trim { it <= ' ' || it == '\u0000' }
-        return null
     }
 
     /**
      * Frame 0x5F: Lock status report
      * data[2] == 1 or 2 means locked, otherwise unlocked
      */
-    private fun processLockStatus(data: ByteArray, currentState: WheelState): WheelState {
+    private fun processLockStatus(data: ByteArray, ks: WheelSettings.Kingsong): KsFrameOutput {
         val lockByte = data[2].toInt() and 0xFF
         val locked = lockByte == 1 || lockByte == 2
-        return currentState.copy(lockState = if (locked) 1 else 0)
+        return KsFrameOutput(settings = ks.copy(lockState = if (locked) 1 else 0))
     }
 
     /**
      * Frame 0xB1: Lock/unlock command result
      * data[2]==1 and data[3]==0 means lock success
      */
-    private fun processLockResult(data: ByteArray, currentState: WheelState): WheelState {
+    private fun processLockResult(data: ByteArray, ks: WheelSettings.Kingsong): KsFrameOutput {
         val cmd = data[2].toInt() and 0xFF
         val result = data[3].toInt() and 0xFF
         return if (cmd == 1 && result == 0) {
-            currentState.copy(lockState = 1)
+            KsFrameOutput(settings = ks.copy(lockState = 1))
         } else {
-            currentState.copy(lockState = 0)
+            KsFrameOutput(settings = ks.copy(lockState = 0))
         }
     }
 
@@ -567,11 +597,11 @@ class KingsongDecoder : WheelDecoder {
      * Frame 0xA2: Ride mode change confirmation
      * byte[2]=1,byte[3]=0 → success. byte[4] = new mode (0=play,1=ride,2=study).
      */
-    private fun processRideModeConfirm(data: ByteArray, currentState: WheelState): WheelState {
+    private fun processRideModeConfirm(data: ByteArray, ks: WheelSettings.Kingsong): KsFrameOutput {
         val success = (data[2].toInt() and 0xFF) == 1 && (data[3].toInt() and 0xFF) == 0
-        if (!success) return currentState
+        if (!success) return KsFrameOutput()
         val newMode = data[4].toInt() and 0xFF
-        return currentState.copy(pedalsMode = newMode)
+        return KsFrameOutput(settings = ks.copy(pedalsMode = newMode))
     }
 
     /**
@@ -579,12 +609,11 @@ class KingsongDecoder : WheelDecoder {
      * bytes[4,5] = temperature via getInt2R → temperature2
      * byte[15] bit4 = charge flag → chargingStatus
      */
-    private fun processBatteryTemp(data: ByteArray, currentState: WheelState): WheelState {
+    private fun processBatteryTemp(data: ByteArray, tel: TelemetryState): KsFrameOutput {
         val batteryTemp = ByteUtils.getInt2R(data, 4)
         val charging = if ((data[15].toInt() and 0x10) != 0) 1 else 0
-        return currentState.copy(
-            temperature2 = batteryTemp,
-            chargingStatus = charging
+        return KsFrameOutput(
+            telemetry = tel.copy(temperature2 = batteryTemp, chargingStatus = charging)
         )
     }
 
@@ -592,47 +621,47 @@ class KingsongDecoder : WheelDecoder {
      * Frame 0x46: Password login result
      * byte[2]=1 → need password (wheel is locked). byte[2]=0 → logged in.
      */
-    private fun processPasswordLogin(data: ByteArray, currentState: WheelState): WheelState {
+    private fun processPasswordLogin(data: ByteArray, ks: WheelSettings.Kingsong): KsFrameOutput {
         val needPassword = (data[2].toInt() and 0xFF) == 1
-        return currentState.copy(lockState = if (needPassword) 1 else 0)
+        return KsFrameOutput(settings = ks.copy(lockState = if (needPassword) 1 else 0))
     }
 
     /**
      * Frame 0x4C: Lift sensor status
      * byte[2]=1 → on.
      */
-    private fun processLiftSensor(data: ByteArray, currentState: WheelState): WheelState {
+    private fun processLiftSensor(data: ByteArray, ks: WheelSettings.Kingsong): KsFrameOutput {
         val enabled = (data[2].toInt() and 0xFF) == 1
-        return currentState.copy(handleButton = enabled)
+        return KsFrameOutput(settings = ks.copy(handleButton = enabled))
     }
 
     /**
      * Frame 0x55: Headlight mode readback
      * byte[2]=0 → normal, byte[2]=1 → strobe.
      */
-    private fun processHeadlightMode(data: ByteArray, currentState: WheelState): WheelState {
+    private fun processHeadlightMode(data: ByteArray, ks: WheelSettings.Kingsong): KsFrameOutput {
         val strobe = (data[2].toInt() and 0xFF) == 1
         // Map: 0=normal (on), 1=strobe → lightMode: 1=on, 2=strobe
-        return currentState.copy(lightMode = if (strobe) 2 else 1)
+        return KsFrameOutput(settings = ks.copy(lightMode = if (strobe) 2 else 1))
     }
 
     /**
      * Frame 0x4D: LED mode readback
      * byte[2] = mode value.
      */
-    private fun processLedModeReadback(data: ByteArray, currentState: WheelState): WheelState {
+    private fun processLedModeReadback(data: ByteArray, ks: WheelSettings.Kingsong): KsFrameOutput {
         val mode = data[2].toInt() and 0xFF
-        return currentState.copy(ledMode = mode)
+        return KsFrameOutput(settings = ks.copy(ledMode = mode))
     }
 
     /**
      * Frame 0x3F: Turn-off timer
      * byte[2]=0 → bytes[4,5] = timer value in minutes.
      */
-    private fun processTurnOffTimer(data: ByteArray, currentState: WheelState): WheelState {
-        if ((data[2].toInt() and 0xFF) != 0) return currentState
+    private fun processTurnOffTimer(data: ByteArray, ks: WheelSettings.Kingsong): KsFrameOutput {
+        if ((data[2].toInt() and 0xFF) != 0) return KsFrameOutput()
         val timerMinutes = ByteUtils.getInt2R(data, 4)
-        return currentState.copy(autoOffTime = timerMinutes * 60) // store as seconds
+        return KsFrameOutput(settings = ks.copy(autoOffTime = timerMinutes * 60))
     }
 
     private fun updateBmsCellStats(bms: SmartBms, cellCount: Int = getCellsForWheel()) {
@@ -1046,7 +1075,7 @@ class KingsongDecoder : WheelDecoder {
         const val INSTRUMENT_BRIGHTNESS = 0x54
     }
 
-    /** Hardware fault flag constants for the [WheelState.hwFaults] bitfield. */
+    /** Hardware fault flag constants for the [hwFaults][TelemetryState.hwFaults] bitfield. */
     object HwFault {
         const val CURRENT_AMPLITUDE = 0x01
         const val TEMPERATURE = 0x02

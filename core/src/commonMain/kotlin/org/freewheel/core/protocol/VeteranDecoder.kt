@@ -1,5 +1,6 @@
 package org.freewheel.core.protocol
 
+import org.freewheel.core.domain.BmsState
 import org.freewheel.core.domain.CapabilityMap
 import org.freewheel.core.domain.CapabilitySet
 import org.freewheel.core.domain.SettingsCommandId
@@ -241,7 +242,6 @@ class VeteranDecoder : WheelDecoder {
 
     override fun decode(data: ByteArray, currentState: DecoderState, config: DecoderConfig): DecodeResult {
         return stateLock.withLock {
-            val ws = currentState.toWheelState()
             val currentTime = currentTimeMillis()
 
             // Reset unpacker if too much time has passed (packet loss)
@@ -250,9 +250,12 @@ class VeteranDecoder : WheelDecoder {
             }
             lastPacketTime = currentTime
 
-            val loopResult = decodeFrames(data, unpacker, ws) { buffer, state ->
-                processFrame(buffer, state, config)?.let {
-                    FrameResult(it, hasNewData = true, frameType = "TELEMETRY")
+            val loopResult = decodeFrames(data, unpacker, currentState) { buffer, state ->
+                val ws = state.toWheelState().let {
+                    if (it.wheelType == WheelType.Unknown) it.copy(wheelType = WheelType.VETERAN) else it
+                }
+                processFrame(buffer, ws, config)?.let {
+                    FrameResult(state = it, hasNewData = true, frameType = "TELEMETRY")
                 }
             }
 
@@ -262,22 +265,21 @@ class VeteranDecoder : WheelDecoder {
                         hasSyncedTime = true
                         buildTimeSyncCommands()
                     } else emptyList()
-                    var finalState = loopResult.data.newState!!
-                    finalState = finalState.copy(bms1 = bms1.toSnapshot(), bms2 = bms2.toSnapshot())
-                    // Ensure wheelType is always VETERAN for domain piece extraction
-                    if (finalState.wheelType == WheelType.Unknown) {
-                        finalState = finalState.copy(wheelType = WheelType.VETERAN)
+                    val bmsSnapshot = BmsState(bms1 = bms1.toSnapshot(), bms2 = bms2.toSnapshot())
+                    // Ensure wheelType is VETERAN
+                    val resolvedIdentity = when {
+                        loopResult.data.identity != null && loopResult.data.identity.wheelType == WheelType.Unknown ->
+                            loopResult.data.identity.copy(wheelType = WheelType.VETERAN)
+                        loopResult.data.identity != null -> loopResult.data.identity
+                        currentState.identity.wheelType == WheelType.Unknown ->
+                            currentState.identity.copy(wheelType = WheelType.VETERAN)
+                        else -> null
                     }
-                    // Extract domain pieces, only including those that changed
-                    val initialTelemetry = currentState.telemetry
-                    val initialIdentity = currentState.identity
-                    val initialBms = currentState.bms
-                    val initialSettings = currentState.settings
                     DecodeResult.Success(DecodedData(
-                        telemetry = finalState.toTelemetryState().takeIf { it != initialTelemetry },
-                        identity = finalState.toIdentity().takeIf { it != initialIdentity },
-                        bms = finalState.toBmsState().takeIf { it != initialBms },
-                        settings = finalState.toWheelSettings().takeIf { it != initialSettings },
+                        telemetry = loopResult.data.telemetry,
+                        identity = resolvedIdentity?.takeIf { it != currentState.identity },
+                        bms = bmsSnapshot.takeIf { it != currentState.bms },
+                        settings = loopResult.data.settings?.takeIf { it != currentState.settings },
                         commands = loopResult.data.commands + extraCommands,
                         hasNewData = loopResult.data.hasNewData,
                         frameTypes = loopResult.data.frameTypes

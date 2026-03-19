@@ -1,5 +1,6 @@
 package org.freewheel.core.protocol
 
+import org.freewheel.core.domain.BmsState
 import org.freewheel.core.domain.CapabilitySet
 import org.freewheel.core.domain.SettingsCommandId
 import org.freewheel.core.domain.SmartBms
@@ -420,34 +421,31 @@ class NinebotZDecoder : WheelDecoder {
 
     override fun decode(data: ByteArray, currentState: DecoderState, config: DecoderConfig): DecodeResult {
         return stateLock.withLock {
-            val ws = currentState.toWheelState()
-            val loopResult = decodeFrames(data, unpacker, ws) { buffer, state ->
+            val loopResult = decodeFrames(data, unpacker, currentState) { buffer, state ->
+                val ws = state.toWheelState().let {
+                    if (it.wheelType == WheelType.Unknown) it.copy(wheelType = WheelType.NINEBOT_Z) else it
+                }
                 val msg = CANMessage.verify(buffer, gamma) ?: return@decodeFrames null
-                processMessage(msg, state)
+                processMessage(msg, ws)
             }
 
             when (loopResult) {
                 is DecodeResult.Success -> {
-                    var finalState = loopResult.data.newState!!
-                    // Ensure wheelType is always NINEBOT_Z for domain piece extraction
-                    if (finalState.wheelType == WheelType.Unknown) {
-                        finalState = finalState.copy(wheelType = WheelType.NINEBOT_Z)
+                    val bmsSnapshot = BmsState(bms1 = bms1.toSnapshot(), bms2 = bms2.toSnapshot())
+                    // Ensure wheelType is NINEBOT_Z
+                    val resolvedIdentity = when {
+                        loopResult.data.identity != null && loopResult.data.identity.wheelType == WheelType.Unknown ->
+                            loopResult.data.identity.copy(wheelType = WheelType.NINEBOT_Z)
+                        loopResult.data.identity != null -> loopResult.data.identity
+                        currentState.identity.wheelType == WheelType.Unknown ->
+                            currentState.identity.copy(wheelType = WheelType.NINEBOT_Z)
+                        else -> null
                     }
-                    // Build final state with BMS snapshots for domain piece extraction
-                    val stateWithBms = finalState.copy(
-                        bms1 = bms1.toSnapshot(),
-                        bms2 = bms2.toSnapshot()
-                    )
-                    // Extract domain pieces, only including those that changed
-                    val initialTelemetry = currentState.telemetry
-                    val initialIdentity = currentState.identity
-                    val initialBms = currentState.bms
-                    val initialSettings = currentState.settings
                     DecodeResult.Success(DecodedData(
-                        telemetry = stateWithBms.toTelemetryState().takeIf { it != initialTelemetry },
-                        identity = stateWithBms.toIdentity().takeIf { it != initialIdentity },
-                        bms = stateWithBms.toBmsState().takeIf { it != initialBms },
-                        settings = stateWithBms.toWheelSettings().takeIf { it != initialSettings },
+                        telemetry = loopResult.data.telemetry,
+                        identity = resolvedIdentity?.takeIf { it != currentState.identity },
+                        bms = bmsSnapshot.takeIf { it != currentState.bms },
+                        settings = loopResult.data.settings?.takeIf { it != currentState.settings },
                         commands = loopResult.data.commands,
                         hasNewData = loopResult.data.hasNewData,
                         news = loopResult.data.news,

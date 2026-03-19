@@ -1,6 +1,8 @@
 package org.freewheel.core.protocol
 
+import org.freewheel.core.domain.BmsState
 import org.freewheel.core.domain.CapabilitySet
+import org.freewheel.core.domain.WheelIdentity
 import org.freewheel.core.domain.SettingsCommandId
 import org.freewheel.core.domain.SmartBms
 import org.freewheel.core.domain.WheelState
@@ -123,40 +125,38 @@ class GotwayDecoder : WheelDecoder {
 
     override fun decode(data: ByteArray, currentState: DecoderState, config: DecoderConfig): DecodeResult {
         return stateLock.withLock {
-            val ws = currentState.toWheelState()
-            var newState = ws
-
-            // Try to parse firmware/model info from string data
+            // Pre-loop: parse firmware/model info from string data
+            var preIdentity: WheelIdentity? = null
             if (model.isEmpty() || fw.isEmpty()) {
                 val dataStr = data.decodeToString().trim()
                 when {
                     dataStr.startsWith("NAME") -> {
                         model = dataStr.substring(5).trim()
-                        newState = newState.copy(model = model)
+                        preIdentity = currentState.identity.copy(model = model)
                     }
                     dataStr.startsWith("GW") -> {
                         fw = dataStr.substring(2).trim()
                         fwProt = "Begode"
                         isReady = true
-                        newState = newState.copy(version = fw)
+                        preIdentity = currentState.identity.copy(version = fw)
                     }
                     dataStr.startsWith("JN") -> {
                         fw = dataStr.substring(2).trim()
                         fwProt = "ExtremeBull"
                         isReady = true
-                        newState = newState.copy(version = fw)
+                        preIdentity = currentState.identity.copy(version = fw)
                     }
                     dataStr.startsWith("CF") -> {
                         fw = dataStr.substring(2).trim()
                         fwProt = "Freestyl3r"
                         isReady = true
-                        newState = newState.copy(version = fw)
+                        preIdentity = currentState.identity.copy(version = fw)
                     }
                     dataStr.startsWith("BF") -> {
                         fw = dataStr.substring(2).trim()
                         fwProt = "SV"
                         isReady = true
-                        newState = newState.copy(version = fw)
+                        preIdentity = currentState.identity.copy(version = fw)
                     }
                     dataStr.startsWith("MPU") -> {
                         imu = dataStr.substring(1, minOf(7, dataStr.length)).trim()
@@ -164,19 +164,25 @@ class GotwayDecoder : WheelDecoder {
                 }
             }
 
+            // Inject pre-loop identity into loop input so processFrame sees it
+            val loopInput = if (preIdentity != null) currentState.copy(identity = preIdentity) else currentState
+
             // Unpacker loop
-            val loopResult = decodeFrames(data, unpacker, newState) { buffer, state ->
-                processFrame(buffer, state, config)
+            val loopResult = decodeFrames(data, unpacker, loopInput) { buffer, state ->
+                val ws = state.toWheelState().let {
+                    if (it.wheelType == WheelType.Unknown) it.copy(wheelType = WheelType.GOTWAY) else it
+                }
+                processFrame(buffer, ws, config)
             }
 
             // Extract success data if available
             val successData = (loopResult as? DecodeResult.Success)?.data
-
-            // Merge pre-loop state changes with unpacker loop results
-            var finalState = successData?.newState ?: newState
             var finalHasNewData = successData?.hasNewData ?: false
             val commands = successData?.commands?.toMutableList() ?: mutableListOf()
             var news = successData?.news
+
+            // Accumulate identity from pre-loop and loop results
+            var resultIdentity = successData?.identity ?: preIdentity
 
             // Retry firmware/model requests until both are populated (like legacy adapter)
             if (finalHasNewData && (fw.isEmpty() || model.isEmpty())) {
@@ -191,40 +197,36 @@ class GotwayDecoder : WheelDecoder {
                     // Fallback after max attempts
                     if (model.isEmpty()) {
                         model = fwProt.ifEmpty { "Begode" }
-                        finalState = finalState.copy(model = model)
+                        resultIdentity = (resultIdentity ?: currentState.identity).copy(model = model)
                     }
                     if (fw.isEmpty()) {
                         fw = "-"
-                        finalState = finalState.copy(version = fw)
+                        resultIdentity = (resultIdentity ?: currentState.identity).copy(version = fw)
                         isReady = true
                     }
                 }
             }
 
-            if (successData != null || finalState != ws) {
+            if (successData != null || preIdentity != null || resultIdentity != null) {
                 val frameTypes = successData?.frameTypes?.toMutableList() ?: mutableListOf()
-                if (newState != ws && successData?.newState != newState) {
+                if (preIdentity != null && successData?.identity == null) {
                     frameTypes.add(0, "IDENTITY")
                 }
-                // Ensure wheelType is always GOTWAY for domain piece extraction
-                if (finalState.wheelType == WheelType.Unknown) {
-                    finalState = finalState.copy(wheelType = WheelType.GOTWAY)
+                // Ensure wheelType is GOTWAY
+                val resolvedIdentity = when {
+                    resultIdentity != null && resultIdentity.wheelType == WheelType.Unknown ->
+                        resultIdentity.copy(wheelType = WheelType.GOTWAY)
+                    resultIdentity != null -> resultIdentity
+                    currentState.identity.wheelType == WheelType.Unknown ->
+                        currentState.identity.copy(wheelType = WheelType.GOTWAY)
+                    else -> null
                 }
-                // Build final state with BMS snapshots for domain piece extraction
-                val stateWithBms = finalState.copy(
-                    bms1 = bms1.toSnapshot(),
-                    bms2 = bms2.toSnapshot()
-                )
-                // Extract domain pieces, only including those that changed
-                val initialTelemetry = currentState.telemetry
-                val initialIdentity = currentState.identity
-                val initialBms = currentState.bms
-                val initialSettings = currentState.settings
+                val bmsSnapshot = BmsState(bms1 = bms1.toSnapshot(), bms2 = bms2.toSnapshot())
                 DecodeResult.Success(DecodedData(
-                    telemetry = stateWithBms.toTelemetryState().takeIf { it != initialTelemetry },
-                    identity = stateWithBms.toIdentity().takeIf { it != initialIdentity },
-                    bms = stateWithBms.toBmsState().takeIf { it != initialBms },
-                    settings = stateWithBms.toWheelSettings().takeIf { it != initialSettings },
+                    telemetry = successData?.telemetry,
+                    identity = resolvedIdentity?.takeIf { it != currentState.identity },
+                    bms = bmsSnapshot.takeIf { it != currentState.bms },
+                    settings = successData?.settings?.takeIf { it != currentState.settings },
                     commands = commands,
                     hasNewData = finalHasNewData,
                     news = news,
@@ -368,7 +370,7 @@ class GotwayDecoder : WheelDecoder {
 
         val hasNewData = !((trueVoltage && autoVoltage) || trueCurrent || bmsCurrent) || isAlexovikFW
 
-        return FrameResult(newState, hasNewData)
+        return FrameResult(state = newState, hasNewData = hasNewData)
     }
 
     /**
@@ -412,7 +414,7 @@ class GotwayDecoder : WheelDecoder {
             current = current
         )
 
-        return FrameResult(newState, hasNewData)
+        return FrameResult(state = newState, hasNewData = hasNewData)
     }
 
     /**
