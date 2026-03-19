@@ -5,7 +5,9 @@ import org.freewheel.core.domain.CapabilityMap
 import org.freewheel.core.domain.CapabilitySet
 import org.freewheel.core.domain.SettingsCommandId
 import org.freewheel.core.domain.SmartBms
-import org.freewheel.core.domain.WheelState
+import org.freewheel.core.domain.TelemetryState
+import org.freewheel.core.domain.WheelIdentity
+import org.freewheel.core.domain.WheelSettings
 import org.freewheel.core.domain.WheelType
 import org.freewheel.core.domain.resolveAt
 import org.freewheel.core.utils.ByteUtils
@@ -251,12 +253,7 @@ class VeteranDecoder : WheelDecoder {
             lastPacketTime = currentTime
 
             val loopResult = decodeFrames(data, unpacker, currentState) { buffer, state ->
-                val ws = state.toWheelState().let {
-                    if (it.wheelType == WheelType.Unknown) it.copy(wheelType = WheelType.VETERAN) else it
-                }
-                processFrame(buffer, ws, config)?.let {
-                    FrameResult(state = it, hasNewData = true, frameType = "TELEMETRY")
-                }
+                processFrame(buffer, state, config)
             }
 
             when (loopResult) {
@@ -293,12 +290,14 @@ class VeteranDecoder : WheelDecoder {
 
     private fun processFrame(
         buff: ByteArray,
-        currentState: WheelState,
+        currentState: DecoderState,
         config: DecoderConfig
-    ): WheelState? {
+    ): FrameResult? {
         if (buff.size < 36) return null
 
         val veteranNegative = config.gotwayNegative
+        val tel = currentState.telemetry
+        val vet = currentState.settings as? WheelSettings.Veteran ?: WheelSettings.Veteran()
 
         val voltage = ByteUtils.shortFromBytesBE(buff, 4)
         var speed = ByteUtils.signedShortFromBytesBE(buff, 6) * 10
@@ -354,7 +353,7 @@ class VeteranDecoder : WheelDecoder {
         // Parse sub-type extended data for newer wheels
         val subData = if (mVer >= 5 && buff.size > 46) parseSubTypeData(buff) else null
 
-        var state = currentState.copy(
+        val newTel = tel.copy(
             speed = speed,
             voltage = voltage,
             phaseCurrent = phaseCurrent,
@@ -368,41 +367,53 @@ class VeteranDecoder : WheelDecoder {
             output = output,
             calculatedPwm = calculatedPwm,
             angle = pitchAngle / 100.0,
+            roll = subData?.roll ?: tel.roll
+        )
+
+        val newIdentity = currentState.identity.copy(
+            version = version,
+            model = getModelName(),
+            wheelType = WheelType.VETERAN
+        )
+
+        var newSettings = vet.copy(
             tiltBackSpeed = speedTiltback / 10,
             alertSpeed = speedAlert / 10,
             autoOffTime = autoOffSec,
             pedalsMode = pedalsMode,
-            version = version,
-            model = getModelName(),
-            wheelType = WheelType.VETERAN,
             batteryTempMode = batteryTempMode
         )
 
         // Merge sub-type settings data
         if (subData != null) {
-            state = state.copy(
-                roll = subData.roll ?: state.roll,
-                lockState = subData.lockState ?: state.lockState,
-                highSpeedMode = subData.highSpeedMode ?: state.highSpeedMode,
-                lowVoltageMode = subData.lowVoltageMode ?: state.lowVoltageMode,
-                voltageCorrection = subData.voltageCorrection ?: state.voltageCorrection,
-                transportMode = subData.transportMode ?: state.transportMode,
-                keyTone = subData.keyTone ?: state.keyTone,
-                pedalSensitivity = subData.pedalHardness ?: state.pedalSensitivity,
-                stopSpeed = subData.stopSpeed ?: state.stopSpeed,
-                pwmLimit = subData.stopPowerRate ?: state.pwmLimit,
-                screenBacklight = subData.screenBacklightRate ?: state.screenBacklight,
-                maxChargeVoltage = subData.maxChargeVol ?: state.maxChargeVoltage,
-                brakePressureAlarm = subData.brakePressureAlarm ?: state.brakePressureAlarm,
-                lateralCutoffAngle = subData.lateralCutoffAngle ?: state.lateralCutoffAngle,
-                dynamicAssist = subData.dynamicAssist ?: state.dynamicAssist,
-                accelerationLimit = subData.accelerationLimit ?: state.accelerationLimit,
-                chargeVoltageBase = subData.chargeVoltageBase ?: state.chargeVoltageBase,
-                wheelDisplayUnit = subData.wheelDisplayUnit ?: state.wheelDisplayUnit,
+            newSettings = newSettings.copy(
+                lockState = subData.lockState ?: vet.lockState,
+                highSpeedMode = subData.highSpeedMode ?: vet.highSpeedMode,
+                lowVoltageMode = subData.lowVoltageMode ?: vet.lowVoltageMode,
+                voltageCorrection = subData.voltageCorrection ?: vet.voltageCorrection,
+                transportMode = subData.transportMode ?: vet.transportMode,
+                keyTone = subData.keyTone ?: vet.keyTone,
+                pedalSensitivity = subData.pedalHardness ?: vet.pedalSensitivity,
+                stopSpeed = subData.stopSpeed ?: vet.stopSpeed,
+                pwmLimit = subData.stopPowerRate ?: vet.pwmLimit,
+                screenBacklight = subData.screenBacklightRate ?: vet.screenBacklight,
+                maxChargeVoltage = subData.maxChargeVol ?: vet.maxChargeVoltage,
+                brakePressureAlarm = subData.brakePressureAlarm ?: vet.brakePressureAlarm,
+                lateralCutoffAngle = subData.lateralCutoffAngle ?: vet.lateralCutoffAngle,
+                dynamicAssist = subData.dynamicAssist ?: vet.dynamicAssist,
+                accelerationLimit = subData.accelerationLimit ?: vet.accelerationLimit,
+                chargeVoltageBase = subData.chargeVoltageBase ?: vet.chargeVoltageBase,
+                wheelDisplayUnit = subData.wheelDisplayUnit ?: vet.wheelDisplayUnit,
             )
         }
 
-        return state
+        return FrameResult(
+            telemetry = newTel,
+            identity = newIdentity,
+            settings = newSettings,
+            hasNewData = true,
+            frameType = "TELEMETRY"
+        )
     }
 
     private fun parseSubTypeData(buff: ByteArray): SubTypeData? {
