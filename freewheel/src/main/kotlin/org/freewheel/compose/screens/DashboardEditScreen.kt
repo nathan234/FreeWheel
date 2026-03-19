@@ -63,12 +63,12 @@ fun DashboardEditScreen(
     onBack: () -> Unit
 ) {
     val currentLayout by viewModel.dashboardLayout.collectAsStateWithLifecycle()
-    val wheelState by viewModel.wheelState.collectAsStateWithLifecycle()
+    val identity by viewModel.identityState.collectAsStateWithLifecycle()
 
     LayoutEditorContent(
         title = "Edit Dashboard",
         currentLayout = currentLayout,
-        wheelType = wheelState.wheelType,
+        wheelType = identity.wheelType,
         onSave = { layout -> viewModel.saveDashboardLayout(layout); onBack() },
         onCancel = onBack
     )

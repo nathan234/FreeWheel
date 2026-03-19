@@ -13,11 +13,11 @@ struct DashboardContentView: View {
     @Binding var showEditDashboard: Bool
 
     private var effectiveLayout: DashboardLayout {
-        layout.filteredFor(wheelType: wheelManager.wheelState.wheelType)
+        layout.filteredFor(wheelType: wheelManager.identity.wheelType)
     }
 
     private var displaySpeed: Double {
-        DisplayUtils.shared.convertSpeed(kmh: wheelManager.wheelState.speedKmh, useMph: wheelManager.useMph)
+        DisplayUtils.shared.convertSpeed(kmh: wheelManager.telemetry.speedKmh, useMph: wheelManager.useMph)
     }
 
     private var speedUnit: String {
@@ -83,7 +83,7 @@ struct DashboardContentView: View {
                         .buttonStyle(.plain)
                     } else {
                         // Generic hero gauge for non-speed metrics
-                        let heroRawValue = heroMetric.extractValue(telemetry: wheelManager.wheelState.toTelemetryState())?.doubleValue ?? 0.0
+                        let heroRawValue = heroMetric.extractValue(telemetry: wheelManager.telemetry)?.doubleValue ?? 0.0
                         let heroDisplayValue = DisplayUtils.shared.convertMetricValue(value: heroRawValue, metric: heroMetric, useMph: wheelManager.useMph, useFahrenheit: wheelManager.useFahrenheit)
                         let heroUnit = DisplayUtils.shared.metricUnit(metric: heroMetric, useMph: wheelManager.useMph, useFahrenheit: wheelManager.useFahrenheit)
                         let heroMax = heroMetric.maxValue > 0 ? heroMetric.maxValue : max(abs(heroRawValue), 1.0)
@@ -109,7 +109,7 @@ struct DashboardContentView: View {
                     ForEach(Array(effectiveLayout.tiles), id: \.name) { metric in
                         MetricGaugeTile(
                             metric: metric,
-                            wheelState: wheelManager.wheelState,
+                            telemetry: wheelManager.telemetry,
                             gpsSpeed: gpsKmh,
                             useMph: wheelManager.useMph,
                             useFahrenheit: wheelManager.useFahrenheit,
@@ -130,7 +130,7 @@ struct DashboardContentView: View {
                         ForEach(Array(effectiveLayout.stats), id: \.name) { metric in
                             MetricStatRow(
                                 metric: metric,
-                                wheelState: wheelManager.wheelState,
+                                telemetry: wheelManager.telemetry,
                                 gpsSpeed: gpsKmh,
                                 useMph: wheelManager.useMph,
                                 useFahrenheit: wheelManager.useFahrenheit
@@ -158,7 +158,7 @@ struct DashboardContentView: View {
                 }
 
                 // BMS summary card (conditional — shown when BMS data available)
-                if effectiveLayout.showBmsSummary, let bms = wheelManager.wheelState.bms1, bms.cellNum > 0 {
+                if effectiveLayout.showBmsSummary, let bms = wheelManager.bmsState.bms1, bms.cellNum > 0 {
                     Button(action: { showBms = true }) {
                         VStack(spacing: 12) {
                             HStack {
@@ -196,19 +196,19 @@ struct DashboardContentView: View {
 
                 if showControls {
                     // Wheel settings (conditional)
-                    if effectiveLayout.showWheelSettings && wheelManager.wheelState.pedalsMode >= 0 {
+                    if effectiveLayout.showWheelSettings && wheelManager.wheelSettings.pedalsMode >= 0 {
                         NavigationLink(destination: WheelSettingsView()) {
                             VStack(spacing: 12) {
-                                StatRow(label: DashboardLabels.shared.PEDALS_MODE, value: DisplayUtils.shared.pedalsModeText(mode: wheelManager.wheelState.pedalsMode))
-                                StatRow(label: DashboardLabels.shared.TILT_BACK_SPEED, value: DisplayUtils.shared.tiltBackSpeedText(speed: wheelManager.wheelState.tiltBackSpeed, useMph: wheelManager.useMph))
-                                if wheelManager.wheelState.alertSpeed > 0 {
-                                    StatRow(label: DashboardLabels.shared.ALERT_SPEED, value: DisplayUtils.shared.alertSpeedText(speed: wheelManager.wheelState.alertSpeed, useMph: wheelManager.useMph))
+                                StatRow(label: DashboardLabels.shared.PEDALS_MODE, value: DisplayUtils.shared.pedalsModeText(mode: wheelManager.wheelSettings.pedalsMode))
+                                StatRow(label: DashboardLabels.shared.TILT_BACK_SPEED, value: DisplayUtils.shared.tiltBackSpeedText(speed: wheelManager.wheelSettings.tiltBackSpeed, useMph: wheelManager.useMph))
+                                if wheelManager.wheelSettings.alertSpeed > 0 {
+                                    StatRow(label: DashboardLabels.shared.ALERT_SPEED, value: DisplayUtils.shared.alertSpeedText(speed: wheelManager.wheelSettings.alertSpeed, useMph: wheelManager.useMph))
                                 }
-                                if wheelManager.wheelState.autoOffTime > 0 {
-                                    StatRow(label: DashboardLabels.shared.AUTO_OFF_TIME, value: DisplayUtils.shared.autoOffTimeText(seconds: wheelManager.wheelState.autoOffTime))
+                                if wheelManager.wheelSettings.autoOffTime > 0 {
+                                    StatRow(label: DashboardLabels.shared.AUTO_OFF_TIME, value: DisplayUtils.shared.autoOffTimeText(seconds: wheelManager.wheelSettings.autoOffTime))
                                 }
-                                StatRow(label: DashboardLabels.shared.LIGHT, value: DisplayUtils.shared.lightModeText(mode: wheelManager.wheelState.lightMode))
-                                StatRow(label: DashboardLabels.shared.LED_MODE, value: "\(wheelManager.wheelState.ledMode)")
+                                StatRow(label: DashboardLabels.shared.LIGHT, value: DisplayUtils.shared.lightModeText(mode: wheelManager.wheelSettings.lightMode))
+                                StatRow(label: DashboardLabels.shared.LED_MODE, value: "\(wheelManager.wheelSettings.ledMode)")
                             }
                             .padding()
                             .background(Color(UIColor.secondarySystemGroupedBackground))
@@ -219,17 +219,17 @@ struct DashboardContentView: View {
                     }
 
                     // Wheel info (conditional)
-                    if effectiveLayout.showWheelInfo && (!wheelManager.wheelState.name.isEmpty || !wheelManager.wheelState.model.isEmpty) {
+                    if effectiveLayout.showWheelInfo && (!wheelManager.identity.name.isEmpty || !wheelManager.identity.model.isEmpty) {
                         VStack(spacing: 12) {
-                            if !wheelManager.wheelState.name.isEmpty {
-                                StatRow(label: DashboardLabels.shared.NAME, value: wheelManager.wheelState.name)
+                            if !wheelManager.identity.name.isEmpty {
+                                StatRow(label: DashboardLabels.shared.NAME, value: wheelManager.identity.name)
                             }
-                            if !wheelManager.wheelState.model.isEmpty {
-                                StatRow(label: DashboardLabels.shared.MODEL, value: wheelManager.wheelState.model)
+                            if !wheelManager.identity.model.isEmpty {
+                                StatRow(label: DashboardLabels.shared.MODEL, value: wheelManager.identity.model)
                             }
-                            StatRow(label: DashboardLabels.shared.TYPE, value: wheelManager.wheelState.wheelType.name)
-                            if !wheelManager.wheelState.version.isEmpty {
-                                StatRow(label: DashboardLabels.shared.FIRMWARE, value: wheelManager.wheelState.version)
+                            StatRow(label: DashboardLabels.shared.TYPE, value: wheelManager.identity.wheelType.name)
+                            if !wheelManager.identity.version.isEmpty {
+                                StatRow(label: DashboardLabels.shared.FIRMWARE, value: wheelManager.identity.version)
                             }
                         }
                         .padding()

@@ -16,7 +16,7 @@ struct SmartBmsView: View {
             VStack(alignment: .leading, spacing: 16) {
                 Text(BmsLabels.shared.BMS_1)
                     .font(.headline)
-                if let bms = wheelManager.wheelState.bms1 {
+                if let bms = wheelManager.bmsState.bms1 {
                     BmsBlock(bms: bms)
                 } else {
                     Text(BmsLabels.shared.NO_BMS_1)
@@ -27,7 +27,7 @@ struct SmartBmsView: View {
 
                 Text(BmsLabels.shared.BMS_2)
                     .font(.headline)
-                if let bms = wheelManager.wheelState.bms2 {
+                if let bms = wheelManager.bmsState.bms2 {
                     BmsBlock(bms: bms)
                 } else {
                     Text(BmsLabels.shared.NO_BMS_2)

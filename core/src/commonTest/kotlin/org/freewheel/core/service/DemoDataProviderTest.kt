@@ -30,8 +30,8 @@ class DemoDataProviderTest {
         advanceTimeBy(150)
         runCurrent()
 
-        val state = provider.wheelState.value
-        assertTrue(state.speed > 0 || state.batteryLevel == 85, "State should be updated after start")
+        val telemetry = provider.telemetryState.value
+        assertTrue(telemetry.speed > 0 || telemetry.batteryLevel == 85, "State should be updated after start")
 
         provider.stop()
         assertFalse(provider.isRunning)
@@ -45,13 +45,13 @@ class DemoDataProviderTest {
         runCurrent()
 
         assertTrue(provider.isRunning)
-        assertTrue(provider.wheelState.value.speed > 0, "Speed should be > 0 during run")
+        assertTrue(provider.telemetryState.value.speed > 0, "Speed should be > 0 during run")
 
         provider.stop()
 
         assertFalse(provider.isRunning)
-        // After stop, state is reset to default WheelState
-        assertEquals(0, provider.wheelState.value.speed, "Speed should be 0 after stop")
+        // After stop, state is reset to default
+        assertEquals(0, provider.telemetryState.value.speed, "Speed should be 0 after stop")
     }
 
     @Test
@@ -64,10 +64,10 @@ class DemoDataProviderTest {
         advanceTimeBy(5_000) // 5 seconds = 50 ticks
         runCurrent()
 
-        val state = provider.wheelState.value
-        assertTrue(state.speed > 0, "Speed should increase during acceleration phase")
+        val telemetry = provider.telemetryState.value
+        assertTrue(telemetry.speed > 0, "Speed should increase during acceleration phase")
         // Speed in internal units (1/100), so 25 km/h = 2500
-        assertTrue(state.speed <= 2500, "Speed should not exceed 25 km/h during acceleration")
+        assertTrue(telemetry.speed <= 2500, "Speed should not exceed 25 km/h during acceleration")
 
         provider.stop()
     }
@@ -82,8 +82,8 @@ class DemoDataProviderTest {
         advanceTimeBy(15_000)
         runCurrent()
 
-        val state = provider.wheelState.value
-        val speedKmh = state.speed / 100.0
+        val telemetry = provider.telemetryState.value
+        val speedKmh = telemetry.speed / 100.0
         assertTrue(speedKmh >= 15.0, "Speed should be >= 15 km/h during cruise (got $speedKmh)")
         assertTrue(speedKmh <= 30.0, "Speed should be <= 30 km/h during cruise (got $speedKmh)")
 
@@ -100,7 +100,7 @@ class DemoDataProviderTest {
         advanceTimeBy(30_000)
         runCurrent()
 
-        val battery = provider.wheelState.value.batteryLevel
+        val battery = provider.telemetryState.value.batteryLevel
         assertTrue(battery < 85, "Battery should drain from 85 (got $battery)")
         assertTrue(battery >= 80, "Battery should not drain below 80 in 30s (got $battery)")
 
@@ -116,7 +116,7 @@ class DemoDataProviderTest {
         advanceTimeBy(200) // 2 ticks
         runCurrent()
 
-        val bms = provider.wheelState.value.bms1
+        val bms = provider.bmsState.value.bms1
         assertNotNull(bms, "BMS snapshot should be non-null after first tick")
         assertEquals(16, bms.cellNum, "BMS should have 16 cells")
         assertEquals("DEMO-BMS-001", bms.serialNumber)
@@ -133,11 +133,11 @@ class DemoDataProviderTest {
         // After a few seconds of acceleration, distance should increase
         advanceTimeBy(5_000)
         runCurrent()
-        val dist1 = provider.wheelState.value.wheelDistance
+        val dist1 = provider.telemetryState.value.wheelDistance
 
         advanceTimeBy(5_000)
         runCurrent()
-        val dist2 = provider.wheelState.value.wheelDistance
+        val dist2 = provider.telemetryState.value.wheelDistance
 
         assertTrue(dist2 > dist1, "Distance should accumulate (got $dist1 → $dist2)")
 
@@ -167,8 +167,8 @@ class DemoDataProviderTest {
         advanceTimeBy(150)
         runCurrent()
 
-        assertEquals("Demo Wheel", provider.wheelState.value.model)
-        assertEquals("Demo", provider.wheelState.value.name)
+        assertEquals("Demo Wheel", provider.identityState.value.model)
+        assertEquals("Demo", provider.identityState.value.name)
 
         provider.stop()
     }
@@ -183,7 +183,7 @@ class DemoDataProviderTest {
         advanceTimeBy(15_000) // cruise phase
         runCurrent()
 
-        val temp = provider.wheelState.value.temperature
+        val temp = provider.telemetryState.value.temperature
         // Base 25°C + speed contribution (~10°C at full speed) + sine variation (±2°C)
         // In internal units: 2500 + up to ~1200 = ~3700
         assertTrue(temp > 2500, "Temperature should be above 25°C base (got ${temp / 100.0}°C)")

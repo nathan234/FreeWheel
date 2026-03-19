@@ -40,7 +40,10 @@ class DashboardContentTest {
             MaterialTheme {
                 DashboardContent(
                     layout = layout,
-                    wheelState = wheelState,
+                    telemetry = wheelState.toTelemetryState(),
+                    identity = wheelState.toIdentity(),
+                    bms = wheelState.toBmsState(),
+                    settings = wheelState.toWheelSettings(),
                     connectionState = ConnectionState.Connected("00:00:00:00:00:00", "Test"),
                     activeAlarms = emptySet(),
                     isDemo = false,

@@ -26,7 +26,7 @@ struct DashboardView: View {
                 ReplayControlsView()
             }
         }
-        .navigationTitle(wheelManager.wheelState.displayName)
+        .navigationTitle(wheelManager.identity.displayName)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItemGroup(placement: .navigationBarTrailing) {

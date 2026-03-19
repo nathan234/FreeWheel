@@ -33,6 +33,10 @@ class AlarmManager: ObservableObject {
     // MARK: - KMP Alarm Check
 
     func checkAlarms(state: WheelState, config: AlarmConfig, enabled: Bool, action: FreeWheelCore.AlarmAction) {
+        checkTelemetry(telemetry: state.toTelemetryState(), config: config, enabled: enabled, action: action)
+    }
+
+    func checkTelemetry(telemetry: TelemetryState, config: AlarmConfig, enabled: Bool, action: FreeWheelCore.AlarmAction) {
         guard enabled else {
             if !activeAlarms.isEmpty {
                 activeAlarms = []
@@ -41,12 +45,7 @@ class AlarmManager: ObservableObject {
         }
 
         let currentTimeMs = Int64(Date().timeIntervalSince1970 * 1000)
-        let result = WheelConnectionManagerHelper.shared.checkAlarms(
-            checker: kmpChecker,
-            state: state,
-            config: config,
-            currentTimeMs: currentTimeMs
-        )
+        let result = kmpChecker.check(telemetry: telemetry, config: config, currentTimeMs: currentTimeMs)
 
         processAlarmResult(result, action: action)
     }

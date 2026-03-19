@@ -48,7 +48,10 @@ fun DashboardScreen(
     onNavigateToWheelSettings: () -> Unit = {},
     onNavigateToEditDashboard: () -> Unit = {}
 ) {
-    val wheelState by viewModel.wheelState.collectAsStateWithLifecycle()
+    val telemetry by viewModel.telemetryState.collectAsStateWithLifecycle()
+    val identity by viewModel.identityState.collectAsStateWithLifecycle()
+    val bms by viewModel.bmsState.collectAsStateWithLifecycle()
+    val settings by viewModel.settingsState.collectAsStateWithLifecycle()
     val connectionState by viewModel.connectionState.collectAsStateWithLifecycle()
     val activeAlarms by viewModel.activeAlarms.collectAsStateWithLifecycle()
     val isDemo by viewModel.isDemo.collectAsStateWithLifecycle()
@@ -70,7 +73,7 @@ fun DashboardScreen(
         mutableStateOf(SpeedDisplayMode.entries[viewModel.getGlobalInt(PreferenceKeys.SPEED_DISPLAY_MODE, 0).coerceIn(0, 2)])
     }
 
-    val title = wheelState.displayName
+    val title = identity.displayName
 
     Scaffold(
         topBar = {
@@ -108,7 +111,10 @@ fun DashboardScreen(
         Column(modifier = Modifier.fillMaxSize().padding(contentPadding)) {
             DashboardContent(
                 layout = dashboardLayout,
-                wheelState = wheelState,
+                telemetry = telemetry,
+                identity = identity,
+                bms = bms,
+                settings = settings,
                 connectionState = connectionState,
                 activeAlarms = activeAlarms,
                 isDemo = isDemo,

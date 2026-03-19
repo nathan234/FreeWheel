@@ -39,11 +39,21 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.freewheel.core.domain.AlarmType
+import org.freewheel.core.domain.BmsState
 import org.freewheel.core.domain.DashboardLabels
 import org.freewheel.core.domain.SettingsLabels
 import org.freewheel.core.domain.SpeedDisplayMode
+import org.freewheel.core.domain.TelemetryState
+import org.freewheel.core.domain.WheelIdentity
+import org.freewheel.core.domain.WheelSettings
 import org.freewheel.core.domain.WheelState
 import org.freewheel.core.domain.WheelType
+import org.freewheel.core.domain.alertSpeed
+import org.freewheel.core.domain.autoOffTime
+import org.freewheel.core.domain.ledMode
+import org.freewheel.core.domain.lightMode
+import org.freewheel.core.domain.pedalsMode
+import org.freewheel.core.domain.tiltBackSpeed
 import org.freewheel.core.domain.dashboard.DashboardLayout
 import org.freewheel.core.domain.dashboard.DashboardMetric
 import org.freewheel.core.domain.dashboard.DashboardPresets
@@ -60,7 +70,10 @@ import org.freewheel.core.utils.DisplayUtils
 @Composable
 fun DashboardContent(
     layout: DashboardLayout,
-    wheelState: WheelState,
+    telemetry: TelemetryState,
+    identity: WheelIdentity,
+    bms: BmsState,
+    settings: WheelSettings,
     connectionState: ConnectionState,
     activeAlarms: Set<AlarmType>,
     isDemo: Boolean,
@@ -81,11 +94,11 @@ fun DashboardContent(
     showControls: Boolean = true,
     modifier: Modifier = Modifier
 ) {
-    val effectiveLayout = remember(layout, wheelState.wheelType) {
-        layout.filteredFor(wheelState.wheelType)
+    val effectiveLayout = remember(layout, identity.wheelType) {
+        layout.filteredFor(identity.wheelType)
     }
 
-    val displaySpeed = DisplayUtils.convertSpeed(wheelState.speedKmh, useMph)
+    val displaySpeed = DisplayUtils.convertSpeed(telemetry.speedKmh, useMph)
     val displayGpsSpeed = DisplayUtils.convertSpeed(gpsSpeed, useMph)
     val speedUnit = DisplayUtils.speedUnit(useMph)
     val maxSpeed = DisplayUtils.maxSpeedDefault(useMph)
@@ -150,7 +163,6 @@ fun DashboardContent(
                 )
             } else {
                 // Generic hero gauge for non-speed metrics
-                val telemetry = wheelState.toTelemetryState()
                 val heroRawValue = heroMetric.extractValue(telemetry) ?: 0.0
                 val heroDisplayValue = DisplayUtils.convertMetricValue(heroRawValue, heroMetric, useMph, useFahrenheit)
                 val heroUnit = DisplayUtils.metricUnit(heroMetric, useMph, useFahrenheit)
@@ -182,7 +194,7 @@ fun DashboardContent(
                 for (metric in row) {
                     RenderGaugeTile(
                         metric = metric,
-                        telemetry = wheelState.toTelemetryState(),
+                        telemetry = telemetry,
                         gpsSpeed = gpsSpeed,
                         telemetryBuffer = telemetryBuffer,
                         samples = samples,
@@ -206,7 +218,7 @@ fun DashboardContent(
                 for (metric in effectiveLayout.stats) {
                     RenderStatRow(
                         metric = metric,
-                        telemetry = wheelState.toTelemetryState(),
+                        telemetry = telemetry,
                         gpsSpeed = gpsSpeed,
                         useMph = useMph,
                         useFahrenheit = useFahrenheit
@@ -226,8 +238,8 @@ fun DashboardContent(
         }
 
         // BMS summary card (conditional — shown when BMS data available)
-        if (effectiveLayout.showBmsSummary && wheelState.bms1 != null) {
-            val bms = wheelState.bms1!!
+        if (effectiveLayout.showBmsSummary && bms.bms1 != null) {
+            val bms = bms.bms1!!
             if (bms.cellNum > 0) {
                 Surface(
                     modifier = Modifier
@@ -279,33 +291,33 @@ fun DashboardContent(
         }
 
         // Wheel settings card (conditional)
-        if (effectiveLayout.showWheelSettings && wheelState.pedalsMode >= 0) {
+        if (effectiveLayout.showWheelSettings && settings.pedalsMode >= 0) {
             StatsSection(modifier = Modifier.padding(horizontal = 16.dp)) {
-                StatRow(label = DashboardLabels.PEDALS_MODE, value = DisplayUtils.pedalsModeText(wheelState.pedalsMode))
-                StatRow(label = DashboardLabels.TILT_BACK_SPEED, value = DisplayUtils.tiltBackSpeedText(wheelState.tiltBackSpeed, useMph))
-                if (wheelState.alertSpeed > 0) {
-                    StatRow(label = DashboardLabels.ALERT_SPEED, value = DisplayUtils.alertSpeedText(wheelState.alertSpeed, useMph))
+                StatRow(label = DashboardLabels.PEDALS_MODE, value = DisplayUtils.pedalsModeText(settings.pedalsMode))
+                StatRow(label = DashboardLabels.TILT_BACK_SPEED, value = DisplayUtils.tiltBackSpeedText(settings.tiltBackSpeed, useMph))
+                if (settings.alertSpeed > 0) {
+                    StatRow(label = DashboardLabels.ALERT_SPEED, value = DisplayUtils.alertSpeedText(settings.alertSpeed, useMph))
                 }
-                if (wheelState.autoOffTime > 0) {
-                    StatRow(label = DashboardLabels.AUTO_OFF_TIME, value = DisplayUtils.autoOffTimeText(wheelState.autoOffTime))
+                if (settings.autoOffTime > 0) {
+                    StatRow(label = DashboardLabels.AUTO_OFF_TIME, value = DisplayUtils.autoOffTimeText(settings.autoOffTime))
                 }
-                StatRow(label = DashboardLabels.LIGHT, value = DisplayUtils.lightModeText(wheelState.lightMode))
-                StatRow(label = DashboardLabels.LED_MODE, value = "${wheelState.ledMode}")
+                StatRow(label = DashboardLabels.LIGHT, value = DisplayUtils.lightModeText(settings.lightMode))
+                StatRow(label = DashboardLabels.LED_MODE, value = "${settings.ledMode}")
             }
         }
 
         // Wheel info card (conditional)
-        if (effectiveLayout.showWheelInfo && (wheelState.name.isNotEmpty() || wheelState.model.isNotEmpty())) {
+        if (effectiveLayout.showWheelInfo && (identity.name.isNotEmpty() || identity.model.isNotEmpty())) {
             StatsSection(modifier = Modifier.padding(horizontal = 16.dp)) {
-                if (wheelState.name.isNotEmpty()) {
-                    StatRow(label = DashboardLabels.NAME, value = wheelState.name)
+                if (identity.name.isNotEmpty()) {
+                    StatRow(label = DashboardLabels.NAME, value = identity.name)
                 }
-                if (wheelState.model.isNotEmpty()) {
-                    StatRow(label = DashboardLabels.MODEL, value = wheelState.model)
+                if (identity.model.isNotEmpty()) {
+                    StatRow(label = DashboardLabels.MODEL, value = identity.model)
                 }
-                StatRow(label = DashboardLabels.TYPE, value = wheelState.wheelType.name)
-                if (wheelState.version.isNotEmpty()) {
-                    StatRow(label = DashboardLabels.FIRMWARE, value = wheelState.version)
+                StatRow(label = DashboardLabels.TYPE, value = identity.wheelType.name)
+                if (identity.version.isNotEmpty()) {
+                    StatRow(label = DashboardLabels.FIRMWARE, value = identity.version)
                 }
             }
         }
@@ -476,10 +488,14 @@ private val noOpMode: (SpeedDisplayMode) -> Unit = {}
 
 @Composable
 private fun PreviewDashboard(layout: DashboardLayout, wheelType: WheelType = WheelType.Unknown) {
+    val ws = previewWheelState(wheelType)
     MaterialTheme {
         DashboardContent(
             layout = layout,
-            wheelState = previewWheelState(wheelType),
+            telemetry = ws.toTelemetryState(),
+            identity = ws.toIdentity(),
+            bms = ws.toBmsState(),
+            settings = ws.toWheelSettings(),
             connectionState = ConnectionState.Connected("00:00:00:00:00:00", "Preview"),
             activeAlarms = emptySet(),
             isDemo = false,

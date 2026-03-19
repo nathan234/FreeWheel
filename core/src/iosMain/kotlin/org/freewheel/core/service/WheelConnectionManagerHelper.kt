@@ -481,9 +481,27 @@ object WheelConnectionManagerHelper {
         return FlowObservation(scope)
     }
 
-    fun observeDemoState(provider: DemoDataProvider, onChange: (WheelState) -> Unit): FlowObservation {
+    fun observeDemoTelemetry(provider: DemoDataProvider, onChange: (TelemetryState) -> Unit): FlowObservation {
         val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
-        scope.launch { provider.wheelState.collect { onChange(it) } }
+        scope.launch { provider.telemetryState.collect { onChange(it) } }
+        return FlowObservation(scope)
+    }
+
+    fun observeDemoIdentity(provider: DemoDataProvider, onChange: (WheelIdentity) -> Unit): FlowObservation {
+        val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+        scope.launch { provider.identityState.collect { onChange(it) } }
+        return FlowObservation(scope)
+    }
+
+    fun observeDemoBms(provider: DemoDataProvider, onChange: (BmsState) -> Unit): FlowObservation {
+        val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+        scope.launch { provider.bmsState.collect { onChange(it) } }
+        return FlowObservation(scope)
+    }
+
+    fun observeDemoSettings(provider: DemoDataProvider, onChange: (WheelSettings) -> Unit): FlowObservation {
+        val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+        scope.launch { provider.settingsState.collect { onChange(it) } }
         return FlowObservation(scope)
     }
 
@@ -501,8 +519,16 @@ object WheelConnectionManagerHelper {
         provider.stop()
     }
 
-    fun getDemoState(provider: DemoDataProvider): WheelState {
-        return provider.wheelState.value
+    fun getDemoTelemetry(provider: DemoDataProvider): TelemetryState {
+        return provider.telemetryState.value
+    }
+
+    fun getDemoIdentity(provider: DemoDataProvider): WheelIdentity {
+        return provider.identityState.value
+    }
+
+    fun getDemoBms(provider: DemoDataProvider): BmsState {
+        return provider.bmsState.value
     }
 
     // MARK: - Alarm Checker
@@ -596,9 +622,27 @@ object WheelConnectionManagerHelper {
         return engine.captureHeader.value?.wheelName ?: ""
     }
 
-    fun observeReplayWheelState(engine: ReplayEngine, onChange: (WheelState) -> Unit): FlowObservation {
+    fun observeReplayTelemetry(engine: ReplayEngine, onChange: (TelemetryState) -> Unit): FlowObservation {
         val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
-        scope.launch { engine.wheelState.collect { onChange(it) } }
+        scope.launch { engine.telemetryState.collect { onChange(it) } }
+        return FlowObservation(scope)
+    }
+
+    fun observeReplayIdentity(engine: ReplayEngine, onChange: (WheelIdentity) -> Unit): FlowObservation {
+        val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+        scope.launch { engine.identityState.collect { onChange(it) } }
+        return FlowObservation(scope)
+    }
+
+    fun observeReplayBms(engine: ReplayEngine, onChange: (BmsState) -> Unit): FlowObservation {
+        val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+        scope.launch { engine.bmsState.collect { onChange(it) } }
+        return FlowObservation(scope)
+    }
+
+    fun observeReplaySettings(engine: ReplayEngine, onChange: (WheelSettings) -> Unit): FlowObservation {
+        val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+        scope.launch { engine.settingsState.collect { onChange(it) } }
         return FlowObservation(scope)
     }
 

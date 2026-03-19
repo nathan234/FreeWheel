@@ -1,8 +1,12 @@
 package org.freewheel.core.service
 
 import org.freewheel.core.ble.WheelConnectionInfo
+import org.freewheel.core.domain.BmsState
 import org.freewheel.core.domain.CapabilitySet
 import org.freewheel.core.domain.SettingsCommandId
+import org.freewheel.core.domain.TelemetryState
+import org.freewheel.core.domain.WheelIdentity
+import org.freewheel.core.domain.WheelSettings
 import org.freewheel.core.domain.WheelState
 import org.freewheel.core.domain.WheelType
 import org.freewheel.core.logging.BlePacketDirection
@@ -17,6 +21,10 @@ interface WheelConnectionManagerPort {
     val wheelState: StateFlow<WheelState>
     val connectionState: StateFlow<ConnectionState>
     val capabilities: StateFlow<CapabilitySet>
+    val telemetryState: StateFlow<TelemetryState>
+    val identityState: StateFlow<WheelIdentity>
+    val bmsState: StateFlow<BmsState>
+    val settingsState: StateFlow<WheelSettings>
 
     var captureCallback: ((data: ByteArray, direction: BlePacketDirection, annotation: String) -> Unit)?
     var unhandledCallback: ((reason: String, frameData: ByteArray) -> Unit)?

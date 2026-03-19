@@ -1,7 +1,8 @@
 package org.freewheel.core.replay
 
-import org.freewheel.core.domain.WheelState
+import org.freewheel.core.domain.TelemetryState
 import org.freewheel.core.domain.WheelType
+import org.freewheel.core.protocol.DecoderState
 import org.freewheel.core.logging.BlePacketDirection
 import org.freewheel.core.protocol.DecoderConfig
 import org.freewheel.core.protocol.DecodedData
@@ -24,16 +25,17 @@ import kotlin.test.assertTrue
 class ReplayEngineTest {
 
     // A simple test decoder that extracts speed from the first 2 bytes (big-endian)
+    // Returns domain pieces (TelemetryState) like migrated decoders.
     private class TestDecoder : WheelDecoder {
         override val wheelType = WheelType.KINGSONG
         private var ready = false
 
-        override fun decode(data: ByteArray, currentState: WheelState, config: DecoderConfig): DecodeResult {
+        override fun decode(data: ByteArray, currentState: DecoderState, config: DecoderConfig): DecodeResult {
             if (data.size < 2) return DecodeResult.Buffering
             val speed = ((data[0].toInt() and 0xFF) shl 8) or (data[1].toInt() and 0xFF)
             ready = true
             return DecodeResult.Success(DecodedData(
-                newState = currentState.copy(speed = speed),
+                telemetry = currentState.telemetry.copy(speed = speed),
                 commands = listOf(WheelCommand.Beep) // Commands should be discarded
             ))
         }
@@ -113,7 +115,7 @@ class ReplayEngineTest {
     }
 
     @Test
-    fun playingEmitsWheelStateUpdates() = runTest {
+    fun playingEmitsTelemetryUpdates() = runTest {
         val engine = ReplayEngine(TestDecoderFactory())
 
         val capture = makeCapture(packets = listOf(
@@ -127,7 +129,7 @@ class ReplayEngineTest {
         advanceUntilIdle()
 
         assertEquals(ReplayState.FINISHED, engine.replayState.value)
-        assertEquals(1500, engine.wheelState.value.speed)
+        assertEquals(1500, engine.telemetryState.value.speed)
     }
 
     @Test
@@ -149,15 +151,14 @@ class ReplayEngineTest {
         engine.pause()
         assertEquals(ReplayState.PAUSED, engine.replayState.value)
         // Should have processed at least the first two packets
-        assertTrue(engine.wheelState.value.speed >= 200)
-        val pausedSpeed = engine.wheelState.value.speed
+        assertTrue(engine.telemetryState.value.speed >= 200)
 
         engine.resume(this)
         assertEquals(ReplayState.PLAYING, engine.replayState.value)
 
         advanceUntilIdle()
         assertEquals(ReplayState.FINISHED, engine.replayState.value)
-        assertEquals(400, engine.wheelState.value.speed)
+        assertEquals(400, engine.telemetryState.value.speed)
     }
 
     @Test
@@ -174,7 +175,7 @@ class ReplayEngineTest {
 
         // At 600ms with 2x speed, the 1000ms gap is halved to 500ms — should be done
         advanceTimeBy(600)
-        assertEquals(200, engine.wheelState.value.speed)
+        assertEquals(200, engine.telemetryState.value.speed)
     }
 
     @Test
@@ -195,7 +196,7 @@ class ReplayEngineTest {
         advanceUntilIdle()
 
         assertEquals(ReplayState.FINISHED, engine.replayState.value)
-        assertEquals(1000, engine.wheelState.value.speed)
+        assertEquals(1000, engine.telemetryState.value.speed)
     }
 
     @Test
@@ -208,7 +209,7 @@ class ReplayEngineTest {
 
         engine.stop()
         assertEquals(ReplayState.IDLE, engine.replayState.value)
-        assertEquals(0, engine.wheelState.value.speed)
+        assertEquals(0, engine.telemetryState.value.speed)
         assertEquals(0, engine.position.value.totalPackets)
     }
 
@@ -244,7 +245,7 @@ class ReplayEngineTest {
 
         // Should have fast-forwarded through packets 0, 1, 2 (indices 0..2)
         // The decoder saw packets with speeds 100, 200, 300 — state should be 300
-        assertEquals(300, engine.wheelState.value.speed)
+        assertEquals(300, engine.telemetryState.value.speed)
         assertEquals(ReplayState.PAUSED, engine.replayState.value)
     }
 
@@ -271,7 +272,7 @@ class ReplayEngineTest {
 
         // Should finish playing the remaining packets
         assertEquals(ReplayState.FINISHED, engine.replayState.value)
-        assertEquals(400, engine.wheelState.value.speed)
+        assertEquals(400, engine.telemetryState.value.speed)
     }
 
     @Test
@@ -318,7 +319,7 @@ class ReplayEngineTest {
         advanceUntilIdle()
 
         assertEquals(ReplayState.FINISHED, engine.replayState.value)
-        assertEquals(200, engine.wheelState.value.speed)
+        assertEquals(200, engine.telemetryState.value.speed)
     }
 
     @Test
@@ -330,12 +331,12 @@ class ReplayEngineTest {
         engine.start(this)
         advanceUntilIdle()
         assertEquals(ReplayState.FINISHED, engine.replayState.value)
-        assertEquals(500, engine.wheelState.value.speed)
+        assertEquals(500, engine.telemetryState.value.speed)
 
         // Load a new capture
         val capture2 = makeCapture(packets = listOf(rxPacket(2000, 999)))
         engine.load(capture2)
         assertEquals(ReplayState.LOADED, engine.replayState.value)
-        assertEquals(0, engine.wheelState.value.speed) // Reset
+        assertEquals(0, engine.telemetryState.value.speed) // Reset
     }
 }

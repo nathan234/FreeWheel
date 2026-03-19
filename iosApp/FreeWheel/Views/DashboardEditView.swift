@@ -9,7 +9,7 @@ struct DashboardEditView: View {
         LayoutEditorBody(
             title: "Edit Dashboard",
             initialLayout: wheelManager.dashboardLayout,
-            wheelType: wheelManager.wheelState.wheelType,
+            wheelType: wheelManager.identity.wheelType,
             onSave: { layout in
                 wheelManager.dashboardLayout = layout
                 dismiss()

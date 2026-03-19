@@ -5,17 +5,13 @@ import FreeWheelCore
 /// Stateless — all inputs provided as parameters, no @EnvironmentObject.
 struct MetricGaugeTile: View {
     let metric: DashboardMetric
-    let wheelState: WheelState
+    let telemetry: TelemetryState
     let gpsSpeed: Double
     let useMph: Bool
     let useFahrenheit: Bool
     let sparklineData: [Double]
     let action: () -> Void
     var onLongPress: (() -> Void)? = nil
-
-    private var telemetry: TelemetryState {
-        wheelState.toTelemetryState()
-    }
 
     private var rawValue: Double {
         metric.extractValue(telemetry: telemetry)?.doubleValue ?? gpsSpeed
@@ -76,14 +72,10 @@ struct MetricGaugeTile: View {
 /// Stateless — all inputs provided as parameters, no @EnvironmentObject.
 struct MetricStatRow: View {
     let metric: DashboardMetric
-    let wheelState: WheelState
+    let telemetry: TelemetryState
     let gpsSpeed: Double
     let useMph: Bool
     let useFahrenheit: Bool
-
-    private var telemetry: TelemetryState {
-        wheelState.toTelemetryState()
-    }
 
     private var rawValue: Double {
         metric.extractValue(telemetry: telemetry)?.doubleValue ?? gpsSpeed

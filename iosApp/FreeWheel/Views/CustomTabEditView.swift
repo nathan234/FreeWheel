@@ -25,7 +25,7 @@ struct CustomTabEditView: View {
         LayoutEditorBody(
             title: "Edit \(tabLabel)",
             initialLayout: currentLayout,
-            wheelType: wheelManager.wheelState.wheelType,
+            wheelType: wheelManager.identity.wheelType,
             onSave: { layout in
                 wheelManager.saveCustomTabLayout(tabId: tabId, layout: layout)
                 dismiss()

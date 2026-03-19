@@ -19,7 +19,7 @@ fun CustomTabEditScreen(
 ) {
     val customTabLayouts by viewModel.customTabLayouts.collectAsStateWithLifecycle()
     val navigationConfig by viewModel.navigationConfig.collectAsStateWithLifecycle()
-    val wheelState by viewModel.wheelState.collectAsStateWithLifecycle()
+    val identity by viewModel.identityState.collectAsStateWithLifecycle()
 
     val currentLayout = customTabLayouts[tabId] ?: DashboardLayout.default()
     val tabLabel = navigationConfig.tabs
@@ -30,7 +30,7 @@ fun CustomTabEditScreen(
     LayoutEditorContent(
         title = "Edit $tabLabel",
         currentLayout = currentLayout,
-        wheelType = wheelState.wheelType,
+        wheelType = identity.wheelType,
         onSave = { layout -> viewModel.saveCustomTabLayout(tabId, layout); onBack() },
         onCancel = onBack
     )

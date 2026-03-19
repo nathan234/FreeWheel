@@ -1,9 +1,13 @@
 package org.freewheel.core.replay
 
-import org.freewheel.core.domain.WheelState
+import org.freewheel.core.domain.BmsState
+import org.freewheel.core.domain.TelemetryState
+import org.freewheel.core.domain.WheelIdentity
+import org.freewheel.core.domain.WheelSettings
 import org.freewheel.core.logging.BlePacketDirection
 import org.freewheel.core.protocol.DecodeResult
 import org.freewheel.core.protocol.DecoderConfig
+import org.freewheel.core.protocol.DecoderState
 import org.freewheel.core.protocol.DefaultWheelDecoderFactory
 import org.freewheel.core.protocol.WheelDecoder
 import org.freewheel.core.protocol.WheelDecoderFactory
@@ -41,8 +45,17 @@ class ReplayEngine(
     private val decoderFactory: WheelDecoderFactory = DefaultWheelDecoderFactory()
 ) {
 
-    private val _wheelState = MutableStateFlow(WheelState())
-    val wheelState: StateFlow<WheelState> = _wheelState.asStateFlow()
+    private val _telemetryState = MutableStateFlow(TelemetryState())
+    val telemetryState: StateFlow<TelemetryState> = _telemetryState.asStateFlow()
+
+    private val _identityState = MutableStateFlow(WheelIdentity())
+    val identityState: StateFlow<WheelIdentity> = _identityState.asStateFlow()
+
+    private val _bmsState = MutableStateFlow(BmsState())
+    val bmsState: StateFlow<BmsState> = _bmsState.asStateFlow()
+
+    private val _settingsState = MutableStateFlow<WheelSettings>(WheelSettings.None)
+    val settingsState: StateFlow<WheelSettings> = _settingsState.asStateFlow()
 
     private val _replayState = MutableStateFlow(ReplayState.IDLE)
     val replayState: StateFlow<ReplayState> = _replayState.asStateFlow()
@@ -80,7 +93,10 @@ class ReplayEngine(
             .filter { it.direction == BlePacketDirection.RX }
 
         _captureHeader.value = capture.header
-        _wheelState.value = WheelState()
+        _telemetryState.value = TelemetryState()
+        _identityState.value = WheelIdentity()
+        _bmsState.value = BmsState()
+        _settingsState.value = WheelSettings.None
         _position.value = ReplayPosition(
             totalDurationMs = capture.durationMs,
             totalPackets = rxPackets.size
@@ -133,7 +149,10 @@ class ReplayEngine(
         rxPackets = emptyList()
         currentIndex = 0
         _replayState.value = ReplayState.IDLE
-        _wheelState.value = WheelState()
+        _telemetryState.value = TelemetryState()
+        _identityState.value = WheelIdentity()
+        _bmsState.value = BmsState()
+        _settingsState.value = WheelSettings.None
         _position.value = ReplayPosition()
         _captureHeader.value = null
     }
@@ -164,15 +183,26 @@ class ReplayEngine(
         val dec = decoderFactory.createDecoder(capture?.header?.wheelType ?: return) ?: return
         decoder = dec
 
-        var state = WheelState()
+        var tel = TelemetryState()
+        var id = WheelIdentity()
+        var bms = BmsState()
+        var settings: WheelSettings = WheelSettings.None
         for (i in 0 until targetIndex) {
-            val result = dec.decode(packets[i].data, state, config)
+            val ds = DecoderState(tel, id, bms, settings)
+            val result = dec.decode(packets[i].data, ds, config)
             if (result is DecodeResult.Success) {
-                result.data.newState?.let { state = it }
+                val d = result.data
+                d.telemetry?.let { tel = it }
+                d.identity?.let { id = it }
+                d.bms?.let { bms = it }
+                d.settings?.let { settings = it }
             }
         }
 
-        _wheelState.value = state
+        _telemetryState.value = tel
+        _identityState.value = id
+        _bmsState.value = bms
+        _settingsState.value = settings
         currentIndex = targetIndex
         updatePosition(targetIndex)
 
@@ -195,7 +225,10 @@ class ReplayEngine(
             return
         }
 
-        var state = _wheelState.value
+        var tel = _telemetryState.value
+        var id = _identityState.value
+        var bms = _bmsState.value
+        var settings = _settingsState.value
 
         for (i in startIndex until packets.size) {
             if (!isActive) {
@@ -222,10 +255,14 @@ class ReplayEngine(
                 return
             }
 
-            val result = dec.decode(packets[i].data, state, config)
+            val ds = DecoderState(tel, id, bms, settings)
+            val result = dec.decode(packets[i].data, ds, config)
             if (result is DecodeResult.Success) {
-                result.data.newState?.let { state = it }
-                _wheelState.value = state
+                val d = result.data
+                d.telemetry?.let { tel = it; _telemetryState.value = it }
+                d.identity?.let { id = it; _identityState.value = it }
+                d.bms?.let { bms = it; _bmsState.value = it }
+                d.settings?.let { settings = it; _settingsState.value = it }
                 // Commands are intentionally discarded — no BLE to send to during replay
             }
 

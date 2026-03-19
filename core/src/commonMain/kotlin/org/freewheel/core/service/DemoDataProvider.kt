@@ -5,7 +5,7 @@ import org.freewheel.core.domain.BmsState
 import org.freewheel.core.domain.SmartBms
 import org.freewheel.core.domain.TelemetryState
 import org.freewheel.core.domain.WheelIdentity
-import org.freewheel.core.domain.WheelState
+import org.freewheel.core.domain.WheelSettings
 import org.freewheel.core.domain.WheelType
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -28,8 +28,17 @@ import kotlin.math.sin
  */
 class DemoDataProvider {
 
-    private val _wheelState = MutableStateFlow(WheelState())
-    val wheelState: StateFlow<WheelState> = _wheelState.asStateFlow()
+    private val _telemetryState = MutableStateFlow(TelemetryState())
+    val telemetryState: StateFlow<TelemetryState> = _telemetryState.asStateFlow()
+
+    private val _identityState = MutableStateFlow(WheelIdentity())
+    val identityState: StateFlow<WheelIdentity> = _identityState.asStateFlow()
+
+    private val _bmsState = MutableStateFlow(BmsState())
+    val bmsState: StateFlow<BmsState> = _bmsState.asStateFlow()
+
+    private val _settingsState = MutableStateFlow<WheelSettings>(WheelSettings.None)
+    val settingsState: StateFlow<WheelSettings> = _settingsState.asStateFlow()
 
     private var job: Job? = null
     private var tick: Int = 0
@@ -66,7 +75,10 @@ class DemoDataProvider {
     fun stop() {
         job?.cancel()
         job = null
-        _wheelState.value = WheelState()
+        _telemetryState.value = TelemetryState()
+        _identityState.value = WheelIdentity()
+        _bmsState.value = BmsState()
+        _settingsState.value = WheelSettings.None
     }
 
     private fun generateBmsSnapshot(packVoltage: Double, packCurrent: Double): BmsSnapshot {
@@ -160,11 +172,10 @@ class DemoDataProvider {
         val bmsSnapshot = if (tick % 10 == 0 || tick == 1) {
             generateBmsSnapshot(voltage, current)
         } else {
-            _wheelState.value.bms1
+            _bmsState.value.bms1
         }
 
-        // Build from domain pieces
-        val telemetry = TelemetryState(
+        _telemetryState.value = TelemetryState(
             speed = (speed * 100).toInt(),
             voltage = (voltage * 100).toInt(),
             current = (current * 100).toInt(),
@@ -175,13 +186,13 @@ class DemoDataProvider {
             wheelDistance = tripDistanceM.toLong(),
             calculatedPwm = speed / 50.0
         )
-        val identity = WheelIdentity(
-            wheelType = WheelType.Unknown,
-            name = "Demo",
-            model = "Demo Wheel"
-        )
-        val bms = BmsState(bms1 = bmsSnapshot)
-
-        _wheelState.value = WheelState.compose(telemetry, identity, bms, _wheelState.value.toWheelSettings())
+        if (tick == 1) {
+            _identityState.value = WheelIdentity(
+                wheelType = WheelType.Unknown,
+                name = "Demo",
+                model = "Demo Wheel"
+            )
+        }
+        _bmsState.value = BmsState(bms1 = bmsSnapshot)
     }
 }

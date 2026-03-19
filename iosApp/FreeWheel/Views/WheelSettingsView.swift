@@ -27,7 +27,7 @@ struct WheelSettingsContent: View {
     @State private var showConfirmation = false
 
     var body: some View {
-        let sections = WheelSettingsConfig.shared.sections(wheelType: wheelManager.wheelState.wheelType, capabilities: wheelManager.capabilities)
+        let sections = WheelSettingsConfig.shared.sections(wheelType: wheelManager.identity.wheelType, capabilities: wheelManager.capabilities)
 
         ForEach(Array(sections.enumerated()), id: \.offset) { _, section in
             Section(section.title) {
@@ -220,11 +220,11 @@ struct WheelSettingsContent: View {
     // MARK: - State Readback
 
     private func readInt(_ commandId: SettingsCommandId) -> Int? {
-        return commandId.readInt(state: wheelManager.wheelState)?.intValue
+        return commandId.readInt(settings: wheelManager.wheelSettings)?.intValue
     }
 
     private func readBool(_ commandId: SettingsCommandId) -> Bool? {
-        return commandId.readBool(state: wheelManager.wheelState)?.boolValue
+        return commandId.readBool(settings: wheelManager.wheelSettings)?.boolValue
     }
 
     // MARK: - Confirmation Helpers

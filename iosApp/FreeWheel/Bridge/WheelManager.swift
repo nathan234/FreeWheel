@@ -8,7 +8,10 @@ import FreeWheelCore
 class WheelManager: ObservableObject {
     // MARK: - Published State
 
-    @Published private(set) var wheelState: WheelState = WheelState.companion.empty()
+    @Published private(set) var telemetry: TelemetryState = TelemetryState()
+    @Published private(set) var identity: WheelIdentity = WheelIdentity()
+    @Published private(set) var bmsState: BmsState = BmsState()
+    @Published private(set) var wheelSettings: WheelSettings = WheelSettings.None.shared
     @Published private(set) var capabilities: CapabilitySet = CapabilitySet.companion.empty()
     @Published private(set) var connectionState: ConnectionStateWrapper = .disconnected
     @Published private(set) var discoveredDevices: [DiscoveredDevice] = []
@@ -323,13 +326,18 @@ class WheelManager: ObservableObject {
 
     // MARK: - Flow Observers
 
-    private var wheelStateObserver: FlowObservation?
+    private var telemetryObserver: FlowObservation?
+    private var identityObserver: FlowObservation?
+    private var bmsObserver: FlowObservation?
+    private var settingsObserver: FlowObservation?
     private var connectionStateObserver: FlowObservation?
     private var capabilitiesObserver: FlowObservation?
     private var autoConnectingObserver: FlowObservation?
     private var reconnectStateObserver: FlowObservation?
     private var bluetoothStateObserver: FlowObservation?
-    private var demoStateObserver: FlowObservation?
+    private var demoTelemetryObserver: FlowObservation?
+    private var demoIdentityObserver: FlowObservation?
+    private var demoBmsObserver: FlowObservation?
 
     // MARK: - Initialization
 
@@ -427,12 +435,17 @@ class WheelManager: ObservableObject {
     }
 
     deinit {
-        wheelStateObserver?.close()
+        telemetryObserver?.close()
+        identityObserver?.close()
+        bmsObserver?.close()
+        settingsObserver?.close()
         connectionStateObserver?.close()
         capabilitiesObserver?.close()
         autoConnectingObserver?.close()
         reconnectStateObserver?.close()
-        demoStateObserver?.close()
+        demoTelemetryObserver?.close()
+        demoIdentityObserver?.close()
+        demoBmsObserver?.close()
         replayWheelStateObserver?.close()
         replayStateObserver?.close()
         replayPositionObserver?.close()
@@ -445,7 +458,7 @@ class WheelManager: ObservableObject {
             MainActor.assumeIsolated {
                 if isCapturing { stopCapture() }
                 if isLogging {
-                    if let metadata = rideLogger.stopLogging(currentDistance: wheelState.totalDistanceKm) {
+                    if let metadata = rideLogger.stopLogging(currentDistance: telemetry.totalDistanceKm) {
                         rideStore.addRide(metadata)
                     }
                     isLogging = false
@@ -522,8 +535,12 @@ class WheelManager: ObservableObject {
     }
 
     func stopMockMode() {
-        demoStateObserver?.close()
-        demoStateObserver = nil
+        demoTelemetryObserver?.close()
+        demoTelemetryObserver = nil
+        demoIdentityObserver?.close()
+        demoIdentityObserver = nil
+        demoBmsObserver?.close()
+        demoBmsObserver = nil
         WheelConnectionManagerHelper.shared.stopDemo(provider: demoProvider)
         if isCapturing { stopCapture() }
         if isLogging { stopLogging() }
@@ -532,26 +549,39 @@ class WheelManager: ObservableObject {
         activeAlarms = []
         isMockMode = false
         connectionState = .disconnected
-        wheelState = WheelState.companion.empty()
+        telemetry = TelemetryState()
+        identity = WheelIdentity()
+        bmsState = BmsState()
+        wheelSettings = WheelSettings.None.shared
         capabilities = CapabilitySet.companion.empty()
     }
 
     private func startDemoObserving() {
-        demoStateObserver = WheelConnectionManagerHelper.shared.observeDemoState(provider: demoProvider) { [weak self] state in
+        let helper = WheelConnectionManagerHelper.shared
+        demoTelemetryObserver = helper.observeDemoTelemetry(provider: demoProvider) { [weak self] tel in
             Task { @MainActor in
-                self?.handleDemoStateUpdate(state)
+                self?.handleDemoTelemetryUpdate(tel)
+            }
+        }
+        demoIdentityObserver = helper.observeDemoIdentity(provider: demoProvider) { [weak self] id in
+            Task { @MainActor in
+                self?.identity = id
+            }
+        }
+        demoBmsObserver = helper.observeDemoBms(provider: demoProvider) { [weak self] bms in
+            Task { @MainActor in
+                self?.bmsState = bms
             }
         }
     }
 
-    private func handleDemoStateUpdate(_ kmpState: WheelState) {
-        guard kmpState != wheelState else { return }
-        wheelState = kmpState
+    private func handleDemoTelemetryUpdate(_ newTelemetry: TelemetryState) {
+        telemetry = newTelemetry
 
         // Feed telemetry buffer and history for chart view
         let gpsSpeed = ByteUtils.shared.metersPerSecondToKmh(speedMs: max(0, locationManager.currentLocation?.speed ?? 0))
         let sample = FreeWheelCore.TelemetrySample.companion.fromTelemetry(
-            telemetry: kmpState.toTelemetryState(),
+            telemetry: newTelemetry,
             timestampMs: Int64(Date().timeIntervalSince1970 * 1000),
             gpsSpeedKmh: gpsSpeed
         )
@@ -560,7 +590,7 @@ class WheelManager: ObservableObject {
 
         // Check alarms via KMP
         let alarmConfig = buildAlarmConfig()
-        alarmManager.checkAlarms(state: kmpState, config: alarmConfig, enabled: alarmsEnabled, action: alarmAction)
+        alarmManager.checkTelemetry(telemetry: newTelemetry, config: alarmConfig, enabled: alarmsEnabled, action: alarmAction)
         activeAlarms = alarmManager.activeAlarms
     }
 
@@ -595,7 +625,10 @@ class WheelManager: ObservableObject {
     func stopTestMode() {
         isTestMode = false
         connectionState = .disconnected
-        wheelState = WheelState.companion.empty()
+        telemetry = TelemetryState()
+        identity = WheelIdentity()
+        bmsState = BmsState()
+        wheelSettings = WheelSettings.None.shared
         capabilities = CapabilitySet.companion.empty()
         telemetryBuffer.clear()
     }
@@ -620,11 +653,33 @@ class WheelManager: ObservableObject {
         guard let cm = connectionManager else { return }
         let helper = WheelConnectionManagerHelper.shared
 
-        // Observe wheel state — handles telemetry side-effects (alarms, logging, buffer)
-        wheelStateObserver = helper.observeWheelState(manager: cm) { [weak self] state in
+        // Observe granular sub-states from WheelConnectionManager
+        telemetryObserver = helper.observeTelemetryState(manager: cm) { [weak self] tel in
             Task { @MainActor in
                 guard let self = self, !self.isMockMode else { return }
-                self.handleWheelStateUpdate(state)
+                self.handleTelemetryUpdate(tel)
+            }
+        }
+        identityObserver = helper.observeIdentityState(manager: cm) { [weak self] id in
+            Task { @MainActor in
+                guard let self = self, !self.isMockMode else { return }
+                self.identity = id
+            }
+        }
+        bmsObserver = helper.observeBmsState(manager: cm) { [weak self] bms in
+            Task { @MainActor in
+                guard let self = self, !self.isMockMode else { return }
+                self.bmsState = bms
+            }
+        }
+        settingsObserver = helper.observeSettingsState(manager: cm) { [weak self] settings in
+            Task { @MainActor in
+                guard let self = self, !self.isMockMode else { return }
+                // Auto-set useMph based on wheel's reported miles setting
+                if settings.inMiles != self.wheelSettings.inMiles {
+                    self.useMph = settings.inMiles
+                }
+                self.wheelSettings = settings
             }
         }
 
@@ -691,40 +746,39 @@ class WheelManager: ObservableObject {
         }
     }
 
-    /// Handle a new WheelState emission from the KMP flow.
-    /// Runs all telemetry side-effects: unit sync, alarms, logging, telemetry buffer.
-    private func handleWheelStateUpdate(_ newWheelState: WheelState) {
-        guard newWheelState != wheelState else { return }
-        syncUnitsFromWheel(newWheelState)
-        wheelState = newWheelState
+    /// Handle a new TelemetryState emission from the KMP flow.
+    /// Runs all telemetry side-effects: alarms, logging, telemetry buffer.
+    private func handleTelemetryUpdate(_ newTelemetry: TelemetryState) {
+        telemetry = newTelemetry
 
         // Check alarms when connected
         if connectionState.isConnected {
             let alarmConfig = buildAlarmConfig()
-            alarmManager.checkAlarms(state: newWheelState, config: alarmConfig, enabled: alarmsEnabled, action: alarmAction)
+            alarmManager.checkTelemetry(telemetry: newTelemetry, config: alarmConfig, enabled: alarmsEnabled, action: alarmAction)
             activeAlarms = alarmManager.activeAlarms
 
             // Auto-torch
-            checkAutoTorch(wheelState: newWheelState)
+            checkAutoTorch(telemetry: newTelemetry)
         }
 
         // Write ride log sample
         if isLogging {
-            rideLogger.writeSample(
-                state: newWheelState,
+            rideLogger.writeTelemetrySample(
+                telemetry: newTelemetry,
+                modeStr: identity.modeStr,
                 location: locationManager.currentLocation,
                 includeGPS: logGPS
             )
         }
 
         // Range estimate
-        if startBattery < 0 && newWheelState.batteryLevel > 0 {
-            startBattery = Int(newWheelState.batteryLevel)
+        if startBattery < 0 && newTelemetry.batteryLevel > 0 {
+            startBattery = Int(newTelemetry.batteryLevel)
         }
         if startBattery > 0 {
             let estimate = RangeEstimator.shared.estimate(
-                currentBattery: newWheelState.batteryLevel,
-                tripDistanceKm: newWheelState.wheelDistanceKm,
+                currentBattery: newTelemetry.batteryLevel,
+                tripDistanceKm: newTelemetry.wheelDistanceKm,
                 startBattery: Int32(startBattery)
             )
             rangeEstimateKm = estimate?.doubleValue
@@ -734,7 +788,7 @@ class WheelManager: ObservableObject {
         if connectionState.isConnected {
             let gpsSpeed = ByteUtils.shared.metersPerSecondToKmh(speedMs: max(0, locationManager.currentLocation?.speed ?? 0))
             let sample = FreeWheelCore.TelemetrySample.companion.fromTelemetry(
-                telemetry: newWheelState.toTelemetryState(),
+                telemetry: newTelemetry,
                 timestampMs: Int64(Date().timeIntervalSince1970 * 1000),
                 gpsSpeedKmh: gpsSpeed
             )
@@ -745,7 +799,7 @@ class WheelManager: ObservableObject {
 
     // MARK: - Auto-Torch
 
-    private func checkAutoTorch(wheelState: WheelState) {
+    private func checkAutoTorch(telemetry: TelemetryState) {
         guard autoTorchEnabled else {
             if autoTorchLightRequested {
                 autoTorchLightRequested = false
@@ -762,7 +816,7 @@ class WheelManager: ObservableObject {
 
         let location = locationManager.currentLocation
         let result = AutoTorchEngine.shared.shouldLightBeOn(
-            speedKmh: wheelState.speedKmh,
+            speedKmh: telemetry.speedKmh,
             speedThresholdKmh: Int32(autoTorchSpeedThreshold),
             useSunset: autoTorchUseSunset,
             latitudeDeg: location?.coordinate.latitude ?? 0.0,
@@ -824,8 +878,8 @@ class WheelManager: ObservableObject {
             pushDecoderConfig()
 
             // Auto-save wheel profile
-            let displayName = wheelState.displayName == "Dashboard" ? "" : wheelState.displayName
-            saveProfile(address: address, displayName: displayName, wheelTypeName: wheelState.wheelType.name)
+            let displayName = identity.displayName == "Dashboard" ? "" : identity.displayName
+            saveProfile(address: address, displayName: displayName, wheelTypeName: identity.wheelType.name)
 
             // Load telemetry history for this wheel
             telemetryHistory.loadForWheel(address: address)
@@ -847,7 +901,7 @@ class WheelManager: ObservableObject {
         // so it resumes when the wheel reconnects.
         if case .connectionLost(let address, _) = newState {
             if backgroundManager.isInBackground {
-                let wheelName = wheelState.displayName
+                let wheelName = identity.displayName
                 backgroundManager.postConnectionLostNotification(wheelName: wheelName)
             }
 
@@ -881,15 +935,7 @@ class WheelManager: ObservableObject {
         WheelConnectionManagerHelper.shared.updateDecoderConfig(manager: cm, useMph: useMph, useFahrenheit: useFahrenheit)
     }
 
-    // MARK: - Unit Sync
-
-    /// Auto-set useMph based on the wheel's reported miles setting.
-    /// Called when wheel state changes so the app matches the wheel's configuration.
-    private func syncUnitsFromWheel(_ newState: WheelState) {
-        if newState.inMiles != wheelState.inMiles {
-            useMph = newState.inMiles
-        }
-    }
+    // MARK: - Unit Sync (handled by settings observer)
 
     // MARK: - Wheel Commands
 
@@ -1123,7 +1169,7 @@ class WheelManager: ObservableObject {
     }
 
     func stopLogging() {
-        if let metadata = rideLogger.stopLogging(currentDistance: wheelState.totalDistanceKm) {
+        if let metadata = rideLogger.stopLogging(currentDistance: telemetry.totalDistanceKm) {
             rideStore.addRide(metadata)
         }
         isLogging = false
@@ -1147,9 +1193,9 @@ class WheelManager: ObservableObject {
         let fileName = "capture_\(formatter.string(from: now)).csv"
         let filePath = capturesDir.appendingPathComponent(fileName).path
 
-        let wheelTypeName = wheelState.wheelType.name
-        let wheelName = wheelState.displayName
-        let firmware = wheelState.version
+        let wheelTypeName = identity.wheelType.name
+        let wheelName = identity.displayName
+        let firmware = identity.version
         let appVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
 
         guard captureLogger.start(
@@ -1215,9 +1261,9 @@ class WheelManager: ObservableObject {
         let caps = capabilities
         return UnhandledFrameFormatter.shared.format(
             entries: unhandledCollector.getEntries(),
-            wheelType: wheelState.wheelType.name,
-            model: caps.detectedModel.isEmpty ? wheelState.model : caps.detectedModel,
-            firmware: caps.firmwareVersion.isEmpty ? wheelState.version : caps.firmwareVersion,
+            wheelType: identity.wheelType.name,
+            model: caps.detectedModel.isEmpty ? identity.model : caps.detectedModel,
+            firmware: caps.firmwareVersion.isEmpty ? identity.version : caps.firmwareVersion,
             platform: "ios"
         )
     }
@@ -1226,7 +1272,7 @@ class WheelManager: ObservableObject {
     func buildDiagnosticText() -> String? {
         guard let cm = connectionManager else { return nil }
         let snapshot = DiagnosticSnapshotBuilder.shared.buildSnapshot(
-            identity: wheelState.toIdentity(),
+            identity: identity,
             capabilities: capabilities,
             connectionInfo: cm.getConnectionInfo(),
             decoderConfig: cm.getConfig(),
@@ -1239,7 +1285,7 @@ class WheelManager: ObservableObject {
     private func buildDiagnosticFooter() -> String? {
         guard let cm = connectionManager else { return nil }
         let snapshot = DiagnosticSnapshotBuilder.shared.buildSnapshot(
-            identity: wheelState.toIdentity(),
+            identity: identity,
             capabilities: capabilities,
             connectionInfo: cm.getConnectionInfo(),
             decoderConfig: cm.getConfig(),
@@ -1291,7 +1337,10 @@ class WheelManager: ObservableObject {
         WheelConnectionManagerHelper.shared.stopReplay(engine: replayEngine)
         isReplayMode = false
         connectionState = .disconnected
-        wheelState = WheelState.companion.empty()
+        telemetry = TelemetryState()
+        identity = WheelIdentity()
+        bmsState = BmsState()
+        wheelSettings = WheelSettings.None.shared
         replayStateName = "IDLE"
         replayProgress = 0
         replayCurrentTimeMs = 0
@@ -1313,10 +1362,29 @@ class WheelManager: ObservableObject {
     private func startReplayObserving() {
         let helper = WheelConnectionManagerHelper.shared
 
-        replayWheelStateObserver = helper.observeReplayWheelState(engine: replayEngine) { [weak self] state in
+        replayWheelStateObserver = helper.observeReplayTelemetry(engine: replayEngine) { [weak self] tel in
             Task { @MainActor in
                 guard let self = self, self.isReplayMode else { return }
-                self.wheelState = state
+                self.telemetry = tel
+            }
+        }
+        // Also observe identity/bms/settings for replay
+        _ = helper.observeReplayIdentity(engine: replayEngine) { [weak self] id in
+            Task { @MainActor in
+                guard let self = self, self.isReplayMode else { return }
+                self.identity = id
+            }
+        }
+        _ = helper.observeReplayBms(engine: replayEngine) { [weak self] bms in
+            Task { @MainActor in
+                guard let self = self, self.isReplayMode else { return }
+                self.bmsState = bms
+            }
+        }
+        _ = helper.observeReplaySettings(engine: replayEngine) { [weak self] settings in
+            Task { @MainActor in
+                guard let self = self, self.isReplayMode else { return }
+                self.wheelSettings = settings
             }
         }
 
@@ -1581,7 +1649,6 @@ extension WheelManager {
     /// Create a preview instance with mock data
     static func preview(
         connectionState: ConnectionStateWrapper = .disconnected,
-        wheelState: WheelState = WheelState.companion.empty(),
         devices: [DiscoveredDevice] = []
     ) -> WheelManager {
         let manager = WheelManager()

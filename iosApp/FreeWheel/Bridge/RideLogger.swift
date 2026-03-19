@@ -94,6 +94,10 @@ class RideLogger: ObservableObject {
     // MARK: - Write Sample
 
     func writeSample(state: WheelState, location: CLLocation?, includeGPS: Bool) {
+        writeTelemetrySample(telemetry: state.toTelemetryState(), modeStr: state.modeStr, location: location, includeGPS: includeGPS)
+    }
+
+    func writeTelemetrySample(telemetry: TelemetryState, modeStr: String, location: CLLocation?, includeGPS: Bool) {
         let currentTimeMs = Int64(Date().timeIntervalSince1970 * 1000)
 
         let gps: GpsLocation?
@@ -110,7 +114,7 @@ class RideLogger: ObservableObject {
             gps = nil
         }
 
-        kmpLogger.writeSample(telemetry: state.toTelemetryState(), modeStr: state.modeStr, gps: gps, currentTimeMs: currentTimeMs)
+        kmpLogger.writeSample(telemetry: telemetry, modeStr: modeStr, gps: gps, currentTimeMs: currentTimeMs)
     }
 
     // MARK: - Directory

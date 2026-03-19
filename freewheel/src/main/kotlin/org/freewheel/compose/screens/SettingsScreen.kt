@@ -85,8 +85,8 @@ fun SettingsScreen(
     onNavigateToCapture: () -> Unit = {}
 ) {
     val appConfig = viewModel.appConfig
-    val wheelState by viewModel.wheelState.collectAsStateWithLifecycle()
-    val wheelSettings = remember(wheelState) { wheelState.toWheelSettings() }
+    val wheelSettings by viewModel.settingsState.collectAsStateWithLifecycle()
+    val identity by viewModel.identityState.collectAsStateWithLifecycle()
     val connectionState by viewModel.connectionState.collectAsStateWithLifecycle()
     val useMph = viewModel.getGlobalBool(PreferenceKeys.USE_MPH, PreferenceDefaults.USE_MPH)
     val useFahrenheit = viewModel.getGlobalBool(PreferenceKeys.USE_FAHRENHEIT, PreferenceDefaults.USE_FAHRENHEIT)
@@ -94,8 +94,8 @@ fun SettingsScreen(
 
     // Wheel settings config-driven state
     val capabilities by viewModel.capabilities.collectAsStateWithLifecycle()
-    val wheelSections = remember(wheelState.wheelType, capabilities) {
-        WheelSettingsConfig.sections(wheelState.wheelType, capabilities)
+    val wheelSections = remember(identity.wheelType, capabilities) {
+        WheelSettingsConfig.sections(identity.wheelType, capabilities)
     }
     val toggleStates = remember { mutableStateMapOf<SettingsCommandId, Boolean>() }
     val sliderOverrides = remember(wheelSections) {

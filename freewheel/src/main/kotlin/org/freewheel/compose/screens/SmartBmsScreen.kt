@@ -24,8 +24,8 @@ import org.freewheel.core.utils.DisplayUtils
  */
 @Composable
 fun SmartBmsScreen(viewModel: WheelViewModel) {
-    val state by viewModel.wheelState.collectAsStateWithLifecycle()
-    SmartBmsContent(bms1 = state.bms1, bms2 = state.bms2)
+    val bms by viewModel.bmsState.collectAsStateWithLifecycle()
+    SmartBmsContent(bms1 = bms.bms1, bms2 = bms.bms2)
 }
 
 @Composable

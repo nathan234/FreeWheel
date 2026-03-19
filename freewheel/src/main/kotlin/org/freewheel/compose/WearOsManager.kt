@@ -15,7 +15,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import org.freewheel.AppConfig
 import org.freewheel.core.domain.AlarmType
-import org.freewheel.core.domain.WheelState
+import org.freewheel.core.domain.TelemetryState
 import org.freewheel.shared.Constants
 import org.freewheel.shared.WearPage
 import java.text.SimpleDateFormat
@@ -29,7 +29,7 @@ import kotlin.math.abs
  */
 class WearOsManager(
     private val context: Context,
-    private val wheelStateFlow: StateFlow<WheelState>,
+    private val telemetryFlow: StateFlow<TelemetryState>,
     private val activeAlarmsFlow: StateFlow<Set<AlarmType>>,
     private val appConfig: AppConfig,
     private val onHornRequested: () -> Unit,
@@ -75,11 +75,11 @@ class WearOsManager(
             }
         }
 
-        // Collect wheel state and push to watch
+        // Collect telemetry and push to watch
         collectionJob = scope.launch {
-            wheelStateFlow.collect { state ->
+            telemetryFlow.collect { telemetry ->
                 if (isConnected) {
-                    sendUpdateData(state)
+                    sendUpdateData(telemetry)
                 }
             }
         }
@@ -115,13 +115,13 @@ class WearOsManager(
         }
     }
 
-    private fun sendUpdateData(state: WheelState) {
-        val speedKmh = state.speedKmh
-        val phaseCurrentAbs = abs(state.phaseCurrentA)
-        val powerAbs = abs(state.powerW)
-        val pwmPercent = state.calculatedPwm * 100.0
-        val tempC = state.temperatureC.toDouble()
-        val battery = state.batteryLevel
+    private fun sendUpdateData(telemetry: TelemetryState) {
+        val speedKmh = telemetry.speedKmh
+        val phaseCurrentAbs = abs(telemetry.phaseCurrentA)
+        val powerAbs = abs(telemetry.powerW)
+        val pwmPercent = telemetry.calculatedPwm * 100.0
+        val tempC = telemetry.temperatureC.toDouble()
+        val battery = telemetry.batteryLevel
 
         // Update session maxes/mins
         if (speedKmh > maxSpeed) maxSpeed = speedKmh
@@ -141,18 +141,18 @@ class WearOsManager(
         if (AlarmType.TEMPERATURE in alarms) alarmBits = alarmBits or 4
 
         val distance = if (appConfig.useMph) {
-            state.wheelDistanceKm * 0.621371
+            telemetry.wheelDistanceKm * 0.621371
         } else {
-            state.wheelDistanceKm
+            telemetry.wheelDistanceKm
         }
 
         val request = PutDataMapRequest.create(Constants.wearOsDataItemPath).apply {
             dataMap.putDouble(Constants.wearOsSpeedData, speedKmh)
             dataMap.putDouble(Constants.wearOsMaxSpeedData, maxSpeed)
-            dataMap.putDouble(Constants.wearOsVoltageData, state.voltageV)
-            dataMap.putDouble(Constants.wearOsCurrentData, state.currentA)
+            dataMap.putDouble(Constants.wearOsVoltageData, telemetry.voltageV)
+            dataMap.putDouble(Constants.wearOsCurrentData, telemetry.currentA)
             dataMap.putDouble(Constants.wearOsMaxCurrentData, maxPhaseCurrent)
-            dataMap.putDouble(Constants.wearOsPowerData, state.powerW)
+            dataMap.putDouble(Constants.wearOsPowerData, telemetry.powerW)
             dataMap.putDouble(Constants.wearOsMaxPowerData, maxPower)
             dataMap.putDouble(Constants.wearOsPWMData, pwmPercent)
             dataMap.putDouble(Constants.wearOsMaxPWMData, maxPwm)

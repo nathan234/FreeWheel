@@ -4,8 +4,12 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import org.freewheel.core.ble.WheelConnectionInfo
+import org.freewheel.core.domain.BmsState
 import org.freewheel.core.domain.CapabilitySet
 import org.freewheel.core.domain.SettingsCommandId
+import org.freewheel.core.domain.TelemetryState
+import org.freewheel.core.domain.WheelIdentity
+import org.freewheel.core.domain.WheelSettings
 import org.freewheel.core.domain.WheelState
 import org.freewheel.core.domain.WheelType
 import org.freewheel.core.logging.BlePacketDirection
@@ -27,6 +31,18 @@ class FakeWheelConnectionManager : WheelConnectionManagerPort {
 
     private val _capabilities = MutableStateFlow(CapabilitySet())
     override val capabilities: StateFlow<CapabilitySet> = _capabilities.asStateFlow()
+
+    private val _telemetryState = MutableStateFlow(TelemetryState())
+    override val telemetryState: StateFlow<TelemetryState> = _telemetryState.asStateFlow()
+
+    private val _identityState = MutableStateFlow(WheelIdentity())
+    override val identityState: StateFlow<WheelIdentity> = _identityState.asStateFlow()
+
+    private val _bmsState = MutableStateFlow(BmsState())
+    override val bmsState: StateFlow<BmsState> = _bmsState.asStateFlow()
+
+    private val _settingsState = MutableStateFlow<WheelSettings>(WheelSettings.None)
+    override val settingsState: StateFlow<WheelSettings> = _settingsState.asStateFlow()
 
     override var captureCallback: ((data: ByteArray, direction: BlePacketDirection, annotation: String) -> Unit)? = null
     override var unhandledCallback: ((reason: String, frameData: ByteArray) -> Unit)? = null

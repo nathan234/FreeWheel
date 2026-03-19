@@ -36,7 +36,10 @@ fun CustomTabScreen(
     onNavigateToMetric: (String) -> Unit = {},
     onNavigateToEditLayout: () -> Unit = {}
 ) {
-    val wheelState by viewModel.wheelState.collectAsStateWithLifecycle()
+    val telemetry by viewModel.telemetryState.collectAsStateWithLifecycle()
+    val identity by viewModel.identityState.collectAsStateWithLifecycle()
+    val bms by viewModel.bmsState.collectAsStateWithLifecycle()
+    val settings by viewModel.settingsState.collectAsStateWithLifecycle()
     val connectionState by viewModel.connectionState.collectAsStateWithLifecycle()
     val activeAlarms by viewModel.activeAlarms.collectAsStateWithLifecycle()
     val customTabLayouts by viewModel.customTabLayouts.collectAsStateWithLifecycle()
@@ -79,7 +82,10 @@ fun CustomTabScreen(
         } else {
             DashboardContent(
                 layout = layout,
-                wheelState = wheelState,
+                telemetry = telemetry,
+                identity = identity,
+                bms = bms,
+                settings = settings,
                 connectionState = connectionState,
                 activeAlarms = activeAlarms,
                 isDemo = isDemo,

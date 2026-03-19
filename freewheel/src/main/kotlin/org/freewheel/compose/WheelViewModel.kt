@@ -4,7 +4,6 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import org.freewheel.AppConfig
-import org.freewheel.core.domain.WheelState
 import org.freewheel.core.utils.ByteUtils
 import org.freewheel.core.utils.PlatformDateFormatter
 import org.freewheel.core.utils.StringUtil
@@ -36,7 +35,11 @@ import org.freewheel.core.replay.ReplayState
 import org.freewheel.core.ble.BleUuids
 import org.freewheel.core.charger.ChargerConnectionManagerPort
 import org.freewheel.core.charger.ChargerState
+import org.freewheel.core.domain.BmsState
 import org.freewheel.core.domain.CapabilitySet
+import org.freewheel.core.domain.TelemetryState
+import org.freewheel.core.domain.WheelIdentity
+import org.freewheel.core.domain.WheelSettings
 import org.freewheel.core.domain.AlarmAction
 import org.freewheel.core.domain.AlarmType
 import org.freewheel.core.domain.SettingsCommandId
@@ -154,26 +157,71 @@ class WheelViewModel(
     private val _discoveredDevices = MutableStateFlow<List<DiscoveredDevice>>(emptyList())
     val discoveredDevices: StateFlow<List<DiscoveredDevice>> = _discoveredDevices.asStateFlow()
 
-    // Real wheel state from WheelConnectionManager
-    private val _realWheelState = MutableStateFlow(WheelState())
+    // Real sub-states from WheelConnectionManager
+    private val _realTelemetry = MutableStateFlow(TelemetryState())
+    private val _realIdentity = MutableStateFlow(WheelIdentity())
+    private val _realBms = MutableStateFlow(BmsState())
+    private val _realSettings = MutableStateFlow<WheelSettings>(WheelSettings.None)
 
     // Capabilities from WheelConnectionManager
     private val _capabilities = MutableStateFlow(CapabilitySet())
     val capabilities: StateFlow<CapabilitySet> = _capabilities.asStateFlow()
 
-    // Wheel state — combines real, demo, and replay sources
-    val wheelState: StateFlow<WheelState> = combine(
+    // Granular sub-state flows — combine real, demo, and replay sources.
+    // UI components observe only the sub-flow they need, so telemetry updates
+    // (10+ Hz) don't trigger recomposition in settings/identity/BMS screens.
+
+    val telemetryState: StateFlow<TelemetryState> = combine(
         _dataSource,
-        _realWheelState,
-        demoDataProvider.wheelState,
-        replayEngine.wheelState
-    ) { source, realState, demoState, replayState ->
+        _realTelemetry,
+        demoDataProvider.telemetryState,
+        replayEngine.telemetryState
+    ) { source, real, demo, replay ->
         when (source) {
-            WheelDataSource.LIVE -> realState
-            WheelDataSource.DEMO -> demoState
-            WheelDataSource.REPLAY -> replayState
+            WheelDataSource.LIVE -> real
+            WheelDataSource.DEMO -> demo
+            WheelDataSource.REPLAY -> replay
         }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), WheelState())
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), TelemetryState())
+
+    val identityState: StateFlow<WheelIdentity> = combine(
+        _dataSource,
+        _realIdentity,
+        demoDataProvider.identityState,
+        replayEngine.identityState
+    ) { source, real, demo, replay ->
+        when (source) {
+            WheelDataSource.LIVE -> real
+            WheelDataSource.DEMO -> demo
+            WheelDataSource.REPLAY -> replay
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), WheelIdentity())
+
+    val bmsState: StateFlow<BmsState> = combine(
+        _dataSource,
+        _realBms,
+        demoDataProvider.bmsState,
+        replayEngine.bmsState
+    ) { source, real, demo, replay ->
+        when (source) {
+            WheelDataSource.LIVE -> real
+            WheelDataSource.DEMO -> demo
+            WheelDataSource.REPLAY -> replay
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), BmsState())
+
+    val settingsState: StateFlow<WheelSettings> = combine(
+        _dataSource,
+        _realSettings,
+        demoDataProvider.settingsState,
+        replayEngine.settingsState
+    ) { source, real, demo, replay ->
+        when (source) {
+            WheelDataSource.LIVE -> real
+            WheelDataSource.DEMO -> demo
+            WheelDataSource.REPLAY -> replay
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), WheelSettings.None)
 
     // Alarms
     private val _activeAlarms = MutableStateFlow<Set<AlarmType>>(emptySet())
@@ -365,7 +413,7 @@ class WheelViewModel(
 
         wearOsManager = WearOsManager(
             context = getApplication(),
-            wheelStateFlow = wheelState,
+            telemetryFlow = telemetryState,
             activeAlarmsFlow = activeAlarms,
             appConfig = appConfig,
             onHornRequested = ::wheelBeep,
@@ -373,7 +421,10 @@ class WheelViewModel(
         ).also { it.start(viewModelScope) }
 
         stateCollectionJob = viewModelScope.launch {
-            cm.wheelState.collect { _realWheelState.value = it }
+            launch { cm.telemetryState.collect { _realTelemetry.value = it } }
+            launch { cm.identityState.collect { _realIdentity.value = it } }
+            launch { cm.bmsState.collect { _realBms.value = it } }
+            launch { cm.settingsState.collect { _realSettings.value = it } }
         }
         capabilitiesCollectionJob = viewModelScope.launch {
             cm.capabilities.collect { _capabilities.value = it }
@@ -648,8 +699,8 @@ class WheelViewModel(
     }
 
     private fun autoSaveProfile(address: String) {
-        val state = _realWheelState.value
-        val displayName = state.displayName.let {
+        val identity = _realIdentity.value
+        val displayName = identity.displayName.let {
             if (it == "Dashboard" || it.isEmpty()) {
                 // Fall back to existing profile name or BLE name
                 profileStore.getDisplayName(address) ?: ""
@@ -659,7 +710,7 @@ class WheelViewModel(
             WheelProfile(
                 address = address,
                 displayName = displayName,
-                wheelTypeName = state.wheelType.name,
+                wheelTypeName = identity.wheelType.name,
                 lastConnectedMs = System.currentTimeMillis()
             )
         )
@@ -950,8 +1001,7 @@ class WheelViewModel(
     private fun stopLogging() {
         logSamplingJob?.cancel()
         logSamplingJob = null
-        val state = wheelState.value
-        val metadata = rideLogger.stop(System.currentTimeMillis(), state.totalDistance)
+        val metadata = rideLogger.stop(System.currentTimeMillis(), telemetryState.value.totalDistance)
         _isLogging.value = false
 
         if (metadata != null) {
@@ -981,7 +1031,7 @@ class WheelViewModel(
 
     private fun startLogSampling() {
         logSamplingJob = viewModelScope.launch {
-            wheelState.collect { state ->
+            telemetryState.collect { telemetry ->
                 if (rideLogger.isLogging) {
                     val gps = _lastGpsLocation.value?.let { loc ->
                         GpsLocation(
@@ -993,7 +1043,7 @@ class WheelViewModel(
                             cumulativeDistance = 0.0
                         )
                     }
-                    rideLogger.writeSample(state.toTelemetryState(), state.modeStr, gps, System.currentTimeMillis())
+                    rideLogger.writeSample(telemetry, identityState.value.modeStr, gps, System.currentTimeMillis())
                 }
             }
         }
@@ -1026,10 +1076,10 @@ class WheelViewModel(
         val fileName = "capture_${PlatformDateFormatter.formatRideFilename(now)}.csv"
         val filePath = File(capturesDir, fileName).absolutePath
 
-        val state = wheelState.value
-        val wheelTypeName = state.wheelType.name
-        val wheelName = state.displayName
-        val firmware = state.version
+        val identity = identityState.value
+        val wheelTypeName = identity.wheelType.name
+        val wheelName = identity.displayName
+        val firmware = identity.version
         val appVersion = try {
             app.packageManager.getPackageInfo(app.packageName, 0).versionName ?: ""
         } catch (_: Exception) { "" }
@@ -1064,13 +1114,13 @@ class WheelViewModel(
      * Returns null if no unhandled frames have been recorded.
      */
     fun buildUnhandledFramesText(): String? {
-        val state = wheelState.value
+        val identity = identityState.value
         val caps = _capabilities.value
         return UnhandledFrameFormatter.format(
             entries = unhandledCollector.getEntries(),
-            wheelType = state.wheelType.name,
-            model = caps.detectedModel.ifEmpty { state.model },
-            firmware = caps.firmwareVersion.ifEmpty { state.version },
+            wheelType = identity.wheelType.name,
+            model = caps.detectedModel.ifEmpty { identity.model },
+            firmware = caps.firmwareVersion.ifEmpty { identity.version },
             platform = "android"
         )
     }
@@ -1092,7 +1142,7 @@ class WheelViewModel(
     fun buildDiagnosticText(): String? {
         val cm = connectionManager ?: return null
         val snapshot = DiagnosticSnapshotBuilder.buildSnapshot(
-            identity = wheelState.value.toIdentity(),
+            identity = identityState.value,
             capabilities = _capabilities.value,
             connectionInfo = cm.getConnectionInfo(),
             decoderConfig = cm.getConfig(),
@@ -1104,7 +1154,7 @@ class WheelViewModel(
 
     private fun buildDiagnosticFooter(cm: WheelConnectionManagerPort): String {
         val snapshot = DiagnosticSnapshotBuilder.buildSnapshot(
-            identity = wheelState.value.toIdentity(),
+            identity = identityState.value,
             capabilities = _capabilities.value,
             connectionInfo = cm.getConnectionInfo(),
             decoderConfig = cm.getConfig(),
@@ -1145,10 +1195,10 @@ class WheelViewModel(
 
     private fun startTelemetryBuffering() {
         viewModelScope.launch {
-            wheelState.collect { state ->
-                if (state.speed != 0 || state.voltage != 0) {
+            telemetryState.collect { telemetry ->
+                if (telemetry.speed != 0 || telemetry.voltage != 0) {
                     val sample = TelemetrySample.fromTelemetry(
-                        state.toTelemetryState(), System.currentTimeMillis(), _gpsSpeedKmh.value
+                        telemetry, System.currentTimeMillis(), _gpsSpeedKmh.value
                     )
                     if (telemetryBuffer.addSampleIfNeeded(sample)) {
                         _telemetrySamples.value = telemetryBuffer.samples
@@ -1156,13 +1206,13 @@ class WheelViewModel(
                     telemetryHistory?.addSample(sample)
 
                     // Range estimation: capture start battery on first valid reading
-                    if (startBattery < 0 && state.batteryLevel > 0) {
-                        startBattery = state.batteryLevel
+                    if (startBattery < 0 && telemetry.batteryLevel > 0) {
+                        startBattery = telemetry.batteryLevel
                     }
                     if (startBattery > 0) {
                         _rangeEstimateKm.value = RangeEstimator.estimate(
-                            currentBattery = state.batteryLevel,
-                            tripDistanceKm = state.wheelDistanceKm,
+                            currentBattery = telemetry.batteryLevel,
+                            tripDistanceKm = telemetry.wheelDistanceKm,
                             startBattery = startBattery
                         )
                     }
@@ -1202,7 +1252,7 @@ class WheelViewModel(
 
     private fun startAutoTorchMonitoring() {
         viewModelScope.launch {
-            wheelState.collect { state ->
+            telemetryState.collect { telemetry ->
                 val enabled = getGlobalBool(PreferenceKeys.AUTO_TORCH_ENABLED, PreferenceDefaults.AUTO_TORCH_ENABLED)
                 if (!enabled) {
                     if (autoTorchLightRequested) {
@@ -1228,7 +1278,7 @@ class WheelViewModel(
                 if (autoTorchManualOverride) return@collect
 
                 val result = AutoTorchEngine.shouldLightBeOn(
-                    speedKmh = state.speedKmh,
+                    speedKmh = telemetry.speedKmh,
                     speedThresholdKmh = speedThreshold,
                     useSunset = useSunset,
                     latitudeDeg = gpsLocation?.latitude ?: 0.0,
@@ -1252,7 +1302,7 @@ class WheelViewModel(
 
     private fun startAlarmMonitoring() {
         viewModelScope.launch {
-            wheelState.collect { state ->
+            telemetryState.collect { telemetry ->
                 if (!appConfig.alarmsEnabled) {
                     if (_activeAlarms.value.isNotEmpty()) {
                         _activeAlarms.value = emptySet()
@@ -1282,7 +1332,7 @@ class WheelViewModel(
                 )
 
                 val now = System.currentTimeMillis()
-                val result = alarmChecker.check(state.toTelemetryState(), config, now)
+                val result = alarmChecker.check(telemetry, config, now)
                 _activeAlarms.value = result.triggeredAlarms.map { it.type }.toSet()
                 alarmHandler.handleAlarmResult(result, AlarmAction.fromValue(appConfig.alarmAction))
             }
