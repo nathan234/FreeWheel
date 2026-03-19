@@ -174,11 +174,6 @@ enum class SettingsCommandId {
         WHEEL_DISPLAY_UNIT, SCREEN_AUTO_OFF -> null
     }
 
-    /** @deprecated Use [readInt] with [WheelSettings] instead. */
-    fun readInt(state: WheelState): Int? = readInt(state.toWheelSettings())
-
-    /** @deprecated Use [readBool] with [WheelSettings] instead. */
-    fun readBool(state: WheelState): Boolean? = readBool(state.toWheelSettings())
 }
 
 /** Describes a single UI control in wheel settings. */
