@@ -374,19 +374,18 @@ class WheelConnectionManagerTest {
     // ==================== CommandScheduler Additional Tests ====================
 
     @Test
-    fun `CommandScheduler handles exception in command`() = runTest {
+    fun `CommandScheduler handles exception without breaking consumer`() = runTest {
         val scheduler = CommandScheduler(this, UnconfinedTestDispatcher(testScheduler))
         var secondExecuted = false
 
-        scheduler.schedule(50) {
+        scheduler.scheduleSequence {
             throw RuntimeException("Test exception")
         }
-
-        scheduler.schedule(100) {
+        scheduler.scheduleSequence {
             secondExecuted = true
         }
 
-        advanceTimeBy(150)
+        runCurrent()
 
         assertTrue(secondExecuted, "Second command should execute despite first failing")
     }
@@ -395,57 +394,26 @@ class WheelConnectionManagerTest {
     fun `CommandScheduler cancelAll is idempotent`() = runTest {
         val scheduler = CommandScheduler(this, UnconfinedTestDispatcher(testScheduler))
 
-        scheduler.schedule(100) {}
-        scheduler.schedule(200) {}
+        scheduler.scheduleSequence { delay(100) }
+        scheduler.scheduleSequence { delay(200) }
 
         scheduler.cancelAll()
         scheduler.cancelAll()  // Should not throw
         scheduler.cancelAll()
-
-        assertEquals(0, scheduler.pendingCount())
     }
 
     @Test
-    fun `CommandScheduler schedule with zero delay executes immediately`() = runTest {
+    fun `CommandScheduler executes immediately without delay`() = runTest {
         val scheduler = CommandScheduler(this, UnconfinedTestDispatcher(testScheduler))
         var executed = false
 
-        scheduler.schedule(0) {
+        scheduler.scheduleSequence {
             executed = true
         }
 
-        advanceTimeBy(10)
+        runCurrent()
 
-        assertTrue(executed, "Zero delay command should execute immediately")
-    }
-
-    @Test
-    fun `CommandScheduler pendingCount decreases after execution`() = runTest {
-        val scheduler = CommandScheduler(this, UnconfinedTestDispatcher(testScheduler))
-
-        scheduler.schedule(50) {}
-        scheduler.schedule(50) {}
-        scheduler.schedule(50) {}
-
-        assertTrue(scheduler.pendingCount() >= 3)
-
-        advanceTimeBy(100)
-
-        // After execution and cleanup, pending should be 0
-        assertEquals(0, scheduler.pendingCount())
-    }
-
-    @Test
-    fun `CommandScheduler empty after cancelAll`() = runTest {
-        val scheduler = CommandScheduler(this, UnconfinedTestDispatcher(testScheduler))
-
-        for (i in 1..10) {
-            scheduler.schedule(i * 100L) {}
-        }
-
-        scheduler.cancelAll()
-
-        assertEquals(0, scheduler.pendingCount())
+        assertTrue(executed, "Command should execute immediately")
     }
 
     // ==================== Real World Scenarios ====================

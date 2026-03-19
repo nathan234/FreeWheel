@@ -204,64 +204,67 @@ class KeepAliveTimerTest {
     }
 
     @Test
-    fun `CommandScheduler executes after delay`() = runTest {
-        val scheduler = CommandScheduler(this, UnconfinedTestDispatcher(testScheduler))
-        var executed = false
-
-        scheduler.schedule(100) {
-            executed = true
-        }
-
-        assertEquals(1, scheduler.pendingCount())
-
-        advanceTimeBy(50)
-        assertFalse(executed, "Should not execute before delay")
-
-        advanceTimeBy(60)
-        assertTrue(executed, "Should execute after delay")
-
-        // Wait for job cleanup
-        advanceTimeBy(10)
-        assertEquals(0, scheduler.pendingCount())
-    }
-
-    @Test
-    fun `CommandScheduler handles multiple commands`() = runTest {
+    fun `CommandScheduler executes sequences in order`() = runTest {
         val scheduler = CommandScheduler(this, UnconfinedTestDispatcher(testScheduler))
         val executed = mutableListOf<Int>()
 
-        scheduler.schedule(100) { executed.add(1) }
-        scheduler.schedule(200) { executed.add(2) }
-        scheduler.schedule(50) { executed.add(3) }
+        scheduler.scheduleSequence {
+            executed.add(1)
+            delay(100)
+            executed.add(2)
+        }
+        scheduler.scheduleSequence {
+            executed.add(3)
+        }
 
-        assertTrue(scheduler.pendingCount() >= 3)
+        // Let both sequences complete
+        advanceTimeBy(200)
+        runCurrent()
 
-        advanceTimeBy(75)
-        assertTrue(3 in executed, "Command 3 should execute first")
-        assertFalse(1 in executed)
-        assertFalse(2 in executed)
-
-        advanceTimeBy(50)
-        assertTrue(1 in executed, "Command 1 should execute second")
-
-        advanceTimeBy(100)
-        assertTrue(2 in executed, "Command 2 should execute last")
+        // Sequence 1 must complete (1, 2) before sequence 2 starts (3)
+        assertEquals(listOf(1, 2, 3), executed)
     }
 
     @Test
-    fun `CommandScheduler cancelAll cancels pending commands`() = runTest {
+    fun `CommandScheduler cancelAll cancels in-flight and pending`() = runTest {
+        val scheduler = CommandScheduler(this, UnconfinedTestDispatcher(testScheduler))
+        val executed = mutableListOf<Int>()
+
+        scheduler.scheduleSequence {
+            executed.add(1)
+            delay(100)
+            executed.add(2) // should be cancelled
+        }
+        scheduler.scheduleSequence {
+            executed.add(3) // should be discarded
+        }
+
+        // Let first step run
+        runCurrent()
+        assertTrue(1 in executed)
+
+        scheduler.cancelAll()
+
+        advanceTimeBy(200)
+        runCurrent()
+
+        // 2 and 3 should never execute
+        assertEquals(listOf(1), executed)
+    }
+
+    @Test
+    fun `CommandScheduler accepts new commands after cancelAll`() = runTest {
         val scheduler = CommandScheduler(this, UnconfinedTestDispatcher(testScheduler))
         var executed = false
 
-        scheduler.schedule(100) {
+        scheduler.cancelAll()
+
+        scheduler.scheduleSequence {
             executed = true
         }
+        runCurrent()
 
-        scheduler.cancelAll()
-        assertEquals(0, scheduler.pendingCount())
-
-        advanceTimeBy(200)
-        assertFalse(executed, "Cancelled command should not execute")
+        assertTrue(executed, "Command after cancelAll should execute")
     }
 }
 

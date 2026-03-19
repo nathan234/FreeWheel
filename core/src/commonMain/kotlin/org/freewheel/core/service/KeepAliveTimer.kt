@@ -213,102 +213,58 @@ class DataTimeoutTracker(
 }
 
 /**
- * Command scheduler for handling delayed commands.
+ * Serial command queue for BLE command dispatch.
  *
- * Some protocols require commands to be sent with specific delays
- * (e.g., InMotion V2 init sequence).
+ * Commands are executed sequentially by a single consumer coroutine,
+ * guaranteeing:
+ * - **Ordering**: commands reach the wheel in dispatch order
+ * - **Atomicity**: multi-step sequences (e.g., Gotway LED: W→M→digit→b
+ *   with 100ms delays) complete without interleaving
+ * - **Clean cancellation**: [cancelAll] cancels the in-flight command
+ *   and discards all pending work
  */
 class CommandScheduler(
     private val scope: CoroutineScope,
     private val dispatcher: CoroutineDispatcher = Dispatchers.Default
 ) {
-    private val pendingJobs = mutableListOf<Job>()
-    private val lock = org.freewheel.core.utils.Lock()
-
-    companion object {
-        private const val MAX_PENDING_JOBS = 100
-    }
+    private var channel = kotlinx.coroutines.channels.Channel<suspend () -> Unit>(
+        kotlinx.coroutines.channels.Channel.UNLIMITED
+    )
+    private var consumerJob = launchConsumer()
 
     /**
-     * Schedule a command to be executed after a delay.
-     *
-     * @param delayMs Delay before execution
-     * @param command The command to execute
-     */
-    fun schedule(delayMs: Long, command: suspend () -> Unit) {
-        lock.lock()
-        try {
-            pendingJobs.removeAll { !it.isActive }
-            if (pendingJobs.size >= MAX_PENDING_JOBS) {
-                Logger.w("CommandScheduler", "Job queue full (${pendingJobs.size}), dropping oldest")
-                pendingJobs.removeFirst().cancel()
-            }
-            val job = scope.launch(dispatcher) {
-                delay(delayMs)
-                try {
-                    command()
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    Logger.e("CommandScheduler", "Error executing scheduled command", e)
-                }
-            }
-            pendingJobs.add(job)
-        } finally {
-            lock.unlock()
-        }
-    }
-
-    /**
-     * Schedule a sequence of commands as a single coroutine.
-     * Unlike [schedule], this runs the entire block sequentially,
-     * so delays within the block are relative to the previous step.
+     * Enqueue a command sequence for serial execution.
+     * Returns immediately — the consumer processes it in order.
      */
     fun scheduleSequence(block: suspend () -> Unit) {
-        lock.lock()
-        try {
-            pendingJobs.removeAll { !it.isActive }
-            if (pendingJobs.size >= MAX_PENDING_JOBS) {
-                Logger.w("CommandScheduler", "Job queue full (${pendingJobs.size}), dropping oldest")
-                pendingJobs.removeFirst().cancel()
-            }
-            val job = scope.launch(dispatcher) {
-                try {
-                    block()
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    Logger.e("CommandScheduler", "Error executing scheduled command sequence", e)
-                }
-            }
-            pendingJobs.add(job)
-        } finally {
-            lock.unlock()
-        }
+        channel.trySend(block)
     }
 
     /**
-     * Cancel all pending commands.
+     * Cancel the in-flight command and discard all pending work.
+     * A new consumer is started immediately, ready for future commands.
      */
     fun cancelAll() {
-        lock.lock()
-        try {
-            pendingJobs.forEach { it.cancel() }
-            pendingJobs.clear()
-        } finally {
-            lock.unlock()
-        }
+        consumerJob.cancel()
+        // Drain any buffered blocks (channel is UNLIMITED, so tryReceive is non-blocking)
+        while (channel.tryReceive().isSuccess) { /* discard */ }
+        // Close the old channel and start fresh
+        channel.close()
+        channel = kotlinx.coroutines.channels.Channel(
+            kotlinx.coroutines.channels.Channel.UNLIMITED
+        )
+        consumerJob = launchConsumer()
     }
 
-    /**
-     * Get the number of pending commands.
-     */
-    fun pendingCount(): Int {
-        lock.lock()
-        try {
-            return pendingJobs.count { it.isActive }
-        } finally {
-            lock.unlock()
+    private fun launchConsumer(): Job = scope.launch(dispatcher) {
+        for (block in channel) {
+            try {
+                block()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Logger.e("CommandScheduler", "Error executing command", e)
+            }
         }
     }
 }
