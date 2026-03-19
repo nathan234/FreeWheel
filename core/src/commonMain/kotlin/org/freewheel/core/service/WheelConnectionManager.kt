@@ -8,7 +8,6 @@ import org.freewheel.core.domain.CapabilitySet
 import org.freewheel.core.domain.TelemetryState
 import org.freewheel.core.domain.WheelIdentity
 import org.freewheel.core.domain.WheelSettings
-import org.freewheel.core.domain.WheelState
 import org.freewheel.core.domain.WheelType
 import org.freewheel.core.protocol.DecodeResult
 import org.freewheel.core.protocol.DecoderConfig
@@ -48,7 +47,7 @@ import kotlinx.coroutines.plus
  * val manager = WheelConnectionManager(bleManager, decoderFactory, scope)
  *
  * // Observe state
- * manager.wheelState.collect { state -> updateUI(state) }
+ * manager.telemetryState.collect { tel -> updateTelemetryUI(tel) }
  * manager.connectionState.collect { state -> updateConnectionUI(state) }
  *
  * // Connect (fire-and-forget — observe connectionState for result)
@@ -114,15 +113,6 @@ class WheelConnectionManager(
     // Dispatchers.Main could observe stale derived state between the _wcmState
     // update and the derived flow emission.
     private val derivedScope = scope + dispatcher
-
-    /**
-     * Composed wheel state (legacy, for decoder input and tests).
-     * Prefer [telemetryState], [identityState], [bmsState], [settingsState] for UI.
-     */
-    override val wheelState: StateFlow<WheelState> = _wcmState
-        .map { it.wheelState }
-        .distinctUntilChanged()
-        .stateIn(derivedScope, SharingStarted.Eagerly, WheelState())
 
     /** Current connection state. */
     override val connectionState: StateFlow<ConnectionState> = _wcmState

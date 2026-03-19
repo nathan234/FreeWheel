@@ -7,7 +7,6 @@ import org.freewheel.core.domain.SettingsCommandId
 import org.freewheel.core.domain.TelemetryState
 import org.freewheel.core.domain.WheelIdentity
 import org.freewheel.core.domain.WheelSettings
-import org.freewheel.core.domain.WheelState
 import org.freewheel.core.domain.WheelType
 import org.freewheel.core.logging.BlePacketDirection
 import org.freewheel.core.protocol.DecoderConfig
@@ -18,7 +17,6 @@ import kotlinx.coroutines.flow.StateFlow
  * Enables testing without instantiating the real event-loop-based implementation.
  */
 interface WheelConnectionManagerPort {
-    val wheelState: StateFlow<WheelState>
     val connectionState: StateFlow<ConnectionState>
     val capabilities: StateFlow<CapabilitySet>
     val telemetryState: StateFlow<TelemetryState>

@@ -6,7 +6,6 @@ import org.freewheel.core.domain.CapabilitySet
 import org.freewheel.core.domain.TelemetryState
 import org.freewheel.core.domain.WheelIdentity
 import org.freewheel.core.domain.WheelSettings
-import org.freewheel.core.domain.WheelState
 import org.freewheel.core.logging.BlePacketDirection
 import org.freewheel.core.protocol.DecoderConfig
 import org.freewheel.core.protocol.DecoderState
@@ -18,8 +17,6 @@ import org.freewheel.core.protocol.WheelDecoder
  *
  * Primary domain state is held as separate types ([telemetry], [identity],
  * [bms], [settings]) so only the changed domain is copied per BLE frame.
- * [wheelState] is a computed property that composes all domains into a
- * single [WheelState] for legacy consumers and decoder input.
  */
 data class WcmState(
     // Primary domain state
@@ -37,11 +34,8 @@ data class WcmState(
     val decoderConfig: DecoderConfig = DecoderConfig(),
     val connectionInfo: WheelConnectionInfo? = null,
 ) {
-    /** Lightweight decoder input — avoids the 178-field [WheelState.compose] per frame. */
+    /** Lightweight decoder input — avoids full state composition per frame. */
     val decoderState: DecoderState get() = DecoderState(telemetry, identity, bms, settings)
-
-    /** Compose [WheelState] for legacy consumers (public flow). */
-    val wheelState: WheelState get() = WheelState.compose(telemetry, identity, bms, settings)
 }
 
 /**

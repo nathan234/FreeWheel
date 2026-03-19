@@ -10,7 +10,6 @@ import org.freewheel.core.domain.SettingsCommandId
 import org.freewheel.core.domain.TelemetryState
 import org.freewheel.core.domain.WheelIdentity
 import org.freewheel.core.domain.WheelSettings
-import org.freewheel.core.domain.WheelState
 import org.freewheel.core.domain.WheelType
 import org.freewheel.core.logging.BlePacketDirection
 import org.freewheel.core.protocol.DecoderConfig
@@ -23,9 +22,6 @@ import org.freewheel.core.service.WheelConnectionManagerPort
  * Exposes mutable flows for controlling state and records method calls.
  */
 class FakeWheelConnectionManager : WheelConnectionManagerPort {
-    private val _wheelState = MutableStateFlow(WheelState())
-    override val wheelState: StateFlow<WheelState> = _wheelState.asStateFlow()
-
     private val _connectionState = MutableStateFlow<ConnectionState>(ConnectionState.Disconnected)
     override val connectionState: StateFlow<ConnectionState> = _connectionState.asStateFlow()
 
@@ -84,6 +80,5 @@ class FakeWheelConnectionManager : WheelConnectionManagerPort {
 
     // Test helpers
     fun setConnectionState(state: ConnectionState) { _connectionState.value = state }
-    fun setWheelState(state: WheelState) { _wheelState.value = state }
     fun setCapabilities(caps: CapabilitySet) { _capabilities.value = caps }
 }
