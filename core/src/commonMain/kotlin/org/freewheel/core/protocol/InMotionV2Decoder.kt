@@ -4,8 +4,8 @@ import org.freewheel.core.domain.BmsState
 import org.freewheel.core.domain.CapabilityMap
 import org.freewheel.core.domain.CapabilitySet
 import org.freewheel.core.domain.SettingsCommandId
-import org.freewheel.core.domain.WheelState
 import org.freewheel.core.domain.SmartBms
+import org.freewheel.core.domain.WheelSettings
 import org.freewheel.core.domain.WheelType
 import org.freewheel.core.domain.resolveAt
 import org.freewheel.core.utils.ByteUtils
@@ -140,11 +140,8 @@ class InMotionV2Decoder : WheelDecoder {
 
     override fun decode(data: ByteArray, currentState: DecoderState, config: DecoderConfig): DecodeResult = stateLock.withLock {
         val loopResult = decodeFrames(data, unpacker, currentState) { buffer, state ->
-            val ws = state.toWheelState().let {
-                if (it.wheelType == WheelType.Unknown) it.copy(wheelType = WheelType.INMOTION_V2) else it
-            }
             val msg = verifyAndParse(buffer) ?: return@decodeFrames null
-            processMessage(msg, ws)
+            processMessage(msg, state)
         }
 
         when (loopResult) {
@@ -235,11 +232,11 @@ class InMotionV2Decoder : WheelDecoder {
     /**
      * Process a verified message and update state.
      */
-    private fun processMessage(message: Message, currentState: WheelState): FrameResult? {
+    private fun processMessage(message: Message, currentState: DecoderState): FrameResult? {
         // Ensure model is detected from BLE name before any routing decisions.
         // Without this, early responses (e.g., settings) can arrive before model-specific
         // init responses, causing fallback parsers to misinterpret frame layouts.
-        detectModelFromName(currentState.btName)
+        detectModelFromName(currentState.identity.btName)
         return when {
             message.flags == Flag.INITIAL -> {
                 when (message.command) {
@@ -270,7 +267,7 @@ class InMotionV2Decoder : WheelDecoder {
      * Extended responses have: cmd = sub_cmd from request, data[0] = 0x02,
      * data[1] = response type (0x80 + original param). Route based on response type.
      */
-    private fun processExtendedMessage(message: Message, currentState: WheelState): FrameResult? {
+    private fun processExtendedMessage(message: Message, currentState: DecoderState): FrameResult? {
         val data = message.data
         if (data.size < 2) return null
 
@@ -301,11 +298,11 @@ class InMotionV2Decoder : WheelDecoder {
     /**
      * Process main info (car type, serial number, versions).
      */
-    private fun processMainInfo(message: Message, currentState: WheelState): FrameResult? {
+    private fun processMainInfo(message: Message, currentState: DecoderState): FrameResult? {
         val data = message.data
         if (data.isEmpty()) return null
 
-        var newState = currentState
+        var id = currentState.identity
 
         when (data[0].toInt() and 0xFF) {
             0x01 -> {
@@ -315,7 +312,7 @@ class InMotionV2Decoder : WheelDecoder {
                     val type = data[3].toInt() and 0xFF
                     model = Model.findById(series, type)
                     isModelDetected = true
-                    newState = newState.copy(
+                    id = id.copy(
                         model = model.displayName,
                         wheelType = WheelType.INMOTION_V2
                     )
@@ -325,7 +322,7 @@ class InMotionV2Decoder : WheelDecoder {
                 // Serial number
                 if (message.len >= 17) {
                     serialNumber = data.copyOfRange(1, 17).decodeToString()
-                    newState = newState.copy(serialNumber = serialNumber)
+                    id = id.copy(serialNumber = serialNumber)
                 }
             }
             0x06 -> {
@@ -349,7 +346,7 @@ class InMotionV2Decoder : WheelDecoder {
 
                     version = "Main:$mainBoard Drv:$driverBoard BLE:$ble"
                     mainBoardVersion = mainBoard
-                    newState = newState.copy(version = version)
+                    id = id.copy(version = version)
 
                     // Set protocol version for V11
                     if (model == Model.V11) {
@@ -359,7 +356,7 @@ class InMotionV2Decoder : WheelDecoder {
             }
         }
 
-        return FrameResult(state = newState, hasNewData = false, frameType = "MAIN_INFO")
+        return FrameResult(identity = id, hasNewData = false, frameType = "MAIN_INFO")
     }
 
     // ==================== P6 Extended Protocol ====================
@@ -368,14 +365,14 @@ class InMotionV2Decoder : WheelDecoder {
      * Process extended init response (0x86).
      * Contains serial number at data[5:21] and car type at data[27:29].
      */
-    private fun processExtendedInit(data: ByteArray, currentState: WheelState): FrameResult? {
+    private fun processExtendedInit(data: ByteArray, currentState: DecoderState): FrameResult? {
         if (data.size < 30) return null
-        var newState = currentState
+        var id = currentState.identity
 
         // Serial number at data[5..20] (16 ASCII chars)
         if (data.size >= 21) {
             serialNumber = data.copyOfRange(5, 21).decodeToString().trimEnd('\u0000')
-            newState = newState.copy(serialNumber = serialNumber)
+            id = id.copy(serialNumber = serialNumber)
         }
 
         // Car type: series at data[27], type at data[28]
@@ -383,12 +380,12 @@ class InMotionV2Decoder : WheelDecoder {
         val type = data[28].toInt() and 0xFF
         model = Model.findById(series, type)
         isModelDetected = true
-        newState = newState.copy(
+        id = id.copy(
             model = model.displayName,
             wheelType = WheelType.INMOTION_V2
         )
 
-        return FrameResult(state = newState, hasNewData = false, frameType = "EXT_INIT")
+        return FrameResult(identity = id, hasNewData = false, frameType = "EXT_INIT")
     }
 
     /**
@@ -396,7 +393,7 @@ class InMotionV2Decoder : WheelDecoder {
      * data[0:4] = sub-header [02 87 01 00], data[4:] = 96-byte telemetry payload.
      * The EXTENDED layout offsets apply to the payload after stripping the sub-header.
      */
-    private fun processExtendedRealTime(data: ByteArray, currentState: WheelState): FrameResult? {
+    private fun processExtendedRealTime(data: ByteArray, currentState: DecoderState): FrameResult? {
         if (data.size < 4) return null
         // Strip the 4-byte sub-header to get the raw telemetry payload
         val payload = data.copyOfRange(4, data.size)
@@ -408,7 +405,7 @@ class InMotionV2Decoder : WheelDecoder {
      * Process extended settings response (0x90).
      * For now, pass through to the standard settings parser with data offset.
      */
-    private fun processExtendedSettings(data: ByteArray, currentState: WheelState): FrameResult? {
+    private fun processExtendedSettings(data: ByteArray, currentState: DecoderState): FrameResult? {
         // TODO: Map extended settings response fields once we have settings-change captures
         return null
     }
@@ -417,11 +414,11 @@ class InMotionV2Decoder : WheelDecoder {
      * Process extended total stats response (0x91).
      * data[2:6] contains total distance (LE int × 10 for meters).
      */
-    private fun processExtendedTotalStats(data: ByteArray, currentState: WheelState): FrameResult? {
+    private fun processExtendedTotalStats(data: ByteArray, currentState: DecoderState): FrameResult? {
         if (data.size < 6) return null
         val totalDistance = ByteUtils.intFromBytesLE(data, 2).toLong() * 10
         return FrameResult(
-            state = currentState.copy(totalDistance = totalDistance),
+            telemetry = currentState.telemetry.copy(totalDistance = totalDistance),
             hasNewData = false,
             frameType = "EXT_TOTAL_STATS"
         )
@@ -430,7 +427,7 @@ class InMotionV2Decoder : WheelDecoder {
     /**
      * Process settings data.
      */
-    private fun processSettings(message: Message, currentState: WheelState): FrameResult? {
+    private fun processSettings(message: Message, currentState: DecoderState): FrameResult? {
         return when (model) {
             Model.V11 -> parseSettingsV11(message.data, currentState)
             Model.V11Y -> parseSettingsExtended(message.data, currentState)
@@ -446,7 +443,7 @@ class InMotionV2Decoder : WheelDecoder {
     /**
      * Process diagnostic data.
      */
-    private fun processDiagnostic(message: Message, currentState: WheelState): FrameResult? {
+    private fun processDiagnostic(message: Message, currentState: DecoderState): FrameResult? {
         // Check if all diagnostic bytes are 0 (OK)
         if (message.data.size > 7) {
             for (byte in message.data) {
@@ -463,7 +460,7 @@ class InMotionV2Decoder : WheelDecoder {
      * Process battery real-time info (flag 0x14, command 0x05).
      * General battery summary — not per-cell BMS data.
      */
-    private fun processBatteryRealTimeInfo(message: Message, currentState: WheelState): FrameResult? {
+    private fun processBatteryRealTimeInfo(message: Message, currentState: DecoderState): FrameResult? {
         return null // General battery info; per-cell BMS uses extended protocol
     }
 
@@ -479,7 +476,7 @@ class InMotionV2Decoder : WheelDecoder {
      * bytes 23-42 = 20-char ASCII serial. In our data array (no command byte),
      * that's data[22..41].
      */
-    private fun processBmsSerial(bmsNum: Int, data: ByteArray, currentState: WheelState): FrameResult? {
+    private fun processBmsSerial(bmsNum: Int, data: ByteArray, currentState: DecoderState): FrameResult? {
         if (data.size < 42) return null
         val bms = bmsForNum(bmsNum)
         bms.cellNum = model.cellCount
@@ -493,10 +490,6 @@ class InMotionV2Decoder : WheelDecoder {
 
         bmsInitDone = true
         return FrameResult(
-            state = currentState.copy(
-                bms1 = bms1.toSnapshot(),
-                bms2 = if (model.batteryCount > 1) bms2.toSnapshot() else currentState.bms2
-            ),
             hasNewData = false,
             frameType = "BMS${bmsNum}_SERIAL"
         )
@@ -512,7 +505,7 @@ class InMotionV2Decoder : WheelDecoder {
      * [13] = short LE × 0.01 → (third metric)
      * [19] = unsigned short → SOC %
      */
-    private fun processBmsStatus(bmsNum: Int, data: ByteArray, currentState: WheelState): FrameResult? {
+    private fun processBmsStatus(bmsNum: Int, data: ByteArray, currentState: DecoderState): FrameResult? {
         if (data.size < 19) return null
         val bms = bmsForNum(bmsNum)
 
@@ -533,10 +526,6 @@ class InMotionV2Decoder : WheelDecoder {
         }
 
         return FrameResult(
-            state = currentState.copy(
-                bms1 = bms1.toSnapshot(),
-                bms2 = if (model.batteryCount > 1) bms2.toSnapshot() else currentState.bms2
-            ),
             hasNewData = false,
             frameType = "BMS${bmsNum}_STATUS"
         )
@@ -546,7 +535,7 @@ class InMotionV2Decoder : WheelDecoder {
      * Process BMS cell voltages response (sub-type 0x02, response 0x82).
      * Cell i = LE short at EUC World offset (i*2 + 3) = data[(i*2) + 2], in millivolts.
      */
-    private fun processBmsCellVoltages(bmsNum: Int, data: ByteArray, currentState: WheelState): FrameResult? {
+    private fun processBmsCellVoltages(bmsNum: Int, data: ByteArray, currentState: DecoderState): FrameResult? {
         val bms = bmsForNum(bmsNum)
         val cellCount = model.cellCount.coerceAtMost(SmartBms.MAX_CELLS)
         bms.cellNum = cellCount
@@ -561,10 +550,6 @@ class InMotionV2Decoder : WheelDecoder {
         updateBmsCellStats(bms, cellCount)
 
         return FrameResult(
-            state = currentState.copy(
-                bms1 = bms1.toSnapshot(),
-                bms2 = if (model.batteryCount > 1) bms2.toSnapshot() else currentState.bms2
-            ),
             hasNewData = false,
             frameType = "BMS${bmsNum}_VOLTAGES"
         )
@@ -599,14 +584,14 @@ class InMotionV2Decoder : WheelDecoder {
     /**
      * Process total statistics.
      */
-    private fun processTotalStats(message: Message, currentState: WheelState): FrameResult? {
+    private fun processTotalStats(message: Message, currentState: DecoderState): FrameResult? {
         val data = message.data
         if (data.size < 20) return null
 
         val totalDistance = ByteUtils.intFromBytesLE(data, 0).toLong() * 10
 
         return FrameResult(
-            state = currentState.copy(totalDistance = totalDistance),
+            telemetry = currentState.telemetry.copy(totalDistance = totalDistance),
             hasNewData = false,
             frameType = "TOTAL_STATS"
         )
@@ -644,7 +629,7 @@ class InMotionV2Decoder : WheelDecoder {
     /**
      * Process real-time telemetry info.
      */
-    private fun processRealTimeInfo(message: Message, currentState: WheelState): FrameResult? {
+    private fun processRealTimeInfo(message: Message, currentState: DecoderState): FrameResult? {
         val result = when (model) {
             Model.V11 -> {
                 if (protoVer < 2) parseRealTimeInfoV11Old(message.data, currentState)
@@ -771,7 +756,7 @@ class InMotionV2Decoder : WheelDecoder {
     /**
      * Shared parser that reads telemetry fields according to a [RealTimeLayout].
      */
-    private fun parseByLayout(layout: RealTimeLayout, data: ByteArray, currentState: WheelState): FrameResult? {
+    private fun parseByLayout(layout: RealTimeLayout, data: ByteArray, currentState: DecoderState): FrameResult? {
         if (data.size < layout.minSize) return null
 
         val voltage = ByteUtils.shortFromBytesLE(data, layout.voltage)
@@ -813,7 +798,7 @@ class InMotionV2Decoder : WheelDecoder {
         val alert = getErrorString(data, layout.error)
 
         return FrameResult(
-            state = currentState.copy(
+            telemetry = currentState.telemetry.copy(
                 voltage = voltage,
                 current = current,
                 speed = speed,
@@ -832,8 +817,10 @@ class InMotionV2Decoder : WheelDecoder {
                 imuTemp = imuTemp,
                 output = pwm,
                 calculatedPwm = pwm / 10000.0,
+                alert = alert
+            ),
+            identity = currentState.identity.copy(
                 modeStr = modeStr,
-                alert = alert,
                 model = model.displayName,
                 wheelType = WheelType.INMOTION_V2
             ),
@@ -849,7 +836,7 @@ class InMotionV2Decoder : WheelDecoder {
      * V11 old protocol (protoVer < 2): unique field order and conditional state offset.
      * Not suitable for layout-driven parsing due to genuinely different structure.
      */
-    private fun parseRealTimeInfoV11Old(data: ByteArray, currentState: WheelState): FrameResult? {
+    private fun parseRealTimeInfoV11Old(data: ByteArray, currentState: DecoderState): FrameResult? {
         if (data.size < 38) return null
 
         val voltage = ByteUtils.shortFromBytesLE(data, 0)
@@ -876,7 +863,7 @@ class InMotionV2Decoder : WheelDecoder {
         val alert = getErrorString(data, stateIndex + 5)
 
         return FrameResult(
-            state = currentState.copy(
+            telemetry = currentState.telemetry.copy(
                 voltage = voltage,
                 current = current,
                 speed = speed,
@@ -895,8 +882,10 @@ class InMotionV2Decoder : WheelDecoder {
                 imuTemp = imuTemp,
                 output = pwm,
                 calculatedPwm = pwm / 10000.0,
+                alert = alert
+            ),
+            identity = currentState.identity.copy(
                 modeStr = modeStr,
-                alert = alert,
                 model = model.displayName,
                 wheelType = WheelType.INMOTION_V2
             ),
@@ -908,7 +897,7 @@ class InMotionV2Decoder : WheelDecoder {
 
     // ==================== Settings Parsing ====================
 
-    private fun parseSettingsV11(data: ByteArray, currentState: WheelState): FrameResult? {
+    private fun parseSettingsV11(data: ByteArray, currentState: DecoderState): FrameResult? {
         // V11 unique layout: offsets relative to data[1]
         val i = 1
         if (data.size < i + 23) return null
@@ -939,8 +928,9 @@ class InMotionV2Decoder : WheelDecoder {
         val lowBat = ((flags22 shr 2) and 0x03) != 0      // bits 2-3 → goHome
         val fanQuietMode = ((flags22 shr 4) and 0x03) != 0 // bits 4-5
 
+        val im2 = currentState.settings as? WheelSettings.InMotionV2 ?: WheelSettings.InMotionV2()
         return FrameResult(
-            state = currentState.copy(
+            settings = im2.copy(
                 maxSpeed = speedLim,
                 pedalTilt = pedalTilt,
                 pedalSensitivity = sensitivity,
@@ -960,7 +950,7 @@ class InMotionV2Decoder : WheelDecoder {
         )
     }
 
-    private fun parseSettingsV12(data: ByteArray, currentState: WheelState): FrameResult? {
+    private fun parseSettingsV12(data: ByteArray, currentState: DecoderState): FrameResult? {
         // V12 uses absolute offsets (not i-relative)
         if (data.size < 42) return null
 
@@ -979,8 +969,9 @@ class InMotionV2Decoder : WheelDecoder {
         val handleBtn = ((flags39 shr 2) and 0x01) == 0  // bit 2, inverted
         val transpMode = ((flags39 shr 6) and 0x01) != 0 // bit 6
 
+        val im2 = currentState.settings as? WheelSettings.InMotionV2 ?: WheelSettings.InMotionV2()
         return FrameResult(
-            state = currentState.copy(
+            settings = im2.copy(
                 maxSpeed = speedLim,
                 pedalTilt = pedalTilt,
                 pedalSensitivity = sensitivity,
@@ -999,7 +990,7 @@ class InMotionV2Decoder : WheelDecoder {
     /**
      * Parse settings for V13/V14 layout (shared).
      */
-    private fun parseSettingsV13V14(data: ByteArray, currentState: WheelState): FrameResult? {
+    private fun parseSettingsV13V14(data: ByteArray, currentState: DecoderState): FrameResult? {
         val i = 1
         if (data.size < i + 35) return null
 
@@ -1019,8 +1010,9 @@ class InMotionV2Decoder : WheelDecoder {
         // data[i+31]
         val transpMode = ((data[i + 31].toInt() shr 4) and 0x01) != 0  // bit 4
 
+        val im2 = currentState.settings as? WheelSettings.InMotionV2 ?: WheelSettings.InMotionV2()
         return FrameResult(
-            state = currentState.copy(
+            settings = im2.copy(
                 maxSpeed = speedLim,
                 pedalTilt = pedalTilt,
                 pedalSensitivity = sensitivity,
@@ -1035,11 +1027,11 @@ class InMotionV2Decoder : WheelDecoder {
         )
     }
 
-    private fun parseSettingsV13(data: ByteArray, currentState: WheelState): FrameResult? {
+    private fun parseSettingsV13(data: ByteArray, currentState: DecoderState): FrameResult? {
         return parseSettingsV13V14(data, currentState)
     }
 
-    private fun parseSettingsV14(data: ByteArray, currentState: WheelState): FrameResult? {
+    private fun parseSettingsV14(data: ByteArray, currentState: DecoderState): FrameResult? {
         return parseSettingsV13V14(data, currentState)
     }
 
@@ -1047,7 +1039,7 @@ class InMotionV2Decoder : WheelDecoder {
      * Parse settings for V11Y/V9/V12S layout (shared).
      * Same as V13/V14 plus handleButton, goHome.
      */
-    private fun parseSettingsExtended(data: ByteArray, currentState: WheelState): FrameResult? {
+    private fun parseSettingsExtended(data: ByteArray, currentState: DecoderState): FrameResult? {
         val i = 1
         if (data.size < i + 35) return null
 
@@ -1071,8 +1063,9 @@ class InMotionV2Decoder : WheelDecoder {
         // data[i+32]
         val goHome = ((data[i + 32].toInt() shr 2) and 0x01) != 0  // bit 2
 
+        val im2 = currentState.settings as? WheelSettings.InMotionV2 ?: WheelSettings.InMotionV2()
         return FrameResult(
-            state = currentState.copy(
+            settings = im2.copy(
                 maxSpeed = speedLim,
                 pedalTilt = pedalTilt,
                 pedalSensitivity = sensitivity,
@@ -1104,7 +1097,7 @@ class InMotionV2Decoder : WheelDecoder {
      * - data[46]: flags A (bit 3 = auto headlight)
      * - data[48]: flags B (bit 5 = DRL)
      */
-    private fun parseSettingsP6(data: ByteArray, currentState: WheelState): FrameResult? {
+    private fun parseSettingsP6(data: ByteArray, currentState: DecoderState): FrameResult? {
         if (data.size < 49) return null
 
         val maxSpd = ByteUtils.shortFromBytesLE(data, 9) / 100
@@ -1117,8 +1110,9 @@ class InMotionV2Decoder : WheelDecoder {
         val autoHeadlight = ((data[46].toInt() shr 3) and 0x01) != 0
         val drlFlag = ((data[48].toInt() shr 5) and 0x01) != 0
 
+        val im2 = currentState.settings as? WheelSettings.InMotionV2 ?: WheelSettings.InMotionV2()
         return FrameResult(
-            state = currentState.copy(
+            settings = im2.copy(
                 maxSpeed = maxSpd,
                 pedalSensitivity = sensitivity,
                 fancierMode = fancier,

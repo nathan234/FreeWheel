@@ -1,6 +1,5 @@
 package org.freewheel.core.protocol
 
-import org.freewheel.core.domain.WheelState
 import org.freewheel.core.domain.WheelType
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -290,7 +289,7 @@ class InMotionDecoderTest {
         // Alert message accesses data[0..7], but set data to only 4 bytes
         msg.data = byteArrayOf(0x05, 0x00, 0x00, 0x00)
         msg.id = InMotionDecoder.IDValue.Alert.value
-        val result = msg.parseAlertInfoMessage(WheelState())
+        val result = msg.parseAlertInfoMessage(DecoderState())
         assertNull(result, "Alert with < 8 data bytes should return null")
     }
 
@@ -299,7 +298,7 @@ class InMotionDecoderTest {
         val msg = InMotionDecoder.CANMessage.standardMessage()
         msg.data = ByteArray(8) // 8 bytes, all zeros
         msg.id = InMotionDecoder.IDValue.Alert.value
-        val result = msg.parseAlertInfoMessage(WheelState())
+        val result = msg.parseAlertInfoMessage(DecoderState())
         assertNotNull(result, "Alert with 8 data bytes should parse")
     }
 
@@ -309,7 +308,7 @@ class InMotionDecoderTest {
         msg.id = InMotionDecoder.IDValue.GetSlowInfo.value
         // Set exData to < 108 bytes — should return null
         msg.exData = ByteArray(50) // Too short
-        val result = msg.parseSlowInfoMessage(WheelState())
+        val result = msg.parseSlowInfoMessage(DecoderState())
         assertNull(result, "SlowInfo with < 108 exData bytes should return null")
     }
 
@@ -318,7 +317,7 @@ class InMotionDecoderTest {
         val msg = InMotionDecoder.CANMessage.standardMessage()
         msg.id = InMotionDecoder.IDValue.GetSlowInfo.value
         msg.exData = ByteArray(108) // Minimum valid size
-        val result = msg.parseSlowInfoMessage(WheelState())
+        val result = msg.parseSlowInfoMessage(DecoderState())
         assertNotNull(result, "SlowInfo with 108 exData bytes should parse")
     }
 

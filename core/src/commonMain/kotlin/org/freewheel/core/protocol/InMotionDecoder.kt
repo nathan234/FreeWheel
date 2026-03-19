@@ -2,7 +2,7 @@ package org.freewheel.core.protocol
 
 import org.freewheel.core.domain.CapabilitySet
 import org.freewheel.core.domain.SettingsCommandId
-import org.freewheel.core.domain.WheelState
+import org.freewheel.core.domain.WheelIdentity
 import org.freewheel.core.domain.WheelType
 import org.freewheel.core.utils.ByteUtils
 import org.freewheel.core.utils.Lock
@@ -49,10 +49,7 @@ class InMotionDecoder : WheelDecoder {
     override fun decode(data: ByteArray, currentState: DecoderState, config: DecoderConfig): DecodeResult {
         return stateLock.withLock {
             val loopResult = decodeFrames(data, unpacker, currentState) { buffer, state ->
-                val ws = state.toWheelState().let {
-                    if (it.wheelType == WheelType.Unknown) it.copy(wheelType = WheelType.INMOTION) else it
-                }
-                processFrame(buffer, ws, config)
+                processFrame(buffer, state, config)
             }
 
             when (loopResult) {
@@ -85,32 +82,26 @@ class InMotionDecoder : WheelDecoder {
 
     private fun processFrame(
         buffer: ByteArray,
-        currentState: WheelState,
+        currentState: DecoderState,
         config: DecoderConfig
     ): FrameResult? {
         val canMessage = CANMessage.verify(buffer) ?: return null
         val idValue = IDValue.fromInt(canMessage.id)
-            ?: return FrameResult(currentState, frameType = "UNKNOWN")
+            ?: return FrameResult(frameType = "UNKNOWN")
 
         val typeName = idValue.name.uppercase()
 
         return when (idValue) {
             IDValue.GetFastInfo -> {
-                val result = canMessage.parseFastInfoMessage(model, currentState, config)
-                if (result != null) {
-                    FrameResult(result.state, hasNewData = true, news = result.news, frameType = typeName)
-                } else {
-                    FrameResult(currentState, frameType = typeName)
-                }
+                canMessage.parseFastInfoMessage(model, currentState, config)
+                    ?.copy(frameType = typeName)
+                    ?: FrameResult(frameType = typeName)
             }
 
             IDValue.Alert -> {
-                val alertResult = canMessage.parseAlertInfoMessage(currentState)
-                if (alertResult != null) {
-                    FrameResult(alertResult.state, news = alertResult.news, frameType = typeName)
-                } else {
-                    FrameResult(currentState, frameType = typeName)
-                }
+                canMessage.parseAlertInfoMessage(currentState)
+                    ?.copy(frameType = typeName)
+                    ?: FrameResult(frameType = typeName)
             }
 
             IDValue.GetSlowInfo -> {
@@ -123,14 +114,14 @@ class InMotionDecoder : WheelDecoder {
                         model = result.detectedModel
                         isReady = true
                     }
-                    FrameResult(result.state, frameType = typeName)
+                    result.toFrameResult(typeName)
                 } else {
-                    FrameResult(currentState, frameType = typeName)
+                    FrameResult(frameType = typeName)
                 }
             }
 
             IDValue.PinCode -> {
-                FrameResult(currentState, frameType = typeName)
+                FrameResult(frameType = typeName)
             }
 
             IDValue.Calibration -> {
@@ -139,7 +130,7 @@ class InMotionDecoder : WheelDecoder {
                 } else {
                     "Calibration failed"
                 }
-                FrameResult(currentState, news = news, frameType = typeName)
+                FrameResult(news = news, frameType = typeName)
             }
 
             IDValue.RideMode -> {
@@ -148,7 +139,7 @@ class InMotionDecoder : WheelDecoder {
                 } else {
                     "Ride mode change failed"
                 }
-                FrameResult(currentState, news = news, frameType = typeName)
+                FrameResult(news = news, frameType = typeName)
             }
 
             IDValue.Light -> {
@@ -157,7 +148,7 @@ class InMotionDecoder : WheelDecoder {
                 } else {
                     "Light toggle failed"
                 }
-                FrameResult(currentState, news = news, frameType = typeName)
+                FrameResult(news = news, frameType = typeName)
             }
 
             IDValue.HandleButton -> {
@@ -166,7 +157,7 @@ class InMotionDecoder : WheelDecoder {
                 } else {
                     "Handle button setting failed"
                 }
-                FrameResult(currentState, news = news, frameType = typeName)
+                FrameResult(news = news, frameType = typeName)
             }
 
             IDValue.SpeakerVolume -> {
@@ -175,11 +166,11 @@ class InMotionDecoder : WheelDecoder {
                 } else {
                     "Speaker volume change failed"
                 }
-                FrameResult(currentState, news = news, frameType = typeName)
+                FrameResult(news = news, frameType = typeName)
             }
 
             IDValue.NoOp, IDValue.RemoteControl, IDValue.PlaySound -> {
-                FrameResult(currentState, frameType = typeName)
+                FrameResult(frameType = typeName)
             }
         }
     }
@@ -459,15 +450,10 @@ class InMotionDecoder : WheelDecoder {
 
         // ==================== Message Parsing ====================
 
-        data class FastInfoResult(
-            val state: WheelState,
-            val news: String? = null
-        )
-
         /**
          * Parse fast info (telemetry) message.
          */
-        fun parseFastInfoMessage(model: Model, currentState: WheelState, config: DecoderConfig): FastInfoResult? {
+        fun parseFastInfoMessage(model: Model, currentState: DecoderState, config: DecoderConfig): FrameResult? {
             val exData = this.exData ?: return null
             if (exData.size < 76) return null  // Need at least 76 bytes (largest offset: 72 + 4)
 
@@ -523,33 +509,31 @@ class InMotionDecoder : WheelDecoder {
                 workMode = getLegacyWorkModeString(workModeInt)
             }
 
-            val newState = currentState.copy(
-                angle = angle,
-                roll = roll,
-                speed = (speed * 360.0).roundToInt(),
-                voltage = voltage,
-                batteryLevel = battery,
-                current = current,
-                totalDistance = totalDistance,
-                wheelDistance = distance,
-                temperature = temperature * 100,
-                imuTemp = temperature2,
-                modeStr = workMode,
-                wheelType = WheelType.INMOTION
+            return FrameResult(
+                telemetry = currentState.telemetry.copy(
+                    angle = angle,
+                    roll = roll,
+                    speed = (speed * 360.0).roundToInt(),
+                    voltage = voltage,
+                    batteryLevel = battery,
+                    current = current,
+                    totalDistance = totalDistance,
+                    wheelDistance = distance,
+                    temperature = temperature * 100,
+                    imuTemp = temperature2
+                ),
+                identity = currentState.identity.copy(
+                    modeStr = workMode,
+                    wheelType = WheelType.INMOTION
+                ),
+                hasNewData = true
             )
-
-            return FastInfoResult(newState)
         }
-
-        data class AlertResult(
-            val state: WheelState,
-            val news: String?
-        )
 
         /**
          * Parse alert info message.
          */
-        fun parseAlertInfoMessage(currentState: WheelState): AlertResult? {
+        fun parseAlertInfoMessage(currentState: DecoderState): FrameResult? {
             if (data.size < 8) return null
             val alertId = data[0].toInt() and 0xFF
             val alertValue = ((data[3].toInt() and 0xFF) shl 8) or (data[2].toInt() and 0xFF)
@@ -570,31 +554,26 @@ class InMotionDecoder : WheelDecoder {
                 else -> "Unknown Alert: ID=$alertId value=$alertValue value2=$alertValue2"
             }
 
-            val newState = currentState.copy(alert = fullText)
-            return AlertResult(newState, fullText)
+            return FrameResult(
+                telemetry = currentState.telemetry.copy(alert = fullText),
+                news = fullText
+            )
         }
 
         data class SlowInfoResult(
-            val state: WheelState,
-            val detectedModel: Model,
-            val settings: SlowInfoSettings? = null
-        )
-
-        data class SlowInfoSettings(
-            val light: Boolean,
-            val led: Boolean,
-            val handleButton: Boolean,
-            val maxSpeed: Int,
-            val speakerVolume: Int,
-            val pedalAdjustment: Int,
-            val rideMode: Boolean,
-            val pedalHardness: Int
-        )
+            val identity: WheelIdentity,
+            val detectedModel: Model
+        ) {
+            fun toFrameResult(frameType: String): FrameResult = FrameResult(
+                identity = identity,
+                frameType = frameType
+            )
+        }
 
         /**
          * Parse slow info (device info) message.
          */
-        fun parseSlowInfoMessage(currentState: WheelState): SlowInfoResult? {
+        fun parseSlowInfoMessage(currentState: DecoderState): SlowInfoResult? {
             val exData = this.exData ?: return null
             if (exData.size < 108) return null
 
@@ -615,52 +594,14 @@ class InMotionDecoder : WheelDecoder {
                 serialNumber.append(ByteUtils.formatHex(exData[7 - j]))
             }
 
-            // Parse settings
-            val light = exData[80] == 1.toByte()
-            var led = false
-            var handleButton = false
-            var rideMode = false
-            var pedalHardness = 100
-            var speakerVolume = 0
-
-            val maxSpeed = (((exData[61].toInt() and 0xFF) shl 8) or (exData[60].toInt() and 0xFF)) / 1000
-            val pedalAdjustment = (ByteUtils.intFromBytesLE(exData, 56) / 6553.6).roundToInt()
-
-            if (exData.size > 126) {
-                speakerVolume = (((exData[126].toInt() and 0xFF) shl 8) or (exData[125].toInt() and 0xFF)) / 100
-            }
-            if (exData.size > 130) {
-                led = exData[130] == 1.toByte()
-            }
-            if (exData.size > 129) {
-                handleButton = exData[129] != 1.toByte()
-            }
-            if (exData.size > 132) {
-                rideMode = exData[132] == 1.toByte()
-            }
-            if (exData.size > 124) {
-                pedalHardness = (exData[124].toInt() - 28) and 0xFF
-            }
-
-            val newState = currentState.copy(
+            val identity = currentState.identity.copy(
                 serialNumber = serialNumber.toString(),
                 model = getModelString(detectedModel),
                 version = version,
                 wheelType = WheelType.INMOTION
             )
 
-            val settings = SlowInfoSettings(
-                light = light,
-                led = led,
-                handleButton = handleButton,
-                maxSpeed = maxSpeed,
-                speakerVolume = speakerVolume,
-                pedalAdjustment = pedalAdjustment,
-                rideMode = rideMode,
-                pedalHardness = pedalHardness
-            )
-
-            return SlowInfoResult(newState, detectedModel, settings)
+            return SlowInfoResult(identity, detectedModel)
         }
 
         companion object {

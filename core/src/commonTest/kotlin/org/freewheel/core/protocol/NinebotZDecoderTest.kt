@@ -1,6 +1,5 @@
 package org.freewheel.core.protocol
 
-import org.freewheel.core.domain.WheelState
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
