@@ -113,6 +113,26 @@ class WheelConnectionManagerLifecycleTest {
     }
 
     @Test
+    fun `connect failure with keepalive decoder stops timers and resets decoder`() = runTest(timeout = 0.1.seconds) {
+        fakeBle.connectResult = false
+        val keepAliveDecoder = FakeDecoder(keepAliveIntervalMs = 100L)
+        val manager = createManager(
+            decoder = keepAliveDecoder,
+            factory = FakeDecoderFactory(keepAliveDecoder)
+        )
+
+        // Connect with wheel type hint so decoder is created before BLE connects
+        manager.connect("AA:BB:CC:DD:EE:FF", WheelType.KINGSONG)
+        runCurrent()
+
+        val state = manager.connectionState.value
+        assertTrue(state is ConnectionState.Failed, "Expected Failed, got $state")
+        assertFalse(manager.isKeepAliveRunning.value, "Keep-alive timer should be stopped")
+        assertTrue(keepAliveDecoder.resetCalled, "Decoder should be reset")
+        assertNull(manager.getCurrentDecoder(), "Decoder should be cleared from state")
+    }
+
+    @Test
     fun `connect exception transitions to Failed`() = runTest(timeout = 0.1.seconds) {
         // Use a BleManagerPort that throws
         val throwingBle = object : BleManagerPort {

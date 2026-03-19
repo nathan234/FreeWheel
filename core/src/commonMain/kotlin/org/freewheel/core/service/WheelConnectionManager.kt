@@ -529,13 +529,10 @@ class WheelConnectionManager(
                 effects = listOf(WcmEffect.StartDataTimeout(event.address, timeoutMs))
             )
         } else {
-            return WcmTransition(
-                state = state.copy(
-                    connectionState = ConnectionState.Failed(
-                        error = event.error ?: "Connection failed",
-                        address = event.address
-                    )
-                )
+            return transitionToFailed(
+                state,
+                error = event.error ?: "Connection failed",
+                address = event.address
             )
         }
     }
@@ -577,13 +574,10 @@ class WheelConnectionManager(
             }
             is WheelTypeDetector.DetectionResult.Unknown -> {
                 Logger.w(TAG, "Unknown wheel: ${result.reason}")
-                WcmTransition(
-                    newState.copy(
-                        connectionState = ConnectionState.Failed(
-                            error = "Unknown wheel type: ${result.reason}",
-                            address = getCurrentAddress(newState)
-                        )
-                    )
+                transitionToFailed(
+                    newState,
+                    error = "Unknown wheel type: ${result.reason}",
+                    address = getCurrentAddress(newState)
                 )
             }
         }
@@ -770,6 +764,27 @@ class WheelConnectionManager(
         writeServiceUuid = writeServiceUuid,
         writeCharUuid = writeCharacteristicUuid
     )
+
+    /**
+     * Transition to Failed state with full cleanup.
+     * Stops timers, cancels commands, and resets the decoder so that
+     * Failed state is always clean — no leaked resources.
+     */
+    private fun transitionToFailed(state: WcmState, error: String, address: String?): WcmTransition {
+        val effects = buildList {
+            add(WcmEffect.StopTimers)
+            add(WcmEffect.CancelCommands)
+            state.decoder?.let { add(WcmEffect.ResetDecoder(it)) }
+            add(WcmEffect.BleDisconnect)
+        }
+        return WcmTransition(
+            state = WcmState(
+                decoderConfig = state.decoderConfig,
+                connectionState = ConnectionState.Failed(error = error, address = address)
+            ),
+            effects = effects
+        )
+    }
 
     private fun getCurrentAddress(state: WcmState): String? {
         return when (val cs = state.connectionState) {
