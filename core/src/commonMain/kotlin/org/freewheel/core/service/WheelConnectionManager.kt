@@ -12,6 +12,7 @@ import org.freewheel.core.domain.WheelType
 import org.freewheel.core.protocol.DecodeResult
 import org.freewheel.core.protocol.DecoderConfig
 import org.freewheel.core.protocol.WheelCommand
+import org.freewheel.core.protocol.WheelDecoder
 import org.freewheel.core.protocol.WheelDecoderFactory
 import org.freewheel.core.domain.SettingsCommandId
 import org.freewheel.core.logging.BlePacketDirection
@@ -723,7 +724,9 @@ class WheelConnectionManager(
     }
 
     private fun reduceSendCommand(state: WcmState, event: WheelEvent.SendCommand): WcmTransition {
-        return WcmTransition(state, listOf(WcmEffect.DispatchCommands(listOf(event.command))))
+        return WcmTransition(state, listOf(
+            WcmEffect.DispatchCommands(listOf(event.command), decoder = state.decoder)
+        ))
     }
 
     private fun reduceConfigUpdated(state: WcmState, event: WheelEvent.ConfigUpdated): WcmTransition {
@@ -808,9 +811,10 @@ class WheelConnectionManager(
                     bleManager.disconnect()
                 }
                 is WcmEffect.DispatchCommands -> {
+                    val decoder = effect.decoder
                     commandScheduler.scheduleSequence {
                         effect.commands.forEach { cmd ->
-                            dispatchCommand(cmd)
+                            dispatchCommand(cmd, decoder)
                         }
                     }
                 }
@@ -882,16 +886,19 @@ class WheelConnectionManager(
     /**
      * Dispatch a command to the BLE layer.
      *
-     * Note: `_wcmState.value.decoder` is read here in the effect layer, not inside
-     * the reducer. This is intentional — buildCommand() is a side-effect (it may
-     * mutate decoder internal state) and must not be called from the pure reducer.
+     * The [decoder] is captured by the reducer at effect creation time, so
+     * buildCommand() uses the decoder that was active when the command was
+     * dispatched — not whatever decoder happens to be in state at execution time.
+     *
+     * buildCommand() is called here in the effect layer (not the reducer)
+     * because it may mutate decoder internal state.
      */
-    private suspend fun dispatchCommand(command: WheelCommand) {
+    private suspend fun dispatchCommand(command: WheelCommand, decoder: WheelDecoder?) {
         when (command) {
             is WheelCommand.SendBytes -> sendBleData(command.data)
             is WheelCommand.SendDelayed -> sendBleData(command.data, command.delayMs)
             else -> {
-                val rawCommands = _wcmState.value.decoder?.buildCommand(command) ?: return
+                val rawCommands = decoder?.buildCommand(command) ?: return
                 for (cmd in rawCommands) {
                     when (cmd) {
                         is WheelCommand.SendBytes -> sendBleData(cmd.data)
