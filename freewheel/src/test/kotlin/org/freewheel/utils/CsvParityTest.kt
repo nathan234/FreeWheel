@@ -1,6 +1,6 @@
 package org.freewheel.utils
 
-import org.freewheel.core.domain.WheelState
+import org.freewheel.core.domain.TelemetryState
 import org.freewheel.core.logging.CsvFormatter
 import org.freewheel.core.logging.GpsLocation
 import com.google.common.truth.Truth.assertThat
@@ -13,7 +13,7 @@ import java.util.Locale
  * then generates a KMP CSV row from an equivalent WheelState, and asserts they match.
  *
  * No WheelData instance is needed — we use known values in both the legacy format string
- * and the KMP WheelState, which proves the format is identical.
+ * and the KMP TelemetryState, which proves the format is identical.
  */
 class CsvParityTest {
 
@@ -75,15 +75,15 @@ class CsvParityTest {
             mode = "0", alert = ""
         )
 
-        val state = WheelState(
+        val tel = TelemetryState(
             speed = 515, voltage = 6505, phaseCurrent = 215, current = 300,
             power = 19500, torque = 1.23, calculatedPwm = 0.125,
             batteryLevel = 62, totalDistance = 56789,
             temperature = 3500, temperature2 = 2800,
-            angle = 1.50, roll = -0.30, modeStr = "0", alert = ""
+            angle = 1.50, roll = -0.30, alert = ""
         )
 
-        val kmp = CsvFormatter.row(dt, state.toTelemetryState(), state.modeStr, tripDistance = 1234)
+        val kmp = CsvFormatter.row(dt, tel, "0", tripDistance = 1234)
         assertThat(kmp).isEqualTo(legacy)
     }
 
@@ -100,8 +100,8 @@ class CsvParityTest {
             mode = "", alert = ""
         )
 
-        val state = WheelState()
-        val kmp = CsvFormatter.row(dt, state.toTelemetryState(), state.modeStr, tripDistance = 0)
+        val tel = TelemetryState()
+        val kmp = CsvFormatter.row(dt, tel, "", tripDistance = 0)
         assertThat(kmp).isEqualTo(legacy)
     }
 
@@ -118,15 +118,15 @@ class CsvParityTest {
             mode = "Comfort", alert = "Speed Warning"
         )
 
-        val state = WheelState(
+        val tel = TelemetryState(
             speed = 5000, voltage = 10080, phaseCurrent = 5500, current = 4200,
             power = 423360, torque = 15.67, calculatedPwm = 0.95,
             batteryLevel = 100, totalDistance = 999999,
             temperature = 5500, temperature2 = 4200,
-            angle = 5.75, roll = 3.20, modeStr = "Comfort", alert = "Speed Warning"
+            angle = 5.75, roll = 3.20, alert = "Speed Warning"
         )
 
-        val kmp = CsvFormatter.row(dt, state.toTelemetryState(), state.modeStr, tripDistance = 99999)
+        val kmp = CsvFormatter.row(dt, tel, "Comfort", tripDistance = 99999)
         assertThat(kmp).isEqualTo(legacy)
     }
 
@@ -143,15 +143,15 @@ class CsvParityTest {
             mode = "1", alert = ""
         )
 
-        val state = WheelState(
+        val tel = TelemetryState(
             speed = 1200, voltage = 8400, phaseCurrent = -1500, current = -1200,
             power = -10080, torque = -2.50, calculatedPwm = 0.30,
             batteryLevel = 78, totalDistance = 12345,
             temperature = 3200, temperature2 = 2900,
-            angle = -1.20, roll = 0.80, modeStr = "1", alert = ""
+            angle = -1.20, roll = 0.80, alert = ""
         )
 
-        val kmp = CsvFormatter.row(dt, state.toTelemetryState(), state.modeStr, tripDistance = 2345)
+        val kmp = CsvFormatter.row(dt, tel, "1", tripDistance = 2345)
         assertThat(kmp).isEqualTo(legacy)
     }
 
@@ -168,15 +168,15 @@ class CsvParityTest {
             mode = "2", alert = ""
         )
 
-        val state = WheelState(
+        val tel = TelemetryState(
             speed = 2500, voltage = 6700, phaseCurrent = 800, current = 600,
             power = 40200, torque = 0.0, calculatedPwm = 0.05,
             batteryLevel = 45, totalDistance = 1234567890,
             temperature = 3000, temperature2 = 2500,
-            angle = 0.0, roll = 0.0, modeStr = "2", alert = ""
+            angle = 0.0, roll = 0.0, alert = ""
         )
 
-        val kmp = CsvFormatter.row(dt, state.toTelemetryState(), state.modeStr, tripDistance = 67890)
+        val kmp = CsvFormatter.row(dt, tel, "2", tripDistance = 67890)
         assertThat(kmp).isEqualTo(legacy)
     }
 
@@ -207,12 +207,12 @@ class CsvParityTest {
             mode = "0", alert = ""
         )
 
-        val state = WheelState(
+        val tel = TelemetryState(
             speed = 3000, voltage = 7200, phaseCurrent = 1000, current = 800,
             power = 57600, torque = 0.50, calculatedPwm = 0.20,
             batteryLevel = 55, totalDistance = 50000,
             temperature = 3800, temperature2 = 3100,
-            angle = 2.10, roll = -0.50, modeStr = "0", alert = ""
+            angle = 2.10, roll = -0.50, alert = ""
         )
 
         val gps = GpsLocation(
@@ -224,7 +224,7 @@ class CsvParityTest {
             cumulativeDistance = 1234.0
         )
 
-        val kmp = CsvFormatter.row(dt, state.toTelemetryState(), state.modeStr, tripDistance = 2000, gps = gps)
+        val kmp = CsvFormatter.row(dt, tel, "0", tripDistance = 2000, gps = gps)
         assertThat(kmp).isEqualTo(legacy)
     }
 
@@ -241,15 +241,15 @@ class CsvParityTest {
             mode = "Hard", alert = "Speed1 | Temp"
         )
 
-        val state = WheelState(
+        val tel = TelemetryState(
             speed = 4500, voltage = 6000, phaseCurrent = 3000, current = 2500,
             power = 150000, torque = 0.0, calculatedPwm = 0.80,
             batteryLevel = 15, totalDistance = 100000,
             temperature = 6000, temperature2 = 5000,
-            angle = 0.0, roll = 0.0, modeStr = "Hard", alert = "Speed1 | Temp"
+            angle = 0.0, roll = 0.0, alert = "Speed1 | Temp"
         )
 
-        val kmp = CsvFormatter.row(dt, state.toTelemetryState(), state.modeStr, tripDistance = 5000)
+        val kmp = CsvFormatter.row(dt, tel, "Hard", tripDistance = 5000)
         assertThat(kmp).isEqualTo(legacy)
     }
 
@@ -266,15 +266,15 @@ class CsvParityTest {
             mode = "Soft", alert = ""
         )
 
-        val state = WheelState(
+        val tel = TelemetryState(
             speed = 1234, voltage = 6789, phaseCurrent = 999, current = 1001,
             power = 67823, torque = 3.456, calculatedPwm = 0.7777,
             batteryLevel = 50, totalDistance = 77777,
             temperature = 3300, temperature2 = 2200,
-            angle = 12.34, roll = -56.78, modeStr = "Soft", alert = ""
+            angle = 12.34, roll = -56.78, alert = ""
         )
 
-        val kmp = CsvFormatter.row(dt, state.toTelemetryState(), state.modeStr, tripDistance = 7777)
+        val kmp = CsvFormatter.row(dt, tel, "Soft", tripDistance = 7777)
         assertThat(kmp).isEqualTo(legacy)
     }
 
@@ -292,8 +292,8 @@ class CsvParityTest {
             mode = "", alert = ""
         )
 
-        val state = WheelState(torque = 3.456)
-        val kmp = CsvFormatter.row(dt, state.toTelemetryState(), state.modeStr, tripDistance = 0)
+        val tel = TelemetryState(torque = 3.456)
+        val kmp = CsvFormatter.row(dt, tel, "", tripDistance = 0)
         assertThat(kmp).isEqualTo(legacy)
     }
 }

@@ -6,8 +6,11 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import org.freewheel.compose.components.DashboardContent
+import org.freewheel.core.domain.BmsState
 import org.freewheel.core.domain.SpeedDisplayMode
-import org.freewheel.core.domain.WheelState
+import org.freewheel.core.domain.TelemetryState
+import org.freewheel.core.domain.WheelIdentity
+import org.freewheel.core.domain.WheelSettings
 import org.freewheel.core.domain.WheelType
 import org.freewheel.core.domain.dashboard.DashboardLayout
 import org.freewheel.core.domain.dashboard.DashboardMetric
@@ -34,16 +37,18 @@ class DashboardContentTest {
 
     private fun setContent(
         layout: DashboardLayout = DashboardLayout.default(),
-        wheelState: WheelState = previewWheelState()
+        telemetry: TelemetryState = previewTelemetry(),
+        identity: WheelIdentity = previewIdentity(),
+        settings: WheelSettings = previewSettings()
     ) {
         composeTestRule.setContent {
             MaterialTheme {
                 DashboardContent(
                     layout = layout,
-                    telemetry = wheelState.toTelemetryState(),
-                    identity = wheelState.toIdentity(),
-                    bms = wheelState.toBmsState(),
-                    settings = wheelState.toWheelSettings(),
+                    telemetry = telemetry,
+                    identity = identity,
+                    bms = BmsState(),
+                    settings = settings,
                     connectionState = ConnectionState.Connected("00:00:00:00:00:00", "Test"),
                     activeAlarms = emptySet(),
                     isDemo = false,
@@ -90,8 +95,7 @@ class DashboardContentTest {
     @Test
     fun `racing preset hides wheel info card`() {
         val racing = DashboardPresets.all().first { it.id == "racing" }.layout
-        val state = previewWheelState().copy(name = "TestWheel", model = "TestModel")
-        setContent(layout = racing, wheelState = state)
+        setContent(layout = racing, identity = previewIdentity().copy(name = "TestWheel", model = "TestModel"))
         composeTestRule.onNodeWithText("TestModel", useUnmergedTree = true)
             .assertDoesNotExist()
     }
@@ -99,8 +103,7 @@ class DashboardContentTest {
     @Test
     fun `IM2 metrics hidden for Kingsong`() {
         val diagnostic = DashboardPresets.all().first { it.id == "diagnostic" }.layout
-        val ksState = previewWheelState(WheelType.KINGSONG)
-        setContent(layout = diagnostic, wheelState = ksState)
+        setContent(layout = diagnostic, identity = previewIdentity(WheelType.KINGSONG))
         composeTestRule.onNodeWithText(DashboardMetric.TORQUE.label, substring = true, useUnmergedTree = true)
             .assertDoesNotExist()
     }
@@ -128,33 +131,20 @@ class DashboardContentTest {
     }
 
     companion object {
-        private fun previewWheelState(wheelType: WheelType = WheelType.Unknown) = WheelState(
-            speed = 2200,
-            voltage = 8400,
-            current = 1500,
-            phaseCurrent = 2500,
-            power = 126000,
-            temperature = 3500,
-            temperature2 = 4000,
-            batteryLevel = 72,
-            totalDistance = 1523500,
-            wheelDistance = 12340,
-            calculatedPwm = 0.44,
-            angle = 2.5,
-            roll = 1.2,
-            torque = 18.5,
-            motorPower = 850.0,
-            cpuTemp = 42,
-            imuTemp = 38,
-            cpuLoad = 65,
-            wheelType = wheelType,
-            name = "Preview",
-            model = "Demo Wheel",
-            version = "1.2.3",
-            pedalsMode = 1,
-            lightMode = 1,
-            ledMode = 3,
-            tiltBackSpeed = 45
+        private fun previewTelemetry() = TelemetryState(
+            speed = 2200, voltage = 8400, current = 1500, phaseCurrent = 2500,
+            power = 126000, temperature = 3500, temperature2 = 4000,
+            batteryLevel = 72, totalDistance = 1523500, wheelDistance = 12340,
+            calculatedPwm = 0.44, angle = 2.5, roll = 1.2,
+            torque = 18.5, motorPower = 850.0, cpuTemp = 42, imuTemp = 38, cpuLoad = 65
+        )
+
+        private fun previewIdentity(wheelType: WheelType = WheelType.Unknown) = WheelIdentity(
+            wheelType = wheelType, name = "Preview", model = "Demo Wheel", version = "1.2.3"
+        )
+
+        private fun previewSettings() = WheelSettings.Kingsong(
+            pedalsMode = 1, lightMode = 1, ledMode = 3, ksTiltbackSpeed = 45
         )
     }
 }

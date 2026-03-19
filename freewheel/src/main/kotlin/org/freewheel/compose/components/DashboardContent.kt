@@ -46,7 +46,6 @@ import org.freewheel.core.domain.SpeedDisplayMode
 import org.freewheel.core.domain.TelemetryState
 import org.freewheel.core.domain.WheelIdentity
 import org.freewheel.core.domain.WheelSettings
-import org.freewheel.core.domain.WheelState
 import org.freewheel.core.domain.WheelType
 import org.freewheel.core.domain.alertSpeed
 import org.freewheel.core.domain.autoOffTime
@@ -451,7 +450,7 @@ private fun ModeBadge(text: String, color: Color) {
 
 // MARK: - Preview Helpers
 
-private fun previewWheelState(wheelType: WheelType = WheelType.Unknown) = WheelState(
+private fun previewTelemetry() = TelemetryState(
     speed = 2200,          // 22 km/h
     voltage = 8400,        // 84V
     current = 1500,        // 15A
@@ -471,15 +470,21 @@ private fun previewWheelState(wheelType: WheelType = WheelType.Unknown) = WheelS
     imuTemp = 38,
     cpuLoad = 65,
     speedLimit = 45.0,
-    currentLimit = 80.0,
+    currentLimit = 80.0
+)
+
+private fun previewIdentity(wheelType: WheelType = WheelType.Unknown) = WheelIdentity(
     wheelType = wheelType,
     name = "Preview",
     model = "Demo Wheel",
-    version = "1.2.3",
+    version = "1.2.3"
+)
+
+private fun previewSettings() = WheelSettings.Kingsong(
     pedalsMode = 1,
     lightMode = 1,
     ledMode = 3,
-    tiltBackSpeed = 45
+    ksTiltbackSpeed = 45
 )
 
 private val noOp: () -> Unit = {}
@@ -488,14 +493,13 @@ private val noOpMode: (SpeedDisplayMode) -> Unit = {}
 
 @Composable
 private fun PreviewDashboard(layout: DashboardLayout, wheelType: WheelType = WheelType.Unknown) {
-    val ws = previewWheelState(wheelType)
     MaterialTheme {
         DashboardContent(
             layout = layout,
-            telemetry = ws.toTelemetryState(),
-            identity = ws.toIdentity(),
-            bms = ws.toBmsState(),
-            settings = ws.toWheelSettings(),
+            telemetry = previewTelemetry(),
+            identity = previewIdentity(wheelType),
+            bms = BmsState(),
+            settings = previewSettings(),
             connectionState = ConnectionState.Connected("00:00:00:00:00:00", "Preview"),
             activeAlarms = emptySet(),
             isDemo = false,
