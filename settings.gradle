@@ -1,4 +1,0 @@
-include ':wearos'
-include ':freewheel'
-include ':shared'
-include ':core'
