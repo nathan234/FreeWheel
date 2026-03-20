@@ -5,8 +5,6 @@ import org.freewheel.core.domain.SettingsCommandId
 import org.freewheel.core.domain.WheelIdentity
 import org.freewheel.core.domain.WheelType
 import org.freewheel.core.utils.ByteUtils
-import org.freewheel.core.utils.Lock
-import org.freewheel.core.utils.withLock
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -34,49 +32,48 @@ import kotlin.math.roundToInt
  * - Byte 15:    Type
  * - Bytes 16+:  Extended data (when format=1)
  *
- * This class is thread-safe.
+ * Thread-safe: All methods except [buildCommand] are called from the WCM
+ * event loop (single-threaded). [buildCommand] does not read any mutable
+ * internal state, so no lock is needed.
  */
 class InMotionDecoder : WheelDecoder {
 
     override val wheelType: WheelType = WheelType.INMOTION
 
-    private val stateLock = Lock()
     private val unpacker = InMotionUnpacker()
     private var model = Model.UNKNOWN
     private var isReady = false
     private var needSlowData = true
 
     override fun decode(data: ByteArray, currentState: DecoderState, config: DecoderConfig): DecodeResult {
-        return stateLock.withLock {
-            val loopResult = decodeFrames(data, unpacker, currentState) { buffer, state ->
-                processFrame(buffer, state, config)
-            }
+        val loopResult = decodeFrames(data, unpacker, currentState) { buffer, state ->
+            processFrame(buffer, state, config)
+        }
 
-            when (loopResult) {
-                is DecodeResult.Success -> {
-                    // Ensure wheelType is INMOTION
-                    val resolvedIdentity = when {
-                        loopResult.data.identity != null && loopResult.data.identity.wheelType == WheelType.Unknown ->
-                            loopResult.data.identity.copy(wheelType = WheelType.INMOTION)
-                        loopResult.data.identity != null -> loopResult.data.identity
-                        currentState.identity.wheelType == WheelType.Unknown ->
-                            currentState.identity.copy(wheelType = WheelType.INMOTION)
-                        else -> null
-                    }
-                    DecodeResult.Success(DecodedData(
-                        telemetry = loopResult.data.telemetry,
-                        identity = resolvedIdentity?.takeIf { it != currentState.identity },
-                        bms = loopResult.data.bms,
-                        settings = loopResult.data.settings?.takeIf { it != currentState.settings },
-                        commands = loopResult.data.commands,
-                        hasNewData = loopResult.data.hasNewData,
-                        news = loopResult.data.news,
-                        frameTypes = loopResult.data.frameTypes
-                    ))
+        return when (loopResult) {
+            is DecodeResult.Success -> {
+                // Ensure wheelType is INMOTION
+                val resolvedIdentity = when {
+                    loopResult.data.identity != null && loopResult.data.identity.wheelType == WheelType.Unknown ->
+                        loopResult.data.identity.copy(wheelType = WheelType.INMOTION)
+                    loopResult.data.identity != null -> loopResult.data.identity
+                    currentState.identity.wheelType == WheelType.Unknown ->
+                        currentState.identity.copy(wheelType = WheelType.INMOTION)
+                    else -> null
                 }
-                is DecodeResult.Buffering -> loopResult
-                is DecodeResult.Unhandled -> loopResult
+                DecodeResult.Success(DecodedData(
+                    telemetry = loopResult.data.telemetry,
+                    identity = resolvedIdentity?.takeIf { it != currentState.identity },
+                    bms = loopResult.data.bms,
+                    settings = loopResult.data.settings?.takeIf { it != currentState.settings },
+                    commands = loopResult.data.commands,
+                    hasNewData = loopResult.data.hasNewData,
+                    news = loopResult.data.news,
+                    frameTypes = loopResult.data.frameTypes
+                ))
             }
+            is DecodeResult.Buffering -> loopResult
+            is DecodeResult.Unhandled -> loopResult
         }
     }
 
@@ -175,26 +172,24 @@ class InMotionDecoder : WheelDecoder {
         }
     }
 
-    override fun isReady(): Boolean = stateLock.withLock { isReady && model != Model.UNKNOWN }
+    override fun isReady(): Boolean = isReady && model != Model.UNKNOWN
 
-    override fun getCapabilities(): CapabilitySet = stateLock.withLock {
-        if (model == Model.UNKNOWN) return@withLock CapabilitySet()
-        CapabilitySet(
+    override fun getCapabilities(): CapabilitySet {
+        if (model == Model.UNKNOWN) return CapabilitySet()
+        return CapabilitySet(
             supportedCommands = SUPPORTED_COMMANDS,
             detectedModel = model.name,
             isResolved = true
         )
     }
 
-    override fun getUnpackerStats(): UnpackerStats = stateLock.withLock { unpacker.stats }
+    override fun getUnpackerStats(): UnpackerStats = unpacker.stats
 
     override fun reset() {
-        stateLock.withLock {
-            unpacker.reset()
-            model = Model.UNKNOWN
-            isReady = false
-            needSlowData = true
-        }
+        unpacker.reset()
+        model = Model.UNKNOWN
+        isReady = false
+        needSlowData = true
     }
 
     override fun buildCommand(command: WheelCommand, state: DecoderState?): List<WheelCommand> {

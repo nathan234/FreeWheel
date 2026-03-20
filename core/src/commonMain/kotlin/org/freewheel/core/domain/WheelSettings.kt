@@ -76,7 +76,9 @@ sealed class WheelSettings {
         val accelerationLimit: Int = -1,
         val chargeVoltageBase: Int = 145,
         val wheelDisplayUnit: Int = -1,
-        val batteryTempMode: Int = 0
+        val batteryTempMode: Int = 0,
+        /** Firmware major version (e.g. 3, 4, 43). Used by buildCommand for capability checks. */
+        val mVer: Int = 0
     ) : WheelSettings()
 
     data class LeaperkimCan(

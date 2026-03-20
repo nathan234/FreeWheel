@@ -2,15 +2,15 @@ package org.freewheel.core.protocol
 
 import org.freewheel.core.domain.WheelType
 import org.freewheel.core.utils.ByteUtils
-import org.freewheel.core.utils.Lock
-import org.freewheel.core.utils.withLock
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /**
  * Ninebot protocol decoder.
  *
- * This class is thread-safe.
+ * Thread-safe: All methods except [buildCommand] are called from the WCM
+ * event loop (single-threaded). No buildCommand override exists, so no lock
+ * is needed.
  *
  * Supports multiple protocol versions:
  * - Default: Standard Ninebot protocol
@@ -40,7 +40,6 @@ class NinebotDecoder(
 ) : WheelDecoder {
 
     override val wheelType: WheelType = WheelType.NINEBOT
-    private val stateLock = Lock()
 
     private val unpacker = NinebotUnpacker()
 
@@ -166,37 +165,35 @@ class NinebotDecoder(
     }
 
     override fun decode(data: ByteArray, currentState: DecoderState, config: DecoderConfig): DecodeResult {
-        return stateLock.withLock {
-            val loopResult = decodeFrames(data, unpacker, currentState) { buffer, state ->
-                val msg = verifyAndParse(buffer) ?: return@decodeFrames null
-                processMessage(msg, state)
-            }
+        val loopResult = decodeFrames(data, unpacker, currentState) { buffer, state ->
+            val msg = verifyAndParse(buffer) ?: return@decodeFrames null
+            processMessage(msg, state)
+        }
 
-            when (loopResult) {
-                is DecodeResult.Success -> {
-                    // Ensure wheelType is NINEBOT
-                    val resolvedIdentity = when {
-                        loopResult.data.identity != null && loopResult.data.identity.wheelType == WheelType.Unknown ->
-                            loopResult.data.identity.copy(wheelType = WheelType.NINEBOT)
-                        loopResult.data.identity != null -> loopResult.data.identity
-                        currentState.identity.wheelType == WheelType.Unknown ->
-                            currentState.identity.copy(wheelType = WheelType.NINEBOT)
-                        else -> null
-                    }
-                    DecodeResult.Success(DecodedData(
-                        telemetry = loopResult.data.telemetry,
-                        identity = resolvedIdentity?.takeIf { it != currentState.identity },
-                        bms = loopResult.data.bms,
-                        settings = loopResult.data.settings?.takeIf { it != currentState.settings },
-                        commands = loopResult.data.commands,
-                        hasNewData = loopResult.data.hasNewData,
-                        news = loopResult.data.news,
-                        frameTypes = loopResult.data.frameTypes
-                    ))
+        return when (loopResult) {
+            is DecodeResult.Success -> {
+                // Ensure wheelType is NINEBOT
+                val resolvedIdentity = when {
+                    loopResult.data.identity != null && loopResult.data.identity.wheelType == WheelType.Unknown ->
+                        loopResult.data.identity.copy(wheelType = WheelType.NINEBOT)
+                    loopResult.data.identity != null -> loopResult.data.identity
+                    currentState.identity.wheelType == WheelType.Unknown ->
+                        currentState.identity.copy(wheelType = WheelType.NINEBOT)
+                    else -> null
                 }
-                is DecodeResult.Buffering -> loopResult
-                is DecodeResult.Unhandled -> loopResult
+                DecodeResult.Success(DecodedData(
+                    telemetry = loopResult.data.telemetry,
+                    identity = resolvedIdentity?.takeIf { it != currentState.identity },
+                    bms = loopResult.data.bms,
+                    settings = loopResult.data.settings?.takeIf { it != currentState.settings },
+                    commands = loopResult.data.commands,
+                    hasNewData = loopResult.data.hasNewData,
+                    news = loopResult.data.news,
+                    frameTypes = loopResult.data.frameTypes
+                ))
             }
+            is DecodeResult.Buffering -> loopResult
+            is DecodeResult.Unhandled -> loopResult
         }
     }
 
@@ -523,31 +520,24 @@ class NinebotDecoder(
     }
 
 
-    override fun isReady(): Boolean {
-        return stateLock.withLock {
-            serialNumber.isNotEmpty() &&
-                    version.isNotEmpty() &&
-                    voltage != 0
-        }
-    }
+    override fun isReady(): Boolean =
+        serialNumber.isNotEmpty() && version.isNotEmpty() && voltage != 0
 
-    override fun getUnpackerStats(): UnpackerStats = stateLock.withLock { unpacker.stats }
+    override fun getUnpackerStats(): UnpackerStats = unpacker.stats
 
     override fun reset() {
-        stateLock.withLock {
-            unpacker.reset()
-            connectionState = ConnectionState.WAITING_SERIAL
-            gamma = ByteArray(16) { 0 }
-            serialNumber = ""
-            version = ""
-            batt = 0
-            speed = 0
-            distance = 0
-            temperature = 0
-            voltage = 0
-            current = 0
-            power = 0
-        }
+        unpacker.reset()
+        connectionState = ConnectionState.WAITING_SERIAL
+        gamma = ByteArray(16) { 0 }
+        serialNumber = ""
+        version = ""
+        batt = 0
+        speed = 0
+        distance = 0
+        temperature = 0
+        voltage = 0
+        current = 0
+        power = 0
     }
 
     override val keepAliveIntervalMs: Long = 125L // 25ms * 5 steps

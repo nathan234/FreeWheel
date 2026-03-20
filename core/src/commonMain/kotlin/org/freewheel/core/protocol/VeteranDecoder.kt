@@ -11,9 +11,7 @@ import org.freewheel.core.domain.WheelSettings
 import org.freewheel.core.domain.WheelType
 import org.freewheel.core.domain.resolveAt
 import org.freewheel.core.utils.ByteUtils
-import org.freewheel.core.utils.Lock
 import org.freewheel.core.utils.currentTimeMillis
-import org.freewheel.core.utils.withLock
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlinx.datetime.Clock
@@ -209,12 +207,13 @@ internal class VeteranUnpacker : Unpacker {
  *
  * State machine: none — always ready after first frame with valid mVer.
  *
- * This class is thread-safe.
+ * Thread-safe: All methods except [buildCommand] are called from the WCM
+ * event loop (single-threaded). [buildCommand] reads mVer from the immutable
+ * [DecoderState] snapshot, so no lock is needed.
  */
 class VeteranDecoder : WheelDecoder {
 
     override val wheelType: WheelType = WheelType.VETERAN
-    private val stateLock = Lock()
 
     private data class SubTypeData(
         val roll: Double? = null,
@@ -247,48 +246,46 @@ class VeteranDecoder : WheelDecoder {
     private var bms2 = SmartBms()
 
     override fun decode(data: ByteArray, currentState: DecoderState, config: DecoderConfig): DecodeResult {
-        return stateLock.withLock {
-            val currentTime = currentTimeMillis()
+        val currentTime = currentTimeMillis()
 
-            // Reset unpacker if too much time has passed (packet loss)
-            if (currentTime - lastPacketTime > WAITING_TIME) {
-                unpacker.reset()
-            }
-            lastPacketTime = currentTime
+        // Reset unpacker if too much time has passed (packet loss)
+        if (currentTime - lastPacketTime > WAITING_TIME) {
+            unpacker.reset()
+        }
+        lastPacketTime = currentTime
 
-            val loopResult = decodeFrames(data, unpacker, currentState) { buffer, state ->
-                processFrame(buffer, state, config)
-            }
+        val loopResult = decodeFrames(data, unpacker, currentState) { buffer, state ->
+            processFrame(buffer, state, config)
+        }
 
-            when (loopResult) {
-                is DecodeResult.Success -> {
-                    val extraCommands = if (!hasSyncedTime && mVer >= 3) {
-                        hasSyncedTime = true
-                        buildTimeSyncCommands()
-                    } else emptyList()
-                    val bmsSnapshot = BmsState(bms1 = bms1.toSnapshot(), bms2 = bms2.toSnapshot())
-                    // Ensure wheelType is VETERAN
-                    val resolvedIdentity = when {
-                        loopResult.data.identity != null && loopResult.data.identity.wheelType == WheelType.Unknown ->
-                            loopResult.data.identity.copy(wheelType = WheelType.VETERAN)
-                        loopResult.data.identity != null -> loopResult.data.identity
-                        currentState.identity.wheelType == WheelType.Unknown ->
-                            currentState.identity.copy(wheelType = WheelType.VETERAN)
-                        else -> null
-                    }
-                    DecodeResult.Success(DecodedData(
-                        telemetry = loopResult.data.telemetry,
-                        identity = resolvedIdentity?.takeIf { it != currentState.identity },
-                        bms = bmsSnapshot.takeIf { it != currentState.bms },
-                        settings = loopResult.data.settings?.takeIf { it != currentState.settings },
-                        commands = loopResult.data.commands + extraCommands,
-                        hasNewData = loopResult.data.hasNewData,
-                        frameTypes = loopResult.data.frameTypes
-                    ))
+        return when (loopResult) {
+            is DecodeResult.Success -> {
+                val extraCommands = if (!hasSyncedTime && mVer >= 3) {
+                    hasSyncedTime = true
+                    buildTimeSyncCommands()
+                } else emptyList()
+                val bmsSnapshot = BmsState(bms1 = bms1.toSnapshot(), bms2 = bms2.toSnapshot())
+                // Ensure wheelType is VETERAN
+                val resolvedIdentity = when {
+                    loopResult.data.identity != null && loopResult.data.identity.wheelType == WheelType.Unknown ->
+                        loopResult.data.identity.copy(wheelType = WheelType.VETERAN)
+                    loopResult.data.identity != null -> loopResult.data.identity
+                    currentState.identity.wheelType == WheelType.Unknown ->
+                        currentState.identity.copy(wheelType = WheelType.VETERAN)
+                    else -> null
                 }
-                is DecodeResult.Buffering -> loopResult
-                is DecodeResult.Unhandled -> loopResult
+                DecodeResult.Success(DecodedData(
+                    telemetry = loopResult.data.telemetry,
+                    identity = resolvedIdentity?.takeIf { it != currentState.identity },
+                    bms = bmsSnapshot.takeIf { it != currentState.bms },
+                    settings = loopResult.data.settings?.takeIf { it != currentState.settings },
+                    commands = loopResult.data.commands + extraCommands,
+                    hasNewData = loopResult.data.hasNewData,
+                    frameTypes = loopResult.data.frameTypes
+                ))
             }
+            is DecodeResult.Buffering -> loopResult
+            is DecodeResult.Unhandled -> loopResult
         }
     }
 
@@ -394,7 +391,8 @@ class VeteranDecoder : WheelDecoder {
             alertSpeed = speedAlert / 10,
             autoOffTime = autoOffSec,
             pedalsMode = pedalsMode,
-            batteryTempMode = batteryTempMode
+            batteryTempMode = batteryTempMode,
+            mVer = mVer
         )
 
         // Merge sub-type settings data
@@ -676,29 +674,27 @@ class VeteranDecoder : WheelDecoder {
         }
     }
 
-    override fun isReady(): Boolean = stateLock.withLock { mVer != 0 }
+    override fun isReady(): Boolean = mVer != 0
 
-    override fun getCapabilities(): CapabilitySet = stateLock.withLock {
-        if (mVer == 0) return@withLock CapabilitySet()
-        CAPABILITY_MAP.resolveAt(
+    override fun getCapabilities(): CapabilitySet {
+        if (mVer == 0) return CapabilitySet()
+        return CAPABILITY_MAP.resolveAt(
             firmwareLevel = mVer,
             detectedModel = getModelName(),
             firmwareVersion = version
         )
     }
 
-    override fun getUnpackerStats(): UnpackerStats = stateLock.withLock { unpacker.stats }
+    override fun getUnpackerStats(): UnpackerStats = unpacker.stats
 
     override fun reset() {
-        stateLock.withLock {
-            unpacker.reset()
-            lastPacketTime = 0
-            hasSyncedTime = false
-            mVer = 0
-            version = ""
-            bms1 = SmartBms()
-            bms2 = SmartBms()
-        }
+        unpacker.reset()
+        lastPacketTime = 0
+        hasSyncedTime = false
+        mVer = 0
+        version = ""
+        bms1 = SmartBms()
+        bms2 = SmartBms()
     }
 
     /**
@@ -792,30 +788,28 @@ class VeteranDecoder : WheelDecoder {
     /**
      * Check if a command requiring a minimum firmware level is supported.
      * Uses the [CAPABILITY_MAP] as the single source of truth.
-     * Must be called under [stateLock].
      */
-    private fun isSupported(commandId: SettingsCommandId): Boolean {
+    private fun isSupportedAt(commandId: SettingsCommandId, firmwareVer: Int): Boolean {
         val minVer = CAPABILITY_MAP[commandId] ?: return false
-        return mVer >= minVer
+        return firmwareVer >= minVer
     }
 
     override fun buildCommand(command: WheelCommand, state: DecoderState?): List<WheelCommand> {
-        return stateLock.withLock {
-            buildCommandLocked(command)
-        }
+        val ver = (state?.settings as? WheelSettings.Veteran)?.mVer ?: 0
+        return buildCommandWithVer(command, ver)
     }
 
-    private fun buildCommandLocked(command: WheelCommand): List<WheelCommand> {
+    private fun buildCommandWithVer(command: WheelCommand, ver: Int): List<WheelCommand> {
         return when (command) {
             is WheelCommand.Beep -> {
-                if (mVer < 3) {
+                if (ver < 3) {
                     listOf(WheelCommand.SendBytes("b".encodeToByteArray()))
                 } else {
                     listOf(WheelCommand.SendBytes(buildVeteranCommand(0x0E, 9, 0x01)))
                 }
             }
             is WheelCommand.SetLight -> {
-                if (mVer < 3) {
+                if (ver < 3) {
                     listOf(WheelCommand.SendBytes(
                         if (command.enabled) "SetLightON".encodeToByteArray()
                         else "SetLightOFF".encodeToByteArray()
@@ -827,7 +821,7 @@ class VeteranDecoder : WheelDecoder {
                 }
             }
             is WheelCommand.SetPedalsMode -> {
-                if (mVer < 3) {
+                if (ver < 3) {
                     val cmd = when (command.mode) {
                         0 -> "SETh"; 1 -> "SETm"; 2 -> "SETs"
                         else -> return emptyList()
@@ -842,7 +836,7 @@ class VeteranDecoder : WheelDecoder {
                 }
             }
             is WheelCommand.SetAlarmSpeed -> {
-                if (!isSupported(SettingsCommandId.ALARM_SPEED_1)) return emptyList()
+                if (!isSupportedAt(SettingsCommandId.ALARM_SPEED_1, ver)) return emptyList()
                 val v = command.speed + 10
                 listOf(
                     WheelCommand.SendBytes(buildVeteranCommand(0x11, 12, v, byte5 = 0x01)),
@@ -850,7 +844,7 @@ class VeteranDecoder : WheelDecoder {
                 )
             }
             is WheelCommand.SetPedalTilt -> {
-                if (!isSupported(SettingsCommandId.PEDAL_TILT)) return emptyList()
+                if (!isSupportedAt(SettingsCommandId.PEDAL_TILT, ver)) return emptyList()
                 val v = command.angle + 80
                 listOf(
                     WheelCommand.SendBytes(buildVeteranCommand(0x10, 11, v, byte5 = 0x01)),
@@ -858,7 +852,7 @@ class VeteranDecoder : WheelDecoder {
                 )
             }
             is WheelCommand.SetTransportMode -> {
-                if (!isSupported(SettingsCommandId.TRANSPORT_MODE)) return emptyList()
+                if (!isSupportedAt(SettingsCommandId.TRANSPORT_MODE, ver)) return emptyList()
                 val value = if (command.enabled) 1 else 0
                 listOf(
                     WheelCommand.SendBytes(buildVeteranCommand(0x16, 17, value, byte5 = 0x01)),
@@ -867,7 +861,7 @@ class VeteranDecoder : WheelDecoder {
             }
             is WheelCommand.SetSpeakerVolume -> emptyList()
             is WheelCommand.SetHighSpeedMode -> {
-                if (!isSupported(SettingsCommandId.HIGH_SPEED_MODE)) return emptyList()
+                if (!isSupportedAt(SettingsCommandId.HIGH_SPEED_MODE, ver)) return emptyList()
                 val value = if (command.enabled) 1 else 0
                 listOf(
                     WheelCommand.SendBytes(buildVeteranCommand(0x1A, 21, value, byte5 = 0x01)),
@@ -875,7 +869,7 @@ class VeteranDecoder : WheelDecoder {
                 )
             }
             is WheelCommand.SetLowVoltageMode -> {
-                if (!isSupported(SettingsCommandId.LOW_VOLTAGE_MODE)) return emptyList()
+                if (!isSupportedAt(SettingsCommandId.LOW_VOLTAGE_MODE, ver)) return emptyList()
                 val value = if (command.enabled) 1 else 0
                 listOf(
                     WheelCommand.SendBytes(buildVeteranCommand(0x19, 20, value, byte5 = 0x01)),
@@ -883,11 +877,11 @@ class VeteranDecoder : WheelDecoder {
                 )
             }
             is WheelCommand.SetKeyTone -> {
-                if (!isSupported(SettingsCommandId.KEY_TONE)) return emptyList()
+                if (!isSupportedAt(SettingsCommandId.KEY_TONE, ver)) return emptyList()
                 listOf(WheelCommand.SendBytes(buildVeteranCommandNew(0x1C, 23, command.value, byte6 = 0x02)))
             }
             is WheelCommand.PowerOff -> {
-                if (!isSupported(SettingsCommandId.POWER_OFF)) return emptyList()
+                if (!isSupportedAt(SettingsCommandId.POWER_OFF, ver)) return emptyList()
                 val payload = byteArrayOf(
                     0x4C, 0x6B, 0x41, 0x70, 0x16, 0x01,
                     0x80.toByte(), 0x80.toByte(), 0x80.toByte(), 0x80.toByte(),
@@ -900,50 +894,50 @@ class VeteranDecoder : WheelDecoder {
                 listOf(WheelCommand.SendBytes("CLEARMETER".encodeToByteArray()))
             }
             is WheelCommand.SetScreenBacklight -> {
-                if (!isSupported(SettingsCommandId.SCREEN_BACKLIGHT)) return emptyList()
+                if (!isSupportedAt(SettingsCommandId.SCREEN_BACKLIGHT, ver)) return emptyList()
                 listOf(WheelCommand.SendBytes(buildVeteranCommandNew(0x14, 15, command.value, byte6 = 0x02)))
             }
             is WheelCommand.SetStopSpeed -> {
-                if (!isSupported(SettingsCommandId.STOP_SPEED)) return emptyList()
+                if (!isSupportedAt(SettingsCommandId.STOP_SPEED, ver)) return emptyList()
                 listOf(WheelCommand.SendBytes(buildVeteranCommandNew(0x11, 12, command.speed, byte6 = 0x02)))
             }
             is WheelCommand.SetVeteranPwmLimit -> {
-                if (!isSupported(SettingsCommandId.VETERAN_PWM_LIMIT)) return emptyList()
+                if (!isSupportedAt(SettingsCommandId.VETERAN_PWM_LIMIT, ver)) return emptyList()
                 listOf(WheelCommand.SendBytes(buildVeteranCommandNew(0x12, 13, command.limit, byte6 = 0x02)))
             }
             is WheelCommand.SetVoltageCorrection -> {
-                if (!isSupported(SettingsCommandId.VOLTAGE_CORRECTION)) return emptyList()
+                if (!isSupportedAt(SettingsCommandId.VOLTAGE_CORRECTION, ver)) return emptyList()
                 listOf(WheelCommand.SendBytes(buildVeteranCommandNew(0x18, 19, command.value, byte6 = 0x02)))
             }
             is WheelCommand.SetMaxChargeVoltage -> {
-                if (!isSupported(SettingsCommandId.MAX_CHARGE_VOLTAGE)) return emptyList()
+                if (!isSupportedAt(SettingsCommandId.MAX_CHARGE_VOLTAGE, ver)) return emptyList()
                 listOf(WheelCommand.SendBytes(buildVeteranCommandNew(0x1D, 24, command.value, byte6 = 0x02)))
             }
             is WheelCommand.SetBrakePressureAlarm -> {
-                if (!isSupported(SettingsCommandId.BRAKE_PRESSURE_ALARM)) return emptyList()
+                if (!isSupportedAt(SettingsCommandId.BRAKE_PRESSURE_ALARM, ver)) return emptyList()
                 listOf(WheelCommand.SendBytes(buildVeteranCommandNew(0x22, 29, command.value, byte6 = 0x02)))
             }
             is WheelCommand.SetLateralCutoffAngle -> {
-                if (!isSupported(SettingsCommandId.LATERAL_CUTOFF_ANGLE)) return emptyList()
+                if (!isSupportedAt(SettingsCommandId.LATERAL_CUTOFF_ANGLE, ver)) return emptyList()
                 listOf(
                     WheelCommand.SendBytes(buildVeteranCommand(0x16, 17, command.angle, byte5 = 0x01)),
                     WheelCommand.SendBytes(buildVeteranCommandNew(0x16, 17, command.angle))
                 )
             }
             is WheelCommand.Calibrate -> {
-                if (!isSupported(SettingsCommandId.CALIBRATE)) return emptyList()
+                if (!isSupportedAt(SettingsCommandId.CALIBRATE, ver)) return emptyList()
                 listOf(WheelCommand.SendBytes(buildVeteranCommandNew(0x15, 16, 0x01, byte6 = 0x02)))
             }
             is WheelCommand.SetDynamicAssist -> {
-                if (!isSupported(SettingsCommandId.DYNAMIC_ASSIST)) return emptyList()
+                if (!isSupportedAt(SettingsCommandId.DYNAMIC_ASSIST, ver)) return emptyList()
                 listOf(WheelCommand.SendBytes(buildVeteranCommandNew(0x1F, 26, command.value, byte6 = 0x02)))
             }
             is WheelCommand.SetAccelerationLimit -> {
-                if (!isSupported(SettingsCommandId.ACCELERATION_LIMIT)) return emptyList()
+                if (!isSupportedAt(SettingsCommandId.ACCELERATION_LIMIT, ver)) return emptyList()
                 listOf(WheelCommand.SendBytes(buildVeteranCommandNew(0x21, 28, command.value, byte6 = 0x02)))
             }
             is WheelCommand.SetWheelDisplayUnit -> {
-                if (!isSupported(SettingsCommandId.WHEEL_DISPLAY_UNIT)) return emptyList()
+                if (!isSupportedAt(SettingsCommandId.WHEEL_DISPLAY_UNIT, ver)) return emptyList()
                 listOf(WheelCommand.SendBytes(buildVeteranCommandNew(0x17, 18, if (command.miles) 1 else 0, byte6 = 0x02)))
             }
             else -> emptyList()

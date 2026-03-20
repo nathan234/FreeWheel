@@ -8,8 +8,6 @@ import org.freewheel.core.domain.SmartBms
 import org.freewheel.core.domain.WheelSettings
 import org.freewheel.core.domain.WheelType
 import org.freewheel.core.utils.ByteUtils
-import org.freewheel.core.utils.Lock
-import org.freewheel.core.utils.withLock
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
@@ -66,12 +64,13 @@ import kotlin.math.roundToLong
  * Retry: re-sends "V"/"N" via getKeepAliveCommand until both fw and model
  * are populated (max 50 attempts).
  *
- * This class is thread-safe.
+ * Thread-safe: All methods except [buildCommand] are called from the WCM
+ * event loop (single-threaded). [buildCommand] does not read any mutable
+ * internal state, so no lock is needed.
  */
 class GotwayDecoder : WheelDecoder {
 
     override val wheelType: WheelType = WheelType.GOTWAY
-    private val stateLock = Lock()
 
     private val unpacker = GotwayUnpacker()
     private var model = ""
@@ -124,8 +123,7 @@ class GotwayDecoder : WheelDecoder {
     private var bms2 = SmartBms()
 
     override fun decode(data: ByteArray, currentState: DecoderState, config: DecoderConfig): DecodeResult {
-        return stateLock.withLock {
-            // Pre-loop: parse firmware/model info from string data.
+        // Pre-loop: parse firmware/model info from string data.
             // Binary frames always start with 0x55 (header byte); string responses
             // (NAME, GW, JN, CF, BF, MPU) start with ASCII letters.
             // Skip decodeToString() for binary data to avoid a wasted String allocation
@@ -209,34 +207,33 @@ class GotwayDecoder : WheelDecoder {
                 }
             }
 
-            if (successData != null || preIdentity != null || resultIdentity != null) {
-                val frameTypes = successData?.frameTypes?.toMutableList() ?: mutableListOf()
-                if (preIdentity != null && successData?.identity == null) {
-                    frameTypes.add(0, "IDENTITY")
-                }
-                // Ensure wheelType is GOTWAY
-                val resolvedIdentity = when {
-                    resultIdentity != null && resultIdentity.wheelType == WheelType.Unknown ->
-                        resultIdentity.copy(wheelType = WheelType.GOTWAY)
-                    resultIdentity != null -> resultIdentity
-                    currentState.identity.wheelType == WheelType.Unknown ->
-                        currentState.identity.copy(wheelType = WheelType.GOTWAY)
-                    else -> null
-                }
-                val bmsSnapshot = BmsState(bms1 = bms1.toSnapshot(), bms2 = bms2.toSnapshot())
-                DecodeResult.Success(DecodedData(
-                    telemetry = successData?.telemetry,
-                    identity = resolvedIdentity?.takeIf { it != currentState.identity },
-                    bms = bmsSnapshot.takeIf { it != currentState.bms },
-                    settings = successData?.settings?.takeIf { it != currentState.settings },
-                    commands = commands,
-                    hasNewData = finalHasNewData,
-                    news = news,
-                    frameTypes = frameTypes
-                ))
-            } else {
-                loopResult
+        return if (successData != null || preIdentity != null || resultIdentity != null) {
+            val frameTypes = successData?.frameTypes?.toMutableList() ?: mutableListOf()
+            if (preIdentity != null && successData?.identity == null) {
+                frameTypes.add(0, "IDENTITY")
             }
+            // Ensure wheelType is GOTWAY
+            val resolvedIdentity = when {
+                resultIdentity != null && resultIdentity.wheelType == WheelType.Unknown ->
+                    resultIdentity.copy(wheelType = WheelType.GOTWAY)
+                resultIdentity != null -> resultIdentity
+                currentState.identity.wheelType == WheelType.Unknown ->
+                    currentState.identity.copy(wheelType = WheelType.GOTWAY)
+                else -> null
+            }
+            val bmsSnapshot = BmsState(bms1 = bms1.toSnapshot(), bms2 = bms2.toSnapshot())
+            DecodeResult.Success(DecodedData(
+                telemetry = successData?.telemetry,
+                identity = resolvedIdentity?.takeIf { it != currentState.identity },
+                bms = bmsSnapshot.takeIf { it != currentState.bms },
+                settings = successData?.settings?.takeIf { it != currentState.settings },
+                commands = commands,
+                hasNewData = finalHasNewData,
+                news = news,
+                frameTypes = frameTypes
+            ))
+        } else {
+            loopResult
         }
     }
 
@@ -655,13 +652,11 @@ class GotwayDecoder : WheelDecoder {
         return voltage * scaler
     }
 
-    override fun isReady(): Boolean = stateLock.withLock {
-        isReady && hasReceivedData
-    }
+    override fun isReady(): Boolean = isReady && hasReceivedData
 
-    override fun getCapabilities(): CapabilitySet = stateLock.withLock {
-        if (!isReady) return@withLock CapabilitySet()
-        CapabilitySet(
+    override fun getCapabilities(): CapabilitySet {
+        if (!isReady) return CapabilitySet()
+        return CapabilitySet(
             supportedCommands = SUPPORTED_COMMANDS,
             detectedModel = model,
             firmwareVersion = fw,
@@ -669,27 +664,25 @@ class GotwayDecoder : WheelDecoder {
         )
     }
 
-    override fun getUnpackerStats(): UnpackerStats = stateLock.withLock { unpacker.stats }
+    override fun getUnpackerStats(): UnpackerStats = unpacker.stats
 
     override fun reset() {
-        stateLock.withLock {
-            unpacker.reset()
-            model = ""
-            imu = ""
-            fw = ""
-            fwProt = ""
-            smartBmsCells = 0
-            trueVoltage = false
-            trueCurrent = false
-            bmsCurrent = false
-            truePWM = false
-            isReady = false
-            hasReceivedData = false
-            alexovikCurrent = 0
-            infoAttempt = 0
-            bms1 = SmartBms()
-            bms2 = SmartBms()
-        }
+        unpacker.reset()
+        model = ""
+        imu = ""
+        fw = ""
+        fwProt = ""
+        smartBmsCells = 0
+        trueVoltage = false
+        trueCurrent = false
+        bmsCurrent = false
+        truePWM = false
+        isReady = false
+        hasReceivedData = false
+        alexovikCurrent = 0
+        infoAttempt = 0
+        bms1 = SmartBms()
+        bms2 = SmartBms()
     }
 
     override fun buildCommand(command: WheelCommand, state: DecoderState?): List<WheelCommand> {

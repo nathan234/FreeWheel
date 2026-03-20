@@ -1,5 +1,6 @@
 package org.freewheel.core.protocol
 
+import org.freewheel.core.domain.WheelSettings
 import org.freewheel.core.domain.WheelType
 import org.freewheel.core.domain.accelerationLimit
 import org.freewheel.core.domain.batteryTempMode
@@ -882,11 +883,7 @@ class VeteranDecoderTest {
 
     @Test
     fun `beep command for old firmware (mVer less than 3)`() {
-        val freshDecoder = VeteranDecoder()
-        // Decode a frame with mVer=1 to set internal state
-        val frame = buildVeteranFrame(ver = 1000)
-        freshDecoder.decode(frame, DecoderState(), config)
-
+        val freshDecoder = decoderWithVer(1000)
         val commands = freshDecoder.buildCommand(WheelCommand.Beep)
         assertEquals(1, commands.size)
         val sendBytes = commands[0] as WheelCommand.SendBytes
@@ -895,11 +892,7 @@ class VeteranDecoderTest {
 
     @Test
     fun `beep command for new firmware (mVer 3 or higher)`() {
-        val freshDecoder = VeteranDecoder()
-        // Decode a frame with mVer=5 to set internal state
-        val frame = buildVeteranFrame(ver = 5000)
-        freshDecoder.decode(frame, DecoderState(), config)
-
+        val freshDecoder = decoderWithVer(5000)
         val commands = freshDecoder.buildCommand(WheelCommand.Beep)
         assertEquals(1, commands.size)
         val sendBytes = commands[0] as WheelCommand.SendBytes
@@ -1497,11 +1490,21 @@ class VeteranDecoderTest {
     /**
      * Helper: create a fresh decoder with mVer set by decoding one frame.
      */
-    private fun decoderWithVer(ver: Int): VeteranDecoder {
+    /** Create a DecoderState with the given firmware major version. */
+    private fun stateWithVer(mVer: Int) = DecoderState(
+        settings = WheelSettings.Veteran(mVer = mVer)
+    )
+
+    /** Decoder + state pair for buildCommand tests. */
+    private data class DecoderWithState(val decoder: VeteranDecoder, val state: DecoderState) {
+        fun buildCommand(command: WheelCommand) = decoder.buildCommand(command, state)
+    }
+
+    private fun decoderWithVer(ver: Int): DecoderWithState {
         val d = VeteranDecoder()
         val frame = buildVeteranFrame(ver = ver)
         d.decode(frame, DecoderState(), config)
-        return d
+        return DecoderWithState(d, stateWithVer(ver / 1000))
     }
 
     @Test

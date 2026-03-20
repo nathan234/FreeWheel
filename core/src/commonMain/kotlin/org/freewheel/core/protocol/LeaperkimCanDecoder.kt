@@ -5,8 +5,6 @@ import org.freewheel.core.domain.SettingsCommandId
 import org.freewheel.core.domain.WheelSettings
 import org.freewheel.core.domain.WheelType
 import org.freewheel.core.utils.ByteUtils
-import org.freewheel.core.utils.Lock
-import org.freewheel.core.utils.withLock
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -33,12 +31,13 @@ import kotlin.math.roundToInt
  *
  * Protocol details reverse-engineered from EUC World's Veteran/Leaperkim decoder.
  *
- * This class is thread-safe.
+ * Thread-safe: All methods except [buildCommand] are called from the WCM
+ * event loop (single-threaded). [buildCommand] does not read any mutable
+ * internal state, so no lock is needed.
  */
 class LeaperkimCanDecoder : WheelDecoder {
 
     override val wheelType: WheelType = WheelType.LEAPERKIM
-    private val stateLock = Lock()
 
     // ==================== CAN Message IDs ====================
 
@@ -201,36 +200,34 @@ class LeaperkimCanDecoder : WheelDecoder {
     // ==================== WheelDecoder Interface ====================
 
     override fun decode(data: ByteArray, currentState: DecoderState, config: DecoderConfig): DecodeResult {
-        return stateLock.withLock {
-            val loopResult = decodeFrames(data, unpacker, currentState) { buffer, state ->
-                processFrame(buffer, state, config)
-            }
+        val loopResult = decodeFrames(data, unpacker, currentState) { buffer, state ->
+            processFrame(buffer, state, config)
+        }
 
-            when (loopResult) {
-                is DecodeResult.Success -> {
-                    // Ensure wheelType is LEAPERKIM
-                    val resolvedIdentity = when {
-                        loopResult.data.identity != null && loopResult.data.identity.wheelType == WheelType.Unknown ->
-                            loopResult.data.identity.copy(wheelType = WheelType.LEAPERKIM)
-                        loopResult.data.identity != null -> loopResult.data.identity
-                        currentState.identity.wheelType == WheelType.Unknown ->
-                            currentState.identity.copy(wheelType = WheelType.LEAPERKIM)
-                        else -> null
-                    }
-                    DecodeResult.Success(DecodedData(
-                        telemetry = loopResult.data.telemetry,
-                        identity = resolvedIdentity?.takeIf { it != currentState.identity },
-                        bms = loopResult.data.bms,
-                        settings = loopResult.data.settings?.takeIf { it != currentState.settings },
-                        commands = loopResult.data.commands,
-                        hasNewData = loopResult.data.hasNewData,
-                        news = loopResult.data.news,
-                        frameTypes = loopResult.data.frameTypes
-                    ))
+        return when (loopResult) {
+            is DecodeResult.Success -> {
+                // Ensure wheelType is LEAPERKIM
+                val resolvedIdentity = when {
+                    loopResult.data.identity != null && loopResult.data.identity.wheelType == WheelType.Unknown ->
+                        loopResult.data.identity.copy(wheelType = WheelType.LEAPERKIM)
+                    loopResult.data.identity != null -> loopResult.data.identity
+                    currentState.identity.wheelType == WheelType.Unknown ->
+                        currentState.identity.copy(wheelType = WheelType.LEAPERKIM)
+                    else -> null
                 }
-                is DecodeResult.Buffering -> loopResult
-                is DecodeResult.Unhandled -> loopResult
+                DecodeResult.Success(DecodedData(
+                    telemetry = loopResult.data.telemetry,
+                    identity = resolvedIdentity?.takeIf { it != currentState.identity },
+                    bms = loopResult.data.bms,
+                    settings = loopResult.data.settings?.takeIf { it != currentState.settings },
+                    commands = loopResult.data.commands,
+                    hasNewData = loopResult.data.hasNewData,
+                    news = loopResult.data.news,
+                    frameTypes = loopResult.data.frameTypes
+                ))
             }
+            is DecodeResult.Buffering -> loopResult
+            is DecodeResult.Unhandled -> loopResult
         }
     }
 
@@ -654,45 +651,39 @@ class LeaperkimCanDecoder : WheelDecoder {
     // ==================== Init & Lifecycle ====================
 
     override fun getInitCommands(): List<WheelCommand> {
-        return stateLock.withLock {
-            val password = DEFAULT_PASSWORD
-            val payload = ByteArray(CMD_PAYLOAD_SIZE)
-            // Write password bytes into payload
-            val pwBytes = password.encodeToByteArray()
-            pwBytes.copyInto(payload, 0, 0, minOf(pwBytes.size, CMD_PAYLOAD_SIZE))
-            listOf(WheelCommand.SendBytes(buildCanFrame(CAN_INIT_PASSWORD, payload)))
-        }
+        val password = DEFAULT_PASSWORD
+        val payload = ByteArray(CMD_PAYLOAD_SIZE)
+        // Write password bytes into payload
+        val pwBytes = password.encodeToByteArray()
+        pwBytes.copyInto(payload, 0, 0, minOf(pwBytes.size, CMD_PAYLOAD_SIZE))
+        return listOf(WheelCommand.SendBytes(buildCanFrame(CAN_INIT_PASSWORD, payload)))
     }
 
-    override fun isReady(): Boolean = stateLock.withLock { phase == InitPhase.POLLING }
+    override fun isReady(): Boolean = phase == InitPhase.POLLING
 
-    override fun getCapabilities(): CapabilitySet = stateLock.withLock {
-        if (phase != InitPhase.POLLING) return@withLock CapabilitySet()
-        CapabilitySet(
+    override fun getCapabilities(): CapabilitySet {
+        if (phase != InitPhase.POLLING) return CapabilitySet()
+        return CapabilitySet(
             supportedCommands = SUPPORTED_COMMANDS,
             detectedModel = "Leaperkim CAN",
             isResolved = true
         )
     }
 
-    override fun getUnpackerStats(): UnpackerStats = stateLock.withLock { unpacker.stats }
+    override fun getUnpackerStats(): UnpackerStats = unpacker.stats
 
     override fun reset() {
-        stateLock.withLock {
-            unpacker.reset()
-            phase = InitPhase.PASSWORD
-            modelId = -1
-            alternateKeepAlive = false
-        }
+        unpacker.reset()
+        phase = InitPhase.PASSWORD
+        modelId = -1
+        alternateKeepAlive = false
     }
 
     override fun getKeepAliveCommand(): WheelCommand? {
-        return stateLock.withLock {
-            if (phase != InitPhase.POLLING) return@withLock null
-            alternateKeepAlive = !alternateKeepAlive
-            val canId = if (alternateKeepAlive) CAN_READ_VALUES else CAN_READ_STATUS
-            WheelCommand.SendBytes(buildCanFrame(canId, ByteArray(CMD_PAYLOAD_SIZE)))
-        }
+        if (phase != InitPhase.POLLING) return null
+        alternateKeepAlive = !alternateKeepAlive
+        val canId = if (alternateKeepAlive) CAN_READ_VALUES else CAN_READ_STATUS
+        return WheelCommand.SendBytes(buildCanFrame(canId, ByteArray(CMD_PAYLOAD_SIZE)))
     }
 
     override val keepAliveIntervalMs: Long get() = KEEP_ALIVE_INTERVAL_MS
