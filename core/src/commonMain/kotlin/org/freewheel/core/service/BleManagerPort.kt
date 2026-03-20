@@ -68,4 +68,11 @@ interface BleManagerPort {
      * Default is a no-op; platform implementations track this for reconnect logic.
      */
     fun setBluetoothAdapterState(state: BluetoothAdapterState) {}
+
+    /**
+     * Release platform resources (threads, broadcast receivers, coroutine scopes).
+     * Called once after the event loop has drained. After this call the instance
+     * must not be reused.
+     */
+    fun destroy() {}
 }

@@ -212,6 +212,7 @@ class WheelConnectionManager(
         events.send(WheelEvent.DisconnectRequested)
         events.close()
         eventLoopJob.join()
+        bleManager.destroy()
     }
 
     /**

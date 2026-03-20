@@ -254,6 +254,13 @@ actual class BleManager : BleManagerPort {
         return true
     }
 
+    override fun destroy() {
+        scope.cancel()
+        centralManager = null
+        centralDelegate = null
+        peripheralDelegate = null
+    }
+
     actual override suspend fun startScan(onDeviceFound: (BleDevice) -> Unit) {
         val central = centralManager ?: run {
             initialize()

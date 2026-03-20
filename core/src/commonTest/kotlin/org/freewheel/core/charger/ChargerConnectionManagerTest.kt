@@ -354,5 +354,6 @@ class ChargerConnectionManagerTest {
         manager.shutdown()
 
         assertTrue(manager.connectionState.value is ConnectionState.Disconnected)
+        assertEquals(1, fakeBle.destroyCallCount, "shutdown should call bleManager.destroy()")
     }
 }

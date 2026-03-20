@@ -38,6 +38,10 @@ class FakeBleManager : BleManagerPort {
     var disconnectCallCount = 0
         private set
 
+    /** Number of times [destroy] was called. */
+    var destroyCallCount = 0
+        private set
+
     override suspend fun connect(address: String): Boolean {
         lastConnectAddress = address
         connectCallCount++
@@ -103,6 +107,10 @@ class FakeBleManager : BleManagerPort {
     /** Simulate connection state changes for testing. */
     fun setConnectionState(state: ConnectionState) {
         _connectionState.value = state
+    }
+
+    override fun destroy() {
+        destroyCallCount++
     }
 
     /** Clear recorded data. */

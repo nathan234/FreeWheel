@@ -85,6 +85,7 @@ class ChargerConnectionManager(
         events.send(ChargerEvent.DisconnectRequested)
         events.close()
         eventLoopJob.join()
+        bleManager.destroy()
     }
 
     fun onDataReceived(data: ByteArray) {

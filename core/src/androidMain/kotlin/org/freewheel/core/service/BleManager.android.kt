@@ -88,6 +88,9 @@ actual class BleManager : BleManagerPort {
     // Scan callback
     private var scanDeviceFoundCallback: ((BleDevice) -> Unit)? = null
 
+    // Dedicated BLE thread — stored for cleanup in destroy()
+    private var bleThread: HandlerThread? = null
+
     // Disconnect tracking — accessed from BLE thread + coroutine dispatcher
     @Volatile
     private var disconnectRequested = false
@@ -174,11 +177,12 @@ actual class BleManager : BleManagerPort {
         // Dedicated BLE thread — keeps all Blessed callbacks off the main thread
         // so UI rendering, GC pauses, and Compose recomposition can't block
         // BLE notification processing (critical at 40+ notifications/sec)
-        val bleThread = HandlerThread("FreeWheel-BLE").apply { start() }
+        val thread = HandlerThread("FreeWheel-BLE").apply { start() }
+        bleThread = thread
         central = BluetoothCentralManager(
             context,
             centralCallback,
-            Handler(bleThread.looper)
+            Handler(thread.looper)
         )
     }
 
@@ -438,6 +442,15 @@ actual class BleManager : BleManagerPort {
     ) {
         setReadCharacteristic(readServiceUuid, readCharUuid)
         setWriteCharacteristic(writeServiceUuid, writeCharUuid)
+    }
+
+    // ==================== Lifecycle ====================
+
+    override fun destroy() {
+        central?.close()
+        central = null
+        bleThread?.quitSafely()
+        bleThread = null
     }
 
     // ==================== Scanning ====================

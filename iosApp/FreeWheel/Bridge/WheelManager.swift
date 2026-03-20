@@ -458,7 +458,7 @@ class WheelManager: ObservableObject {
             MainActor.assumeIsolated {
                 if isCapturing { stopCapture() }
                 if isLogging {
-                    if let metadata = rideLogger.stopLogging(currentDistance: telemetry.totalDistanceKm) {
+                    if let metadata = rideLogger.stopLogging(currentDistance: telemetry?.totalDistanceKm ?? 0) {
                         rideStore.addRide(metadata)
                     }
                     isLogging = false
@@ -1170,7 +1170,7 @@ class WheelManager: ObservableObject {
     }
 
     func stopLogging() {
-        if let metadata = rideLogger.stopLogging(currentDistance: telemetry.totalDistanceKm) {
+        if let metadata = rideLogger.stopLogging(currentDistance: telemetry?.totalDistanceKm ?? 0) {
             rideStore.addRide(metadata)
         }
         isLogging = false
