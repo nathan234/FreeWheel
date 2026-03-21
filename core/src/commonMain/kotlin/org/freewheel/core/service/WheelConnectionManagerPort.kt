@@ -3,6 +3,7 @@ package org.freewheel.core.service
 import org.freewheel.core.ble.WheelConnectionInfo
 import org.freewheel.core.domain.BmsState
 import org.freewheel.core.domain.CapabilitySet
+import org.freewheel.core.domain.EventLogEntry
 import org.freewheel.core.domain.SettingsCommandId
 import org.freewheel.core.domain.TelemetryState
 import org.freewheel.core.domain.WheelIdentity
@@ -38,4 +39,10 @@ interface WheelConnectionManagerPort {
     fun toggleLight(enabled: Boolean)
     fun setPedalsMode(mode: Int)
     fun executeCommand(commandId: SettingsCommandId, intValue: Int = 0, boolValue: Boolean = false)
+
+    /** Accumulated event log entries (Veteran/Leaperkim). Empty for other wheel types. */
+    val eventLogEntries: StateFlow<List<EventLogEntry>>
+        get() = kotlinx.coroutines.flow.MutableStateFlow(emptyList())
+    fun requestEventLog() {}
+    fun clearEventLog() {}
 }

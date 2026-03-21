@@ -166,7 +166,7 @@ class WheelConnectionManager(
         .stateIn(derivedScope, SharingStarted.Eagerly, CapabilitySet())
 
     /** Accumulated event log entries from the wheel (Veteran/Leaperkim). Sorted by index, deduplicated. */
-    val eventLogEntries: StateFlow<List<org.freewheel.core.domain.EventLogEntry>> = _wcmState
+    override val eventLogEntries: StateFlow<List<org.freewheel.core.domain.EventLogEntry>> = _wcmState
         .map { it.eventLogEntries }
         .distinctUntilChanged()
         .stateIn(derivedScope, SharingStarted.Eagerly, emptyList())
@@ -292,8 +292,8 @@ class WheelConnectionManager(
     fun powerOff() { sendCommand(WheelCommand.PowerOff) }
     fun setLock(locked: Boolean) { sendCommand(WheelCommand.SetLock(locked)) }
     fun setVeteranLock(locked: Boolean, password: String) { sendCommand(WheelCommand.SetVeteranLock(locked, password)) }
-    fun requestEventLog() { sendCommand(WheelCommand.RequestEventLog) }
-    fun clearEventLog() { events.trySend(WheelEvent.ClearEventLog) }
+    override fun requestEventLog() { sendCommand(WheelCommand.RequestEventLog) }
+    override fun clearEventLog() { events.trySend(WheelEvent.ClearEventLog) }
     fun resetTrip() { sendCommand(WheelCommand.ResetTrip) }
     fun setMaxSpeed(speed: Int) { sendCommand(WheelCommand.SetMaxSpeed(speed)) }
     fun setAlarmSpeed(speed: Int, num: Int) { sendCommand(WheelCommand.SetAlarmSpeed(speed, num)) }

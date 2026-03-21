@@ -82,7 +82,8 @@ import org.freewheel.core.utils.DisplayUtils
 fun SettingsScreen(
     viewModel: WheelViewModel,
     onNavigateToEditNavigation: () -> Unit = {},
-    onNavigateToCapture: () -> Unit = {}
+    onNavigateToCapture: () -> Unit = {},
+    onNavigateToEventLog: () -> Unit = {}
 ) {
     val appConfig = viewModel.appConfig
     val wheelSettings by viewModel.settingsState.collectAsStateWithLifecycle()
@@ -458,6 +459,24 @@ fun SettingsScreen(
                     color = MaterialTheme.colorScheme.primary,
                     fontWeight = FontWeight.Medium
                 )
+            }
+            if (identity.wheelType == org.freewheel.core.domain.WheelType.VETERAN ||
+                identity.wheelType == org.freewheel.core.domain.WheelType.LEAPERKIM) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onNavigateToEventLog() }
+                        .padding(vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Wheel Event Log")
+                    Text(
+                        "Open",
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
             }
         }
 

@@ -443,6 +443,7 @@ class WheelViewModel(
             launch { cm.identityState.collect { _realIdentity.value = it } }
             launch { cm.bmsState.collect { _realBms.value = it } }
             launch { cm.settingsState.collect { _realSettings.value = it } }
+            launch { cm.eventLogEntries.collect { _eventLogEntries.value = it } }
         }
         capabilitiesCollectionJob = viewModelScope.launch {
             cm.capabilities.collect { _capabilities.value = it }
@@ -759,6 +760,20 @@ class WheelViewModel(
         viewModelScope.launch {
             connectionManager?.setPedalsMode(mode)
         }
+    }
+
+    // --- Event log (Veteran/Leaperkim) ---
+
+    private val _eventLogEntries = MutableStateFlow<List<org.freewheel.core.domain.EventLogEntry>>(emptyList())
+    val eventLogEntries: StateFlow<List<org.freewheel.core.domain.EventLogEntry>> = _eventLogEntries.asStateFlow()
+
+    fun requestEventLog() {
+        connectionManager?.clearEventLog()
+        connectionManager?.requestEventLog()
+    }
+
+    fun clearEventLog() {
+        connectionManager?.clearEventLog()
     }
 
     // --- Slider persistence for write-only commands ---
