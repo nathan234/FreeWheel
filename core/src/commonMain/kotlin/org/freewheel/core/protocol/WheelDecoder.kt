@@ -190,7 +190,13 @@ data class DecodedData(
      * Populated by decoders to enable frame type distribution analysis.
      * May contain multiple entries when a single BLE notification contains multiple frames.
      */
-    val frameTypes: List<String> = emptyList()
+    val frameTypes: List<String> = emptyList(),
+
+    /**
+     * Event log entries decoded from this frame (Veteran/Leaperkim).
+     * Populated during event log download; empty during normal telemetry.
+     */
+    val logEntries: List<org.freewheel.core.domain.EventLogEntry> = emptyList()
 )
 
 /**
@@ -469,6 +475,9 @@ sealed class WheelCommand {
 
     /** Veteran lock/unlock with numeric password (e.g. "000000"). */
     data class SetVeteranLock(val locked: Boolean, val password: String) : WheelCommand()
+
+    /** Request event log download from the wheel (Veteran/Leaperkim). */
+    data object RequestEventLog : WheelCommand()
 
     // --- BMS requests (Kingsong) ---
 

@@ -1,6 +1,7 @@
 package org.freewheel.core.protocol
 
 import org.freewheel.core.domain.BmsState
+import org.freewheel.core.domain.EventLogEntry
 import org.freewheel.core.domain.TelemetryState
 import org.freewheel.core.domain.WheelIdentity
 import org.freewheel.core.domain.WheelSettings
@@ -19,7 +20,8 @@ data class FrameResult(
     val hasNewData: Boolean = false,
     val commands: List<WheelCommand> = emptyList(),
     val news: String? = null,
-    val frameType: String? = null
+    val frameType: String? = null,
+    val logEntries: List<EventLogEntry> = emptyList()
 )
 
 /**
@@ -60,6 +62,7 @@ internal inline fun decodeFrames(
     var hadCompleteFrame = false
     var firstUnhandledBuffer: ByteArray? = null
     val frameTypes = mutableListOf<String>()
+    val logEntries = mutableListOf<EventLogEntry>()
 
     for (byte in data) {
         if (unpacker.addChar(byte.toInt() and 0xFF)) {
@@ -79,6 +82,7 @@ internal inline fun decodeFrames(
                 commands.addAll(result.commands)
                 result.news?.let { news = it }
                 result.frameType?.let { frameTypes.add(it) }
+                logEntries.addAll(result.logEntries)
             } else if (firstUnhandledBuffer == null) {
                 firstUnhandledBuffer = buffer.copyOf()
             }
@@ -95,7 +99,8 @@ internal inline fun decodeFrames(
                 commands = commands,
                 hasNewData = hasNewData,
                 news = news,
-                frameTypes = frameTypes
+                frameTypes = frameTypes,
+                logEntries = logEntries
             ))
         }
         hadCompleteFrame -> {

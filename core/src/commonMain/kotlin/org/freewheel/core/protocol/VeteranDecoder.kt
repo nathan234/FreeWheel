@@ -2,6 +2,7 @@ package org.freewheel.core.protocol
 
 import org.freewheel.core.domain.BmsState
 import org.freewheel.core.domain.CapabilityMap
+import org.freewheel.core.domain.EventLogEntry
 import org.freewheel.core.domain.CapabilitySet
 import org.freewheel.core.domain.SettingsCommandId
 import org.freewheel.core.domain.SmartBms
@@ -244,6 +245,7 @@ class VeteranDecoder : WheelDecoder {
     private var version = ""
     private var bms1 = SmartBms()
     private var bms2 = SmartBms()
+    private var receivingLog = false
 
     override fun decode(data: ByteArray, currentState: DecoderState, config: DecoderConfig): DecodeResult {
         val currentTime = currentTimeMillis()
@@ -281,7 +283,8 @@ class VeteranDecoder : WheelDecoder {
                     settings = loopResult.data.settings?.takeIf { it != currentState.settings },
                     commands = loopResult.data.commands + extraCommands,
                     hasNewData = loopResult.data.hasNewData,
-                    frameTypes = loopResult.data.frameTypes
+                    frameTypes = loopResult.data.frameTypes,
+                    logEntries = loopResult.data.logEntries
                 ))
             }
             is DecodeResult.Buffering -> loopResult
@@ -418,12 +421,17 @@ class VeteranDecoder : WheelDecoder {
             )
         }
 
+        // Parse event log entries when in log-receiving mode
+        val pNum = if (buff.size > 46) buff[46].toInt() else -1
+        val logEntries = if (receivingLog) parseLogEntries(buff, pNum) else emptyList()
+
         return FrameResult(
             telemetry = newTel,
             identity = newIdentity,
             settings = newSettings,
             hasNewData = true,
-            frameType = "TELEMETRY"
+            frameType = "TELEMETRY",
+            logEntries = logEntries
         )
     }
 
@@ -695,6 +703,7 @@ class VeteranDecoder : WheelDecoder {
         version = ""
         bms1 = SmartBms()
         bms2 = SmartBms()
+        receivingLog = false
     }
 
     /**
@@ -761,6 +770,133 @@ class VeteranDecoder : WheelDecoder {
         // payload[18..20] already zero from ByteArray init
 
         return appendCrc32(payload)
+    }
+
+    /**
+     * Build event log request payload.
+     *
+     * Old format (LkAp): [4C 6B 41 70 14 01 80×9 01]
+     * New format (LdAp): [4C 64 41 70 14 01 00 80×8 01]
+     */
+    private fun buildReadLogPayload(old: Boolean): ByteArray {
+        return if (old) {
+            buildVeteranCommand(0x14, 15, 0x01, byte5 = 0x01)
+        } else {
+            buildVeteranCommandNew(0x14, 15, 0x01)
+        }
+    }
+
+    /**
+     * Parse event log entries from a telemetry frame when in log-receiving mode.
+     *
+     * Sub-type 0/4: 2 basic entries (index + 2-byte content code)
+     * Sub-type 32:  3 extended entries (index + content + 5 extra diagnostic bytes)
+     * Sub-type 33:  1 full-detail entry (packed count/index + timestamp + content + extra values + GBK text)
+     *
+     * Reverse-engineered from Leaperkim app v1.4.8 BtManager.parseData().
+     */
+    internal fun parseLogEntries(buff: ByteArray, pNum: Int): List<EventLogEntry> {
+        return when (pNum) {
+            0, 4 -> parseLogBasic(buff)
+            32 -> parseLogExtended(buff)
+            33 -> parseLogDetailed(buff)
+            else -> emptyList()
+        }
+    }
+
+    /** Sub-type 0/4: 2 basic log entries at bytes 50-54. */
+    private fun parseLogBasic(buff: ByteArray): List<EventLogEntry> {
+        // Leaperkim app: receiverSingleFuLLData.size() - 4 > 54 → buff.size > 58
+        if (buff.size <= 58) return emptyList()
+        val entries = mutableListOf<EventLogEntry>()
+        val index = buff[50].toInt() and 0xFF
+        val content = ByteUtils.shortFromBytesBE(buff, 51)
+        entries.add(EventLogEntry(index = index, contentCode = content))
+        if (index < 255) {
+            val content2 = ByteUtils.shortFromBytesBE(buff, 53)
+            entries.add(EventLogEntry(index = index + 1, contentCode = content2))
+        }
+        return entries
+    }
+
+    /** Sub-type 32: 3 extended log entries at bytes 47-80, each with 5 extra bytes. */
+    private fun parseLogExtended(buff: ByteArray): List<EventLogEntry> {
+        if (buff.size <= 84) return emptyList()
+        val entries = mutableListOf<EventLogEntry>()
+        val index = buff[47].toInt() and 0xFF
+        // Entry 1: bytes 47-58
+        entries.add(EventLogEntry(
+            index = index,
+            contentCode = ByteUtils.shortFromBytesBE(buff, 48),
+            extraBytes = buff.copyOfRange(54, 59)
+        ))
+        // Entry 2: bytes 59-69
+        if (index < 255) {
+            entries.add(EventLogEntry(
+                index = index + 1,
+                contentCode = ByteUtils.shortFromBytesBE(buff, 59),
+                extraBytes = buff.copyOfRange(65, 70)
+            ))
+        }
+        // Entry 3: bytes 70-80
+        if (index < 254) {
+            entries.add(EventLogEntry(
+                index = index + 2,
+                contentCode = ByteUtils.shortFromBytesBE(buff, 70),
+                extraBytes = buff.copyOfRange(76, 81)
+            ))
+        }
+        return entries
+    }
+
+    /** Sub-type 33: 1 detailed log entry with packed count/index, timestamp, extras, and GBK text. */
+    private fun parseLogDetailed(buff: ByteArray): List<EventLogEntry> {
+        if (buff.size <= 60) return emptyList()
+        val b47 = buff[47].toInt() and 0xFF
+        val b48 = buff[48].toInt() and 0xFF
+        val b49 = buff[49].toInt() and 0xFF
+        // Bit-packed: totalLogNum = b47*16 + b48/16, index = (b48%16)*256 + b49
+        val totalLogNum = b47 * 16 + b48 / 16
+        val index = (b48 % 16) * 256 + b49
+        // Timestamp: 4 bytes at 50-53 → big-endian unsigned
+        val timestamp = ByteUtils.intFromBytesBE(buff, 50)
+        // Content code: bytes 54-55
+        val contentCode = ByteUtils.shortFromBytesBE(buff, 54)
+        // Extra count at byte 56
+        val extraCount = buff[56].toInt() and 0xFF
+        // Extra values: extraCount × 4 bytes starting at byte 57
+        val extras = mutableListOf<Long>()
+        for (i in 0 until extraCount) {
+            val offset = 57 + i * 4
+            if (offset + 3 >= buff.size) break
+            var value = ByteUtils.intFromBytesBE(buff, offset)
+            // Signed: values > 2^31 are negative
+            if (value > 2147483648L) value -= 4294967296L
+            extras.add(value)
+        }
+        // GBK text: null-terminated bytes after extra values
+        val textStart = 57 + extraCount * 4
+        val textBytes = mutableListOf<Byte>()
+        var i = textStart
+        while (i < buff.size - 4 && buff[i] != 0.toByte()) { // -4 for CRC
+            textBytes.add(buff[i])
+            i++
+        }
+        // GBK decode (falls back to platform default if GBK unavailable)
+        val text = try {
+            textBytes.toByteArray().decodeToString()
+        } catch (_: Exception) {
+            ""
+        }
+
+        return listOf(EventLogEntry(
+            index = index,
+            totalCount = totalLogNum,
+            contentCode = contentCode,
+            timestamp = timestamp,
+            extras = extras,
+            text = text
+        ))
     }
 
     /**
@@ -938,6 +1074,13 @@ class VeteranDecoder : WheelDecoder {
             }
             is WheelCommand.SetVeteranLock -> {
                 listOf(WheelCommand.SendBytes(buildLockCommand(command.locked, command.password)))
+            }
+            is WheelCommand.RequestEventLog -> {
+                receivingLog = true
+                listOf(
+                    WheelCommand.SendBytes(appendCrc32(buildReadLogPayload(old = true))),
+                    WheelCommand.SendBytes(appendCrc32(buildReadLogPayload(old = false)))
+                )
             }
             is WheelCommand.SetScreenBacklight -> {
                 if (!isSupportedAt(SettingsCommandId.SCREEN_BACKLIGHT, ver)) return emptyList()

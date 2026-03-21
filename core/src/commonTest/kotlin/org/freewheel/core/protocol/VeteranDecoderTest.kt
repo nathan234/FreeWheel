@@ -2105,4 +2105,145 @@ class LookupSocTest {
             }
         }
     }
+
+    // ==================== Event Log Parsing ====================
+
+    @Test
+    fun `parseLogBasic extracts 2 entries from pNum 0`() {
+        val decoder = VeteranDecoder()
+        // Build a buffer with log data at bytes 50-54
+        val buff = ByteArray(62) // needs > 58 bytes
+        buff[50] = 5 // index
+        buff[51] = 0x01 // content high byte
+        buff[52] = 0x23 // content low byte → 0x0123 = 291
+        buff[53] = 0x04 // second entry content high
+        buff[54] = 0x56 // second entry content low → 0x0456 = 1110
+
+        val entries = decoder.parseLogEntries(buff, 0)
+        assertEquals(2, entries.size)
+        assertEquals(5, entries[0].index)
+        assertEquals(0x0123, entries[0].contentCode)
+        assertEquals(6, entries[1].index)
+        assertEquals(0x0456, entries[1].contentCode)
+    }
+
+    @Test
+    fun `parseLogBasic returns single entry when index is 255`() {
+        val decoder = VeteranDecoder()
+        val buff = ByteArray(62)
+        buff[50] = 0xFF.toByte() // index 255 = max
+        buff[51] = 0x00
+        buff[52] = 0x42 // content = 66
+
+        val entries = decoder.parseLogEntries(buff, 4) // pNum 4 also works
+        assertEquals(1, entries.size)
+        assertEquals(255, entries[0].index)
+        assertEquals(0x0042, entries[0].contentCode)
+    }
+
+    @Test
+    fun `parseLogBasic returns empty for short buffer`() {
+        val decoder = VeteranDecoder()
+        val buff = ByteArray(55) // too short (needs > 58)
+        val entries = decoder.parseLogEntries(buff, 0)
+        assertTrue(entries.isEmpty())
+    }
+
+    @Test
+    fun `parseLogExtended extracts 3 entries from pNum 32`() {
+        val decoder = VeteranDecoder()
+        val buff = ByteArray(90) // needs > 84
+        // Entry 1
+        buff[47] = 0 // index
+        buff[48] = 0x00; buff[49] = 0x01 // content = 1
+        buff[54] = 0x0A; buff[55] = 0x0B; buff[56] = 0x0C; buff[57] = 0x0D; buff[58] = 0x0E
+        // Entry 2
+        buff[59] = 0x00; buff[60] = 0x02 // content = 2
+        buff[65] = 0x1A; buff[66] = 0x1B; buff[67] = 0x1C; buff[68] = 0x1D; buff[69] = 0x1E
+        // Entry 3
+        buff[70] = 0x00; buff[71] = 0x03 // content = 3
+        buff[76] = 0x2A; buff[77] = 0x2B; buff[78] = 0x2C; buff[79] = 0x2D; buff[80] = 0x2E
+
+        val entries = decoder.parseLogEntries(buff, 32)
+        assertEquals(3, entries.size)
+        assertEquals(0, entries[0].index)
+        assertEquals(1, entries[0].contentCode)
+        assertEquals(0x0A.toByte(), entries[0].extraBytes[0])
+        assertEquals(1, entries[1].index)
+        assertEquals(2, entries[1].contentCode)
+        assertEquals(2, entries[2].index)
+        assertEquals(3, entries[2].contentCode)
+    }
+
+    @Test
+    fun `parseLogDetailed extracts packed count and index from pNum 33`() {
+        val decoder = VeteranDecoder()
+        val buff = ByteArray(65) // needs > 60
+        // Packed: totalLogNum = b47*16 + b48/16, index = (b48%16)*256 + b49
+        // totalLogNum = 10, index = 5 → b47 = 0, b48 = 0xA5, b49 = 0x05
+        // total = 0*16 + 0xA5/16 = 10, index = (0xA5%16)*256 + 5 = 5*256+5 = 1285
+        // Hmm, let me pick simpler values
+        // totalLogNum = 16, index = 3: b47 = 1, b48 = 0x00, b49 = 3
+        // total = 1*16 + 0/16 = 16, index = (0%16)*256 + 3 = 3
+        buff[47] = 1
+        buff[48] = 0x00
+        buff[49] = 3
+        // Timestamp: unix epoch
+        buff[50] = 0x67; buff[51] = 0x89.toByte(); buff[52] = 0xAB.toByte(); buff[53] = 0xCD.toByte()
+        // Content
+        buff[54] = 0x01; buff[55] = 0x00 // content = 256
+        // Extra count
+        buff[56] = 0 // no extras
+
+        val entries = decoder.parseLogEntries(buff, 33)
+        assertEquals(1, entries.size)
+        assertEquals(3, entries[0].index)
+        assertEquals(16, entries[0].totalCount)
+        assertEquals(256, entries[0].contentCode)
+        assertEquals(0x6789ABCDL, entries[0].timestamp)
+        assertTrue(entries[0].extras.isEmpty())
+    }
+
+    @Test
+    fun `parseLogDetailed parses extra values as signed`() {
+        val decoder = VeteranDecoder()
+        val buff = ByteArray(70)
+        buff[47] = 0; buff[48] = 0x10; buff[49] = 0 // total=1, index=0
+        buff[50] = 0; buff[51] = 0; buff[52] = 0; buff[53] = 0 // timestamp 0
+        buff[54] = 0; buff[55] = 1 // content = 1
+        buff[56] = 2 // 2 extra values
+        // Extra 1: 100 (positive)
+        buff[57] = 0; buff[58] = 0; buff[59] = 0; buff[60] = 100
+        // Extra 2: -1 (0xFFFFFFFF → > 2^31 → -1)
+        buff[61] = 0xFF.toByte(); buff[62] = 0xFF.toByte(); buff[63] = 0xFF.toByte(); buff[64] = 0xFF.toByte()
+
+        val entries = decoder.parseLogEntries(buff, 33)
+        assertEquals(1, entries.size)
+        assertEquals(2, entries[0].extras.size)
+        assertEquals(100L, entries[0].extras[0])
+        assertEquals(-1L, entries[0].extras[1])
+    }
+
+    @Test
+    fun `unknown pNum returns empty log entries`() {
+        val decoder = VeteranDecoder()
+        val buff = ByteArray(90)
+        val entries = decoder.parseLogEntries(buff, 99)
+        assertTrue(entries.isEmpty())
+    }
+
+    @Test
+    fun `RequestEventLog command produces dual-format request`() {
+        val decoder = VeteranDecoder()
+        val commands = decoder.buildCommand(WheelCommand.RequestEventLog)
+        assertEquals(2, commands.size, "Should produce old + new format commands")
+        val oldData = (commands[0] as WheelCommand.SendBytes).data
+        val newData = (commands[1] as WheelCommand.SendBytes).data
+        // Old format: LkAp (0x6B)
+        assertEquals(0x6B.toByte(), oldData[1])
+        assertEquals(0x14.toByte(), oldData[4]) // cmd byte
+        // New format: LdAp (0x64)
+        assertEquals(0x64.toByte(), newData[1])
+        assertEquals(0x14.toByte(), newData[4]) // cmd byte
+    }
 }
