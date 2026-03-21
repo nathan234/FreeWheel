@@ -1203,7 +1203,7 @@ class WheelManager: ObservableObject {
     }
 
     func stopLogging() {
-        if let metadata = rideLogger.stopLogging(currentDistance: ttelemetry?.totalDistanceKm ?? 0) {
+        if let metadata = rideLogger.stopLogging(currentDistance: telemetry?.totalDistanceKm ?? 0) {
             rideStore.addRide(metadata)
         }
         isLogging = false
