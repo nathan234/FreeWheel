@@ -690,6 +690,13 @@ class WheelManager: ObservableObject {
             }
         }
 
+        // Observe event log entries (Veteran/Leaperkim)
+        eventLogObserver = helper.observeEventLogEntries(manager: cm) { [weak self] entries in
+            Task { @MainActor in
+                self?.eventLogEntries = entries
+            }
+        }
+
         // Observe connection state — handles state transitions, scanning flag
         connectionStateObserver = helper.observeConnectionState(manager: cm) { [weak self] kmpState in
             Task { @MainActor in
@@ -1142,6 +1149,21 @@ class WheelManager: ObservableObject {
     func resetTrip() {
         guard let cm = connectionManager else { return }
         WheelConnectionManagerHelper.shared.sendResetTrip(manager: cm)
+    }
+
+    // MARK: - Event Log (Veteran/Leaperkim)
+
+    @Published private(set) var eventLogEntries: [EventLogEntry] = []
+    private var eventLogObserver: FlowObservation?
+
+    func requestEventLog() {
+        guard let cm = connectionManager else { return }
+        WheelConnectionManagerHelper.shared.sendRequestEventLog(manager: cm)
+    }
+
+    func clearEventLog() {
+        guard let cm = connectionManager else { return }
+        WheelConnectionManagerHelper.shared.sendClearEventLog(manager: cm)
     }
 
     // MARK: - Generic Command Dispatch

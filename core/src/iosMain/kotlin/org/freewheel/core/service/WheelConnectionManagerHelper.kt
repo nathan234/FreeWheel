@@ -318,6 +318,42 @@ object WheelConnectionManagerHelper {
         }
     }
 
+    // MARK: - Error Log Callback
+
+    /**
+     * Set an error log callback on the WheelConnectionManager.
+     * Swift-friendly: passes the pre-formatted CSV row string.
+     * The sessionStartMs is used to compute elapsed time in each row.
+     */
+    fun setErrorLogCallback(
+        manager: WheelConnectionManager,
+        sessionStartMs: Long,
+        callback: ((String) -> Unit)?
+    ) {
+        if (callback == null) {
+            manager.errorLogCallback = null
+        } else {
+            manager.errorLogCallback = { event ->
+                val csvRow = org.freewheel.core.logging.ConnectionErrorCsvFormatter.formatEvent(event, sessionStartMs)
+                callback(csvRow)
+            }
+        }
+    }
+
+    /**
+     * Format an error log header comment for the given session.
+     */
+    fun formatErrorLogHeader(wheelType: String, wheelName: String, address: String, connectTimeMs: Long): String {
+        return org.freewheel.core.logging.ConnectionErrorCsvFormatter.headerComment(wheelType, wheelName, address, connectTimeMs)
+    }
+
+    /**
+     * Format an error log footer comment for the given session.
+     */
+    fun formatErrorLogFooter(disconnectTimeMs: Long, disconnectReason: String, totalFramesDecoded: Int): String {
+        return org.freewheel.core.logging.ConnectionErrorCsvFormatter.footerComment(disconnectTimeMs, disconnectReason, totalFramesDecoded, null)
+    }
+
     // MARK: - Auto-Connect Manager
 
     /**
@@ -456,6 +492,21 @@ object WheelConnectionManagerHelper {
         val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
         scope.launch { manager.capabilities.collect { onChange(it) } }
         return FlowObservation(scope)
+    }
+
+    fun observeEventLogEntries(manager: WheelConnectionManager, onChange: (List<org.freewheel.core.domain.EventLogEntry>) -> Unit): FlowObservation {
+        val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+        scope.launch { manager.eventLogEntries.collect { onChange(it) } }
+        return FlowObservation(scope)
+    }
+
+    fun sendRequestEventLog(manager: WheelConnectionManager) {
+        manager.clearEventLog()
+        manager.requestEventLog()
+    }
+
+    fun sendClearEventLog(manager: WheelConnectionManager) {
+        manager.clearEventLog()
     }
 
     fun observeAutoConnecting(manager: AutoConnectManager, onChange: (Boolean) -> Unit): FlowObservation {

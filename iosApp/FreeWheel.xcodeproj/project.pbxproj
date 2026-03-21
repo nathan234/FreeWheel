@@ -40,6 +40,7 @@
 		K1000001221F0000000027 /* CustomTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = K1000001221F0000000017 /* CustomTabView.swift */; };
 		K1000001221F0000000028 /* CustomTabEditView.swift in Sources */ = {isa = PBXBuildFile; fileRef = K1000001221F0000000018 /* CustomTabEditView.swift */; };
 		L1000001221F0000000029 /* BleCaptureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = L1000001221F0000000019 /* BleCaptureView.swift */; };
+		Q1000001221F000000002Q /* EventLogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = Q1000001221F000000001Q /* EventLogView.swift */; };
 		M1000001221F000000002A /* ChargerManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = M1000001221F000000001A /* ChargerManager.swift */; };
 		M1000001221F000000002B /* ChargerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = M1000001221F000000001B /* ChargerView.swift */; };
 		N1000001221F000000002C /* SplashView.swift in Sources */ = {isa = PBXBuildFile; fileRef = N1000001221F000000001C /* SplashView.swift */; };
@@ -83,6 +84,7 @@
 		K1000001221F0000000017 /* CustomTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomTabView.swift; sourceTree = "<group>"; };
 		K1000001221F0000000018 /* CustomTabEditView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomTabEditView.swift; sourceTree = "<group>"; };
 		L1000001221F0000000019 /* BleCaptureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BleCaptureView.swift; sourceTree = "<group>"; };
+		Q1000001221F000000001Q /* EventLogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventLogView.swift; sourceTree = "<group>"; };
 		M1000001221F000000001A /* ChargerManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChargerManager.swift; sourceTree = "<group>"; };
 		M1000001221F000000001B /* ChargerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChargerView.swift; sourceTree = "<group>"; };
 		N1000001221F000000001C /* SplashView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplashView.swift; sourceTree = "<group>"; };
@@ -180,6 +182,7 @@
 				K1000001221F0000000017 /* CustomTabView.swift */,
 				K1000001221F0000000018 /* CustomTabEditView.swift */,
 				L1000001221F0000000019 /* BleCaptureView.swift */,
+				Q1000001221F000000001Q /* EventLogView.swift */,
 				M1000001221F000000001B /* ChargerView.swift */,
 				N1000001221F000000001C /* SplashView.swift */,
 				O1000001221F000000001D /* ReplayControlsView.swift */,
@@ -311,6 +314,7 @@
 				K1000001221F0000000027 /* CustomTabView.swift in Sources */,
 				K1000001221F0000000028 /* CustomTabEditView.swift in Sources */,
 				L1000001221F0000000029 /* BleCaptureView.swift in Sources */,
+				Q1000001221F000000002Q /* EventLogView.swift in Sources */,
 				M1000001221F000000002A /* ChargerManager.swift in Sources */,
 				M1000001221F000000002B /* ChargerView.swift in Sources */,
 				N1000001221F000000002C /* SplashView.swift in Sources */,
