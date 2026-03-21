@@ -19,6 +19,13 @@ import org.freewheel.core.protocol.WheelDecoder
  *
  * Primary domain state is held as separate types ([telemetry], [identity],
  * [bms], [settings]) so only the changed domain is copied per BLE frame.
+ *
+ * [connectionInfo] is non-null whenever [connectionState] is past [ConnectionState.Scanning] —
+ * the reducer is responsible for enforcing this invariant at the transition boundary.
+ *
+ * [capabilities] are populated during service discovery. Callers should gate on
+ * [connectionState] being [ConnectionState.Connected] before trusting capability values.
+ *
  */
 data class WcmState(
     // Primary domain state
@@ -28,6 +35,7 @@ data class WcmState(
     val settings: WheelSettings = WheelSettings.None,
     // Connection / decoder metadata
     val connectionState: ConnectionState = ConnectionState.Disconnected,
+    val connectionInfo: WheelConnectionInfo? = null,
     val capabilities: CapabilitySet = CapabilitySet(),
     val consecutiveDecodeErrors: Int = 0,
     val consecutiveBleErrors: Int = 0,
@@ -36,38 +44,88 @@ data class WcmState(
     // Internal — not exposed as public flows
     val decoder: WheelDecoder? = null,
     val decoderConfig: DecoderConfig = DecoderConfig(),
-    val connectionInfo: WheelConnectionInfo? = null,
 ) {
     /** Lightweight decoder input — avoids full state composition per frame. */
-    val decoderState: DecoderState get() = DecoderState(telemetry ?: TelemetryState(), identity, bms, settings)
+    val decoderState: DecoderState
+        get() = DecoderState(telemetry ?: TelemetryState(), identity, bms, settings)
 }
 
 /**
  * Side effects produced by the reducer. Executed after the state transition.
+ *
+ * All variants are data classes or data objects for structural equality,
+ * copy(), and meaningful toString() — important for packet capture and
+ * connection error logging.
  */
 sealed class WcmEffect {
-    class BleConnect(val address: String) : WcmEffect()
+    data class BleConnect(val address: String) : WcmEffect()
+
     data object BleDisconnect : WcmEffect()
-    class DispatchCommands(
+
+    data class DispatchCommands(
         val commands: List<WheelCommand>,
         val decoder: WheelDecoder? = null,
-        val decoderState: DecoderState? = null
+        val decoderState: DecoderState? = null,
     ) : WcmEffect()
-    class StartKeepAlive(val intervalMs: Long) : WcmEffect()
-    class StartDataTimeout(val address: String, val timeoutMs: Long) : WcmEffect()
+
+    data class StartKeepAlive(val intervalMs: Long) : WcmEffect()
+
+    data class StartDataTimeout(val address: String, val timeoutMs: Long) : WcmEffect()
+
     data object StopTimers : WcmEffect()
+
     data object CancelBleConnect : WcmEffect()
+
     data object CancelCommands : WcmEffect()
-    class CapturePacket(val data: ByteArray, val direction: BlePacketDirection, val annotation: String = "") : WcmEffect()
-    class NotifyUnhandled(val reason: String, val frameData: ByteArray) : WcmEffect()
-    class ResetDecoder(val decoder: WheelDecoder) : WcmEffect()
-    class ConfigureBle(
+
+    data class CapturePacket(
+        val data: ByteArray,
+        val direction: BlePacketDirection,
+        val annotation: String = "",
+    ) : WcmEffect() {
+        // ByteArray breaks structural equality — provide explicit equals/hashCode
+        // so CapturePacket behaves consistently as a data class.
+        override fun equals(other: Any?): Boolean {
+            if (this === other) return true
+            if (other !is CapturePacket) return false
+            return data.contentEquals(other.data)
+                    && direction == other.direction
+                    && annotation == other.annotation
+        }
+        override fun hashCode(): Int {
+            var result = data.contentHashCode()
+            result = 31 * result + direction.hashCode()
+            result = 31 * result + annotation.hashCode()
+            return result
+        }
+    }
+
+    data class NotifyUnhandled(
+        val reason: String,
+        val frameData: ByteArray,
+    ) : WcmEffect() {
+        override fun equals(other: Any?): Boolean {
+            if (this === other) return true
+            if (other !is NotifyUnhandled) return false
+            return reason == other.reason && frameData.contentEquals(other.frameData)
+        }
+        override fun hashCode(): Int {
+            var result = reason.hashCode()
+            result = 31 * result + frameData.contentHashCode()
+            return result
+        }
+    }
+
+    data class ResetDecoder(val decoder: WheelDecoder) : WcmEffect()
+
+    data class ConfigureBle(
         val readServiceUuid: String,
         val readCharUuid: String,
         val writeServiceUuid: String,
-        val writeCharUuid: String
+        val writeCharUuid: String,
     ) : WcmEffect()
-    class LogConnectionError(val event: ConnectionErrorEvent) : WcmEffect()
+
+    data class LogConnectionError(val event: ConnectionErrorEvent) : WcmEffect()
 }
 
 /**
@@ -75,5 +133,5 @@ sealed class WcmEffect {
  */
 data class WcmTransition(
     val state: WcmState,
-    val effects: List<WcmEffect> = emptyList()
+    val effects: List<WcmEffect> = emptyList(),
 )
