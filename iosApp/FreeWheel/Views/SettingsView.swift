@@ -246,6 +246,9 @@ struct SettingsView: View {
                 NavigationLink("BLE Capture") {
                     BleCaptureView()
                 }
+                NavigationLink("Connection Error Log") {
+                    ConnectionErrorLogView()
+                }
                 if wheelManager.identity.wheelType == .veteran || wheelManager.identity.wheelType == .leaperkim {
                     NavigationLink("Wheel Event Log") {
                         EventLogView(manager: wheelManager)

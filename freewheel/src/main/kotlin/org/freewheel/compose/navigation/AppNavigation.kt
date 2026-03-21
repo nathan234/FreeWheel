@@ -40,6 +40,7 @@ import org.freewheel.compose.screens.DashboardScreen
 import org.freewheel.compose.screens.MetricDetailScreen
 import org.freewheel.compose.screens.NavigationEditScreen
 import org.freewheel.compose.screens.BleCaptureScreen
+import org.freewheel.compose.screens.ConnectionErrorLogScreen
 import org.freewheel.compose.screens.EventLogScreen
 import org.freewheel.compose.screens.ChargerScreen
 import org.freewheel.compose.screens.RidesScreen
@@ -70,7 +71,7 @@ fun tabIcon(tab: NavigationTab): ImageVector = when (tab.iconName) {
 }
 
 // Routes that should hide the bottom bar (overlay screens)
-private val overlayRoutes = setOf(Routes.EDIT_DASHBOARD, Routes.EDIT_NAVIGATION, Routes.BLE_CAPTURE, Routes.EVENT_LOG)
+private val overlayRoutes = setOf(Routes.EDIT_DASHBOARD, Routes.EDIT_NAVIGATION, Routes.BLE_CAPTURE, Routes.EVENT_LOG, Routes.CONNECTION_ERROR_LOG)
 
 @Composable
 fun AppNavigation(viewModel: WheelViewModel) {
@@ -182,7 +183,8 @@ fun AppNavigation(viewModel: WheelViewModel) {
                     viewModel = viewModel,
                     onNavigateToEditNavigation = { navController.navigate(Routes.EDIT_NAVIGATION) },
                     onNavigateToCapture = { navController.navigate(Routes.BLE_CAPTURE) },
-                    onNavigateToEventLog = { navController.navigate(Routes.EVENT_LOG) }
+                    onNavigateToEventLog = { navController.navigate(Routes.EVENT_LOG) },
+                    onNavigateToErrorLog = { navController.navigate(Routes.CONNECTION_ERROR_LOG) }
                 )
             }
 
@@ -269,6 +271,14 @@ fun AppNavigation(viewModel: WheelViewModel) {
                             restoreState = false
                         }
                     }
+                )
+            }
+
+            // Connection Error Log (overlay)
+            composable(Routes.CONNECTION_ERROR_LOG) {
+                ConnectionErrorLogScreen(
+                    viewModel = viewModel,
+                    onBack = { navController.popBackStack() }
                 )
             }
         }

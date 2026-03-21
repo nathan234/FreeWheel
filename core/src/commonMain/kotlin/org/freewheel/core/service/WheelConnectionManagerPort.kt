@@ -10,6 +10,7 @@ import org.freewheel.core.domain.WheelIdentity
 import org.freewheel.core.domain.WheelSettings
 import org.freewheel.core.domain.WheelType
 import org.freewheel.core.logging.BlePacketDirection
+import org.freewheel.core.logging.ConnectionErrorEvent
 import org.freewheel.core.protocol.DecoderConfig
 import kotlinx.coroutines.flow.StateFlow
 
@@ -27,6 +28,7 @@ interface WheelConnectionManagerPort {
 
     var captureCallback: ((data: ByteArray, direction: BlePacketDirection, annotation: String) -> Unit)?
     var unhandledCallback: ((reason: String, frameData: ByteArray) -> Unit)?
+    var errorLogCallback: ((ConnectionErrorEvent) -> Unit)?
 
     fun connect(address: String, wheelType: WheelType? = null)
     fun disconnect()

@@ -8,6 +8,7 @@ import org.freewheel.core.domain.TelemetryState
 import org.freewheel.core.domain.WheelIdentity
 import org.freewheel.core.domain.WheelSettings
 import org.freewheel.core.logging.BlePacketDirection
+import org.freewheel.core.logging.ConnectionErrorEvent
 import org.freewheel.core.protocol.DecoderConfig
 import org.freewheel.core.protocol.DecoderState
 import org.freewheel.core.protocol.WheelCommand
@@ -66,6 +67,7 @@ sealed class WcmEffect {
         val writeServiceUuid: String,
         val writeCharUuid: String
     ) : WcmEffect()
+    class LogConnectionError(val event: ConnectionErrorEvent) : WcmEffect()
 }
 
 /**

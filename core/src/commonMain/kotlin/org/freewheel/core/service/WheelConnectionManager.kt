@@ -17,7 +17,9 @@ import org.freewheel.core.protocol.WheelDecoder
 import org.freewheel.core.protocol.WheelDecoderFactory
 import org.freewheel.core.domain.SettingsCommandId
 import org.freewheel.core.logging.BlePacketDirection
+import org.freewheel.core.logging.ConnectionErrorEvent
 import org.freewheel.core.utils.Logger
+import org.freewheel.core.utils.currentTimeMillis
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -85,6 +87,14 @@ class WheelConnectionManager(
      * Set by the UI layer to collect unrecognized protocol data for sharing.
      */
     override var unhandledCallback: ((reason: String, frameData: ByteArray) -> Unit)? = null
+
+    /**
+     * Optional callback invoked for connection error events (BLE errors, timeouts,
+     * decode exceptions, unhandled frames, state transitions).
+     * Set by the UI layer to write CSV error logs per connection session.
+     * Runs in the WCM event loop — zero overhead when null.
+     */
+    override var errorLogCallback: ((ConnectionErrorEvent) -> Unit)? = null
 
     // ==================== Unified state + scan pipeline ====================
 
@@ -528,6 +538,14 @@ class WheelConnectionManager(
             add(WcmEffect.StopTimers)
             add(WcmEffect.CancelCommands)
             state.decoder?.let { add(WcmEffect.ResetDecoder(it)) }
+            if (state.connectionState !is ConnectionState.Disconnected) {
+                add(WcmEffect.LogConnectionError(ConnectionErrorEvent.StateTransition(
+                    timestampMs = currentTimeMillis(),
+                    from = state.connectionState.statusText,
+                    to = "Disconnected",
+                    reason = "User disconnect"
+                )))
+            }
         }
         // Atomic reset — impossible to forget a field
         return WcmTransition(
@@ -635,7 +653,13 @@ class WheelConnectionManager(
             Logger.e(TAG, "decode() threw for ${event.data.size} bytes (decoder=${decoder.wheelType})", e)
             return WcmTransition(
                 state.copy(consecutiveDecodeErrors = state.consecutiveDecodeErrors + 1),
-                listOf(WcmEffect.CapturePacket(event.data, BlePacketDirection.RX, "error"))
+                listOf(
+                    WcmEffect.CapturePacket(event.data, BlePacketDirection.RX, "error"),
+                    WcmEffect.LogConnectionError(ConnectionErrorEvent.DecodeException(
+                        timestampMs = currentTimeMillis(),
+                        message = "${e::class.simpleName}: ${e.message ?: "unknown"}"
+                    ))
+                )
             )
         }
 
@@ -654,7 +678,12 @@ class WheelConnectionManager(
                 Logger.d(TAG, "Unhandled frame: ${result.reason} (${result.frameData.size} bytes, decoder=${decoder.wheelType})")
                 return WcmTransition(state, listOf(
                     captureEffect,
-                    WcmEffect.NotifyUnhandled(result.reason.toString(), result.frameData)
+                    WcmEffect.NotifyUnhandled(result.reason.toString(), result.frameData),
+                    WcmEffect.LogConnectionError(ConnectionErrorEvent.UnhandledFrame(
+                        timestampMs = currentTimeMillis(),
+                        errorClass = result.reason.errorClass.name,
+                        detail = result.reason.detail
+                    ))
                 ))
             }
             is DecodeResult.Success -> {
@@ -722,20 +751,37 @@ class WheelConnectionManager(
 
     private fun reduceBleError(state: WcmState): WcmTransition {
         val newCount = state.consecutiveBleErrors + 1
+        val now = currentTimeMillis()
         Logger.w(TAG, "BLE error #$newCount")
+        val bleErrorEffect = WcmEffect.LogConnectionError(
+            ConnectionErrorEvent.BleError(timestampMs = now, consecutiveCount = newCount)
+        )
         if (newCount >= MAX_BLE_ERRORS) {
             val address = getCurrentAddress(state)
+            val lostState = ConnectionState.ConnectionLost(
+                address = address ?: "",
+                reason = "Too many BLE errors"
+            )
+            val transitionEffect = WcmEffect.LogConnectionError(
+                ConnectionErrorEvent.StateTransition(
+                    timestampMs = now,
+                    from = state.connectionState.statusText,
+                    to = lostState.statusText,
+                    reason = "Too many BLE errors"
+                )
+            )
             return WcmTransition(
                 state.copy(
                     consecutiveBleErrors = newCount,
-                    connectionState = ConnectionState.ConnectionLost(
-                        address = address ?: "",
-                        reason = "Too many BLE errors"
-                    )
-                )
+                    connectionState = lostState
+                ),
+                listOf(bleErrorEffect, transitionEffect)
             )
         }
-        return WcmTransition(state.copy(consecutiveBleErrors = newCount))
+        return WcmTransition(
+            state.copy(consecutiveBleErrors = newCount),
+            listOf(bleErrorEffect)
+        )
     }
 
     private fun reduceKeepAliveTick(state: WcmState): WcmTransition {
@@ -748,12 +794,23 @@ class WheelConnectionManager(
         // Don't stop timers — keep-alive must continue so polling wheels
         // can recover when signal returns. The timeout tracker continues
         // monitoring and will naturally reset via onDataReceived().
+        val now = currentTimeMillis()
+        val lostState = ConnectionState.ConnectionLost(
+            address = event.address,
+            reason = "No data received"
+        )
         return WcmTransition(
-            state.copy(
-                connectionState = ConnectionState.ConnectionLost(
-                    address = event.address,
+            state.copy(connectionState = lostState),
+            listOf(
+                WcmEffect.LogConnectionError(ConnectionErrorEvent.DataTimeout(
+                    timestampMs = now, address = event.address
+                )),
+                WcmEffect.LogConnectionError(ConnectionErrorEvent.StateTransition(
+                    timestampMs = now,
+                    from = state.connectionState.statusText,
+                    to = lostState.statusText,
                     reason = "No data received"
-                )
+                ))
             )
         )
     }
@@ -813,16 +870,23 @@ class WheelConnectionManager(
      * Failed state is always clean — no leaked resources.
      */
     private fun transitionToFailed(state: WcmState, error: String, address: String?): WcmTransition {
+        val failedState = ConnectionState.Failed(error = error, address = address)
         val effects = buildList {
             add(WcmEffect.StopTimers)
             add(WcmEffect.CancelCommands)
             state.decoder?.let { add(WcmEffect.ResetDecoder(it)) }
             add(WcmEffect.BleDisconnect)
+            add(WcmEffect.LogConnectionError(ConnectionErrorEvent.StateTransition(
+                timestampMs = currentTimeMillis(),
+                from = state.connectionState.statusText,
+                to = failedState.statusText,
+                reason = error
+            )))
         }
         return WcmTransition(
             state = WcmState(
                 decoderConfig = state.decoderConfig,
-                connectionState = ConnectionState.Failed(error = error, address = address)
+                connectionState = failedState
             ),
             effects = effects
         )
@@ -899,6 +963,9 @@ class WheelConnectionManager(
                         effect.readServiceUuid, effect.readCharUuid,
                         effect.writeServiceUuid, effect.writeCharUuid
                     )
+                }
+                is WcmEffect.LogConnectionError -> {
+                    errorLogCallback?.invoke(effect.event)
                 }
             }
         }

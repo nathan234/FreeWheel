@@ -60,6 +60,10 @@ object SettingsLabels {
     const val AUTO_TORCH_USE_SUNSET = "Turn On After Sunset"
     const val AUTO_TORCH_HINT = "Automatically turns on the headlight when riding above the speed threshold or after sunset."
 
+    // Connection error log
+    const val CONNECTION_ERROR_LOG = "Connection Error Log"
+    const val ERROR_LOG_EMPTY = "No error logs yet. Logs are recorded automatically during each connection."
+
     // About / meta
     const val TITLE = "Settings"
     const val VERSION = "Version"

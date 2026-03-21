@@ -184,6 +184,11 @@ class WheelManager: ObservableObject {
     private let unhandledCollector = UnhandledFrameCollector()
     @Published private(set) var unhandledCount: Int = 0
 
+    // Connection error log — always-on CSV per session
+    private var errorLogFileHandle: FileHandle?
+    private var errorLogSessionStartMs: Int64 = 0
+    private var errorLogFrameCount: Int = 0
+
     // BLE Replay
     private let replayEngine: ReplayEngine = WheelConnectionManagerHelper.shared.createReplayEngine()
     @Published private(set) var isReplayMode: Bool = false
@@ -902,12 +907,16 @@ class WheelManager: ObservableObject {
             if autoStartLogging && !isLogging {
                 startLogging()
             }
+
+            // Start error log session
+            startErrorLogSession(address: address)
         }
 
         // Detect connection lost → start auto-reconnect via shared manager
         // Don't stop logging or clear telemetry — ride session stays alive
         // so it resumes when the wheel reconnects.
-        if case .connectionLost(let address, _) = newState {
+        if case .connectionLost(let address, let reason) = newState {
+            endErrorLogSession(reason: reason)
             if backgroundManager.isInBackground {
                 let wheelName = identity.displayName
                 backgroundManager.postConnectionLostNotification(wheelName: wheelName)
@@ -924,6 +933,7 @@ class WheelManager: ObservableObject {
 
         // Also handle explicit disconnected state
         if case .disconnected = newState, oldState.isConnected {
+            endErrorLogSession(reason: "User disconnect")
             if isCapturing { stopCapture() }
             if isLogging {
                 stopLogging()
@@ -1329,6 +1339,93 @@ class WheelManager: ObservableObject {
     static func capturesDirectory() -> URL {
         let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         return docs.appendingPathComponent("captures")
+    }
+
+    // MARK: - Connection Error Log
+
+    private func startErrorLogSession(address: String) {
+        endErrorLogSession(reason: nil)
+        let dir = Self.errorLogsDirectory()
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let now = Date()
+        let nowMs = Int64(now.timeIntervalSince1970 * 1000)
+        let wheelTypeName = identity.wheelType.name.lowercased()
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy_MM_dd_HH_mm_ss"
+        let fileName = "\(formatter.string(from: now))_\(wheelTypeName).csv"
+        let fileURL = dir.appendingPathComponent(fileName)
+        FileManager.default.createFile(atPath: fileURL.path, contents: nil)
+        guard let handle = try? FileHandle(forWritingTo: fileURL) else { return }
+
+        let header = WheelConnectionManagerHelper.shared.formatErrorLogHeader(
+            wheelType: wheelTypeName,
+            wheelName: identity.displayName,
+            address: address,
+            connectTimeMs: nowMs
+        )
+        if let data = (header + "\n").data(using: .utf8) { handle.write(data) }
+        errorLogFileHandle = handle
+        errorLogSessionStartMs = nowMs
+        errorLogFrameCount = 0
+
+        if let cm = connectionManager {
+            WheelConnectionManagerHelper.shared.setErrorLogCallback(
+                manager: cm,
+                sessionStartMs: nowMs
+            ) { [weak self] csvRow in
+                Task { @MainActor in
+                    guard let self = self, let handle = self.errorLogFileHandle else { return }
+                    if let data = (csvRow + "\n").data(using: .utf8) { handle.write(data) }
+                    self.errorLogFrameCount += 1
+                }
+            }
+        }
+    }
+
+    private func endErrorLogSession(reason: String?) {
+        guard let handle = errorLogFileHandle else { return }
+        errorLogFileHandle = nil
+        if let cm = connectionManager {
+            WheelConnectionManagerHelper.shared.setErrorLogCallback(manager: cm, sessionStartMs: 0, callback: nil)
+        }
+        let nowMs = Int64(Date().timeIntervalSince1970 * 1000)
+        let footer = WheelConnectionManagerHelper.shared.formatErrorLogFooter(
+            disconnectTimeMs: nowMs,
+            disconnectReason: reason ?? "Unknown",
+            totalFramesDecoded: Int32(errorLogFrameCount)
+        )
+        if let data = (footer + "\n").data(using: .utf8) { handle.write(data) }
+        handle.closeFile()
+    }
+
+    func errorLogFiles() -> [URL] {
+        let dir = Self.errorLogsDirectory()
+        guard let files = try? FileManager.default.contentsOfDirectory(
+            at: dir, includingPropertiesForKeys: [.contentModificationDateKey], options: .skipsHiddenFiles
+        ) else { return [] }
+        return files
+            .filter { $0.pathExtension == "csv" }
+            .sorted {
+                let d1 = (try? $0.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+                let d2 = (try? $1.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+                return d1 > d2
+            }
+    }
+
+    func deleteErrorLog(at url: URL) {
+        try? FileManager.default.removeItem(at: url)
+    }
+
+    func clearErrorLogs() {
+        let dir = Self.errorLogsDirectory()
+        if let files = try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil) {
+            for file in files { try? FileManager.default.removeItem(at: file) }
+        }
+    }
+
+    static func errorLogsDirectory() -> URL {
+        let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        return docs.appendingPathComponent("error_logs")
     }
 
     // MARK: - BLE Replay

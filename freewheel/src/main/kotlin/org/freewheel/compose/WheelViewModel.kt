@@ -10,6 +10,7 @@ import org.freewheel.core.utils.StringUtil
 import org.freewheel.core.logging.BleCaptureLogger
 import org.freewheel.core.logging.BleCaptureMetadata
 import org.freewheel.core.logging.BlePacketDirection
+import org.freewheel.core.logging.ConnectionErrorCsvFormatter
 import org.freewheel.core.logging.DiagnosticSnapshotBuilder
 import org.freewheel.core.logging.UnhandledFrameCollector
 import org.freewheel.core.logging.UnhandledFrameFormatter
@@ -291,6 +292,11 @@ class WheelViewModel(
     private val _unhandledCount = MutableStateFlow(0)
     val unhandledCount: StateFlow<Int> = _unhandledCount.asStateFlow()
 
+    // Connection error log — always-on CSV file per session
+    private var errorLogWriter: java.io.BufferedWriter? = null
+    private var errorLogSessionStartMs: Long = 0L
+    private var errorLogFrameCount: Int = 0
+
     // WearOS manager (created when service is attached)
     private var wearOsManager: WearOsManager? = null
 
@@ -412,6 +418,9 @@ class WheelViewModel(
         // Wire unhandled frame callback
         wireUnhandledCallback(cm)
 
+        // Wire connection error log callback (always on)
+        wireErrorLogCallback(cm)
+
         pushDecoderConfig()
 
         // Create shared auto-connect manager
@@ -459,6 +468,7 @@ class WheelViewModel(
                     initHistoryForWheel(state.address)
                     loadDashboardLayout()
                     wheelService?.startLocationTracking()
+                    startErrorLogSession(state.address)
                 }
                 // Start reconnect-after-loss when connection drops
                 if (state is ConnectionState.ConnectionLost && appConfig.useReconnect) {
@@ -470,6 +480,7 @@ class WheelViewModel(
                     state is ConnectionState.Failed
                 ) {
                     wheelService?.stopLocationTracking()
+                    endErrorLogSession(state)
                 }
             }
         }
@@ -508,6 +519,8 @@ class WheelViewModel(
         wheelService?.onLightToggleRequested = null
         wheelService?.onLogToggleRequested = null
         connectionManager?.unhandledCallback = null
+        connectionManager?.errorLogCallback = null
+        endErrorLogSession(ConnectionState.Disconnected)
         wheelService = null
         connectionManager = null
         bleManager = null
@@ -1140,6 +1153,102 @@ class WheelViewModel(
             unhandledCollector.record(reason, frameData, System.currentTimeMillis())
             _unhandledCount.value = unhandledCollector.count()
         }
+    }
+
+    // --- Connection Error Log ---
+
+    private fun wireErrorLogCallback(cm: WheelConnectionManagerPort) {
+        cm.errorLogCallback = callback@{ event ->
+            val writer = errorLogWriter ?: return@callback
+            try {
+                writer.write(ConnectionErrorCsvFormatter.formatEvent(event, errorLogSessionStartMs))
+                writer.newLine()
+                writer.flush()
+                errorLogFrameCount++
+            } catch (_: Exception) {
+                // Best effort — don't crash on write failure
+            }
+        }
+    }
+
+    private fun startErrorLogSession(address: String) {
+        // Close any stale session first
+        endErrorLogSession(null)
+        val app = getApplication<Application>()
+        val dir = File(app.getExternalFilesDir(null), "error_logs")
+        dir.mkdirs()
+        val now = System.currentTimeMillis()
+        val identity = identityState.value
+        val wheelTypeName = identity.wheelType.name.lowercase()
+        val wheelName = identity.displayName.replace(Regex("[^a-zA-Z0-9_-]"), "_")
+        val fileName = "${PlatformDateFormatter.formatRideFilename(now)}_${wheelTypeName}.csv"
+        try {
+            val file = File(dir, fileName)
+            val writer = file.bufferedWriter()
+            writer.write(ConnectionErrorCsvFormatter.headerComment(
+                wheelType = wheelTypeName,
+                wheelName = identity.displayName,
+                address = address,
+                connectTimeMs = now
+            ))
+            writer.newLine()
+            writer.flush()
+            errorLogWriter = writer
+            errorLogSessionStartMs = now
+            errorLogFrameCount = 0
+        } catch (_: Exception) {
+            // Best effort
+        }
+    }
+
+    private fun endErrorLogSession(state: ConnectionState?) {
+        val writer = errorLogWriter ?: return
+        errorLogWriter = null
+        try {
+            val reason = when (state) {
+                is ConnectionState.ConnectionLost -> state.reason
+                is ConnectionState.Failed -> state.error
+                is ConnectionState.Disconnected -> "User disconnect"
+                else -> "Unknown"
+            }
+            val cm = connectionManager
+            val unpackerStats = cm?.let {
+                // Access unpacker stats from the decoder via the WCM state flow
+                // The decoder exposes getUnpackerStats() but we need it from the port;
+                // for now, write footer without unpacker stats (they're in the events)
+                null
+            }
+            writer.write(ConnectionErrorCsvFormatter.footerComment(
+                disconnectTimeMs = System.currentTimeMillis(),
+                disconnectReason = reason,
+                totalFramesDecoded = errorLogFrameCount,
+                unpackerStats = unpackerStats
+            ))
+            writer.newLine()
+            writer.close()
+        } catch (_: Exception) {
+            try { writer.close() } catch (_: Exception) {}
+        }
+    }
+
+    fun loadErrorLogs(): List<File> {
+        val app = getApplication<Application>()
+        val dir = File(app.getExternalFilesDir(null), "error_logs")
+        if (!dir.exists()) return emptyList()
+        return dir.listFiles()
+            ?.filter { it.extension == "csv" }
+            ?.sortedByDescending { it.lastModified() }
+            ?: emptyList()
+    }
+
+    fun deleteErrorLog(file: File) {
+        file.delete()
+    }
+
+    fun clearErrorLogs() {
+        val app = getApplication<Application>()
+        val dir = File(app.getExternalFilesDir(null), "error_logs")
+        dir.listFiles()?.forEach { it.delete() }
     }
 
     /**

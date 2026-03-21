@@ -15,6 +15,7 @@ object Routes {
     const val METRIC_DETAIL = "metric/{metricId}"
     const val TRIP_DETAIL = "trip/{fileName}"
     const val BLE_CAPTURE = "ble_capture"
+    const val CONNECTION_ERROR_LOG = "connection_error_log"
     const val EVENT_LOG = "event_log"
 
     // Route prefixes (for bottom-bar visibility checks)

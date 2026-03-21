@@ -83,7 +83,8 @@ fun SettingsScreen(
     viewModel: WheelViewModel,
     onNavigateToEditNavigation: () -> Unit = {},
     onNavigateToCapture: () -> Unit = {},
-    onNavigateToEventLog: () -> Unit = {}
+    onNavigateToEventLog: () -> Unit = {},
+    onNavigateToErrorLog: () -> Unit = {}
 ) {
     val appConfig = viewModel.appConfig
     val wheelSettings by viewModel.settingsState.collectAsStateWithLifecycle()
@@ -454,6 +455,22 @@ fun SettingsScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text("BLE Capture")
+                Text(
+                    "Open",
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+            HorizontalDivider()
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onNavigateToErrorLog() }
+                    .padding(vertical = 4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(SettingsLabels.CONNECTION_ERROR_LOG)
                 Text(
                     "Open",
                     color = MaterialTheme.colorScheme.primary,
