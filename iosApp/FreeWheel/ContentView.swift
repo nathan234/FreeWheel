@@ -20,15 +20,12 @@ struct ContentView: View {
     @ViewBuilder
     private func tabContent(for tab: NavigationTab) -> some View {
         if tab is NavigationTab.Devices {
-            ZStack {
+            VStack(spacing: 0) {
+                ConnectionBanner()
                 if wheelManager.connectionState.isConnected {
                     DashboardView()
                 } else {
                     ScanView()
-                }
-                VStack {
-                    ConnectionBanner()
-                    Spacer()
                 }
             }
         } else if tab is NavigationTab.Chart {
