@@ -92,8 +92,8 @@ fun SettingsScreen(
     val wheelSettings by viewModel.settingsState.collectAsStateWithLifecycle()
     val identity by viewModel.identityState.collectAsStateWithLifecycle()
     val connectionState by viewModel.connectionState.collectAsStateWithLifecycle()
-    val useMph = viewModel.getGlobalBool(PreferenceKeys.USE_MPH, PreferenceDefaults.USE_MPH)
-    val useFahrenheit = viewModel.getGlobalBool(PreferenceKeys.USE_FAHRENHEIT, PreferenceDefaults.USE_FAHRENHEIT)
+    var useMph by remember { mutableStateOf(viewModel.getGlobalBool(PreferenceKeys.USE_MPH, PreferenceDefaults.USE_MPH)) }
+    var useFahrenheit by remember { mutableStateOf(viewModel.getGlobalBool(PreferenceKeys.USE_FAHRENHEIT, PreferenceDefaults.USE_FAHRENHEIT)) }
     val context = LocalContext.current
 
     // Wheel settings config-driven state
@@ -135,24 +135,24 @@ fun SettingsScreen(
             SettingsToggle(
                 label = SettingsLabels.USE_MPH,
                 checked = useMph,
-                onCheckedChange = { viewModel.setGlobalBool(PreferenceKeys.USE_MPH, it) }
+                onCheckedChange = { useMph = it; viewModel.setGlobalBool(PreferenceKeys.USE_MPH, it) }
             )
             HorizontalDivider()
             SettingsToggle(
                 label = SettingsLabels.USE_FAHRENHEIT,
                 checked = useFahrenheit,
-                onCheckedChange = { viewModel.setGlobalBool(PreferenceKeys.USE_FAHRENHEIT, it) }
+                onCheckedChange = { useFahrenheit = it; viewModel.setGlobalBool(PreferenceKeys.USE_FAHRENHEIT, it) }
             )
         }
 
         // Alarms section
-        val alarmsEnabled = viewModel.getPerWheelBool(PreferenceKeys.ALARMS_ENABLED, PreferenceDefaults.ALARMS_ENABLED)
-        val pwmBasedAlarms = viewModel.getPerWheelBool(PreferenceKeys.ALTERED_ALARMS, PreferenceDefaults.PWM_BASED_ALARMS)
+        var alarmsEnabled by remember { mutableStateOf(viewModel.getPerWheelBool(PreferenceKeys.ALARMS_ENABLED, PreferenceDefaults.ALARMS_ENABLED)) }
+        var pwmBasedAlarms by remember { mutableStateOf(viewModel.getPerWheelBool(PreferenceKeys.ALTERED_ALARMS, PreferenceDefaults.PWM_BASED_ALARMS)) }
         SettingsSection(title = SettingsLabels.SECTION_ALARMS) {
             SettingsToggle(
                 label = SettingsLabels.ENABLE_ALARMS,
                 checked = alarmsEnabled,
-                onCheckedChange = { viewModel.setPerWheelBool(PreferenceKeys.ALARMS_ENABLED, it) }
+                onCheckedChange = { alarmsEnabled = it; viewModel.setPerWheelBool(PreferenceKeys.ALARMS_ENABLED, it) }
             )
 
             if (alarmsEnabled) {
@@ -203,7 +203,7 @@ fun SettingsScreen(
                 SettingsToggle(
                     label = SettingsLabels.PWM_BASED_ALARMS,
                     checked = pwmBasedAlarms,
-                    onCheckedChange = { viewModel.setPerWheelBool(PreferenceKeys.ALTERED_ALARMS, it) }
+                    onCheckedChange = { pwmBasedAlarms = it; viewModel.setPerWheelBool(PreferenceKeys.ALTERED_ALARMS, it) }
                 )
                 Text(
                     SettingsLabels.PWM_DESCRIPTION,
@@ -308,10 +308,11 @@ fun SettingsScreen(
                     unit = "%",
                     onValueChange = { viewModel.setPerWheelInt(PreferenceKeys.ALARM_BATTERY, it.toInt()) }
                 )
+                var alarmWheel by remember { mutableStateOf(viewModel.getPerWheelBool(PreferenceKeys.ALARM_WHEEL, PreferenceDefaults.ALARM_WHEEL)) }
                 SettingsToggle(
                     label = SettingsLabels.WHEEL_ALARM,
-                    checked = viewModel.getPerWheelBool(PreferenceKeys.ALARM_WHEEL, PreferenceDefaults.ALARM_WHEEL),
-                    onCheckedChange = { viewModel.setPerWheelBool(PreferenceKeys.ALARM_WHEEL, it) }
+                    checked = alarmWheel,
+                    onCheckedChange = { alarmWheel = it; viewModel.setPerWheelBool(PreferenceKeys.ALARM_WHEEL, it) }
                 )
 
                 Text(
@@ -324,11 +325,13 @@ fun SettingsScreen(
         }
 
         // Connection section
+        var autoReconnect by remember { mutableStateOf(viewModel.getGlobalBool(PreferenceKeys.USE_RECONNECT, PreferenceDefaults.USE_RECONNECT)) }
+        var showUnknown by remember { mutableStateOf(viewModel.getGlobalBool(PreferenceKeys.SHOW_UNKNOWN_DEVICES, PreferenceDefaults.SHOW_UNKNOWN_DEVICES)) }
         SettingsSection(title = SettingsLabels.SECTION_CONNECTION) {
             SettingsToggle(
                 label = SettingsLabels.AUTO_RECONNECT,
-                checked = viewModel.getGlobalBool(PreferenceKeys.USE_RECONNECT, PreferenceDefaults.USE_RECONNECT),
-                onCheckedChange = { viewModel.setGlobalBool(PreferenceKeys.USE_RECONNECT, it) }
+                checked = autoReconnect,
+                onCheckedChange = { autoReconnect = it; viewModel.setGlobalBool(PreferenceKeys.USE_RECONNECT, it) }
             )
             Text(
                 SettingsLabels.RECONNECT_HINT,
@@ -339,23 +342,25 @@ fun SettingsScreen(
             HorizontalDivider()
             SettingsToggle(
                 label = SettingsLabels.SHOW_UNKNOWN_DEVICES,
-                checked = viewModel.getGlobalBool(PreferenceKeys.SHOW_UNKNOWN_DEVICES, PreferenceDefaults.SHOW_UNKNOWN_DEVICES),
-                onCheckedChange = { viewModel.setGlobalBool(PreferenceKeys.SHOW_UNKNOWN_DEVICES, it) }
+                checked = showUnknown,
+                onCheckedChange = { showUnknown = it; viewModel.setGlobalBool(PreferenceKeys.SHOW_UNKNOWN_DEVICES, it) }
             )
         }
 
         // Logging section
+        var autoLog by remember { mutableStateOf(viewModel.getGlobalBool(PreferenceKeys.AUTO_LOG, PreferenceDefaults.AUTO_LOG)) }
+        var logGps by remember { mutableStateOf(viewModel.getGlobalBool(PreferenceKeys.LOG_LOCATION_DATA, PreferenceDefaults.LOG_LOCATION_DATA)) }
         SettingsSection(title = SettingsLabels.SECTION_LOGGING) {
             SettingsToggle(
                 label = SettingsLabels.AUTO_START_LOGGING,
-                checked = viewModel.getGlobalBool(PreferenceKeys.AUTO_LOG, PreferenceDefaults.AUTO_LOG),
-                onCheckedChange = { viewModel.setGlobalBool(PreferenceKeys.AUTO_LOG, it) }
+                checked = autoLog,
+                onCheckedChange = { autoLog = it; viewModel.setGlobalBool(PreferenceKeys.AUTO_LOG, it) }
             )
             HorizontalDivider()
             SettingsToggle(
                 label = SettingsLabels.INCLUDE_GPS,
-                checked = viewModel.getGlobalBool(PreferenceKeys.LOG_LOCATION_DATA, PreferenceDefaults.LOG_LOCATION_DATA),
-                onCheckedChange = { viewModel.setGlobalBool(PreferenceKeys.LOG_LOCATION_DATA, it) }
+                checked = logGps,
+                onCheckedChange = { logGps = it; viewModel.setGlobalBool(PreferenceKeys.LOG_LOCATION_DATA, it) }
             )
             Text(
                 SettingsLabels.GPS_HINT,
@@ -366,12 +371,12 @@ fun SettingsScreen(
         }
 
         // Auto-torch section
-        val autoTorchEnabled = viewModel.getGlobalBool(PreferenceKeys.AUTO_TORCH_ENABLED, PreferenceDefaults.AUTO_TORCH_ENABLED)
+        var autoTorchEnabled by remember { mutableStateOf(viewModel.getGlobalBool(PreferenceKeys.AUTO_TORCH_ENABLED, PreferenceDefaults.AUTO_TORCH_ENABLED)) }
         SettingsSection(title = SettingsLabels.SECTION_AUTO_TORCH) {
             SettingsToggle(
                 label = SettingsLabels.AUTO_TORCH_ENABLED,
                 checked = autoTorchEnabled,
-                onCheckedChange = { viewModel.setGlobalBool(PreferenceKeys.AUTO_TORCH_ENABLED, it) }
+                onCheckedChange = { autoTorchEnabled = it; viewModel.setGlobalBool(PreferenceKeys.AUTO_TORCH_ENABLED, it) }
             )
             if (autoTorchEnabled) {
                 HorizontalDivider()
@@ -388,13 +393,11 @@ fun SettingsScreen(
                     onValueChange = { viewModel.setGlobalInt(PreferenceKeys.AUTO_TORCH_SPEED_THRESHOLD, it.toInt()) }
                 )
                 HorizontalDivider()
+                var useSunset by remember { mutableStateOf(viewModel.getGlobalBool(PreferenceKeys.AUTO_TORCH_USE_SUNSET, PreferenceDefaults.AUTO_TORCH_USE_SUNSET)) }
                 SettingsToggle(
                     label = SettingsLabels.AUTO_TORCH_USE_SUNSET,
-                    checked = viewModel.getGlobalBool(
-                        PreferenceKeys.AUTO_TORCH_USE_SUNSET,
-                        PreferenceDefaults.AUTO_TORCH_USE_SUNSET
-                    ),
-                    onCheckedChange = { viewModel.setGlobalBool(PreferenceKeys.AUTO_TORCH_USE_SUNSET, it) }
+                    checked = useSunset,
+                    onCheckedChange = { useSunset = it; viewModel.setGlobalBool(PreferenceKeys.AUTO_TORCH_USE_SUNSET, it) }
                 )
             }
             Text(
