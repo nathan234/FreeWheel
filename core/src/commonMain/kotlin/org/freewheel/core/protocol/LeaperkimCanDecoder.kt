@@ -235,10 +235,10 @@ class LeaperkimCanDecoder : WheelDecoder {
         frame: ByteArray,
         currentState: DecoderState,
         config: DecoderConfig
-    ): FrameResult? {
+    ): FrameOutcome {
         // Minimum frame: AA AA [4B CAN ID] [10B reserved] [payload...] [1B checksum] 55 55
         // That's 2 + 4 + 10 + payload + 1 + 2 = 19 + payload bytes minimum
-        if (frame.size < 19) return null
+        if (frame.size < 19) return FrameOutcome.Unrecognized("size=${frame.size}")
 
         // Verify checksum: sum of bytes from offset 2 to (length-3), mod 256
         val checksumEnd = frame.size - 3 // last byte before 55 55
@@ -247,7 +247,7 @@ class LeaperkimCanDecoder : WheelDecoder {
         for (i in 2 until checksumEnd) {
             checksum = (checksum + (frame[i].toInt() and 0xFF)) and 0xFF
         }
-        if (checksum != expectedChecksum) return null
+        if (checksum != expectedChecksum) return FrameOutcome.Unrecognized("checksum")
 
         // Extract CAN ID (4 bytes LE starting at offset 2)
         val canId = ByteUtils.intFromBytesLE(frame, 2)
@@ -255,10 +255,10 @@ class LeaperkimCanDecoder : WheelDecoder {
         // Payload starts after header (2) + CAN ID (4) + reserved (10) = offset 16
         val payloadStart = 16
         val payloadEnd = frame.size - 3 // before checksum + trailer
-        if (payloadEnd <= payloadStart) return null
+        if (payloadEnd <= payloadStart) return FrameOutcome.Unrecognized("empty_payload")
         val payload = frame.copyOfRange(payloadStart, payloadEnd)
 
-        return when (phase) {
+        return FrameOutcome.Processed(when (phase) {
             InitPhase.PASSWORD -> {
                 // Any response after password → send INIT_COMM
                 phase = InitPhase.INIT_COMM
@@ -296,7 +296,7 @@ class LeaperkimCanDecoder : WheelDecoder {
                     FrameResult(frameType = frameType)
                 }
             }
-        }
+        })
     }
 
     // ==================== Battery Calculation ====================

@@ -143,8 +143,9 @@ class InMotionV2Decoder : WheelDecoder {
 
     override fun decode(data: ByteArray, currentState: DecoderState, config: DecoderConfig): DecodeResult {
         val loopResult = decodeFrames(data, unpacker, currentState) { buffer, state ->
-            val msg = verifyAndParse(buffer) ?: return@decodeFrames null
-            processMessage(msg, state)
+            val msg = verifyAndParse(buffer) ?: return@decodeFrames FrameOutcome.Unrecognized("verify_failed")
+            val result = processMessage(msg, state)
+            if (result != null) FrameOutcome.Processed(result) else FrameOutcome.Unrecognized("cmd=0x${msg.command.toString(16)} flags=0x${msg.flags.toString(16)}")
         }
 
         return when (loopResult) {

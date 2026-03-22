@@ -296,8 +296,8 @@ class VeteranDecoder : WheelDecoder {
         buff: ByteArray,
         currentState: DecoderState,
         config: DecoderConfig
-    ): FrameResult? {
-        if (buff.size < 36) return null
+    ): FrameOutcome {
+        if (buff.size < 36) return FrameOutcome.Unrecognized("size=${buff.size}")
 
         val veteranNegative = config.gotwayNegative
         val tel = currentState.telemetry
@@ -425,14 +425,14 @@ class VeteranDecoder : WheelDecoder {
         val pNum = if (buff.size > 46) buff[46].toInt() else -1
         val logEntries = if (receivingLog) parseLogEntries(buff, pNum) else emptyList()
 
-        return FrameResult(
+        return FrameOutcome.Processed(FrameResult(
             telemetry = newTel,
             identity = newIdentity,
             settings = newSettings,
             hasNewData = true,
             frameType = "TELEMETRY",
             logEntries = logEntries
-        )
+        ))
     }
 
     private fun parseSubTypeData(buff: ByteArray): SubTypeData? {

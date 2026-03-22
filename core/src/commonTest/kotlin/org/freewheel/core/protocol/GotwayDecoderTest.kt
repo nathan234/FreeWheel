@@ -1789,9 +1789,9 @@ class GotwayDecoderTest {
         // pNum=0 → cells 0-7
         val cells0 = listOf(4200, 4190, 4180, 4170, 4160, 4150, 4140, 4130)
         val bmsFrame = buildBmsCellFrame(0x02, pNum = 0, cells0)
-        // BMS frames update internal state but processFrame returns null → Unhandled
+        // BMS frames update internal state and return Success (recognized frame)
         val bmsResult = freshDecoder.decode(bmsFrame, DecoderState(), config)
-        assertTrue(bmsResult is DecodeResult.Unhandled)
+        assertTrue(bmsResult is DecodeResult.Success)
 
         // Need a live data frame to see BMS data in the result
         val liveFrame = buildLiveDataFrame()

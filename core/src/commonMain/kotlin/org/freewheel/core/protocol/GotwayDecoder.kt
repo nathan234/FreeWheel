@@ -241,23 +241,24 @@ class GotwayDecoder : WheelDecoder {
         buff: ByteArray,
         currentState: DecoderState,
         config: DecoderConfig
-    ): FrameResult? {
-        if (buff.size < 20) return null
+    ): FrameOutcome {
+        if (buff.size < 20) return FrameOutcome.Unrecognized("size=${buff.size}")
 
         val frameType = buff[18].toInt() and 0xFF
         val isAlexovikFW = fwProt == "SV"
         val gotwayNegative = config.gotwayNegative
 
-        return when (frameType) {
+        val result = when (frameType) {
             FRAME_LIVE_DATA -> processLiveDataFrame(buff, currentState, config, isAlexovikFW, gotwayNegative).copy(frameType = "LIVE_DATA")
-            FRAME_EXTENDED -> processExtendedFrame(buff, currentState, config, isAlexovikFW)?.copy(frameType = "EXTENDED")
-            FRAME_BMS_CELLS_1 -> processBmsCellsFrame(buff, frameType)?.copy(frameType = "BMS_CELLS_1")
-            FRAME_BMS_CELLS_2 -> processBmsCellsFrame(buff, frameType)?.copy(frameType = "BMS_CELLS_2")
+            FRAME_EXTENDED -> (processExtendedFrame(buff, currentState, config, isAlexovikFW) ?: FrameResult(hasNewData = false)).copy(frameType = "EXTENDED")
+            FRAME_BMS_CELLS_1 -> processBmsCellsFrame(buff, frameType).copy(frameType = "BMS_CELLS_1")
+            FRAME_BMS_CELLS_2 -> processBmsCellsFrame(buff, frameType).copy(frameType = "BMS_CELLS_2")
             FRAME_TOTAL_DISTANCE -> processTotalDistanceFrame(buff, currentState, config, isAlexovikFW).copy(frameType = "TOTAL_DISTANCE")
-            FRAME_CURRENT_TEMP -> processCurrentTempFrame(buff, currentState, isAlexovikFW, gotwayNegative)?.copy(frameType = "CURRENT_TEMP")
+            FRAME_CURRENT_TEMP -> (processCurrentTempFrame(buff, currentState, isAlexovikFW, gotwayNegative) ?: FrameResult(hasNewData = false)).copy(frameType = "CURRENT_TEMP")
             FRAME_SETTINGS -> FrameResult(hasNewData = false, frameType = "SETTINGS")
-            else -> null
+            else -> return FrameOutcome.Unrecognized("type=0x${frameType.toString(16)}")
         }
+        return FrameOutcome.Processed(result)
     }
 
     /**
@@ -395,7 +396,7 @@ class GotwayDecoder : WheelDecoder {
         config: DecoderConfig,
         isAlexovikFW: Boolean
     ): FrameResult? {
-        if (isAlexovikFW) return null
+        if (isAlexovikFW) return FrameResult(hasNewData = false, frameType = "EXTENDED")
 
         val tel = currentState.telemetry
         val autoVoltage = config.autoVoltage && !isAlexovikFW
@@ -435,7 +436,7 @@ class GotwayDecoder : WheelDecoder {
     /**
      * Frame type 0x02/0x03: BMS cell voltages
      */
-    private fun processBmsCellsFrame(buff: ByteArray, frameType: Int): FrameResult? {
+    private fun processBmsCellsFrame(buff: ByteArray, frameType: Int): FrameResult {
         val bmsNum = (frameType and 0xFF) - 0x01
         val bms = if (bmsNum == 1) bms1 else bms2
         val pNum = buff[19].toInt() and 0xFF
@@ -455,7 +456,7 @@ class GotwayDecoder : WheelDecoder {
         // Recalculate cell stats
         updateBmsCellStats(bms)
 
-        return null // BMS data doesn't trigger new data event
+        return FrameResult(hasNewData = false)
     }
 
     /**
@@ -550,7 +551,7 @@ class GotwayDecoder : WheelDecoder {
         isAlexovikFW: Boolean,
         gotwayNegative: Int
     ): FrameResult? {
-        if (isAlexovikFW) return null
+        if (isAlexovikFW) return FrameResult(hasNewData = false, frameType = "CURRENT_TEMP")
 
         val tel = currentState.telemetry
         val gw = currentState.settings as? WheelSettings.Begode ?: WheelSettings.Begode()

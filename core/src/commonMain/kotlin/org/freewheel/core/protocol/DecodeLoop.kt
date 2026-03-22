@@ -26,6 +26,22 @@ data class FrameResult(
 )
 
 /**
+ * Outcome of a [processFrame] call within [decodeFrames].
+ *
+ * Forces the caller to explicitly distinguish between "I recognized this frame"
+ * and "I don't know what this frame is." Prevents the bug where a recognized
+ * frame processor returns null (meaning "no new data") and [decodeFrames]
+ * misinterprets it as an unrecognized frame type.
+ */
+sealed class FrameOutcome {
+    /** Frame was recognized and processed (may or may not have new data). */
+    data class Processed(val result: FrameResult) : FrameOutcome()
+
+    /** Frame was not recognized by this decoder — unknown type, failed verification, etc. */
+    data class Unrecognized(val hint: String) : FrameOutcome()
+}
+
+/**
  * Shared decode loop for decoders that use an [Unpacker] for frame reassembly.
  *
  * Feeds each byte from [data] through the [unpacker], and when a complete frame
@@ -35,7 +51,8 @@ data class FrameResult(
  * multi-frame BLE notifications for all decoders.
  *
  * Accumulates state as [DecoderState] (domain pieces). The lambda receives the
- * accumulated [DecoderState] and returns a [FrameResult] with domain pieces.
+ * accumulated [DecoderState] and returns a [FrameOutcome] indicating whether the
+ * frame was recognized.
  *
  * Returns a [DecodeResult] that distinguishes between:
  * - [DecodeResult.Success] — at least one frame was processed successfully
@@ -46,14 +63,14 @@ data class FrameResult(
  * @param unpacker The protocol-specific frame unpacker
  * @param currentState Current decoder state (domain sub-states) to build upon
  * @param processFrame Lambda that processes a single complete frame buffer,
- *   returning a [FrameResult] or null if the frame is invalid/unrecognized
+ *   returning [FrameOutcome.Processed] if recognized or [FrameOutcome.Unrecognized] if not
  * @return [DecodeResult] indicating success, unhandled, or buffering
  */
 internal inline fun decodeFrames(
     data: ByteArray,
     unpacker: Unpacker,
     currentState: DecoderState,
-    processFrame: (buffer: ByteArray, state: DecoderState) -> FrameResult?
+    processFrame: (buffer: ByteArray, state: DecoderState) -> FrameOutcome
 ): DecodeResult {
     var state = currentState
     var hasNewData = false
@@ -62,6 +79,7 @@ internal inline fun decodeFrames(
     var news: String? = null
     var hadCompleteFrame = false
     var firstUnhandledBuffer: ByteArray? = null
+    var firstUnhandledHint: String? = null
     val frameTypes = mutableListOf<String>()
     val logEntries = mutableListOf<EventLogEntry>()
 
@@ -70,22 +88,28 @@ internal inline fun decodeFrames(
             val buffer = unpacker.getBuffer()
             unpacker.reset()
             hadCompleteFrame = true
-            val result = processFrame(buffer, state)
-            if (result != null) {
-                frameProcessed = true
-                state = DecoderState(
-                    telemetry = result.telemetry ?: state.telemetry,
-                    identity = result.identity ?: state.identity,
-                    bms = result.bms ?: state.bms,
-                    settings = result.settings ?: state.settings
-                )
-                hasNewData = hasNewData || result.hasNewData
-                commands.addAll(result.commands)
-                result.news?.let { news = it }
-                result.frameType?.let { frameTypes.add(it) }
-                logEntries.addAll(result.logEntries)
-            } else if (firstUnhandledBuffer == null) {
-                firstUnhandledBuffer = buffer.copyOf()
+            when (val outcome = processFrame(buffer, state)) {
+                is FrameOutcome.Processed -> {
+                    val result = outcome.result
+                    frameProcessed = true
+                    state = DecoderState(
+                        telemetry = result.telemetry ?: state.telemetry,
+                        identity = result.identity ?: state.identity,
+                        bms = result.bms ?: state.bms,
+                        settings = result.settings ?: state.settings
+                    )
+                    hasNewData = hasNewData || result.hasNewData
+                    commands.addAll(result.commands)
+                    result.news?.let { news = it }
+                    result.frameType?.let { frameTypes.add(it) }
+                    logEntries.addAll(result.logEntries)
+                }
+                is FrameOutcome.Unrecognized -> {
+                    if (firstUnhandledBuffer == null) {
+                        firstUnhandledBuffer = buffer.copyOf()
+                        firstUnhandledHint = outcome.hint
+                    }
+                }
             }
         }
     }
@@ -106,8 +130,10 @@ internal inline fun decodeFrames(
         }
         hadCompleteFrame -> {
             val buf = firstUnhandledBuffer ?: byteArrayOf()
+            val hex = ByteUtils.bytesToHex(buf)
+            val detail = if (firstUnhandledHint != null) "$firstUnhandledHint $hex" else hex
             DecodeResult.Unhandled(
-                reason = UnhandledReason.UnknownCommand(frameHex = ByteUtils.bytesToHex(buf)),
+                reason = UnhandledReason.UnknownCommand(frameHex = detail),
                 frameData = buf
             )
         }

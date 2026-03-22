@@ -81,14 +81,14 @@ class InMotionDecoder : WheelDecoder {
         buffer: ByteArray,
         currentState: DecoderState,
         config: DecoderConfig
-    ): FrameResult? {
-        val canMessage = CANMessage.verify(buffer) ?: return null
+    ): FrameOutcome {
+        val canMessage = CANMessage.verify(buffer) ?: return FrameOutcome.Unrecognized("verify_failed")
         val idValue = IDValue.fromInt(canMessage.id)
-            ?: return FrameResult(frameType = "UNKNOWN")
+            ?: return FrameOutcome.Processed(FrameResult(frameType = "UNKNOWN"))
 
         val typeName = idValue.name.uppercase()
 
-        return when (idValue) {
+        return FrameOutcome.Processed(when (idValue) {
             IDValue.GetFastInfo -> {
                 canMessage.parseFastInfoMessage(model, currentState, config)
                     ?.copy(frameType = typeName)
@@ -169,7 +169,7 @@ class InMotionDecoder : WheelDecoder {
             IDValue.NoOp, IDValue.RemoteControl, IDValue.PlaySound -> {
                 FrameResult(frameType = typeName)
             }
-        }
+        })
     }
 
     override fun isReady(): Boolean = isReady && model != Model.UNKNOWN

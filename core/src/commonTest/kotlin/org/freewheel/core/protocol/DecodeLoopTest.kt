@@ -53,7 +53,7 @@ class DecodeLoopTest {
         val unpacker = FakeUnpacker(frameAtByte = mapOf(0 to byteArrayOf(1)))
 
         val result = decodeFrames(byteArrayOf(0x42), unpacker, state) { _, s ->
-            FrameResult(telemetry = s.telemetry) // same state, no new data
+            FrameOutcome.Processed(FrameResult(telemetry = s.telemetry))
         }
 
         assertTrue(result is DecodeResult.Success)
@@ -71,7 +71,7 @@ class DecodeLoopTest {
 
         val result = decodeFrames(byteArrayOf(0x01, 0x02, 0x03), unpacker, state) { _, _ ->
             processFrameCalled = true
-            FrameResult(telemetry = state.telemetry)
+            FrameOutcome.Processed(FrameResult(telemetry = state.telemetry))
         }
 
         assertTrue(result is DecodeResult.Buffering)
@@ -91,9 +91,9 @@ class DecodeLoopTest {
         val result = decodeFrames(byteArrayOf(0x01, 0x02), unpacker, state) { _, s ->
             callCount++
             if (callCount == 1) {
-                FrameResult(telemetry = s.telemetry, hasNewData = true)
+                FrameOutcome.Processed(FrameResult(telemetry = s.telemetry, hasNewData = true))
             } else {
-                FrameResult(telemetry = s.telemetry, hasNewData = false)
+                FrameOutcome.Processed(FrameResult(telemetry = s.telemetry, hasNewData = false))
             }
         }
 
@@ -115,9 +115,9 @@ class DecodeLoopTest {
         val result = decodeFrames(byteArrayOf(0x01, 0x02), unpacker, state) { _, s ->
             callCount++
             if (callCount == 1) {
-                FrameResult(telemetry = s.telemetry, commands = listOf(cmd1))
+                FrameOutcome.Processed(FrameResult(telemetry = s.telemetry, commands = listOf(cmd1)))
             } else {
-                FrameResult(telemetry = s.telemetry, commands = listOf(cmd2))
+                FrameOutcome.Processed(FrameResult(telemetry = s.telemetry, commands = listOf(cmd2)))
             }
         }
 
@@ -139,7 +139,7 @@ class DecodeLoopTest {
 
         // 3 bytes: frame at byte 0, nothing at byte 1, frame at byte 2
         decodeFrames(byteArrayOf(0x01, 0x02, 0x03), unpacker, state) { _, s ->
-            FrameResult(telemetry = s.telemetry)
+            FrameOutcome.Processed(FrameResult(telemetry = s.telemetry))
         }
 
         // reset() should have been called twice — once after each frame extraction
@@ -148,17 +148,71 @@ class DecodeLoopTest {
 
     @Test
     fun framesExtractedButAllUnrecognized_returnsUnhandled() {
-        // Unpacker yields a complete frame but processFrame returns null
-        // for all frames. Result should be Unhandled.
+        // Unpacker yields a complete frame but processFrame returns Unrecognized.
+        // Result should be Unhandled.
         val state = DecoderState()
         val unpacker = FakeUnpacker(frameAtByte = mapOf(0 to byteArrayOf(0xFF.toByte())))
 
         val result = decodeFrames(byteArrayOf(0x42), unpacker, state) { _, _ ->
-            null // unrecognized frame
+            FrameOutcome.Unrecognized("test")
         }
 
         assertTrue(result is DecodeResult.Unhandled)
         val unhandled = result as DecodeResult.Unhandled
-        assertEquals("FF", unhandled.reason.detail, "detail should contain hex dump of unhandled buffer")
+        assertEquals("test FF", unhandled.reason.detail, "detail should contain hint and hex dump of unhandled buffer")
+    }
+
+    @Test
+    fun processedWithNoNewData_returnsSuccess_notUnhandled() {
+        // Regression test: a recognized frame that produces no new data
+        // (e.g., BMS cells) must return Success, not Unhandled.
+        val state = DecoderState()
+        val unpacker = FakeUnpacker(frameAtByte = mapOf(0 to byteArrayOf(0xAB.toByte())))
+
+        val result = decodeFrames(byteArrayOf(0x42), unpacker, state) { _, _ ->
+            FrameOutcome.Processed(FrameResult(hasNewData = false))
+        }
+
+        assertTrue(result is DecodeResult.Success)
+        assertEquals(false, (result as DecodeResult.Success).data.hasNewData)
+    }
+
+    @Test
+    fun mixOfProcessedAndUnrecognized_returnsSuccess() {
+        // If any frame is Processed, the overall result is Success
+        // even if other frames in the same notification are Unrecognized.
+        val state = DecoderState()
+        val frame1 = byteArrayOf(1)
+        val frame2 = byteArrayOf(2)
+        val unpacker = FakeUnpacker(frameAtByte = mapOf(0 to frame1, 1 to frame2))
+        var callCount = 0
+
+        val result = decodeFrames(byteArrayOf(0x01, 0x02), unpacker, state) { _, _ ->
+            callCount++
+            if (callCount == 1) {
+                FrameOutcome.Unrecognized("unknown_type")
+            } else {
+                FrameOutcome.Processed(FrameResult(hasNewData = true))
+            }
+        }
+
+        assertTrue(result is DecodeResult.Success)
+        assertTrue((result as DecodeResult.Success).data.hasNewData)
+    }
+
+    @Test
+    fun unrecognizedHintIncludedInUnhandledReason() {
+        // The hint from Unrecognized flows through to the UnhandledReason detail.
+        val state = DecoderState()
+        val unpacker = FakeUnpacker(frameAtByte = mapOf(0 to byteArrayOf(0x05)))
+
+        val result = decodeFrames(byteArrayOf(0x42), unpacker, state) { _, _ ->
+            FrameOutcome.Unrecognized("type=0x05")
+        }
+
+        assertTrue(result is DecodeResult.Unhandled)
+        val detail = (result as DecodeResult.Unhandled).reason.detail
+        assertTrue(detail.startsWith("type=0x05"), "hint should be at start of detail, got: $detail")
+        assertTrue(detail.contains("05"), "frame hex should be in detail, got: $detail")
     }
 }

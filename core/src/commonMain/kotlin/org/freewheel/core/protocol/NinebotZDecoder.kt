@@ -421,8 +421,9 @@ class NinebotZDecoder : WheelDecoder {
     override fun decode(data: ByteArray, currentState: DecoderState, config: DecoderConfig): DecodeResult {
         return stateLock.withLock {
             val loopResult = decodeFrames(data, unpacker, currentState) { buffer, state ->
-                val msg = CANMessage.verify(buffer, gamma) ?: return@decodeFrames null
-                processMessage(msg, state)
+                val msg = CANMessage.verify(buffer, gamma) ?: return@decodeFrames FrameOutcome.Unrecognized("verify_failed")
+                val result = processMessage(msg, state)
+                if (result != null) FrameOutcome.Processed(result) else FrameOutcome.Unrecognized("param=0x${msg.parameter.toString(16)}")
             }
 
             when (loopResult) {
