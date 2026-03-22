@@ -34,7 +34,7 @@ import kotlin.math.roundToLong
  *   Bytes 6-9:   Distance (BE; Alexovik: battery current flag + value)
  *   Bytes 10-11: Phase current (BE signed)
  *   Bytes 12-13: Temperature (BE signed, MPU6050/6500 raw)
- *   Bytes 14-15: Hardware PWM (BE signed)
+ *   Bytes 14-15: Duty-cycle multiplier for current estimation (BE signed; NOT display PWM)
  *   Byte 16:     Unknown/unused
  *   Byte 17:     Beeper volume (0-9)
  *
@@ -369,9 +369,7 @@ class GotwayDecoder : WheelDecoder {
             power = power,
             temperature = temperature,
             wheelDistance = distance,
-            batteryLevel = battery,
-            output = if (!truePWM) hwPwm else tel.output,
-            calculatedPwm = if (!truePWM) calculatedPwm else tel.calculatedPwm
+            batteryLevel = battery
         )
 
         val newIdentity = currentState.identity.copy(

@@ -1344,7 +1344,7 @@ class GotwayDecoderTest {
     }
 
     @Test
-    fun `output stored as hwPwm (raw times 10) from frame 0x00`() {
+    fun `frame 0x00 does not store duty-cycle multiplier as display PWM`() {
         val freshDecoder = GotwayDecoder()
         initDecoder(freshDecoder)
 
@@ -1364,9 +1364,54 @@ class GotwayDecoderTest {
         assertTrue(result is DecodeResult.Success)
         val decoded = (result as DecodeResult.Success).data
 
-        // hwPwm = abs(2500 * 10) = 25000 (gotwayNegative=0 takes abs)
-        assertEquals(25000, decoded.assertTelemetry().output)
-        assertEquals(25000 / 10000.0, decoded.assertTelemetry().calculatedPwm)
+        // Frame 0x00 bytes 14-15 are a duty-cycle multiplier for current estimation,
+        // not real PWM. Only frame 0x07 sets display PWM (output/calculatedPwm).
+        assertEquals(0, decoded.assertTelemetry().output)
+        assertEquals(0.0, decoded.assertTelemetry().calculatedPwm)
+    }
+
+    @Test
+    fun `frame 0x07 with positive hwPwm sets display PWM`() {
+        val freshDecoder = GotwayDecoder()
+        initDecoder(freshDecoder)
+
+        // Send a live frame first so decoder has initial state
+        val liveFrame = buildLiveDataFrame(voltage = 6000)
+        var ds = DecoderState()
+        val r1 = freshDecoder.decode(liveFrame, ds, config)
+        if (r1 is DecodeResult.Success) ds = r1.data.decoderStateFrom(ds)
+
+        // Send frame 0x07 with positive hwPwm → sets truePWM
+        val currentFrame = buildCurrentTempFrame(batteryCurrent = 100, motorTemp = 40, hwPwm = 500)
+        val r2 = freshDecoder.decode(currentFrame, ds, config)
+        assertTrue(r2 is DecodeResult.Success)
+        val decoded = (r2 as DecodeResult.Success).data
+
+        // hwPwm=500 → output = 500 * 100 = 50000, calculatedPwm = 50000 / 10000.0 = 5.0
+        assertEquals(50000, decoded.assertTelemetry().output)
+        assertEquals(5.0, decoded.assertTelemetry().calculatedPwm)
+    }
+
+    @Test
+    fun `frame 0x07 with zero hwPwm does not set display PWM`() {
+        val freshDecoder = GotwayDecoder()
+        initDecoder(freshDecoder)
+
+        // Send a live frame with large duty-cycle multiplier (like Commander Max)
+        val liveFrame = buildLiveDataFrame(voltage = 6000)
+        var ds = DecoderState()
+        val r1 = freshDecoder.decode(liveFrame, ds, config)
+        if (r1 is DecodeResult.Success) ds = r1.data.decoderStateFrom(ds)
+
+        // Send frame 0x07 with hwPwm=0 — truePWM stays false
+        val currentFrame = buildCurrentTempFrame(batteryCurrent = 100, motorTemp = 40, hwPwm = 0)
+        val r2 = freshDecoder.decode(currentFrame, ds, config)
+        assertTrue(r2 is DecodeResult.Success)
+        val decoded = (r2 as DecodeResult.Success).data
+
+        // PWM should stay at 0 (default) — not inherit frame 0x00's duty-cycle multiplier
+        assertEquals(0, decoded.assertTelemetry().output)
+        assertEquals(0.0, decoded.assertTelemetry().calculatedPwm)
     }
 
     // ==================== hasNewData OR Semantics (Intentional Difference) ====================
