@@ -14,10 +14,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 
-// High-contrast dark palette — neutral grays, no purple tint, near-black surfaces
+// High-contrast dark palette — true black base, visible card layering, vibrant accents
 private val DarkColors = darkColorScheme(
-    primary = Color(0xFF90CAF9),           // Soft blue — stands out on dark without being harsh
-    onPrimary = Color(0xFF003258),
+    primary = Color(0xFF4DA3FF),           // Vibrant blue — saturated like iOS systemBlue
+    onPrimary = Color(0xFF00315B),
     primaryContainer = Color(0xFF004880),
     onPrimaryContainer = Color(0xFFD1E4FF),
     secondary = Color(0xFFBBC7DB),
@@ -28,24 +28,24 @@ private val DarkColors = darkColorScheme(
     onTertiary = Color(0xFF3B2948),
     tertiaryContainer = Color(0xFF524060),
     onTertiaryContainer = Color(0xFFF2DAFF),
-    error = Color(0xFFFFB4AB),
+    error = Color(0xFFFF6B6B),
     onError = Color(0xFF690005),
     errorContainer = Color(0xFF93000A),
     onErrorContainer = Color(0xFFFFDAD6),
-    surface = Color(0xFF0E0E0E),            // Near-black — AMOLED-friendly
-    onSurface = Color(0xFFE3E2E6),
-    onSurfaceVariant = Color(0xFFC4C6D0),
-    surfaceContainer = Color(0xFF1E1E1E),   // Cards / interactive tiles
-    surfaceContainerLow = Color(0xFF161616), // Grouped sections
-    surfaceContainerHigh = Color(0xFF282828),
-    surfaceContainerHighest = Color(0xFF333333),
-    outline = Color(0xFF8E9099),
-    outlineVariant = Color(0xFF44474F),
+    surface = Color(0xFF000000),            // True black — AMOLED, maximum contrast
+    onSurface = Color(0xFFE6E6E6),
+    onSurfaceVariant = Color(0xFF9E9E9E),
+    surfaceContainer = Color(0xFF2C2C2E),   // Cards / interactive tiles (iOS-matched)
+    surfaceContainerLow = Color(0xFF1C1C1E), // Grouped sections (iOS-matched)
+    surfaceContainerHigh = Color(0xFF3A3A3C),
+    surfaceContainerHighest = Color(0xFF48484A),
+    outline = Color(0xFF636366),
+    outlineVariant = Color(0xFF38383A),
 )
 
-// Clean light palette — neutral, minimal tint
+// Clean light palette — neutral, clear hierarchy
 private val LightColors = lightColorScheme(
-    primary = Color(0xFF1A6BB0),
+    primary = Color(0xFF0066CC),
     onPrimary = Color.White,
     primaryContainer = Color(0xFFD1E4FF),
     onPrimaryContainer = Color(0xFF001D36),
@@ -57,19 +57,19 @@ private val LightColors = lightColorScheme(
     onTertiary = Color.White,
     tertiaryContainer = Color(0xFFF2DAFF),
     onTertiaryContainer = Color(0xFF251432),
-    error = Color(0xFFBA1A1A),
+    error = Color(0xFFD32F2F),
     onError = Color.White,
     errorContainer = Color(0xFFFFDAD6),
     onErrorContainer = Color(0xFF410002),
-    surface = Color(0xFFF8F9FF),
-    onSurface = Color(0xFF191C20),
-    onSurfaceVariant = Color(0xFF44474F),
-    surfaceContainer = Color(0xFFEDEDF3),
-    surfaceContainerLow = Color(0xFFF3F3F9),
-    surfaceContainerHigh = Color(0xFFE7E8EE),
-    surfaceContainerHighest = Color(0xFFE1E2E8),
-    outline = Color(0xFF74777F),
-    outlineVariant = Color(0xFFC4C6D0),
+    surface = Color(0xFFF2F2F7),            // iOS-style light grouped background
+    onSurface = Color(0xFF1C1C1E),
+    onSurfaceVariant = Color(0xFF636366),
+    surfaceContainer = Color(0xFFE5E5EA),
+    surfaceContainerLow = Color(0xFFFFFFFF), // White cards on gray background (iOS-style)
+    surfaceContainerHigh = Color(0xFFD1D1D6),
+    surfaceContainerHighest = Color(0xFFC7C7CC),
+    outline = Color(0xFF8E8E93),
+    outlineVariant = Color(0xFFC7C7CC),
 )
 
 @Composable
