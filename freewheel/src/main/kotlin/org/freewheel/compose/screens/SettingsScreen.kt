@@ -215,15 +215,15 @@ fun SettingsScreen(
                 HorizontalDivider()
 
                 if (pwmBasedAlarms) {
-                    val alarmFactor1 = viewModel.getPerWheelInt(PreferenceKeys.ALARM_FACTOR_1, PreferenceDefaults.ALARM_FACTOR_1)
-                    val alarmFactor2 = viewModel.getPerWheelInt(PreferenceKeys.ALARM_FACTOR_2, PreferenceDefaults.ALARM_FACTOR_2)
+                    var alarmFactor1 by remember { mutableStateOf(viewModel.getPerWheelInt(PreferenceKeys.ALARM_FACTOR_1, PreferenceDefaults.ALARM_FACTOR_1)) }
+                    var alarmFactor2 by remember { mutableStateOf(viewModel.getPerWheelInt(PreferenceKeys.ALARM_FACTOR_2, PreferenceDefaults.ALARM_FACTOR_2)) }
                     AlarmSlider(
                         label = SettingsLabels.ALARM_FACTOR_1,
                         value = alarmFactor1.toFloat(),
                         range = 0f..100f,
                         displayValue = alarmFactor1,
                         unit = "%",
-                        onValueChange = { viewModel.setPerWheelInt(PreferenceKeys.ALARM_FACTOR_1, it.toInt()) }
+                        onValueChange = { alarmFactor1 = it.toInt(); viewModel.setPerWheelInt(PreferenceKeys.ALARM_FACTOR_1, it.toInt()) }
                     )
                     AlarmSlider(
                         label = SettingsLabels.ALARM_FACTOR_2,
@@ -231,19 +231,19 @@ fun SettingsScreen(
                         range = 0f..100f,
                         displayValue = alarmFactor2,
                         unit = "%",
-                        onValueChange = { viewModel.setPerWheelInt(PreferenceKeys.ALARM_FACTOR_2, it.toInt()) }
+                        onValueChange = { alarmFactor2 = it.toInt(); viewModel.setPerWheelInt(PreferenceKeys.ALARM_FACTOR_2, it.toInt()) }
                     )
                 } else {
-                    val alarm1Speed = viewModel.getPerWheelInt(PreferenceKeys.ALARM_1_SPEED, PreferenceDefaults.ALARM_1_SPEED)
-                    val alarm2Speed = viewModel.getPerWheelInt(PreferenceKeys.ALARM_2_SPEED, PreferenceDefaults.ALARM_2_SPEED)
-                    val alarm3Speed = viewModel.getPerWheelInt(PreferenceKeys.ALARM_3_SPEED, PreferenceDefaults.ALARM_3_SPEED)
+                    var alarm1Speed by remember { mutableStateOf(viewModel.getPerWheelInt(PreferenceKeys.ALARM_1_SPEED, PreferenceDefaults.ALARM_1_SPEED)) }
+                    var alarm2Speed by remember { mutableStateOf(viewModel.getPerWheelInt(PreferenceKeys.ALARM_2_SPEED, PreferenceDefaults.ALARM_2_SPEED)) }
+                    var alarm3Speed by remember { mutableStateOf(viewModel.getPerWheelInt(PreferenceKeys.ALARM_3_SPEED, PreferenceDefaults.ALARM_3_SPEED)) }
                     AlarmSlider(
                         label = SettingsLabels.ALARM_1_SPEED,
                         value = alarm1Speed.toFloat(),
                         range = 0f..100f,
                         displayValue = displaySpeed(alarm1Speed, useMph),
                         unit = if (useMph) "mph" else "km/h",
-                        onValueChange = { viewModel.setPerWheelInt(PreferenceKeys.ALARM_1_SPEED, it.toInt()) }
+                        onValueChange = { alarm1Speed = it.toInt(); viewModel.setPerWheelInt(PreferenceKeys.ALARM_1_SPEED, it.toInt()) }
                     )
                     AlarmSlider(
                         label = SettingsLabels.ALARM_2_SPEED,
@@ -251,7 +251,7 @@ fun SettingsScreen(
                         range = 0f..100f,
                         displayValue = displaySpeed(alarm2Speed, useMph),
                         unit = if (useMph) "mph" else "km/h",
-                        onValueChange = { viewModel.setPerWheelInt(PreferenceKeys.ALARM_2_SPEED, it.toInt()) }
+                        onValueChange = { alarm2Speed = it.toInt(); viewModel.setPerWheelInt(PreferenceKeys.ALARM_2_SPEED, it.toInt()) }
                     )
                     AlarmSlider(
                         label = SettingsLabels.ALARM_3_SPEED,
@@ -259,22 +259,22 @@ fun SettingsScreen(
                         range = 0f..100f,
                         displayValue = displaySpeed(alarm3Speed, useMph),
                         unit = if (useMph) "mph" else "km/h",
-                        onValueChange = { viewModel.setPerWheelInt(PreferenceKeys.ALARM_3_SPEED, it.toInt()) }
+                        onValueChange = { alarm3Speed = it.toInt(); viewModel.setPerWheelInt(PreferenceKeys.ALARM_3_SPEED, it.toInt()) }
                     )
                 }
 
-                val alarmCurrent = viewModel.getPerWheelInt(PreferenceKeys.ALARM_CURRENT, PreferenceDefaults.ALARM_CURRENT)
-                val alarmPhaseCurrent = viewModel.getPerWheelInt(PreferenceKeys.ALARM_PHASE_CURRENT, PreferenceDefaults.ALARM_PHASE_CURRENT)
-                val alarmTemperature = viewModel.getPerWheelInt(PreferenceKeys.ALARM_TEMPERATURE, PreferenceDefaults.ALARM_TEMPERATURE)
-                val alarmMotorTemperature = viewModel.getPerWheelInt(PreferenceKeys.ALARM_MOTOR_TEMPERATURE, PreferenceDefaults.ALARM_MOTOR_TEMPERATURE)
-                val alarmBattery = viewModel.getPerWheelInt(PreferenceKeys.ALARM_BATTERY, PreferenceDefaults.ALARM_BATTERY)
+                var alarmCurrent by remember { mutableStateOf(viewModel.getPerWheelInt(PreferenceKeys.ALARM_CURRENT, PreferenceDefaults.ALARM_CURRENT)) }
+                var alarmPhaseCurrent by remember { mutableStateOf(viewModel.getPerWheelInt(PreferenceKeys.ALARM_PHASE_CURRENT, PreferenceDefaults.ALARM_PHASE_CURRENT)) }
+                var alarmTemperature by remember { mutableStateOf(viewModel.getPerWheelInt(PreferenceKeys.ALARM_TEMPERATURE, PreferenceDefaults.ALARM_TEMPERATURE)) }
+                var alarmMotorTemperature by remember { mutableStateOf(viewModel.getPerWheelInt(PreferenceKeys.ALARM_MOTOR_TEMPERATURE, PreferenceDefaults.ALARM_MOTOR_TEMPERATURE)) }
+                var alarmBattery by remember { mutableStateOf(viewModel.getPerWheelInt(PreferenceKeys.ALARM_BATTERY, PreferenceDefaults.ALARM_BATTERY)) }
                 AlarmSlider(
                     label = SettingsLabels.CURRENT_ALARM,
                     value = alarmCurrent.toFloat(),
                     range = 0f..100f,
                     displayValue = alarmCurrent,
                     unit = "A",
-                    onValueChange = { viewModel.setPerWheelInt(PreferenceKeys.ALARM_CURRENT, it.toInt()) }
+                    onValueChange = { alarmCurrent = it.toInt(); viewModel.setPerWheelInt(PreferenceKeys.ALARM_CURRENT, it.toInt()) }
                 )
                 AlarmSlider(
                     label = SettingsLabels.PHASE_CURRENT_ALARM,
@@ -282,7 +282,7 @@ fun SettingsScreen(
                     range = 0f..400f,
                     displayValue = alarmPhaseCurrent,
                     unit = "A",
-                    onValueChange = { viewModel.setPerWheelInt(PreferenceKeys.ALARM_PHASE_CURRENT, it.toInt()) }
+                    onValueChange = { alarmPhaseCurrent = it.toInt(); viewModel.setPerWheelInt(PreferenceKeys.ALARM_PHASE_CURRENT, it.toInt()) }
                 )
                 AlarmSlider(
                     label = SettingsLabels.TEMPERATURE_ALARM,
@@ -290,7 +290,7 @@ fun SettingsScreen(
                     range = 0f..80f,
                     displayValue = displayTemperature(alarmTemperature, useFahrenheit),
                     unit = if (useFahrenheit) "\u00B0F" else "\u00B0C",
-                    onValueChange = { viewModel.setPerWheelInt(PreferenceKeys.ALARM_TEMPERATURE, it.toInt()) }
+                    onValueChange = { alarmTemperature = it.toInt(); viewModel.setPerWheelInt(PreferenceKeys.ALARM_TEMPERATURE, it.toInt()) }
                 )
                 AlarmSlider(
                     label = SettingsLabels.MOTOR_TEMP_ALARM,
@@ -298,7 +298,7 @@ fun SettingsScreen(
                     range = 0f..200f,
                     displayValue = displayTemperature(alarmMotorTemperature, useFahrenheit),
                     unit = if (useFahrenheit) "\u00B0F" else "\u00B0C",
-                    onValueChange = { viewModel.setPerWheelInt(PreferenceKeys.ALARM_MOTOR_TEMPERATURE, it.toInt()) }
+                    onValueChange = { alarmMotorTemperature = it.toInt(); viewModel.setPerWheelInt(PreferenceKeys.ALARM_MOTOR_TEMPERATURE, it.toInt()) }
                 )
                 AlarmSlider(
                     label = SettingsLabels.BATTERY_ALARM,
@@ -306,7 +306,7 @@ fun SettingsScreen(
                     range = 0f..100f,
                     displayValue = alarmBattery,
                     unit = "%",
-                    onValueChange = { viewModel.setPerWheelInt(PreferenceKeys.ALARM_BATTERY, it.toInt()) }
+                    onValueChange = { alarmBattery = it.toInt(); viewModel.setPerWheelInt(PreferenceKeys.ALARM_BATTERY, it.toInt()) }
                 )
                 var alarmWheel by remember { mutableStateOf(viewModel.getPerWheelBool(PreferenceKeys.ALARM_WHEEL, PreferenceDefaults.ALARM_WHEEL)) }
                 SettingsToggle(
