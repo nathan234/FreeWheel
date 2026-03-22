@@ -114,44 +114,52 @@ sealed class DecodeResult {
 /**
  * Structured classification for unhandled frames.
  *
- * Replaces free-form reason strings with categorized error classes,
- * enabling grouping and analysis (e.g., "400 unknown_command:0x15 frames").
- *
- * @param errorClass The category of unhandled frame.
- * @param detail Optional specifics (e.g., "0xa4" for the frame type byte).
+ * Each variant requires its specific diagnostic data — the compiler enforces
+ * that no unhandled frame can be created without the info needed to diagnose it.
  */
-data class UnhandledReason(
-    val errorClass: ErrorClass,
-    val detail: String = ""
-) {
-    /**
-     * Categories of unhandled frames, ordered by diagnostic signal.
-     */
-    enum class ErrorClass {
-        /** Frame type / command byte not in decoder's table — protocol coverage gap. */
-        UNKNOWN_COMMAND,
+sealed class UnhandledReason {
+    /** Error class name for CSV/logging (e.g., "UNKNOWN_COMMAND"). */
+    abstract val errorClassName: String
+    /** Diagnostic detail for CSV/logging (e.g., frame hex, model ID). */
+    abstract val detail: String
 
-        /** Frame header doesn't match any known protocol (AutoDetect). */
-        UNRECOGNIZED_HEADER,
-
-        /** Checksum / XOR verification failed — BLE corruption or bad reassembly. */
-        CHECKSUM_MISMATCH,
-
-        /** Frame buffer shorter than expected — BLE truncation or unpacker issue. */
-        FRAME_TOO_SHORT,
-
-        /** Model / hardware ID not in decoder's table — new hardware variant. */
-        UNKNOWN_MODEL,
-
-        /** Escape sequence parsing failed (InMotion 0xAA / LeaperkimCan 0xA5). */
-        ESCAPE_ERROR
+    /** Frame type / command byte not in decoder's table — protocol coverage gap. */
+    data class UnknownCommand(val frameHex: String) : UnhandledReason() {
+        override val errorClassName get() = "UNKNOWN_COMMAND"
+        override val detail get() = frameHex
     }
 
-    override fun toString(): String = if (detail.isEmpty()) {
-        errorClass.name.lowercase()
-    } else {
-        "${errorClass.name.lowercase()}:$detail"
+    /** Frame header doesn't match any known protocol (AutoDetect). */
+    data class UnrecognizedHeader(val headerHex: String) : UnhandledReason() {
+        override val errorClassName get() = "UNRECOGNIZED_HEADER"
+        override val detail get() = headerHex
     }
+
+    /** Checksum / XOR verification failed — BLE corruption or bad reassembly. */
+    data class ChecksumMismatch(val frameTypeHex: String) : UnhandledReason() {
+        override val errorClassName get() = "CHECKSUM_MISMATCH"
+        override val detail get() = frameTypeHex
+    }
+
+    /** Frame buffer shorter than expected — BLE truncation or unpacker issue. */
+    data class FrameTooShort(val expected: Int, val actual: Int) : UnhandledReason() {
+        override val errorClassName get() = "FRAME_TOO_SHORT"
+        override val detail get() = "expected=$expected actual=$actual"
+    }
+
+    /** Model / hardware ID not in decoder's table — new hardware variant. */
+    data class UnknownModel(val modelId: String) : UnhandledReason() {
+        override val errorClassName get() = "UNKNOWN_MODEL"
+        override val detail get() = modelId
+    }
+
+    /** Escape sequence parsing failed (InMotion 0xAA / LeaperkimCan 0xA5). */
+    data class EscapeError(val escapeDetail: String) : UnhandledReason() {
+        override val errorClassName get() = "ESCAPE_ERROR"
+        override val detail get() = escapeDetail
+    }
+
+    final override fun toString(): String = "${errorClassName.lowercase()}:$detail"
 }
 
 /**

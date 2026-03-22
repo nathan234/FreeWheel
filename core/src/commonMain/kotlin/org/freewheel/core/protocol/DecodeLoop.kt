@@ -5,6 +5,7 @@ import org.freewheel.core.domain.EventLogEntry
 import org.freewheel.core.domain.TelemetryState
 import org.freewheel.core.domain.WheelIdentity
 import org.freewheel.core.domain.WheelSettings
+import org.freewheel.core.utils.ByteUtils
 
 /**
  * Result from processing a single unpacked frame within a decoder.
@@ -104,9 +105,10 @@ internal inline fun decodeFrames(
             ))
         }
         hadCompleteFrame -> {
+            val buf = firstUnhandledBuffer ?: byteArrayOf()
             DecodeResult.Unhandled(
-                reason = UnhandledReason(UnhandledReason.ErrorClass.UNKNOWN_COMMAND),
-                frameData = firstUnhandledBuffer ?: byteArrayOf()
+                reason = UnhandledReason.UnknownCommand(frameHex = ByteUtils.bytesToHex(buf)),
+                frameData = buf
             )
         }
         else -> DecodeResult.Buffering

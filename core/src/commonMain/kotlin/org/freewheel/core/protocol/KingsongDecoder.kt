@@ -147,10 +147,7 @@ class KingsongDecoder : WheelDecoder {
             ))
         } else {
             DecodeResult.Unhandled(
-                reason = UnhandledReason(
-                    UnhandledReason.ErrorClass.UNKNOWN_COMMAND,
-                    "0x${frameType.toString(16)}"
-                ),
+                reason = UnhandledReason.UnknownCommand(frameHex = "0x${frameType.toString(16)}"),
                 frameData = data.copyOf()
             )
         }

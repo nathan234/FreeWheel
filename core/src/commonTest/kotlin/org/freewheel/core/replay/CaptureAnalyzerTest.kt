@@ -33,7 +33,7 @@ class CaptureAnalyzerTest {
             if (data.size < 2) return DecodeResult.Buffering
             if (data[0] == 0xFF.toByte() && data[1] == 0xFF.toByte()) {
                 return DecodeResult.Unhandled(
-                    UnhandledReason(UnhandledReason.ErrorClass.UNKNOWN_COMMAND, "0xFF"),
+                    UnhandledReason.UnknownCommand(frameHex = "0xFF"),
                     data
                 )
             }

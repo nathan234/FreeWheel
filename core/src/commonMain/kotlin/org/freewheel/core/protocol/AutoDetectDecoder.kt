@@ -2,6 +2,7 @@ package org.freewheel.core.protocol
 
 import org.freewheel.core.domain.WheelIdentity
 import org.freewheel.core.domain.WheelType
+import org.freewheel.core.utils.ByteUtils
 
 /**
  * Auto-detect decoder that examines packet headers to determine
@@ -69,7 +70,7 @@ class AutoDetectDecoder(
 
         // Not enough data or unrecognized header
         return DecodeResult.Unhandled(
-            reason = UnhandledReason(UnhandledReason.ErrorClass.UNRECOGNIZED_HEADER),
+            reason = UnhandledReason.UnrecognizedHeader(headerHex = ByteUtils.bytesToHex(data)),
             frameData = data.copyOf()
         )
     }

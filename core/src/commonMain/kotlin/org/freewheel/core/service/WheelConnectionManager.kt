@@ -746,7 +746,7 @@ class WheelConnectionManager(
                     WcmEffect.NotifyUnhandled(result.reason.toString(), result.frameData),
                     WcmEffect.LogConnectionError(ConnectionErrorEvent.UnhandledFrame(
                         timestampMs = currentTimeMillis(),
-                        errorClass = result.reason.errorClass.name,
+                        errorClass = result.reason.errorClassName,
                         detail = result.reason.detail
                     ))
                 ))

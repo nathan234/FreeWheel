@@ -158,5 +158,7 @@ class DecodeLoopTest {
         }
 
         assertTrue(result is DecodeResult.Unhandled)
+        val unhandled = result as DecodeResult.Unhandled
+        assertEquals("FF", unhandled.reason.detail, "detail should contain hex dump of unhandled buffer")
     }
 }
