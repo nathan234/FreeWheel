@@ -61,6 +61,9 @@ actual class BleManager : BleManagerPort {
     private var onServicesDiscoveredCallback: ((DiscoveredServices, String?) -> Unit)? = null
     private var scanCallback: ((BleDevice) -> Unit)? = null
 
+    // Disconnect tracking — prevents auto-reconnect on user-initiated disconnect
+    private var disconnectRequested = false
+
     // Connection continuation for suspend function (protected by continuationLock)
     private var connectionContinuation: CancellableContinuation<Boolean>? = null
     private val continuationLock = Lock()
@@ -165,6 +168,7 @@ actual class BleManager : BleManagerPort {
             throw IllegalStateException("Bluetooth is not powered on. State: ${central.state}")
         }
 
+        disconnectRequested = false
         _connectionState.value = ConnectionState.Connecting(address)
 
         serviceDiscoveryCompleted = false
@@ -205,6 +209,7 @@ actual class BleManager : BleManagerPort {
     }
 
     actual override suspend fun disconnect() {
+        disconnectRequested = true
         serviceDiscoveryTimeoutJob?.cancel()
         serviceDiscoveryTimeoutJob = null
         // Unblock any pending connect() coroutine BEFORE cancelling BLE
@@ -280,10 +285,14 @@ actual class BleManager : BleManagerPort {
             return
         }
 
+        // Stop any existing scan to reset CoreBluetooth's deduplication filter.
+        // Without this, peripherals discovered in a previous scan session
+        // won't be reported again (CoreBluetooth dedup is per-session).
+        central.stopScan()
+
         scanCallback = onDeviceFound
         _connectionState.value = ConnectionState.Scanning
 
-        // Scan for all peripherals (could filter by service UUIDs)
         central.scanForPeripheralsWithServices(serviceUUIDs = null, options = null)
     }
 
@@ -456,7 +465,7 @@ actual class BleManager : BleManagerPort {
         expectedServiceCount = 0
         serviceDiscoveryCompleted = false
 
-        if (error != null) {
+        if (!disconnectRequested && error != null) {
             // Unexpected disconnect — initiate OS-level auto-reconnect.
             // CoreBluetooth's connect() never times out and works in background.
             // Keep the peripheral reference alive so CoreBluetooth can reconnect.
