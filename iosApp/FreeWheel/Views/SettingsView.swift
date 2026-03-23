@@ -104,6 +104,9 @@ struct SettingsView: View {
             renderStaticInfo(staticInfo)
         } else if let externalLink = control as? AppSettingSpec.ExternalLink {
             renderExternalLink(externalLink)
+        } else if control is AppSettingSpec.ActionButton {
+            // Handled at section level (standalone button rendering)
+            EmptyView()
         }
     }
 
