@@ -204,6 +204,9 @@ class WheelManager: ObservableObject {
     @Published private(set) var replayTotalPackets: Int32 = 0
     @Published private(set) var replaySpeed: Float = 1.0
     private var replayTelemetryObserver: FlowObservation?
+    private var replayIdentityObserver: FlowObservation?
+    private var replayBmsObserver: FlowObservation?
+    private var replaySettingsObserver: FlowObservation?
     private var replayStateObserver: FlowObservation?
     private var replayPositionObserver: FlowObservation?
     private var replaySpeedObserver: FlowObservation?
@@ -452,15 +455,21 @@ class WheelManager: ObservableObject {
         capabilitiesObserver?.close()
         autoConnectingObserver?.close()
         reconnectStateObserver?.close()
+        bluetoothStateObserver?.close()
+        eventLogObserver?.close()
         demoTelemetryObserver?.close()
         demoIdentityObserver?.close()
         demoBmsObserver?.close()
         replayTelemetryObserver?.close()
+        replayIdentityObserver?.close()
+        replayBmsObserver?.close()
+        replaySettingsObserver?.close()
         replayStateObserver?.close()
         replayPositionObserver?.close()
         replaySpeedObserver?.close()
         WheelConnectionManagerHelper.shared.stopDemo(provider: demoProvider)
         WheelConnectionManagerHelper.shared.stopReplay(engine: replayEngine)
+        bleManager?.destroy()
 
         // Finalize ride recording if still active
         if Thread.isMainThread {
@@ -1504,19 +1513,19 @@ class WheelManager: ObservableObject {
             }
         }
         // Also observe identity/bms/settings for replay
-        _ = helper.observeReplayIdentity(engine: replayEngine) { [weak self] id in
+        replayIdentityObserver = helper.observeReplayIdentity(engine: replayEngine) { [weak self] id in
             Task { @MainActor in
                 guard let self = self, self.isReplayMode else { return }
                 self.identity = id
             }
         }
-        _ = helper.observeReplayBms(engine: replayEngine) { [weak self] bms in
+        replayBmsObserver = helper.observeReplayBms(engine: replayEngine) { [weak self] bms in
             Task { @MainActor in
                 guard let self = self, self.isReplayMode else { return }
                 self.bmsState = bms
             }
         }
-        _ = helper.observeReplaySettings(engine: replayEngine) { [weak self] settings in
+        replaySettingsObserver = helper.observeReplaySettings(engine: replayEngine) { [weak self] settings in
             Task { @MainActor in
                 guard let self = self, self.isReplayMode else { return }
                 self.wheelSettings = settings
@@ -1549,6 +1558,12 @@ class WheelManager: ObservableObject {
     private func stopReplayObserving() {
         replayTelemetryObserver?.close()
         replayTelemetryObserver = nil
+        replayIdentityObserver?.close()
+        replayIdentityObserver = nil
+        replayBmsObserver?.close()
+        replayBmsObserver = nil
+        replaySettingsObserver?.close()
+        replaySettingsObserver = nil
         replayStateObserver?.close()
         replayStateObserver = nil
         replayPositionObserver?.close()

@@ -165,6 +165,7 @@ class ComposeActivity : ComponentActivity() {
     }
 
     private fun bindWheelService() {
+        if (serviceBound) return
         if (bluetoothManager?.adapter?.isEnabled == true) {
             val intent = Intent(this, WheelService::class.java)
             ContextCompat.startForegroundService(this, intent)

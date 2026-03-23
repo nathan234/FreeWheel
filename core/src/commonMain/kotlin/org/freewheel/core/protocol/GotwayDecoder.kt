@@ -140,35 +140,35 @@ class GotwayDecoder : WheelDecoder {
                 val dataStr = data.decodeToString().trim()
                 when {
                     dataStr.startsWith("NAME") -> {
-                        model = dataStr.substring(5).trim()
+                        model = dataStr.drop(5).trim()
                         preIdentity = currentState.identity.copy(model = model, brand = brandDisplayName)
                     }
                     dataStr.startsWith("GW") -> {
-                        fw = dataStr.substring(2).trim()
+                        fw = dataStr.drop(2).trim()
                         fwProt = "Begode"
                         isReady = true
                         preIdentity = currentState.identity.copy(version = fw, brand = brandDisplayName)
                     }
                     dataStr.startsWith("JN") -> {
-                        fw = dataStr.substring(2).trim()
+                        fw = dataStr.drop(2).trim()
                         fwProt = "ExtremeBull"
                         isReady = true
                         preIdentity = currentState.identity.copy(version = fw, brand = brandDisplayName)
                     }
                     dataStr.startsWith("CF") -> {
-                        fw = dataStr.substring(2).trim()
+                        fw = dataStr.drop(2).trim()
                         fwProt = "Freestyl3r"
                         isReady = true
                         preIdentity = currentState.identity.copy(version = fw, brand = brandDisplayName)
                     }
                     dataStr.startsWith("BF") -> {
-                        fw = dataStr.substring(2).trim()
+                        fw = dataStr.drop(2).trim()
                         fwProt = "SV"
                         isReady = true
                         preIdentity = currentState.identity.copy(version = fw, brand = brandDisplayName)
                     }
                     dataStr.startsWith("MPU") -> {
-                        imu = dataStr.substring(1, minOf(7, dataStr.length)).trim()
+                        imu = dataStr.drop(1).take(6).trim()
                     }
                 }
             }

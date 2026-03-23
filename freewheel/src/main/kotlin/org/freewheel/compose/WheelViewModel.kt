@@ -395,6 +395,7 @@ class WheelViewModel(
 
     override fun onCleared() {
         super.onCleared()
+        endErrorLogSession(null)
         wearOsManager?.stop()
         wearOsManager = null
         prefs.unregisterOnSharedPreferenceChangeListener(prefChangeListener)

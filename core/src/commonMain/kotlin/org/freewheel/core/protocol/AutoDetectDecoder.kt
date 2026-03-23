@@ -26,9 +26,15 @@ class AutoDetectDecoder(
     private var detectedType: WheelType? = null
 
     // Lazy initialization of decoders via factory
-    private val gotwayDecoder by lazy { factory.createDecoder(WheelType.GOTWAY)!! }
-    private val veteranDecoder by lazy { factory.createDecoder(WheelType.VETERAN)!! }
-    private val leaperkimDecoder by lazy { factory.createDecoder(WheelType.LEAPERKIM)!! }
+    private val gotwayDecoder by lazy {
+        checkNotNull(factory.createDecoder(WheelType.GOTWAY)) { "Factory must support GOTWAY" }
+    }
+    private val veteranDecoder by lazy {
+        checkNotNull(factory.createDecoder(WheelType.VETERAN)) { "Factory must support VETERAN" }
+    }
+    private val leaperkimDecoder by lazy {
+        checkNotNull(factory.createDecoder(WheelType.LEAPERKIM)) { "Factory must support LEAPERKIM" }
+    }
 
     override fun decode(data: ByteArray, currentState: DecoderState, config: DecoderConfig): DecodeResult {
         if (data.isEmpty()) return DecodeResult.Buffering

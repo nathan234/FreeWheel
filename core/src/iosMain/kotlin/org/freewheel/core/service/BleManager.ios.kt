@@ -270,6 +270,11 @@ actual class BleManager : BleManagerPort {
 
     override fun destroy() {
         scope.cancel()
+        onDataReceivedCallback = null
+        onBleErrorCallback = null
+        onBleDisconnectedCallback = null
+        onServicesDiscoveredCallback = null
+        scanCallback = null
         centralManager = null
         centralDelegate = null
         peripheralDelegate = null

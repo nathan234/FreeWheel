@@ -21,7 +21,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-
+// All callers reach demoScope via @MainActor (Swift), so access is main-thread-serialized.
 private var _demoScope: CoroutineScope? = null
 private val demoScope: CoroutineScope
     get() {

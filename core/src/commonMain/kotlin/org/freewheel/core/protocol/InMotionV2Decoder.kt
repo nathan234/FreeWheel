@@ -300,7 +300,7 @@ class InMotionV2Decoder : WheelDecoder {
         when (data[0].toInt() and 0xFF) {
             0x01 -> {
                 // Car type: data format: [01, mainSeries, series, type, batch, feature, reverse]
-                if (message.len >= 6) {
+                if (data.size >= 4) {
                     val series = data[2].toInt() and 0xFF
                     val type = data[3].toInt() and 0xFF
                     model = Model.findById(series, type)
@@ -313,14 +313,14 @@ class InMotionV2Decoder : WheelDecoder {
             }
             0x02 -> {
                 // Serial number
-                if (message.len >= 17) {
+                if (data.size >= 17) {
                     serialNumber = data.copyOfRange(1, 17).decodeToString()
                     id = id.copy(serialNumber = serialNumber)
                 }
             }
             0x06 -> {
                 // Versions
-                if (message.len >= 24) {
+                if (data.size >= 24) {
                     protoVer = 0
                     val driverBoard3 = ByteUtils.shortFromBytesLE(data, 2)
                     val driverBoard2 = data[4].toInt() and 0xFF

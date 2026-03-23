@@ -112,6 +112,7 @@ object ByteUtils {
      * Reverse every pair of bytes in a portion of the input array.
      */
     fun reverseEvery2(input: ByteArray, offset: Int, len: Int): ByteArray {
+        if (offset < 0 || len < 0 || offset + len > input.size) return ByteArray(len.coerceAtLeast(0))
         val result = ByteArray(len)
         input.copyInto(result, 0, offset, offset + len)
         var i = 0
@@ -260,8 +261,13 @@ object ByteUtils {
      */
     fun hexToBytes(hex: String): ByteArray {
         val cleanHex = hex.replace(" ", "")
-        return ByteArray(cleanHex.length / 2) { i ->
-            cleanHex.substring(i * 2, i * 2 + 2).toInt(16).toByte()
+        if (cleanHex.isEmpty() || cleanHex.length % 2 != 0) return ByteArray(0)
+        return try {
+            ByteArray(cleanHex.length / 2) { i ->
+                cleanHex.substring(i * 2, i * 2 + 2).toInt(16).toByte()
+            }
+        } catch (_: NumberFormatException) {
+            ByteArray(0)
         }
     }
 
