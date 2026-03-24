@@ -202,6 +202,52 @@ class KingsongDecoderTest {
         assertEquals("2", decoded.assertIdentity().modeStr, "Mode string should reflect the mode byte")
     }
 
+    @Test
+    fun `live data 0xA9 KS-18L distance scaled when ks18LScaler enabled`() {
+        decoder.reset()
+        // First set model to KS-18L via name frame
+        val namePacket = buildKsNamePacket("KS-18L-1234")
+        decoder.decode(namePacket, defaultState, defaultConfig)
+
+        // Then send live data with known distance
+        val scalerConfig = DecoderConfig(ks18LScaler = true)
+        val packet = buildKsLivePacket(voltage = 6000, totalDistance = 10000)
+        val result = decoder.decode(packet, defaultState, scalerConfig)
+
+        assertTrue(result is DecodeResult.Success)
+        val decoded = (result as DecodeResult.Success).data
+        assertEquals(8300, decoded.assertTelemetry().totalDistance, "Distance should be scaled by 0.83")
+    }
+
+    @Test
+    fun `live data 0xA9 KS-18L distance not scaled when ks18LScaler disabled`() {
+        decoder.reset()
+        val namePacket = buildKsNamePacket("KS-18L-1234")
+        decoder.decode(namePacket, defaultState, defaultConfig)
+
+        val packet = buildKsLivePacket(voltage = 6000, totalDistance = 10000)
+        val result = decoder.decode(packet, defaultState, defaultConfig)
+
+        assertTrue(result is DecodeResult.Success)
+        val decoded = (result as DecodeResult.Success).data
+        assertEquals(10000, decoded.assertTelemetry().totalDistance, "Distance should not be scaled")
+    }
+
+    @Test
+    fun `live data 0xA9 non-18L model ignores ks18LScaler`() {
+        decoder.reset()
+        val namePacket = buildKsNamePacket("KS-16X-1234")
+        decoder.decode(namePacket, defaultState, defaultConfig)
+
+        val scalerConfig = DecoderConfig(ks18LScaler = true)
+        val packet = buildKsLivePacket(voltage = 6000, totalDistance = 10000)
+        val result = decoder.decode(packet, defaultState, scalerConfig)
+
+        assertTrue(result is DecodeResult.Success)
+        val decoded = (result as DecodeResult.Success).data
+        assertEquals(10000, decoded.assertTelemetry().totalDistance, "Non-18L should not be scaled")
+    }
+
     // ==================== Name/Type (0xBB) Tests ====================
 
     @Test

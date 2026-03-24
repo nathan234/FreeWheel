@@ -56,7 +56,8 @@ internal fun buildKsLivePacket(
     speed: Int = 0,
     current: Int = 0,
     temperature: Int = 3600,
-    mode: Int = 0
+    mode: Int = 0,
+    totalDistance: Int = 0
 ): ByteArray {
     val data = ByteArray(14)
     // Voltage LE at data[0-1]
@@ -65,7 +66,12 @@ internal fun buildKsLivePacket(
     // Speed LE at data[2-3]
     data[2] = (speed and 0xFF).toByte()
     data[3] = ((speed shr 8) and 0xFF).toByte()
-    // totalDistance at data[4-7]: leave 0
+    // totalDistance at data[4-7] (LE-pairs encoding for getInt4R:
+    // each 2-byte pair is LE, pairs are in BE order)
+    data[4] = ((totalDistance shr 16) and 0xFF).toByte()
+    data[5] = ((totalDistance shr 24) and 0xFF).toByte()
+    data[6] = (totalDistance and 0xFF).toByte()
+    data[7] = ((totalDistance shr 8) and 0xFF).toByte()
     // current LE at data[8-9] (frame bytes 10-11, read as data[10]+(data[11]<<8))
     data[8] = (current and 0xFF).toByte()
     data[9] = ((current shr 8) and 0xFF).toByte()

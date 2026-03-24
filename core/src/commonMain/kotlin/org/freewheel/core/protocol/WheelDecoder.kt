@@ -284,6 +284,12 @@ data class DecoderConfig(
     val hwPwmEnabled: Boolean = true,
 
     /**
+     * Apply 0.83 scaler to KS-18L total distance.
+     * Some KS-18L firmware reports inflated distance values.
+     */
+    val ks18LScaler: Boolean = false,
+
+    /**
      * Whether to automatically use BMS voltage from frame 0x01 (Gotway).
      * When true, frame 0x01 voltage overrides frame 0x00 voltage, and
      * frame 0x00 voltage is suppressed after the first frame 0x01.

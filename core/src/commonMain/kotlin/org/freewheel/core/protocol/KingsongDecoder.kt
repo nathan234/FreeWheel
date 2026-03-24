@@ -54,7 +54,6 @@ class KingsongDecoder : WheelDecoder {
     private var ksAlarm2Speed = 0
     private var ksAlarm3Speed = 0
     private var wheelMaxSpeed = 0
-    private var m18Lkm = true
     private var mMode = 0
     private var mSpeedLimit = 0.0
     private var model = ""
@@ -160,8 +159,8 @@ class KingsongDecoder : WheelDecoder {
         val speed = ByteUtils.getInt2R(data, 4)
         var totalDistance = ByteUtils.getInt4R(data, 6).toLong()
 
-        // KS-18L distance scaling
-        if (model == "KS-18L" && !m18Lkm) {
+        // KS-18L distance scaling — some firmware reports inflated values
+        if (model == "KS-18L" && config.ks18LScaler) {
             totalDistance = (totalDistance * KS18L_SCALER).roundToInt().toLong()
         }
 
@@ -837,7 +836,6 @@ class KingsongDecoder : WheelDecoder {
         ksAlarm2Speed = 0
         ksAlarm3Speed = 0
         wheelMaxSpeed = 0
-        m18Lkm = true
         mMode = 0
         mSpeedLimit = 0.0
         model = ""

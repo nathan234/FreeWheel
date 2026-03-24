@@ -70,11 +70,11 @@ object WheelConnectionManagerHelper {
     }
 
     /**
-     * Update decoder config with unit preferences.
-     * Only exposes useMph/useFahrenheit — the only decoder-relevant settings with iOS UI.
+     * Update decoder config. Swift constructs the full DecoderConfig so that
+     * adding a new required field causes a compile error on both platforms.
      */
-    fun updateDecoderConfig(manager: WheelConnectionManager, useMph: Boolean, useFahrenheit: Boolean) {
-        manager.updateConfig(DecoderConfig(useMph = useMph, useFahrenheit = useFahrenheit))
+    fun updateDecoderConfig(manager: WheelConnectionManager, config: DecoderConfig) {
+        manager.updateConfig(config)
     }
 
     /**

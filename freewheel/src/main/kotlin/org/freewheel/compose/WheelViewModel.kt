@@ -356,7 +356,8 @@ class WheelViewModel(
             useRatio = appConfig.useRatio,
             gotwayVoltage = appConfig.gotwayVoltage.toIntOrNull() ?: 0,
             hwPwmEnabled = appConfig.hwPwm,
-            autoVoltage = appConfig.autoVoltage
+            autoVoltage = appConfig.autoVoltage,
+            ks18LScaler = appConfig.ks18LScaler
         )
     }
 

@@ -972,7 +972,24 @@ class WheelManager: ObservableObject {
 
     private func pushDecoderConfig() {
         guard let cm = connectionManager else { return }
-        WheelConnectionManagerHelper.shared.updateDecoderConfig(manager: cm, useMph: useMph, useFahrenheit: useFahrenheit)
+        let config = DecoderConfig(
+            useMph: useMph,
+            useFahrenheit: useFahrenheit,
+            useCustomPercents: false,
+            cellVoltageTiltback: 330,
+            rotationSpeed: 500,
+            rotationVoltage: 840,
+            powerFactor: 100,
+            batteryCapacity: 0,
+            wheelPassword: "",
+            gotwayNegative: 0,
+            useRatio: false,
+            gotwayVoltage: 0,
+            hwPwmEnabled: true,
+            ks18LScaler: false,
+            autoVoltage: true
+        )
+        WheelConnectionManagerHelper.shared.updateDecoderConfig(manager: cm, config: config)
     }
 
     // MARK: - Unit Sync (handled by settings observer)
