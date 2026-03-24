@@ -21,6 +21,17 @@ object RidesLabels {
     const val END_TIME = "End"
     const val TOP_SPEED = "Top Speed"
 
+    // Ride management
+    const val MERGE_RIDES = "Merge Rides"
+    const val MERGE_CONFIRM_TITLE = "Merge Rides?"
+    const val MERGE_CONFIRM_MESSAGE = "This will combine the selected rides into a single ride. The original rides will be removed."
+    const val SPLIT_RIDE = "Split Ride"
+    const val SPLIT_HERE = "Split Here"
+    const val SPLIT_CONFIRM_TITLE = "Split Ride?"
+    const val SPLIT_CONFIRM_MESSAGE = "This will split the ride at the selected point into two separate rides."
+    const val SPLIT_AT = "Split at"
+    const val SELECTED_SUFFIX = "selected"
+
     // Ride replay
     const val REPLAY = "Replay"
     const val EXIT_REPLAY = "Exit Replay"

@@ -4,6 +4,7 @@ import FreeWheelCore
 
 struct TripDetailView: View {
     @EnvironmentObject var wheelManager: WheelManager
+    @Environment(\.dismiss) private var dismiss
 
     let ride: RideMetadata
 
@@ -24,6 +25,11 @@ struct TripDetailView: View {
 
     @State private var replayController: RideReplayController?
     private var isReplaying: Bool { replayController != nil }
+
+    // Split mode state
+    @State private var isSplitMode = false
+    @State private var splitSliderPosition: Double = 0.5
+    @State private var showSplitConfirm = false
 
     private func displaySpeed(_ kmh: Double) -> Double {
         displaySpeed(kmh, useMph: wheelManager.useMph)
@@ -49,6 +55,23 @@ struct TripDetailView: View {
         if showTemperature { units.append(tempUnit) }
         if showPwm { units.append("%") }
         return units.joined(separator: " · ")
+    }
+
+    private var splitTimestampMs: Int64? {
+        guard samples.count >= 2 else { return nil }
+        let firstTs = samples.first!.timestampMs
+        let lastTs = samples.last!.timestampMs
+        let range = Double(lastTs - firstTs)
+        let clamped = min(max(splitSliderPosition, 0.01), 0.99)
+        return firstTs + Int64(range * clamped)
+    }
+
+    private var splitTimeString: String {
+        guard let ms = splitTimestampMs else { return "" }
+        let date = Date(timeIntervalSince1970: Double(ms) / 1000)
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm:ss"
+        return formatter.string(from: date)
     }
 
     var body: some View {
@@ -104,21 +127,49 @@ struct TripDetailView: View {
                     .padding(.vertical)
                 }
 
+                // Split controls at bottom
+                if isSplitMode {
+                    splitControls
+                }
+
                 if let controller = replayController {
                     RideReplayControlsView(controller: controller)
                 }
                 }
             }
         }
-        .navigationTitle(isReplaying ? RidesLabels.shared.REPLAY : titleDate)
+        .navigationTitle(
+            isSplitMode ? RidesLabels.shared.SPLIT_RIDE
+            : isReplaying ? RidesLabels.shared.REPLAY
+            : titleDate
+        )
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            if !isReplaying && !samples.isEmpty {
+            if isSplitMode {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button(CommonLabels.shared.CANCEL) {
+                        isSplitMode = false
+                        splitSliderPosition = 0.5
+                    }
+                }
+            }
+            if !isReplaying && !isSplitMode && !samples.isEmpty {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button {
-                        replayController = RideReplayController(samples: samples)
-                    } label: {
-                        Image(systemName: "play.fill")
+                    HStack(spacing: 12) {
+                        // Split button
+                        if samples.count >= 2 {
+                            Button {
+                                isSplitMode = true
+                            } label: {
+                                Image(systemName: "scissors")
+                            }
+                        }
+                        // Replay button
+                        Button {
+                            replayController = RideReplayController(samples: samples)
+                        } label: {
+                            Image(systemName: "play.fill")
+                        }
                     }
                 }
             }
@@ -133,9 +184,41 @@ struct TripDetailView: View {
                 }
             }
         }
+        .alert(RidesLabels.shared.SPLIT_CONFIRM_TITLE, isPresented: $showSplitConfirm) {
+            Button(CommonLabels.shared.CANCEL, role: .cancel) {}
+            Button(RidesLabels.shared.SPLIT_HERE) {
+                guard let ms = splitTimestampMs else { return }
+                if wheelManager.splitRide(ride, atTimestampMs: ms) {
+                    dismiss()
+                }
+            }
+        } message: {
+            Text("\(RidesLabels.shared.SPLIT_CONFIRM_MESSAGE)\n\nSplit at \(splitTimeString)")
+        }
         .task {
             await loadCsvData()
         }
+    }
+
+    // MARK: - Split Controls
+
+    private var splitControls: some View {
+        VStack(spacing: 4) {
+            Text("\(RidesLabels.shared.SPLIT_AT) \(splitTimeString)")
+                .font(.subheadline)
+            Slider(value: $splitSliderPosition, in: 0.01...0.99)
+                .padding(.horizontal)
+            HStack {
+                Spacer()
+                Button(RidesLabels.shared.SPLIT_HERE) {
+                    showSplitConfirm = true
+                }
+                .buttonStyle(.borderedProminent)
+            }
+            .padding(.horizontal)
+        }
+        .padding(.vertical, 8)
+        .background(.bar)
     }
 
     // MARK: - Title
@@ -527,4 +610,3 @@ private struct RideReplayControlsView: View {
     }
 
 }
-

@@ -17,20 +17,28 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ShowChart
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContentCut
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.BottomAppBar
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -57,6 +65,9 @@ import org.freewheel.compose.components.RideStatsHeader
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.ui.graphics.Color
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.freewheel.compose.components.VicoLineChart
 import org.freewheel.compose.components.rememberChartMarker
 import org.freewheel.core.telemetry.MetricType
@@ -64,10 +75,9 @@ import org.freewheel.core.telemetry.TelemetrySample
 import org.freewheel.core.utils.DisplayUtils
 import org.freewheel.data.TripDataDbEntry
 import org.freewheel.core.logging.CsvParser
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import java.io.File
 import java.text.SimpleDateFormat
+import java.util.Date
 import java.util.Locale
 
 private sealed class TripDetailState {
@@ -87,6 +97,7 @@ fun TripDetailScreen(
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val useMph = viewModel.appConfig.useMph
     val useFahrenheit = viewModel.appConfig.useFahrenheit
 
@@ -94,6 +105,11 @@ fun TripDetailScreen(
 
     var replayController by remember { mutableStateOf<CsvReplayController?>(null) }
     val isReplaying = replayController != null
+
+    // Split mode state
+    var isSplitMode by remember { mutableStateOf(false) }
+    var splitSliderPosition by remember { mutableFloatStateOf(0.5f) }
+    var showSplitConfirm by remember { mutableStateOf(false) }
 
     var showSpeed by remember { mutableStateOf(true) }
     var showGpsSpeed by remember { mutableStateOf(false) }
@@ -125,9 +141,20 @@ fun TripDetailScreen(
         }
     }
 
+    // Compute split timestamp from slider position
+    val splitTimestampMs: Long? = remember(state, splitSliderPosition) {
+        val s = state as? TripDetailState.Loaded ?: return@remember null
+        if (s.samples.size < 2) return@remember null
+        val firstTs = s.samples.first().timestampMs
+        val lastTs = s.samples.last().timestampMs
+        val range = lastTs - firstTs
+        // Clamp slider so both halves have at least 1 sample
+        val clampedPos = splitSliderPosition.coerceIn(0.01f, 0.99f)
+        firstTs + (range * clampedPos).toLong()
+    }
+
     // Format title from trip date
     val titleDate = remember(fileName) {
-        // fileName format: WheelLog_yyyy_MM_dd_HH_mm_ss.csv
         try {
             val nameWithoutExt = fileName.removeSuffix(".csv").removePrefix("WheelLog_")
             val fmt = SimpleDateFormat("yyyy_MM_dd_HH_mm_ss", Locale.US)
@@ -140,30 +167,83 @@ fun TripDetailScreen(
         }
     }
 
+    // Split confirmation dialog
+    if (showSplitConfirm && splitTimestampMs != null) {
+        val splitTimeStr = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date(splitTimestampMs))
+        AlertDialog(
+            onDismissRequest = { showSplitConfirm = false },
+            title = { Text(RidesLabels.SPLIT_CONFIRM_TITLE) },
+            text = { Text("${RidesLabels.SPLIT_CONFIRM_MESSAGE}\n\nSplit at $splitTimeStr") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showSplitConfirm = false
+                    val s = state as? TripDetailState.Loaded ?: return@TextButton
+                    val trip = s.trip ?: return@TextButton
+                    scope.launch {
+                        if (viewModel.splitRide(trip, splitTimestampMs, context)) {
+                            onBack()
+                        }
+                    }
+                }) {
+                    Text(RidesLabels.SPLIT_HERE, color = MaterialTheme.colorScheme.primary)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showSplitConfirm = false }) {
+                    Text(CommonLabels.CANCEL)
+                }
+            }
+        )
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(if (isReplaying) RidesLabels.REPLAY else titleDate) },
+                title = {
+                    Text(
+                        when {
+                            isSplitMode -> RidesLabels.SPLIT_RIDE
+                            isReplaying -> RidesLabels.REPLAY
+                            else -> titleDate
+                        }
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = {
-                        if (isReplaying) {
-                            replayController?.stop()
-                            replayController = null
-                        } else {
-                            onBack()
+                        when {
+                            isSplitMode -> {
+                                isSplitMode = false
+                                splitSliderPosition = 0.5f
+                            }
+                            isReplaying -> {
+                                replayController?.stop()
+                                replayController = null
+                            }
+                            else -> onBack()
                         }
                     }) {
                         Icon(
-                            if (isReplaying) Icons.Default.Close
+                            if (isSplitMode || isReplaying) Icons.Default.Close
                             else Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = if (isReplaying) RidesLabels.EXIT_REPLAY else CommonLabels.BACK
+                            contentDescription = when {
+                                isSplitMode -> CommonLabels.CANCEL
+                                isReplaying -> RidesLabels.EXIT_REPLAY
+                                else -> CommonLabels.BACK
+                            }
                         )
                     }
                 },
                 actions = {
-                    if (!isReplaying && state is TripDetailState.Loaded) {
+                    if (!isReplaying && !isSplitMode && state is TripDetailState.Loaded) {
+                        val s = state as TripDetailState.Loaded
+                        // Split button
+                        if (s.samples.size >= 2 && s.trip != null) {
+                            IconButton(onClick = { isSplitMode = true }) {
+                                Icon(Icons.Default.ContentCut, contentDescription = RidesLabels.SPLIT_RIDE)
+                            }
+                        }
+                        // Replay button
                         IconButton(onClick = {
-                            val s = state as TripDetailState.Loaded
                             replayController = CsvReplayController(s.samples)
                         }) {
                             Icon(Icons.Default.PlayArrow, contentDescription = RidesLabels.REPLAY)
@@ -171,6 +251,38 @@ fun TripDetailScreen(
                     }
                 },
             )
+        },
+        bottomBar = {
+            if (isSplitMode && splitTimestampMs != null) {
+                val splitTimeStr = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date(splitTimestampMs))
+                BottomAppBar {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp)
+                    ) {
+                        Text(
+                            "${RidesLabels.SPLIT_AT} $splitTimeStr",
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.align(Alignment.CenterHorizontally)
+                        )
+                        Slider(
+                            value = splitSliderPosition,
+                            onValueChange = { splitSliderPosition = it },
+                            valueRange = 0.01f..0.99f,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End
+                        ) {
+                            Button(onClick = { showSplitConfirm = true }) {
+                                Text(RidesLabels.SPLIT_HERE)
+                            }
+                        }
+                    }
+                }
+            }
         }
     ) { padding ->
         when (val s = state) {

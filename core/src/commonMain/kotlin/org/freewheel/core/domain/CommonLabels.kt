@@ -10,4 +10,6 @@ object CommonLabels {
     const val ALARM_PREFIX = "ALARM: "
     const val DELETE = "Delete"
     const val SHARE = "Share"
+    const val SELECT = "Select"
+    const val DONE = "Done"
 }

@@ -92,6 +92,32 @@ class RideStore: ObservableObject {
         saveRides()
     }
 
+    func removeRides(withIds ids: Set<String>) {
+        for id in ids {
+            if let idx = rides.firstIndex(where: { $0.id == id }) {
+                let ride = rides[idx]
+                let fileURL = Self.ridesDirectory().appendingPathComponent(ride.fileName)
+                try? FileManager.default.removeItem(at: fileURL)
+                rides.remove(at: idx)
+            }
+        }
+        saveRides()
+    }
+
+    func replaceRide(id: String, with newRides: [RideMetadata]) {
+        if let idx = rides.firstIndex(where: { $0.id == id }) {
+            let oldRide = rides[idx]
+            let fileURL = Self.ridesDirectory().appendingPathComponent(oldRide.fileName)
+            try? FileManager.default.removeItem(at: fileURL)
+            rides.remove(at: idx)
+        }
+        for ride in newRides {
+            rides.append(ride)
+        }
+        rides.sort { $0.startDate > $1.startDate }
+        saveRides()
+    }
+
     func fileURL(for ride: RideMetadata) -> URL {
         Self.ridesDirectory().appendingPathComponent(ride.fileName)
     }

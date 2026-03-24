@@ -15,6 +15,7 @@ import org.freewheel.core.logging.DiagnosticSnapshotBuilder
 import org.freewheel.core.logging.UnhandledFrameCollector
 import org.freewheel.core.logging.UnhandledFrameFormatter
 import org.freewheel.core.logging.GpsLocation
+import org.freewheel.core.logging.RideCsvEditor
 import org.freewheel.core.logging.RideLogger
 import org.freewheel.core.telemetry.ChartTimeRange
 import org.freewheel.core.telemetry.TelemetryBuffer
@@ -83,6 +84,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import androidx.core.content.edit
 import org.freewheel.compose.service.AlarmHandler
 import org.freewheel.compose.service.WheelServiceContract
@@ -483,6 +485,8 @@ class WheelViewModel(
                     state is ConnectionState.Disconnected ||
                     state is ConnectionState.Failed
                 ) {
+                    if (captureLogger.isCapturing) stopCapture()
+                    if (rideLogger.isLogging) stopLogging()
                     wheelService?.stopLocationTracking()
                     endErrorLogSession(state)
                 }
@@ -1117,6 +1121,91 @@ class WheelViewModel(
             val ridesDir = File(context.getExternalFilesDir(null), "rides")
             val csvFile = File(ridesDir, trip.fileName)
             if (csvFile.exists()) csvFile.delete()
+        }
+    }
+
+    suspend fun stitchRides(trips: List<TripDataDbEntry>, context: Context): Boolean {
+        return withContext(Dispatchers.IO) {
+            val ridesDir = File(context.getExternalFilesDir(null), "rides")
+            val csvContents = trips.mapNotNull { trip ->
+                val file = File(ridesDir, trip.fileName)
+                if (file.exists()) file.readText() else null
+            }
+            if (csvContents.size < 2) return@withContext false
+
+            val earliestTrip = trips.minBy { it.start }
+            val mergedFileName = earliestTrip.fileName
+            val result = RideCsvEditor.stitch(csvContents, mergedFileName)
+
+            // Write merged CSV
+            File(ridesDir, mergedFileName).writeText(result.mergedCsv)
+
+            // Delete original files (except the one we're reusing as the merged name)
+            for (trip in trips) {
+                tripRepository.removeDataById(trip.id.toLong())
+                if (trip.fileName != mergedFileName) {
+                    File(ridesDir, trip.fileName).delete()
+                }
+            }
+
+            // Insert merged entry
+            val meta = result.metadata
+            tripRepository.insertNewData(
+                TripDataDbEntry(
+                    fileName = meta.fileName,
+                    start = (meta.startTimeMillis / 1000).toInt(),
+                    duration = (meta.durationSeconds / 60).toInt(),
+                    maxSpeed = meta.maxSpeedKmh.toFloat(),
+                    avgSpeed = meta.avgSpeedKmh.toFloat(),
+                    maxCurrent = meta.maxCurrentA.toFloat(),
+                    maxPower = meta.maxPowerW.toFloat(),
+                    maxPwm = meta.maxPwmPercent.toFloat(),
+                    distance = meta.distanceMeters.toInt(),
+                    consumptionTotal = meta.consumptionWh.toFloat(),
+                    consumptionByKm = meta.consumptionWhPerKm.toFloat()
+                )
+            )
+            true
+        }
+    }
+
+    suspend fun splitRide(trip: TripDataDbEntry, splitTimestampMs: Long, context: Context): Boolean {
+        return withContext(Dispatchers.IO) {
+            val ridesDir = File(context.getExternalFilesDir(null), "rides")
+            val csvFile = File(ridesDir, trip.fileName)
+            if (!csvFile.exists()) return@withContext false
+
+            val csvContent = csvFile.readText()
+            val secondFileName = "${PlatformDateFormatter.formatRideFilename(splitTimestampMs)}.csv"
+            val result = RideCsvEditor.split(csvContent, splitTimestampMs, trip.fileName, secondFileName)
+
+            // Write both files
+            File(ridesDir, trip.fileName).writeText(result.firstCsv)
+            File(ridesDir, secondFileName).writeText(result.secondCsv)
+
+            // Delete original DB entry, insert two new ones
+            tripRepository.removeDataById(trip.id.toLong())
+
+            suspend fun insertFromMeta(meta: org.freewheel.core.logging.RideMetadata) {
+                tripRepository.insertNewData(
+                    TripDataDbEntry(
+                        fileName = meta.fileName,
+                        start = (meta.startTimeMillis / 1000).toInt(),
+                        duration = (meta.durationSeconds / 60).toInt(),
+                        maxSpeed = meta.maxSpeedKmh.toFloat(),
+                        avgSpeed = meta.avgSpeedKmh.toFloat(),
+                        maxCurrent = meta.maxCurrentA.toFloat(),
+                        maxPower = meta.maxPowerW.toFloat(),
+                        maxPwm = meta.maxPwmPercent.toFloat(),
+                        distance = meta.distanceMeters.toInt(),
+                        consumptionTotal = meta.consumptionWh.toFloat(),
+                        consumptionByKm = meta.consumptionWhPerKm.toFloat()
+                    )
+                )
+            }
+            insertFromMeta(result.firstMetadata)
+            insertFromMeta(result.secondMetadata)
+            true
         }
     }
 

@@ -943,6 +943,8 @@ class WheelManager: ObservableObject {
         // for startup auto-connect.
         if case .connectionLost(_, let reason) = newState {
             endErrorLogSession(reason: reason)
+            if isCapturing { stopCapture() }
+            if isLogging { stopLogging() }
             if backgroundManager.isInBackground {
                 let wheelName = identity.displayName
                 backgroundManager.postConnectionLostNotification(wheelName: wheelName)
@@ -1230,6 +1232,105 @@ class WheelManager: ObservableObject {
         liveRideElapsedSeconds = 0
         liveRideMaxSpeedKmh = 0
         liveRideDistanceKm = 0
+    }
+
+    // MARK: - Ride Stitch & Split
+
+    func stitchRides(_ rideIds: [String]) -> Bool {
+        let ridesDir = RideStore.ridesDirectory()
+        let selectedRides = rideStore.rides.filter { rideIds.contains($0.id) }
+        guard selectedRides.count >= 2 else { return false }
+
+        var csvContents: [String] = []
+        for ride in selectedRides {
+            let fileURL = ridesDir.appendingPathComponent(ride.fileName)
+            guard let content = try? String(contentsOf: fileURL, encoding: .utf8) else { continue }
+            csvContents.append(content)
+        }
+        guard csvContents.count >= 2 else { return false }
+
+        let earliestRide = selectedRides.min(by: { $0.startDate < $1.startDate })!
+        let result = RideCsvEditor.shared.stitch(csvContents: csvContents, mergedFileName: earliestRide.fileName)
+
+        // Write merged CSV
+        let mergedURL = ridesDir.appendingPathComponent(earliestRide.fileName)
+        try? result.mergedCsv.write(to: mergedURL, atomically: true, encoding: .utf8)
+
+        // Remove originals (except the file being reused)
+        let idsToRemove = Set(rideIds)
+        for ride in selectedRides where ride.fileName != earliestRide.fileName {
+            let fileURL = ridesDir.appendingPathComponent(ride.fileName)
+            try? FileManager.default.removeItem(at: fileURL)
+        }
+        rideStore.rides.removeAll { idsToRemove.contains($0.id) }
+
+        // Add merged metadata
+        let meta = result.metadata
+        let fileSize = (try? FileManager.default.attributesOfItem(atPath: mergedURL.path)[.size] as? Int64) ?? 0
+        let merged = RideMetadata(
+            id: UUID().uuidString,
+            fileName: meta.fileName,
+            startDate: Date(timeIntervalSince1970: Double(meta.startTimeMillis) / 1000),
+            endDate: Date(timeIntervalSince1970: Double(meta.endTimeMillis) / 1000),
+            duration: Double(meta.durationSeconds),
+            distance: Double(meta.distanceMeters) / 1000,
+            maxSpeed: meta.maxSpeedKmh,
+            avgSpeed: meta.avgSpeedKmh,
+            sampleCount: Int(meta.sampleCount),
+            fileSize: fileSize,
+            maxCurrent: meta.maxCurrentA,
+            maxPower: meta.maxPowerW,
+            maxPwm: meta.maxPwmPercent,
+            consumptionWh: meta.consumptionWh,
+            consumptionWhPerKm: meta.consumptionWhPerKm
+        )
+        rideStore.addRide(merged)
+        return true
+    }
+
+    func splitRide(_ ride: RideMetadata, atTimestampMs splitMs: Int64) -> Bool {
+        let ridesDir = RideStore.ridesDirectory()
+        let fileURL = ridesDir.appendingPathComponent(ride.fileName)
+        guard let csvContent = try? String(contentsOf: fileURL, encoding: .utf8) else { return false }
+
+        let secondFileName = "\(PlatformDateFormatter.shared.formatRideFilename(epochMs: splitMs)).csv"
+        let result = RideCsvEditor.shared.split(
+            csvContent: csvContent,
+            splitTimestampMs: Int64(splitMs),
+            firstFileName: ride.fileName,
+            secondFileName: secondFileName
+        )
+
+        // Write both files
+        try? result.firstCsv.write(to: fileURL, atomically: true, encoding: .utf8)
+        let secondURL = ridesDir.appendingPathComponent(secondFileName)
+        try? result.secondCsv.write(to: secondURL, atomically: true, encoding: .utf8)
+
+        func makeSwiftMetadata(kmpMeta meta: FreeWheelCore.RideMetadata, url: URL) -> RideMetadata {
+            let fileSize = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int64) ?? 0
+            return RideMetadata(
+                id: UUID().uuidString,
+                fileName: meta.fileName,
+                startDate: Date(timeIntervalSince1970: Double(meta.startTimeMillis) / 1000),
+                endDate: Date(timeIntervalSince1970: Double(meta.endTimeMillis) / 1000),
+                duration: Double(meta.durationSeconds),
+                distance: Double(meta.distanceMeters) / 1000,
+                maxSpeed: meta.maxSpeedKmh,
+                avgSpeed: meta.avgSpeedKmh,
+                sampleCount: Int(meta.sampleCount),
+                fileSize: fileSize,
+                maxCurrent: meta.maxCurrentA,
+                maxPower: meta.maxPowerW,
+                maxPwm: meta.maxPwmPercent,
+                consumptionWh: meta.consumptionWh,
+                consumptionWhPerKm: meta.consumptionWhPerKm
+            )
+        }
+
+        let first = makeSwiftMetadata(kmpMeta: result.firstMetadata, url: fileURL)
+        let second = makeSwiftMetadata(kmpMeta: result.secondMetadata, url: secondURL)
+        rideStore.replaceRide(id: ride.id, with: [first, second])
+        return true
     }
 
     // MARK: - BLE Capture
