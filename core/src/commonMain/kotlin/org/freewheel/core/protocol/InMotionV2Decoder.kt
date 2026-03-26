@@ -1182,6 +1182,10 @@ class InMotionV2Decoder : WheelDecoder {
         val flags49 = data[49].toInt() and 0xFF
         val autoLock = ((flags49 shr 3) and 0x01) != 0
 
+        // Speed tilt-back is enabled when maxSpeed < 200 (the P6's uncapped sentinel value).
+        // The InMotion app sets maxSpeed to 200 when tilt-back is disabled.
+        val tiltbackEnabled = maxSpd < 200
+
         val im2 = currentState.settings as? WheelSettings.InMotionV2 ?: WheelSettings.InMotionV2()
         return FrameResult(
             settings = im2.copy(
@@ -1206,6 +1210,7 @@ class InMotionV2Decoder : WheelDecoder {
                 ignoreTirePressure = ignoreTirePressure,
                 rideConnectSwitch = rideConnectSwitch,
                 rideConnectLowBattery = rideConnectLowBattery,
+                speedTiltbackEnabled = tiltbackEnabled,
                 minTirePressure = minTirePressure,
                 chargingCurrentAC110V = chargingAC110V,
                 chargingCurrentAC220V = chargingAC220V

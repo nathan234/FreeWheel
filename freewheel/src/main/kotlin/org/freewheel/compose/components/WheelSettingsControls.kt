@@ -47,6 +47,7 @@ internal fun SectionCard(
     wheelSettings: WheelSettings,
     toggleStates: Map<SettingsCommandId, Boolean>,
     sliderOverrides: Map<SettingsCommandId, Int> = emptyMap(),
+    useMph: Boolean = false,
     onIntCommand: (SettingsCommandId, Int) -> Unit,
     onBoolCommand: (SettingsCommandId, Boolean) -> Unit,
     onDangerousAction: (ControlSpec) -> Unit
@@ -85,6 +86,7 @@ internal fun SectionCard(
                     wheelSettings = wheelSettings,
                     toggleStates = toggleStates,
                     sliderOverrides = sliderOverrides,
+                    useMph = useMph,
                     onIntCommand = onIntCommand,
                     onBoolCommand = onBoolCommand,
                     onDangerousAction = onDangerousAction
@@ -104,6 +106,7 @@ internal fun RenderControl(
     wheelSettings: WheelSettings,
     toggleStates: Map<SettingsCommandId, Boolean>,
     sliderOverrides: Map<SettingsCommandId, Int> = emptyMap(),
+    useMph: Boolean = false,
     onIntCommand: (SettingsCommandId, Int) -> Unit,
     onBoolCommand: (SettingsCommandId, Boolean) -> Unit,
     onDangerousAction: (ControlSpec) -> Unit
@@ -112,7 +115,7 @@ internal fun RenderControl(
         is ControlSpec.Toggle -> ToggleControl(control, wheelSettings, toggleStates, onBoolCommand)
         is ControlSpec.Segmented -> SegmentedControl(control, wheelSettings, onIntCommand)
         is ControlSpec.Picker -> PickerControl(control, wheelSettings, onIntCommand)
-        is ControlSpec.Slider -> SliderControl(control, wheelSettings, sliderOverrides[control.commandId], onIntCommand)
+        is ControlSpec.Slider -> SliderControl(control, wheelSettings, sliderOverrides[control.commandId], useMph, onIntCommand)
         is ControlSpec.DangerousButton -> DangerousButtonControl(control, onDangerousAction)
         is ControlSpec.DangerousToggle -> DangerousToggleControl(control, toggleStates, onBoolCommand, onDangerousAction)
     }
@@ -219,6 +222,7 @@ internal fun SliderControl(
     control: ControlSpec.Slider,
     wheelSettings: WheelSettings,
     persistedValue: Int?,
+    useMph: Boolean = false,
     onIntCommand: (SettingsCommandId, Int) -> Unit
 ) {
     val readback = control.commandId.readInt(wheelSettings)
@@ -232,7 +236,11 @@ internal fun SliderControl(
         ) {
             Text(control.label, style = MaterialTheme.typography.bodyLarge)
             Text(
-                text = "${value.toInt()}${if (control.unit.isEmpty()) "" else " ${control.unit}"}",
+                text = buildString {
+                    append(control.displayValue(value.toDouble(), useMph))
+                    val unit = control.displayUnit(useMph)
+                    if (unit.isNotEmpty()) append(" $unit")
+                },
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodyMedium
             )

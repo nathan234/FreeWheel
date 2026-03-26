@@ -143,6 +143,7 @@ sealed class WheelSettings {
         val ignoreTirePressure: Boolean = false,
         val rideConnectSwitch: Boolean = false,
         val rideConnectLowBattery: Boolean = false,
+        val speedTiltbackEnabled: Boolean = false,
         val minTirePressure: Int = -1,
         val chargingCurrentAC110V: Int = -1,
         val chargingCurrentAC220V: Int = -1,
@@ -334,4 +335,5 @@ val WheelSettings.minTirePressure: Int get() = (this as? WheelSettings.InMotionV
 val WheelSettings.chargingCurrentAC110V: Int get() = (this as? WheelSettings.InMotionV2)?.chargingCurrentAC110V ?: -1
 val WheelSettings.chargingCurrentAC220V: Int get() = (this as? WheelSettings.InMotionV2)?.chargingCurrentAC220V ?: -1
 val WheelSettings.balanceAngle: Int get() = (this as? WheelSettings.InMotionV2)?.balanceAngle ?: -1
+val WheelSettings.speedTiltbackEnabled: Boolean get() = (this as? WheelSettings.InMotionV2)?.speedTiltbackEnabled ?: false
 val WheelSettings.speedAlarm: Int get() = (this as? WheelSettings.InMotionV2)?.speedAlarm ?: -1

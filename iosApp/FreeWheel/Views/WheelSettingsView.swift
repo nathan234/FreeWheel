@@ -152,6 +152,7 @@ struct WheelSettingsContent: View {
         let persisted: Double? = UserDefaults.standard.object(forKey: persistKey) != nil
             ? UserDefaults.standard.double(forKey: persistKey) : nil
         let initial = readback.map { Double($0) } ?? persisted ?? Double(control.defaultValue)
+        let useMph = wheelManager.useMph
 
         SliderRow(
             label: control.label,
@@ -162,8 +163,11 @@ struct WheelSettingsContent: View {
                 }
             ),
             range: Double(control.min)...Double(control.max),
-            unit: control.unit,
+            unit: control.displayUnit(useMph: useMph),
             step: Double(control.step),
+            displayDivisor: Int(control.displayDivisor),
+            unitCategory: control.unitCategory,
+            useMph: useMph,
             onEditingChanged: { editing in
                 if !editing, let value = sliderValues[key] {
                     UserDefaults.standard.set(value, forKey: persistKey)
@@ -268,14 +272,32 @@ private struct SliderRow: View {
     let range: ClosedRange<Double>
     let unit: String
     let step: Double
+    var displayDivisor: Int = 1
+    var unitCategory: UnitCategory = .none
+    var useMph: Bool = false
     var onEditingChanged: ((Bool) -> Void)? = nil
+
+    private var displayText: String {
+        let converted = unitCategory == .speed
+            ? DisplayUtils.shared.convertSpeed(kmh: value, useMph: useMph)
+            : value
+        let valText: String
+        if displayDivisor > 1 {
+            let displayed = converted / Double(displayDivisor)
+            let decimalPlaces = max(0, Int(ceil(log10(Double(displayDivisor) / step))))
+            valText = String(format: "%.\(decimalPlaces)f", displayed)
+        } else {
+            valText = "\(Int(converted))"
+        }
+        return unit.isEmpty ? valText : "\(valText) \(unit)"
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
                 Text(label)
                 Spacer()
-                Text("\(Int(value))\(unit.isEmpty ? "" : " \(unit)")")
+                Text(displayText)
                     .foregroundColor(.secondary)
             }
             Slider(value: $value, in: range, step: step) { editing in

@@ -120,6 +120,7 @@ fun WheelSettingsScreen(viewModel: WheelViewModel, onBack: () -> Unit) {
                             wheelSettings = wheelSettings,
                             toggleStates = toggleStates,
                             sliderOverrides = sliderOverrides,
+                            useMph = viewModel.appConfig.useMph,
                             onIntCommand = { id, value ->
                                 viewModel.saveSliderValue(id, value)
                                 sliderOverrides[id] = value

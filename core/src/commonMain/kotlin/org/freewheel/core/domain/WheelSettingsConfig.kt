@@ -1,5 +1,7 @@
 package org.freewheel.core.domain
 
+import org.freewheel.core.domain.dashboard.UnitCategory
+
 /**
  * Shared configuration defining which settings controls appear for each wheel type.
  * Both Android and iOS render their settings screens from this configuration.
@@ -86,9 +88,9 @@ object WheelSettingsConfig {
         )),
         SettingsSection("Ride", listOf(
             ControlSpec.Segmented("Pedals Mode", listOf("Hard", "Medium", "Soft"), SettingsCommandId.PEDALS_MODE),
-            ControlSpec.Slider("Alarm Speed", 10, 80, "km/h", 50, SettingsCommandId.ALARM_SPEED_1),
+            ControlSpec.Slider("Alarm Speed", 10, 80, "km/h", 50, SettingsCommandId.ALARM_SPEED_1, unitCategory = UnitCategory.SPEED),
             ControlSpec.Slider("Pedal Tilt", -8, 8, "\u00B0", 0, SettingsCommandId.PEDAL_TILT),
-            ControlSpec.Slider("Stop Speed", 10, 120, "km/h", 60, SettingsCommandId.STOP_SPEED),
+            ControlSpec.Slider("Stop Speed", 10, 120, "km/h", 60, SettingsCommandId.STOP_SPEED, unitCategory = UnitCategory.SPEED),
             ControlSpec.Slider("PWM Limit", 30, 100, "%", 80, SettingsCommandId.VETERAN_PWM_LIMIT),
             ControlSpec.Slider("Dynamic Assist", 0, 100, "%", 50, SettingsCommandId.DYNAMIC_ASSIST),
             ControlSpec.Slider("Acceleration Limit", 0, 100, "%", 50, SettingsCommandId.ACCELERATION_LIMIT),
@@ -122,7 +124,7 @@ object WheelSettingsConfig {
         SettingsSection("Ride", listOf(
             ControlSpec.Toggle("Handle Button", SettingsCommandId.HANDLE_BUTTON),
             ControlSpec.Toggle("Ride Mode", SettingsCommandId.RIDE_MODE),
-            ControlSpec.Slider("Max Speed", 5, 50, "km/h", 30, SettingsCommandId.MAX_SPEED),
+            ControlSpec.Slider("Max Speed", 5, 50, "km/h", 30, SettingsCommandId.MAX_SPEED, unitCategory = UnitCategory.SPEED),
             ControlSpec.Slider("Pedal Tilt", -8, 8, "\u00B0", 0, SettingsCommandId.PEDAL_TILT),
             ControlSpec.Slider("Pedal Sensitivity", 0, 100, "%", 50, SettingsCommandId.PEDAL_SENSITIVITY)
         )),
@@ -153,18 +155,18 @@ object WheelSettingsConfig {
         SettingsSection("Wheel Alarms", listOf(
             ControlSpec.Toggle("Alarm 1", SettingsCommandId.ALARM_ENABLED_1),
             ControlSpec.Slider("Alarm 1 Speed", 0, 60, "km/h", 30, SettingsCommandId.ALARM_SPEED_1,
-                visibleWhen = SettingsCommandId.ALARM_ENABLED_1),
+                visibleWhen = SettingsCommandId.ALARM_ENABLED_1, unitCategory = UnitCategory.SPEED),
             ControlSpec.Toggle("Alarm 2", SettingsCommandId.ALARM_ENABLED_2),
             ControlSpec.Slider("Alarm 2 Speed", 0, 60, "km/h", 35, SettingsCommandId.ALARM_SPEED_2,
-                visibleWhen = SettingsCommandId.ALARM_ENABLED_2),
+                visibleWhen = SettingsCommandId.ALARM_ENABLED_2, unitCategory = UnitCategory.SPEED),
             ControlSpec.Toggle("Alarm 3", SettingsCommandId.ALARM_ENABLED_3),
             ControlSpec.Slider("Alarm 3 Speed", 0, 60, "km/h", 40, SettingsCommandId.ALARM_SPEED_3,
-                visibleWhen = SettingsCommandId.ALARM_ENABLED_3)
+                visibleWhen = SettingsCommandId.ALARM_ENABLED_3, unitCategory = UnitCategory.SPEED)
         )),
         SettingsSection("Speed Limit", listOf(
             ControlSpec.Toggle("Limited Mode", SettingsCommandId.LIMITED_MODE),
             ControlSpec.Slider("Limited Speed", 0, 65, "km/h", 25, SettingsCommandId.LIMITED_SPEED,
-                visibleWhen = SettingsCommandId.LIMITED_MODE)
+                visibleWhen = SettingsCommandId.LIMITED_MODE, unitCategory = UnitCategory.SPEED)
         )),
         SettingsSection("Dangerous Actions", listOf(
             lockToggle(),
@@ -180,7 +182,7 @@ object WheelSettingsConfig {
         SettingsSection("Ride", listOf(
             ControlSpec.Toggle("Handle Button", SettingsCommandId.HANDLE_BUTTON),
             ControlSpec.Toggle("Ride Mode", SettingsCommandId.RIDE_MODE),
-            ControlSpec.Slider("Max Speed", 3, 60, "km/h", 30, SettingsCommandId.MAX_SPEED),
+            ControlSpec.Slider("Max Speed", 3, 60, "km/h", 30, SettingsCommandId.MAX_SPEED, unitCategory = UnitCategory.SPEED),
             ControlSpec.Slider("Pedal Tilt", -8, 8, "\u00B0", 0, SettingsCommandId.PEDAL_TILT),
             ControlSpec.Slider("Pedal Sensitivity", 4, 100, "%", 50, SettingsCommandId.PEDAL_SENSITIVITY)
         )),
@@ -210,13 +212,13 @@ object WheelSettingsConfig {
             ControlSpec.Toggle("Go Home Mode", SettingsCommandId.GO_HOME_MODE),
             ControlSpec.Toggle("Fancier Mode", SettingsCommandId.FANCIER_MODE),
             ControlSpec.Toggle("Transport Mode", SettingsCommandId.TRANSPORT_MODE),
-            ControlSpec.Slider("Max Speed", 3, 160, "km/h", 30, SettingsCommandId.MAX_SPEED),
+            ControlSpec.Slider("Max Speed", 3, 160, "km/h", 30, SettingsCommandId.MAX_SPEED, unitCategory = UnitCategory.SPEED),
             ControlSpec.Slider("Pedal Tilt", -10, 10, "\u00B0", 0, SettingsCommandId.PEDAL_TILT),
             ControlSpec.Slider("Pedal Sensitivity", 0, 100, "%", 50, SettingsCommandId.PEDAL_SENSITIVITY),
             ControlSpec.Toggle("One Pedal Mode", SettingsCommandId.ONE_PEDAL_MODE),
             ControlSpec.Toggle("Cruise", SettingsCommandId.CRUISE),
             ControlSpec.Slider("Turning Sensitivity", 0, 100, "%", 50, SettingsCommandId.TURNING_SENSITIVITY),
-            ControlSpec.Slider("Balance Angle", -500, 500, "\u00D7 0.01\u00B0", 0, SettingsCommandId.BALANCE_ANGLE, step = 10),
+            ControlSpec.Slider("Balance Angle", -500, 500, "\u00B0", 0, SettingsCommandId.BALANCE_ANGLE, step = 10, displayDivisor = 100),
             ControlSpec.Toggle("Speed Tilt-Back", SettingsCommandId.SPEED_TILTBACK_ENABLE)
         )),
         SettingsSection("Berm Angle", listOf(

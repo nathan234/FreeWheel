@@ -1,5 +1,9 @@
 package org.freewheel.core.domain
 
+import org.freewheel.core.domain.dashboard.UnitCategory
+import org.freewheel.core.utils.DisplayUtils
+import org.freewheel.core.utils.StringUtil
+
 /**
  * Identifies which command to execute on the wheel.
  * Used by both Android and iOS to dispatch settings changes.
@@ -124,7 +128,7 @@ enum class SettingsCommandId {
         DYNAMIC_ASSIST -> settings.dynamicAssist.takeIf { it >= 0 }
         ACCELERATION_LIMIT -> settings.accelerationLimit.takeIf { it >= 0 }
         WHEEL_DISPLAY_UNIT -> settings.wheelDisplayUnit.takeIf { it >= 0 }
-        BALANCE_ANGLE -> settings.balanceAngle.takeIf { it >= 0 }
+        BALANCE_ANGLE -> settings.balanceAngle.takeIf { it != -1 }
         MIN_TIRE_PRESSURE -> settings.minTirePressure.takeIf { it >= 0 }
         CHARGING_CURRENT -> settings.chargingCurrentAC220V.takeIf { it >= 0 }
         // No int readback: bool-only, action-only, or no readback field
@@ -193,7 +197,8 @@ enum class SettingsCommandId {
         VOLTAGE_CORRECTION, MAX_CHARGE_VOLTAGE, BRAKE_PRESSURE_ALARM,
         LATERAL_CUTOFF_ANGLE, DYNAMIC_ASSIST, ACCELERATION_LIMIT,
         WHEEL_DISPLAY_UNIT, BALANCE_ANGLE, CHARGING_CURRENT,
-        MIN_TIRE_PRESSURE, SPEED_TILTBACK_ENABLE -> null
+        MIN_TIRE_PRESSURE -> null
+        SPEED_TILTBACK_ENABLE -> settings.speedTiltbackEnabled
     }
 
 }
@@ -227,8 +232,32 @@ sealed class ControlSpec {
         val defaultValue: Int,
         override val commandId: SettingsCommandId,
         val visibleWhen: SettingsCommandId? = null,
-        val step: Int = 1
-    ) : ControlSpec()
+        val step: Int = 1,
+        val displayDivisor: Int = 1,
+        val unitCategory: UnitCategory = UnitCategory.NONE
+    ) : ControlSpec() {
+        /** Format the raw slider value for display, applying divisor and unit conversion. */
+        fun displayValue(rawValue: Double, useMph: Boolean): String {
+            val converted = when (unitCategory) {
+                UnitCategory.SPEED -> DisplayUtils.convertSpeed(rawValue, useMph)
+                else -> rawValue
+            }
+            return if (displayDivisor > 1) {
+                val displayed = converted / displayDivisor
+                val decimalPlaces = kotlin.math.max(0,
+                    kotlin.math.ceil(kotlin.math.log10(displayDivisor.toDouble() / step)).toInt())
+                StringUtil.formatDecimal(displayed, decimalPlaces)
+            } else {
+                converted.toInt().toString()
+            }
+        }
+
+        /** Get the display unit string, respecting user preferences. */
+        fun displayUnit(useMph: Boolean): String = when (unitCategory) {
+            UnitCategory.SPEED -> DisplayUtils.speedUnit(useMph)
+            else -> unit
+        }
+    }
 
     data class DangerousButton(
         val label: String,
