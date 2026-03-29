@@ -16,7 +16,7 @@ import org.freewheel.core.utils.Logger
 class RideLogger(private val fileWriter: FileWriter = FileWriter()) {
 
     private var isActive = false
-    private var includeGps = false
+    private var formatter: CsvFormatter? = null
     private var fileName = ""
 
     // Throttle state
@@ -64,10 +64,11 @@ class RideLogger(private val fileWriter: FileWriter = FileWriter()) {
 
         if (!fileWriter.open(filePath)) return false
 
-        includeGps = withGps
+        val fmt = CsvFormatter.create(withGps)
+        formatter = fmt
         fileName = filePath.substringAfterLast('/')
 
-        fileWriter.writeLine(CsvFormatter.header(includeGps))
+        fileWriter.writeLine(fmt.header)
 
         startTimeMs = currentTimeMs
         lastWriteTimeMs = 0L
@@ -116,9 +117,11 @@ class RideLogger(private val fileWriter: FileWriter = FileWriter()) {
 
         sampleCount++
 
+        val fmt = formatter ?: return
+
         val dateTime = formatTimestamp(currentTimeMs)
         val tripDistance = (telemetry.totalDistance - startTotalDistance).toInt()
-        val row = CsvFormatter.row(dateTime, telemetry, modeStr, tripDistance, gps, includeGps)
+        val row = fmt.row(dateTime, telemetry, modeStr, tripDistance, gps)
         try {
             fileWriter.writeLine(row)
         } catch (e: Exception) {
@@ -137,6 +140,7 @@ class RideLogger(private val fileWriter: FileWriter = FileWriter()) {
 
         fileWriter.close()
         isActive = false
+        formatter = null
 
         val endTimeMs = currentTimeMs
         val durationSec = (endTimeMs - startTimeMs) / 1000L

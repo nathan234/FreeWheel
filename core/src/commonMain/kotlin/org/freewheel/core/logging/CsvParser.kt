@@ -30,16 +30,16 @@ object CsvParser {
         val colIndex = HashMap<String, Int>(headers.size)
         headers.forEachIndexed { i, name -> colIndex[name.trim()] = i }
 
-        val dateIdx = colIndex["date"] ?: return emptyList()
-        val timeIdx = colIndex["time"] ?: return emptyList()
-        val speedIdx = colIndex["speed"] ?: return emptyList()
-        val voltageIdx = colIndex["voltage"]
-        val currentIdx = colIndex["current"]
-        val powerIdx = colIndex["power"]
-        val tempIdx = colIndex["system_temp"]
-        val batteryIdx = colIndex["battery_level"]
-        val pwmIdx = colIndex["pwm"]
-        val gpsSpeedIdx = colIndex["gps_speed"]
+        val dateIdx = colIndex[CsvColumns.DATE] ?: return emptyList()
+        val timeIdx = colIndex[CsvColumns.TIME] ?: return emptyList()
+        val speedIdx = colIndex[CsvColumns.SPEED] ?: return emptyList()
+        val voltageIdx = colIndex[CsvColumns.VOLTAGE]
+        val currentIdx = colIndex[CsvColumns.CURRENT]
+        val powerIdx = colIndex[CsvColumns.POWER]
+        val tempIdx = colIndex[CsvColumns.SYSTEM_TEMP]
+        val batteryIdx = colIndex[CsvColumns.BATTERY_LEVEL]
+        val pwmIdx = colIndex[CsvColumns.PWM]
+        val gpsSpeedIdx = colIndex[CsvColumns.GPS_SPEED]
 
         val tz = TimeZone.currentSystemDefault()
         val samples = mutableListOf<TelemetrySample>()

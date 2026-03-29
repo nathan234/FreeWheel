@@ -8,22 +8,23 @@ import kotlin.test.assertFalse
 
 class CsvFormatterTest {
 
+    private val noGps = CsvFormatter.create(includeGps = false)
+    private val withGps = CsvFormatter.create(includeGps = true)
+
     // ==================== Header ====================
 
     @Test
     fun `header without GPS has expected columns`() {
-        val h = CsvFormatter.header(includeGps = false)
         assertEquals(
             "date,time,speed,voltage,phase_current,current,power,torque,pwm," +
                 "battery_level,distance,totaldistance,system_temp,temp2,tilt,roll,mode,alert",
-            h
+            noGps.header
         )
     }
 
     @Test
     fun `header with GPS inserts six GPS columns after time`() {
-        val h = CsvFormatter.header(includeGps = true)
-        val cols = h.split(",")
+        val cols = withGps.header.split(",")
         assertEquals("date", cols[0])
         assertEquals("time", cols[1])
         // GPS columns
@@ -39,14 +40,14 @@ class CsvFormatterTest {
 
     @Test
     fun `header with GPS has 24 columns`() {
-        val cols = CsvFormatter.header(includeGps = true).split(",")
+        val cols = withGps.header.split(",")
         // 18 base + 6 GPS = 24
         assertEquals(24, cols.size)
     }
 
     @Test
     fun `header without GPS has 18 columns`() {
-        val cols = CsvFormatter.header(includeGps = false).split(",")
+        val cols = noGps.header.split(",")
         assertEquals(18, cols.size)
     }
 
@@ -55,7 +56,7 @@ class CsvFormatterTest {
     @Test
     fun `row without GPS produces correct column count`() {
         val telemetry = TelemetryState()
-        val row = CsvFormatter.row("2024-01-15,10:30:00.000", telemetry, tripDistance = 0)
+        val row = noGps.row("2024-01-15,10:30:00.000", telemetry, tripDistance = 0)
         val cols = row.split(",")
         assertEquals(18, cols.size)
     }
@@ -71,7 +72,7 @@ class CsvFormatterTest {
             bearing = 180.0,
             cumulativeDistance = 500.0
         )
-        val row = CsvFormatter.row("2024-01-15,10:30:00.000", telemetry, tripDistance = 0, gps = gps)
+        val row = withGps.row("2024-01-15,10:30:00.000", telemetry, tripDistance = 0, gps = gps)
         val cols = row.split(",")
         assertEquals(24, cols.size)
     }
@@ -79,7 +80,7 @@ class CsvFormatterTest {
     @Test
     fun `row dateTime appears in first two columns`() {
         val telemetry = TelemetryState()
-        val row = CsvFormatter.row("2024-01-15,10:30:00.000", telemetry, tripDistance = 0)
+        val row = noGps.row("2024-01-15,10:30:00.000", telemetry, tripDistance = 0)
         val cols = row.split(",")
         assertEquals("2024-01-15", cols[0])
         assertEquals("10:30:00.000", cols[1])
@@ -89,7 +90,7 @@ class CsvFormatterTest {
     fun `row encodes speed with 2 decimals`() {
         // speed=2500 -> 25.00 km/h
         val telemetry = TelemetryState(speed = 2500)
-        val row = CsvFormatter.row("2024-01-15,10:30:00.000", telemetry, tripDistance = 0)
+        val row = noGps.row("2024-01-15,10:30:00.000", telemetry, tripDistance = 0)
         val cols = row.split(",")
         assertEquals("25.00", cols[2]) // speed column (index 2 without GPS)
     }
@@ -98,7 +99,7 @@ class CsvFormatterTest {
     fun `row encodes voltage with 2 decimals`() {
         // voltage=8400 -> 84.00 V
         val telemetry = TelemetryState(voltage = 8400)
-        val row = CsvFormatter.row("2024-01-15,10:30:00.000", telemetry, tripDistance = 0)
+        val row = noGps.row("2024-01-15,10:30:00.000", telemetry, tripDistance = 0)
         val cols = row.split(",")
         assertEquals("84.00", cols[3]) // voltage
     }
@@ -106,7 +107,7 @@ class CsvFormatterTest {
     @Test
     fun `row encodes phase current with 2 decimals`() {
         val telemetry = TelemetryState(phaseCurrent = 1550) // 15.50 A
-        val row = CsvFormatter.row("2024-01-15,10:30:00.000", telemetry, tripDistance = 0)
+        val row = noGps.row("2024-01-15,10:30:00.000", telemetry, tripDistance = 0)
         val cols = row.split(",")
         assertEquals("15.50", cols[4])
     }
@@ -114,7 +115,7 @@ class CsvFormatterTest {
     @Test
     fun `row encodes current with 2 decimals`() {
         val telemetry = TelemetryState(current = 1200) // 12.00 A
-        val row = CsvFormatter.row("2024-01-15,10:30:00.000", telemetry, tripDistance = 0)
+        val row = noGps.row("2024-01-15,10:30:00.000", telemetry, tripDistance = 0)
         val cols = row.split(",")
         assertEquals("12.00", cols[5])
     }
@@ -122,7 +123,7 @@ class CsvFormatterTest {
     @Test
     fun `row encodes power with 2 decimals`() {
         val telemetry = TelemetryState(power = 150000) // 1500.00 W
-        val row = CsvFormatter.row("2024-01-15,10:30:00.000", telemetry, tripDistance = 0)
+        val row = noGps.row("2024-01-15,10:30:00.000", telemetry, tripDistance = 0)
         val cols = row.split(",")
         assertEquals("1500.00", cols[6])
     }
@@ -130,7 +131,7 @@ class CsvFormatterTest {
     @Test
     fun `row encodes torque with 2 decimals`() {
         val telemetry = TelemetryState(torque = 12.34)
-        val row = CsvFormatter.row("2024-01-15,10:30:00.000", telemetry, tripDistance = 0)
+        val row = noGps.row("2024-01-15,10:30:00.000", telemetry, tripDistance = 0)
         val cols = row.split(",")
         assertEquals("12.34", cols[7])
     }
@@ -139,7 +140,7 @@ class CsvFormatterTest {
     fun `row encodes pwm with 2 decimals`() {
         // calculatedPwm=0.4567 -> pwmPercent = 45.67
         val telemetry = TelemetryState(calculatedPwm = 0.4567)
-        val row = CsvFormatter.row("2024-01-15,10:30:00.000", telemetry, tripDistance = 0)
+        val row = noGps.row("2024-01-15,10:30:00.000", telemetry, tripDistance = 0)
         val cols = row.split(",")
         assertEquals("45.67", cols[8])
     }
@@ -147,7 +148,7 @@ class CsvFormatterTest {
     @Test
     fun `row encodes battery level as integer`() {
         val telemetry = TelemetryState(batteryLevel = 85)
-        val row = CsvFormatter.row("2024-01-15,10:30:00.000", telemetry, tripDistance = 0)
+        val row = noGps.row("2024-01-15,10:30:00.000", telemetry, tripDistance = 0)
         val cols = row.split(",")
         assertEquals("85", cols[9])
     }
@@ -155,7 +156,7 @@ class CsvFormatterTest {
     @Test
     fun `row encodes trip distance as integer meters`() {
         val telemetry = TelemetryState()
-        val row = CsvFormatter.row("2024-01-15,10:30:00.000", telemetry, tripDistance = 1234)
+        val row = noGps.row("2024-01-15,10:30:00.000", telemetry, tripDistance = 1234)
         val cols = row.split(",")
         assertEquals("1234", cols[10]) // distance
     }
@@ -163,7 +164,7 @@ class CsvFormatterTest {
     @Test
     fun `row encodes total distance as long meters`() {
         val telemetry = TelemetryState(totalDistance = 999999)
-        val row = CsvFormatter.row("2024-01-15,10:30:00.000", telemetry, tripDistance = 0)
+        val row = noGps.row("2024-01-15,10:30:00.000", telemetry, tripDistance = 0)
         val cols = row.split(",")
         assertEquals("999999", cols[11]) // totaldistance
     }
@@ -172,7 +173,7 @@ class CsvFormatterTest {
     fun `row encodes temperatures as integers`() {
         // temperature=3500 -> 35 °C, temperature2=2800 -> 28 °C
         val telemetry = TelemetryState(temperature = 3500, temperature2 = 2800)
-        val row = CsvFormatter.row("2024-01-15,10:30:00.000", telemetry, tripDistance = 0)
+        val row = noGps.row("2024-01-15,10:30:00.000", telemetry, tripDistance = 0)
         val cols = row.split(",")
         assertEquals("35", cols[12])  // system_temp
         assertEquals("28", cols[13])  // temp2
@@ -181,7 +182,7 @@ class CsvFormatterTest {
     @Test
     fun `row encodes tilt and roll with 2 decimals`() {
         val telemetry = TelemetryState(angle = 2.5, roll = -1.3)
-        val row = CsvFormatter.row("2024-01-15,10:30:00.000", telemetry, tripDistance = 0)
+        val row = noGps.row("2024-01-15,10:30:00.000", telemetry, tripDistance = 0)
         val cols = row.split(",")
         assertEquals("2.50", cols[14])  // tilt
         assertEquals("-1.30", cols[15]) // roll
@@ -190,7 +191,7 @@ class CsvFormatterTest {
     @Test
     fun `row encodes mode and alert strings`() {
         val telemetry = TelemetryState(alert = "")
-        val row = CsvFormatter.row("2024-01-15,10:30:00.000", telemetry, modeStr = "Sport", tripDistance = 0)
+        val row = noGps.row("2024-01-15,10:30:00.000", telemetry, modeStr = "Sport", tripDistance = 0)
         val cols = row.split(",")
         assertEquals("Sport", cols[16])
         assertEquals("", cols[17])
@@ -207,7 +208,7 @@ class CsvFormatterTest {
             bearing = 90.0,
             cumulativeDistance = 1234.0
         )
-        val row = CsvFormatter.row("2024-01-15,10:30:00.000", telemetry, tripDistance = 100, gps = gps)
+        val row = withGps.row("2024-01-15,10:30:00.000", telemetry, tripDistance = 100, gps = gps)
         val cols = row.split(",")
         // GPS columns start at index 2
         assertEquals("37.7749", cols[2])
@@ -223,14 +224,14 @@ class CsvFormatterTest {
     @Test
     fun `row without GPS omits location columns`() {
         val telemetry = TelemetryState()
-        val row = CsvFormatter.row("2024-01-15,10:30:00.000", telemetry, tripDistance = 0, gps = null)
+        val row = noGps.row("2024-01-15,10:30:00.000", telemetry, tripDistance = 0, gps = null)
         assertFalse(row.contains("37.7749"))
     }
 
     @Test
-    fun `row with includeGps but null location writes empty GPS placeholders`() {
+    fun `row with GPS formatter but null location writes empty GPS placeholders`() {
         val telemetry = TelemetryState(voltage = 23000) // 230.00 V
-        val row = CsvFormatter.row("2024-01-15,10:30:00.000", telemetry, tripDistance = 0, gps = null, includeGps = true)
+        val row = withGps.row("2024-01-15,10:30:00.000", telemetry, tripDistance = 0, gps = null)
         val cols = row.split(",")
         // Should have 24 columns (same as with GPS data) so CsvParser reads correctly
         assertEquals(24, cols.size)
@@ -249,7 +250,7 @@ class CsvFormatterTest {
     @Test
     fun `row with default state produces all zeros`() {
         val telemetry = TelemetryState()
-        val row = CsvFormatter.row("2024-01-15,10:30:00.000", telemetry, tripDistance = 0)
+        val row = noGps.row("2024-01-15,10:30:00.000", telemetry, tripDistance = 0)
         val cols = row.split(",")
         assertEquals("0.00", cols[2])  // speed
         assertEquals("0.00", cols[3])  // voltage
@@ -259,5 +260,16 @@ class CsvFormatterTest {
         assertEquals("0", cols[9])     // battery_level
         assertEquals("0", cols[10])    // distance
         assertEquals("0", cols[11])    // totaldistance
+    }
+
+    @Test
+    fun `GPS data silently ignored when formatter created without GPS`() {
+        val telemetry = TelemetryState(speed = 2500)
+        val gps = GpsLocation(37.7749, -122.4194, 20.0, 50.5, 90.0, 1234.0)
+        val row = noGps.row("2024-01-15,10:30:00.000", telemetry, tripDistance = 0, gps = gps)
+        val cols = row.split(",")
+        // Should have 18 columns (no GPS) despite gps being non-null
+        assertEquals(18, cols.size)
+        assertEquals("25.00", cols[2]) // speed at index 2, not latitude
     }
 }

@@ -43,9 +43,9 @@ object RideCsvEditor {
         // Parse each file into header info + data rows
         val parsed = csvContents.map { parseFile(it) }
         val anyGps = parsed.any { it.hasGps }
-        val outputHeader = if (anyGps) CsvFormatter.header(true) else CsvFormatter.header(false)
+        val outputHeader = CsvFormatter.create(anyGps).header
         val outputCols = outputHeader.split(",")
-        val distIdx = outputCols.indexOf("distance")
+        val distIdx = outputCols.indexOf(CsvColumns.DISTANCE)
 
         // Collect all timestamped rows, adjusting GPS columns and tracking file of origin
         data class TimestampedRow(val timestampMs: Long, val columns: MutableList<String>, val fileIndex: Int)
@@ -86,7 +86,7 @@ object RideCsvEditor {
         for (file in parsed.withIndex()) {
             val lastRow = file.value.dataRows.lastOrNull() ?: continue
             val cols = lastRow.split(",")
-            val dIdx = file.value.headerCols.indexOf("distance")
+            val dIdx = file.value.headerCols.indexOf(CsvColumns.DISTANCE)
             if (dIdx >= 0 && dIdx < cols.size) {
                 fileLastDistances[file.index] = cols[dIdx].toLongOrNull() ?: 0L
             }
@@ -174,7 +174,7 @@ object RideCsvEditor {
         }
 
         // Second half: reset distance column
-        val distIdx = file.headerCols.indexOf("distance")
+        val distIdx = file.headerCols.indexOf(CsvColumns.DISTANCE)
         val secondCsv = buildString {
             appendLine(header)
             if (distIdx >= 0) {
@@ -209,11 +209,11 @@ object RideCsvEditor {
     fun computeMetadataFromCsv(csvContent: String, fileName: String): RideMetadata {
         val file = parseFile(csvContent)
 
-        val speedIdx = file.headerCols.indexOf("speed")
-        val currentIdx = file.headerCols.indexOf("current")
-        val powerIdx = file.headerCols.indexOf("power")
-        val pwmIdx = file.headerCols.indexOf("pwm")
-        val distIdx = file.headerCols.indexOf("distance")
+        val speedIdx = file.headerCols.indexOf(CsvColumns.SPEED)
+        val currentIdx = file.headerCols.indexOf(CsvColumns.CURRENT)
+        val powerIdx = file.headerCols.indexOf(CsvColumns.POWER)
+        val pwmIdx = file.headerCols.indexOf(CsvColumns.PWM)
+        val distIdx = file.headerCols.indexOf(CsvColumns.DISTANCE)
 
         var firstTimestampMs = 0L
         var lastTimestampMs = 0L
@@ -306,9 +306,9 @@ object RideCsvEditor {
         val lines = csvContent.trimEnd().lines()
         val headerLine = lines.firstOrNull() ?: ""
         val headerCols = headerLine.split(",")
-        val dateIdx = headerCols.indexOf("date")
-        val timeIdx = headerCols.indexOf("time")
-        val hasGps = "latitude" in headerCols
+        val dateIdx = headerCols.indexOf(CsvColumns.DATE)
+        val timeIdx = headerCols.indexOf(CsvColumns.TIME)
+        val hasGps = CsvColumns.LATITUDE in headerCols
         val dataRows = if (lines.size > 1) {
             lines.subList(1, lines.size).filter { it.isNotBlank() }
         } else {
