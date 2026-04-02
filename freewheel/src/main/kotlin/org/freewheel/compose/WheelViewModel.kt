@@ -81,6 +81,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -105,6 +106,10 @@ class WheelViewModel(
     private val alarmChecker: AlarmChecker = AlarmChecker(),
     val telemetryBuffer: TelemetryBuffer = TelemetryBuffer()
 ) : AndroidViewModel(application) {
+
+    private companion object {
+        const val RIDE_PAUSE_TIMEOUT_MS = 3_600_000L // 1 hour
+    }
 
     // Service references (set via attachService/detachService)
     private var wheelService: WheelServiceContract? = null
@@ -282,6 +287,12 @@ class WheelViewModel(
     val isLogging: StateFlow<Boolean> = _isLogging.asStateFlow()
     private val _liveRideStats = MutableStateFlow<org.freewheel.core.logging.LiveRideStats?>(null)
     val liveRideStats: StateFlow<org.freewheel.core.logging.LiveRideStats?> = _liveRideStats.asStateFlow()
+
+    // Ride pause (keep file open on ConnectionLost, resume on reconnect within 1 hour)
+    private val _isRidePaused = MutableStateFlow(false)
+    val isRidePaused: StateFlow<Boolean> = _isRidePaused.asStateFlow()
+    private var ridePauseTimeoutJob: Job? = null
+    private var pausedRideAddress: String? = null
 
     // BLE Capture
     private val _isCapturing = MutableStateFlow(false)
@@ -475,15 +486,41 @@ class WheelViewModel(
                     loadDashboardLayout()
                     wheelService?.startLocationTracking()
                     startErrorLogSession(state.address)
+
+                    // Resume paused ride if reconnecting to same wheel
+                    if (_isRidePaused.value) {
+                        if (state.address == pausedRideAddress) {
+                            clearPauseState()
+                            rideLogger.resume(System.currentTimeMillis())
+                        } else {
+                            clearPauseState()
+                            stopLogging()
+                        }
+                    }
                 }
+
+                // Connection lost — pause ride instead of ending it.
                 // OS-level auto-reconnect handles mid-ride reconnection
-                // (Android: autoConnectPeripheral, iOS: centralManager.connect).
-                // Don't use AutoConnectManager here — it would cancel the OS
-                // reconnect by calling WCM.connect() which tears down + rebuilds.
-                // AutoConnectManager is only for startup auto-connect.
-                // Stop GPS when disconnected
-                if (state is ConnectionState.ConnectionLost ||
-                    state is ConnectionState.Disconnected ||
+                // (Android: autoConnectPeripheral). Don't use AutoConnectManager
+                // here — it would cancel the OS reconnect.
+                if (state is ConnectionState.ConnectionLost) {
+                    if (captureLogger.isCapturing) stopCapture()
+                    if (rideLogger.isLogging && !_isRidePaused.value) {
+                        rideLogger.pause(System.currentTimeMillis())
+                        _isRidePaused.value = true
+                        pausedRideAddress = state.address
+                        ridePauseTimeoutJob?.cancel()
+                        ridePauseTimeoutJob = viewModelScope.launch {
+                            delay(RIDE_PAUSE_TIMEOUT_MS)
+                            stopLogging()
+                        }
+                    }
+                    wheelService?.stopLocationTracking()
+                    endErrorLogSession(state)
+                }
+
+                // User-initiated disconnect or failure — always end ride
+                if (state is ConnectionState.Disconnected ||
                     state is ConnectionState.Failed
                 ) {
                     if (captureLogger.isCapturing) stopCapture()
@@ -1053,7 +1090,15 @@ class WheelViewModel(
         }
     }
 
+    private fun clearPauseState() {
+        ridePauseTimeoutJob?.cancel()
+        ridePauseTimeoutJob = null
+        _isRidePaused.value = false
+        pausedRideAddress = null
+    }
+
     private fun stopLogging() {
+        clearPauseState()
         logSamplingJob?.cancel()
         logSamplingJob = null
         val metadata = rideLogger.stop(System.currentTimeMillis(), telemetryState.value.totalDistance)

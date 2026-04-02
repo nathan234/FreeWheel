@@ -145,10 +145,14 @@ class WheelManager: ObservableObject {
         didSet { UserDefaults.standard.set(logGPS, forKey: PreferenceKeys.shared.LOG_LOCATION_DATA) }
     }
     @Published private(set) var isLogging: Bool = false
+    @Published private(set) var isRidePaused: Bool = false
     @Published private(set) var liveRideStartDate: Date?
     @Published private(set) var liveRideElapsedSeconds: TimeInterval = 0
     @Published private(set) var liveRideMaxSpeedKmh: Double = 0
     @Published private(set) var liveRideDistanceKm: Double = 0
+    private var ridePauseTimeoutTask: Task<Void, Never>?
+    private var pausedRideAddress: String?
+    private static let ridePauseTimeoutSeconds: TimeInterval = 3600 // 1 hour
 
     // Auto-torch settings (persisted to UserDefaults)
     @Published var autoTorchEnabled: Bool = UserDefaults.standard.bool(forKey: PreferenceKeys.shared.AUTO_TORCH_ENABLED) {
@@ -927,24 +931,43 @@ class WheelManager: ObservableObject {
             // Start GPS tracking for speed tile / telemetry
             locationManager.startTracking()
 
-            // Auto-start logging if enabled
-            if autoStartLogging && !isLogging {
-                startLogging()
+            // Resume paused ride if reconnecting to same wheel
+            if isRidePaused {
+                if address == pausedRideAddress {
+                    clearPauseState()
+                    rideLogger.resume()
+                } else {
+                    clearPauseState()
+                    stopLogging()
+                }
+            } else {
+                // Auto-start logging if enabled (only for fresh connections, not resumes)
+                if autoStartLogging && !isLogging {
+                    startLogging()
+                }
             }
 
             // Start error log session
             startErrorLogSession(address: address)
         }
 
-        // Connection lost — OS-level auto-reconnect handles mid-ride reconnection
-        // (centralManager.connect in onPeripheralDisconnected). Don't use
-        // AutoConnectManager here — it would cancel the OS reconnect by calling
-        // WCM.connect() which tears down + rebuilds. AutoConnectManager is only
-        // for startup auto-connect.
+        // Connection lost — pause ride instead of ending it.
+        // OS-level auto-reconnect handles mid-ride reconnection
+        // (centralManager.connect in onPeripheralDisconnected).
         if case .connectionLost(_, let reason) = newState {
             endErrorLogSession(reason: reason)
             if isCapturing { stopCapture() }
-            if isLogging { stopLogging() }
+            if isLogging && !isRidePaused {
+                rideLogger.pause()
+                isRidePaused = true
+                pausedRideAddress = lastConnectedAddress
+                ridePauseTimeoutTask?.cancel()
+                ridePauseTimeoutTask = Task { @MainActor [weak self] in
+                    try? await Task.sleep(nanoseconds: UInt64(Self.ridePauseTimeoutSeconds * 1_000_000_000))
+                    guard !Task.isCancelled, let self else { return }
+                    self.stopLogging()
+                }
+            }
             if backgroundManager.isInBackground {
                 let wheelName = identity.displayName
                 backgroundManager.postConnectionLostNotification(wheelName: wheelName)
@@ -953,9 +976,23 @@ class WheelManager: ObservableObject {
             locationManager.stopTracking()
         }
 
-        // Also handle explicit disconnected state
+        // User-initiated disconnect — always end ride
         if case .disconnected = newState, oldState.isConnected {
             endErrorLogSession(reason: "User disconnect")
+            if isCapturing { stopCapture() }
+            if isLogging {
+                stopLogging()
+            }
+            locationManager.stopTracking()
+            telemetryHistory.save()
+            telemetryBuffer.clear()
+            alarmManager.reset()
+            activeAlarms = []
+        }
+
+        // Failed state (e.g., reconnect attempt degraded into failure) — end ride immediately
+        if case .failed(_, let error) = newState {
+            endErrorLogSession(reason: error)
             if isCapturing { stopCapture() }
             if isLogging {
                 stopLogging()
@@ -1240,7 +1277,15 @@ class WheelManager: ObservableObject {
         }
     }
 
+    private func clearPauseState() {
+        ridePauseTimeoutTask?.cancel()
+        ridePauseTimeoutTask = nil
+        isRidePaused = false
+        pausedRideAddress = nil
+    }
+
     func stopLogging() {
+        clearPauseState()
         if let metadata = rideLogger.stopLogging(currentDistance: telemetry?.totalDistanceKm ?? 0) {
             rideStore.addRide(metadata)
         }

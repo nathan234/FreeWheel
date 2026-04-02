@@ -22,6 +22,10 @@ class RideLogger(private val fileWriter: FileWriter = FileWriter()) {
     // Throttle state
     private var lastWriteTimeMs = 0L
 
+    // Pause tracking
+    private var pauseStartMs = 0L
+    private var totalPausedMs = 0L
+
     // Metadata tracking
     private var startTimeMs = 0L
     private var startTotalDistance = 0L
@@ -43,12 +47,48 @@ class RideLogger(private val fileWriter: FileWriter = FileWriter()) {
         val distM = if (startTotalDistance > 0 && currentTotalDistance > startTotalDistance) {
             currentTotalDistance - startTotalDistance
         } else 0L
+        // Subtract completed pauses and any ongoing pause from elapsed time
+        val currentPauseMs = if (pauseStartMs > 0L) currentTimeMs - pauseStartMs else 0L
+        val activeElapsedMs = currentTimeMs - startTimeMs - totalPausedMs - currentPauseMs
         return LiveRideStats(
             startTimeMs = startTimeMs,
-            elapsedMs = currentTimeMs - startTimeMs,
+            elapsedMs = maxOf(activeElapsedMs, 0L),
             maxSpeedKmh = maxSpeedKmh,
             distanceMeters = distM
         )
+    }
+
+    /**
+     * Mark the ride as paused (e.g. on BLE disconnect).
+     * Records the pause start time so [resume] can subtract the gap.
+     */
+    fun pause(currentTimeMs: Long) {
+        if (!isActive) return
+        if (pauseStartMs == 0L) {
+            pauseStartMs = currentTimeMs
+        }
+    }
+
+    /**
+     * Resume a paused ride (e.g. on BLE reconnect).
+     * Subtracts the paused gap from elapsed time and resets the 1Hz write throttle
+     * so the next [writeSample] call writes immediately.
+     */
+    fun resume(currentTimeMs: Long) {
+        if (pauseStartMs > 0L) {
+            totalPausedMs += currentTimeMs - pauseStartMs
+            pauseStartMs = 0L
+        }
+        lastWriteTimeMs = 0L
+    }
+
+    /**
+     * Reset the 1Hz write throttle so the next [writeSample] call writes immediately.
+     * Prefer [pause]/[resume] for disconnect/reconnect flows — this method does not
+     * track the paused duration.
+     */
+    fun resetThrottle() {
+        lastWriteTimeMs = 0L
     }
 
     /**
@@ -72,6 +112,8 @@ class RideLogger(private val fileWriter: FileWriter = FileWriter()) {
 
         startTimeMs = currentTimeMs
         lastWriteTimeMs = 0L
+        pauseStartMs = 0L
+        totalPausedMs = 0L
         startTotalDistance = 0L
         maxSpeedKmh = 0.0
         totalSpeedKmh = 0.0
@@ -143,7 +185,12 @@ class RideLogger(private val fileWriter: FileWriter = FileWriter()) {
         formatter = null
 
         val endTimeMs = currentTimeMs
-        val durationSec = (endTimeMs - startTimeMs) / 1000L
+        // Finalize any ongoing pause
+        if (pauseStartMs > 0L) {
+            totalPausedMs += endTimeMs - pauseStartMs
+            pauseStartMs = 0L
+        }
+        val durationSec = (endTimeMs - startTimeMs - totalPausedMs) / 1000L
         val avgSpeed = if (sampleCount > 0) totalSpeedKmh / sampleCount else 0.0
 
         // Distance: use lastTotalDistance if provided, otherwise compute from tracked start

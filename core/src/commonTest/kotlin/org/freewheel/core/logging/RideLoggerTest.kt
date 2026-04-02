@@ -237,6 +237,144 @@ class RideLoggerTest {
         assertNull(logger.stop(2000))
     }
 
+    // ==================== Pause/Resume ====================
+
+    @Test
+    fun `resume allows immediate write after long pause`() {
+        val logger = RideLogger()
+        val tmpPath = createTempPath()
+        logger.start(tmpPath, withGps = false, currentTimeMs = 0)
+
+        logger.writeSample(TelemetryState(speed = 2000), gps = null, currentTimeMs = 1000)
+        logger.writeSample(TelemetryState(speed = 3000), gps = null, currentTimeMs = 2000)
+
+        // Simulate disconnect at t=3000, reconnect at t=300000
+        logger.pause(3000)
+        logger.resume(300_000)
+
+        logger.writeSample(TelemetryState(speed = 4000), gps = null, currentTimeMs = 300_000)
+
+        val metadata = logger.stop(301_000)
+        assertNotNull(metadata)
+        assertEquals(3, metadata.sampleCount)
+        assertEquals(40.0, metadata.maxSpeedKmh, 0.01)
+    }
+
+    @Test
+    fun `pause-resume subtracts paused gap from duration`() {
+        val logger = RideLogger()
+        val tmpPath = createTempPath()
+        // Start at t=0, ride for 10s, pause for 60s, ride for 10s more
+        logger.start(tmpPath, withGps = false, currentTimeMs = 0)
+        logger.writeSample(TelemetryState(speed = 2000), gps = null, currentTimeMs = 1000)
+
+        logger.pause(10_000)      // disconnect at 10s
+        logger.resume(70_000)     // reconnect at 70s (60s paused)
+
+        logger.writeSample(TelemetryState(speed = 3000), gps = null, currentTimeMs = 71_000)
+
+        val metadata = logger.stop(80_000)  // stop at 80s
+        assertNotNull(metadata)
+        // Total wall time = 80s, paused = 60s, active = 20s
+        assertEquals(20, metadata.durationSeconds)
+    }
+
+    @Test
+    fun `pause-resume subtracts paused gap from liveStats elapsed`() {
+        val logger = RideLogger()
+        val tmpPath = createTempPath()
+        logger.start(tmpPath, withGps = false, currentTimeMs = 0)
+        logger.writeSample(TelemetryState(speed = 2000), gps = null, currentTimeMs = 1000)
+
+        logger.pause(10_000)
+        logger.resume(70_000)
+
+        val stats = logger.liveStats(80_000, 0)
+        assertNotNull(stats)
+        // Wall time = 80s, paused = 60s, active elapsed = 20s
+        assertEquals(20_000, stats.elapsedMs)
+        logger.stop(81_000)
+    }
+
+    @Test
+    fun `liveStats during active pause excludes ongoing pause`() {
+        val logger = RideLogger()
+        val tmpPath = createTempPath()
+        logger.start(tmpPath, withGps = false, currentTimeMs = 0)
+        logger.writeSample(TelemetryState(speed = 2000), gps = null, currentTimeMs = 1000)
+
+        logger.pause(10_000)
+
+        // Query live stats while still paused at t=70000
+        val stats = logger.liveStats(70_000, 0)
+        assertNotNull(stats)
+        // Should show only 10s of active time, not 70s
+        assertEquals(10_000, stats.elapsedMs)
+        logger.resume(70_000)
+        logger.stop(71_000)
+    }
+
+    @Test
+    fun `stop during active pause finalizes paused gap`() {
+        val logger = RideLogger()
+        val tmpPath = createTempPath()
+        logger.start(tmpPath, withGps = false, currentTimeMs = 0)
+        logger.writeSample(TelemetryState(speed = 2000), gps = null, currentTimeMs = 1000)
+
+        logger.pause(10_000)
+        // Stop without resuming — paused gap should be subtracted
+        val metadata = logger.stop(70_000)
+        assertNotNull(metadata)
+        // Active time = 10s (0-10s), paused = 60s (10s-70s)
+        assertEquals(10, metadata.durationSeconds)
+    }
+
+    @Test
+    fun `multiple pause-resume cycles accumulate correctly`() {
+        val logger = RideLogger()
+        val tmpPath = createTempPath()
+        logger.start(tmpPath, withGps = false, currentTimeMs = 0)
+        logger.writeSample(TelemetryState(speed = 2000), gps = null, currentTimeMs = 1000)
+
+        // Pause 1: 10s-30s (20s paused)
+        logger.pause(10_000)
+        logger.resume(30_000)
+        logger.writeSample(TelemetryState(speed = 3000), gps = null, currentTimeMs = 31_000)
+
+        // Pause 2: 40s-50s (10s paused)
+        logger.pause(40_000)
+        logger.resume(50_000)
+        logger.writeSample(TelemetryState(speed = 4000), gps = null, currentTimeMs = 51_000)
+
+        val metadata = logger.stop(60_000)
+        assertNotNull(metadata)
+        // Wall time = 60s, total paused = 30s, active = 30s
+        assertEquals(30, metadata.durationSeconds)
+    }
+
+    @Test
+    fun `pause-resume correctly computes energy consumption`() {
+        val logger = RideLogger()
+        val tmpPath = createTempPath()
+        logger.start(tmpPath, withGps = false, currentTimeMs = 0)
+
+        // 100W power sample
+        logger.writeSample(TelemetryState(power = 10000, totalDistance = 50000), gps = null, currentTimeMs = 1000)
+
+        // Pause for 1 hour (should NOT count toward energy consumption)
+        logger.pause(10_000)
+        logger.resume(3610_000)
+
+        logger.writeSample(TelemetryState(power = 10000, totalDistance = 60000), gps = null, currentTimeMs = 3611_000)
+
+        val metadata = logger.stop(3620_000)
+        assertNotNull(metadata)
+        // Active duration = 3620 - 0 - 3600 paused = 20s
+        // avgPower = 100W, consumption = 100 * 20 / 3600 ≈ 0.56 Wh (not 100 Wh)
+        assertEquals(20, metadata.durationSeconds)
+        assertTrue(metadata.consumptionWh < 1.0, "Paused time should not inflate energy consumption")
+    }
+
     // ==================== GPS Handling ====================
 
     @Test

@@ -380,8 +380,11 @@ actual class BleManager : BleManagerPort {
             return
         }
 
-        // Cache miss — discover from scratch
-        peripheral.discoverServices(serviceUUIDs = wheelServiceUUIDs())
+        // Cache miss — discover all services (no filter).
+        // Both DarknessBot and EUC World discover all services then identify
+        // the wheel by name + available services. Filtering caused connection
+        // failures on wheels whose services didn't match the hardcoded list.
+        peripheral.discoverServices(serviceUUIDs = null)
 
         // Safety timeout — if service/characteristic discovery doesn't complete
         // within 15 seconds, fail the connection instead of hanging forever.
@@ -391,21 +394,33 @@ actual class BleManager : BleManagerPort {
     /**
      * Check if CoreBluetooth has cached services and characteristics from a previous connection.
      * If so, skip discovery and go directly to the completion path.
+     *
+     * Only treats the cache as valid if at least one **wheel-specific** service
+     * (not a generic service like Battery or Device Info) has its characteristics
+     * populated. Without this check, a generic cached service could satisfy the
+     * predicate, causing completeServiceDiscovery() to fire before the actual
+     * wheel service has been discovered.
      */
     private fun tryUseCachedServices(peripheral: CBPeripheral): Boolean {
         val cachedServices = peripheral.services ?: return false
         if (cachedServices.isEmpty()) return false
 
-        val targetUuids = wheelServiceUUIDs().map { it.UUIDString.lowercase() }.toSet()
+        // All wheel types use one of these service UUIDs
+        val wheelServiceUuids = setOf(
+            BleUuids.Kingsong.SERVICE.lowercase(),          // ffe0 (KS/GW/Vet/Leaperkim/IM-read/NB)
+            BleUuids.InMotionV2.SERVICE.lowercase(),        // Nordic UART (IMv2/NBZ)
+            BleUuids.InMotion.WRITE_SERVICE.lowercase(),    // ffe5 (IM write)
+        )
 
-        // Check that at least one target service is cached WITH its characteristics
-        val hasMatchWithCharacteristics = cachedServices.any { svc ->
+        // Validate that at least one wheel-specific service has cached characteristics
+        val hasWheelServiceWithCharacteristics = cachedServices.any { svc ->
             val cbService = svc as? CBService ?: return@any false
-            cbService.UUID.UUIDString.lowercase() in targetUuids &&
-                !cbService.characteristics.isNullOrEmpty()
+            if (cbService.characteristics.isNullOrEmpty()) return@any false
+            val uuid = expandCoreBluetoothUuid(cbService.UUID.UUIDString).lowercase()
+            uuid in wheelServiceUuids
         }
 
-        if (!hasMatchWithCharacteristics) return false
+        if (!hasWheelServiceWithCharacteristics) return false
 
         // Cache hit — complete connection immediately
         completeServiceDiscovery(peripheral)

@@ -99,6 +99,21 @@ class RideLogger: ObservableObject {
         return kmpLogger.liveStats(currentTimeMs: currentTimeMs, currentTotalDistance: totalDistanceM)
     }
 
+    // MARK: - Pause/Resume
+
+    /// Mark the ride as paused (e.g. on BLE disconnect).
+    func pause() {
+        let currentTimeMs = Int64(Date().timeIntervalSince1970 * 1000)
+        kmpLogger.pause(currentTimeMs: currentTimeMs)
+    }
+
+    /// Resume a paused ride (e.g. on BLE reconnect).
+    /// Subtracts the paused gap from elapsed time and resets the write throttle.
+    func resume() {
+        let currentTimeMs = Int64(Date().timeIntervalSince1970 * 1000)
+        kmpLogger.resume(currentTimeMs: currentTimeMs)
+    }
+
     // MARK: - Write Sample
 
     func writeTelemetrySample(telemetry: TelemetryState, modeStr: String, location: CLLocation?, includeGPS: Bool) {
