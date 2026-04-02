@@ -234,6 +234,7 @@ struct SettingsView: View {
         case .showUnknownDevices: return $wheelManager.showUnknownDevices
         case .autoLog: return $wheelManager.autoStartLogging
         case .logLocationData: return $wheelManager.logGPS
+        case .autoCapture: return $wheelManager.autoCapture
         case .autoTorchEnabled: return $wheelManager.autoTorchEnabled
         case .autoTorchUseSunset: return $wheelManager.autoTorchUseSunset
         default: return .constant(false)

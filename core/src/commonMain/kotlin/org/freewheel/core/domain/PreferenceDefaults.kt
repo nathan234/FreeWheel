@@ -49,6 +49,7 @@ object PreferenceDefaults {
     // Logging
     const val AUTO_LOG = false
     const val LOG_LOCATION_DATA = false
+    const val AUTO_CAPTURE = true
 
     // Alarm action (index into AlarmAction enum)
     const val ALARM_ACTION = 0

@@ -62,6 +62,7 @@ enum class AppSettingId(
     // Logging
     AUTO_LOG(PreferenceKeys.AUTO_LOG, SettingScope.GLOBAL),
     LOG_LOCATION_DATA(PreferenceKeys.LOG_LOCATION_DATA, SettingScope.GLOBAL),
+    AUTO_CAPTURE(PreferenceKeys.AUTO_CAPTURE, SettingScope.GLOBAL),
 
     // Auto torch
     AUTO_TORCH_ENABLED(PreferenceKeys.AUTO_TORCH_ENABLED, SettingScope.GLOBAL),
@@ -80,6 +81,7 @@ enum class AppSettingId(
             SHOW_UNKNOWN_DEVICES -> PreferenceDefaults.SHOW_UNKNOWN_DEVICES
             AUTO_LOG -> PreferenceDefaults.AUTO_LOG
             LOG_LOCATION_DATA -> PreferenceDefaults.LOG_LOCATION_DATA
+            AUTO_CAPTURE -> PreferenceDefaults.AUTO_CAPTURE
             AUTO_TORCH_ENABLED -> PreferenceDefaults.AUTO_TORCH_ENABLED
             AUTO_TORCH_USE_SUNSET -> PreferenceDefaults.AUTO_TORCH_USE_SUNSET
             else -> false

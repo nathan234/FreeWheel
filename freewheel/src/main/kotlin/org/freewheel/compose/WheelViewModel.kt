@@ -487,6 +487,13 @@ class WheelViewModel(
                     wheelService?.startLocationTracking()
                     startErrorLogSession(state.address)
 
+                    // Auto BLE capture
+                    if (!captureLogger.isCapturing &&
+                        getGlobalBool(PreferenceKeys.AUTO_CAPTURE, PreferenceDefaults.AUTO_CAPTURE)
+                    ) {
+                        startCapture()
+                    }
+
                     // Resume paused ride if reconnecting to same wheel
                     if (_isRidePaused.value) {
                         if (state.address == pausedRideAddress) {

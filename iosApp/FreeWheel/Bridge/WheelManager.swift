@@ -144,6 +144,13 @@ class WheelManager: ObservableObject {
     @Published var logGPS: Bool = UserDefaults.standard.bool(forKey: PreferenceKeys.shared.LOG_LOCATION_DATA) {
         didSet { UserDefaults.standard.set(logGPS, forKey: PreferenceKeys.shared.LOG_LOCATION_DATA) }
     }
+    @Published var autoCapture: Bool = {
+        let key = PreferenceKeys.shared.AUTO_CAPTURE
+        // UserDefaults.bool returns false for unset keys; default to true
+        return UserDefaults.standard.object(forKey: key) == nil || UserDefaults.standard.bool(forKey: key)
+    }() {
+        didSet { UserDefaults.standard.set(autoCapture, forKey: PreferenceKeys.shared.AUTO_CAPTURE) }
+    }
     @Published private(set) var isLogging: Bool = false
     @Published private(set) var isRidePaused: Bool = false
     @Published private(set) var liveRideStartDate: Date?
@@ -945,6 +952,11 @@ class WheelManager: ObservableObject {
                 if autoStartLogging && !isLogging {
                     startLogging()
                 }
+            }
+
+            // Auto BLE capture
+            if autoCapture && !isCapturing {
+                startCapture()
             }
 
             // Start error log session

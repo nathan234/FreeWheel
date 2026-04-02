@@ -42,6 +42,7 @@ object PreferenceKeys {
     // Logging (global)
     const val AUTO_LOG = "auto_log"
     const val LOG_LOCATION_DATA = "log_location_data"
+    const val AUTO_CAPTURE = "auto_capture"
 
     // Wheel profiles
     const val SAVED_WHEEL_ADDRESSES = "saved_wheel_addresses"

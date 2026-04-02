@@ -43,6 +43,7 @@ object SettingsLabels {
     // Logging
     const val AUTO_START_LOGGING = "Auto-Start Logging"
     const val INCLUDE_GPS = "Include GPS"
+    const val AUTO_CAPTURE = "Auto BLE Capture"
     const val GPS_HINT = "GPS requires location permission. Logs are saved as CSV files."
 
     // Connection

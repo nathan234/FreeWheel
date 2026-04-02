@@ -214,7 +214,8 @@ object AppSettingsConfig {
         title = SettingsLabels.SECTION_LOGGING,
         controls = listOf(
             AppSettingSpec.Toggle(SettingsLabels.AUTO_START_LOGGING, AppSettingId.AUTO_LOG),
-            AppSettingSpec.Toggle(SettingsLabels.INCLUDE_GPS, AppSettingId.LOG_LOCATION_DATA)
+            AppSettingSpec.Toggle(SettingsLabels.INCLUDE_GPS, AppSettingId.LOG_LOCATION_DATA),
+            AppSettingSpec.Toggle(SettingsLabels.AUTO_CAPTURE, AppSettingId.AUTO_CAPTURE)
         ),
         footer = SettingsLabels.GPS_HINT
     )
