@@ -120,6 +120,7 @@ fun DashboardScreen(
                         durationSeconds = (stats.elapsedMs / 1000).toInt(),
                         distanceKm = stats.distanceMeters / 1000.0,
                         maxSpeedKmh = stats.maxSpeedKmh,
+                        maxPwmPercent = null,
                         useMph = useMph
                     )
                 }

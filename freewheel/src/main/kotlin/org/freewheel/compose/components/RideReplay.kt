@@ -275,6 +275,10 @@ fun ReplayStatsPanel(
                     label = RidesLabels.TEMP_LABEL,
                     value = DisplayUtils.formatTemperature(sample.temperatureC, useFahrenheit)
                 )
+                ReplayStatItem(
+                    label = RidesLabels.PWM_LABEL,
+                    value = "%.0f%%".format(sample.pwmPercent)
+                )
             }
         }
     }
@@ -305,6 +309,7 @@ fun RideStatsHeader(
     durationSeconds: Int,
     distanceKm: Double,
     maxSpeedKmh: Double,
+    maxPwmPercent: Double?,
     useMph: Boolean,
     modifier: Modifier = Modifier
 ) {
@@ -330,6 +335,9 @@ fun RideStatsHeader(
             ) {
                 HeaderStatItem(RidesLabels.TOP_SPEED, DisplayUtils.formatSpeed(maxSpeedKmh, useMph))
                 HeaderStatItem(RidesLabels.DISTANCE, DisplayUtils.formatDistance(distanceKm, useMph))
+                if (maxPwmPercent != null) {
+                    HeaderStatItem(RidesLabels.MAX_PWM, "%.0f%%".format(maxPwmPercent))
+                }
             }
         }
     }

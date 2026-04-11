@@ -9,6 +9,7 @@ struct TripDetailView: View {
     let ride: RideMetadata
 
     @State private var samples: [TelemetrySample] = []
+    @State private var tripStats: TripStats?
     @State private var isLoading = true
     @State private var errorMessage: String?
 
@@ -235,7 +236,10 @@ struct TripDetailView: View {
         let startTimeStr = formatTime(ride.startDate)
         let endTimeStr = formatTime(ride.endDate)
         let durationStr = DisplayUtils.shared.formatDurationCompact(seconds: Int32(ride.duration))
-        let topSpeedStr = DisplayUtils.shared.formatSpeed(kmh: ride.maxSpeed, useMph: wheelManager.useMph, decimals: 0)
+        // Prefer sample-derived maxes so split rides and older CSVs without
+        // metadata columns still show the right top speed / peak PWM.
+        let maxSpeedKmh = tripStats?.maxSpeedKmh ?? ride.maxSpeed
+        let topSpeedStr = DisplayUtils.shared.formatSpeed(kmh: maxSpeedKmh, useMph: wheelManager.useMph, decimals: 0)
         let distanceStr = DisplayUtils.shared.formatDistance(km: ride.distance, useMph: wheelManager.useMph, decimals: 2)
 
         return VStack(spacing: 4) {
@@ -250,6 +254,10 @@ struct TripDetailView: View {
                 headerStatItem(label: RidesLabels.shared.TOP_SPEED, value: topSpeedStr)
                 Spacer()
                 headerStatItem(label: RidesLabels.shared.DISTANCE, value: distanceStr)
+                if let maxPwm = tripStats?.maxPwmPercent {
+                    Spacer()
+                    headerStatItem(label: RidesLabels.shared.MAX_PWM, value: String(format: "%.0f%%", maxPwm))
+                }
             }
         }
         .padding(.horizontal)
@@ -464,6 +472,7 @@ struct TripDetailView: View {
                 errorMessage = "No data in CSV file"
             } else {
                 samples = parsed
+                tripStats = ChartDataPrep.shared.computeTripStats(samples: parsed)
                 let domain = chartFullDomain(samples: parsed)
                 mainChartDomain = domain
                 mainChartBaseDomain = domain
@@ -517,6 +526,11 @@ private struct ReplayStatsView: View {
                     replayStatItem(
                         label: RidesLabels.shared.TEMP_LABEL,
                         value: DisplayUtils.shared.formatTemperature(celsius: sample.temperatureC, useFahrenheit: useFahrenheit, decimals: 0)
+                    )
+                    Spacer()
+                    replayStatItem(
+                        label: RidesLabels.shared.PWM_LABEL,
+                        value: String(format: "%.0f%%", sample.pwmPercent)
                     )
                 }
             }

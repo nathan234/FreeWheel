@@ -70,6 +70,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.freewheel.compose.components.VicoLineChart
 import org.freewheel.compose.components.rememberChartMarker
+import org.freewheel.core.telemetry.ChartDataPrep
 import org.freewheel.core.telemetry.MetricType
 import org.freewheel.core.telemetry.TelemetrySample
 import org.freewheel.core.utils.DisplayUtils
@@ -324,23 +325,26 @@ fun TripDetailScreen(
             is TripDetailState.Loaded -> {
                 val rc = replayController
 
-                // Compute header stats
+                // Max values come from the loaded samples so they stay accurate for rides
+                // that were split (trip DB maxes don't get recomputed) or imported from
+                // CSVs predating the max-PWM column. Time/distance still come from the
+                // trip DB when present so live-recorded durations aren't recomputed.
+                val tripStats = remember(s.samples) { ChartDataPrep.computeTripStats(s.samples) }
                 val headerStartTimeMs: Long
                 val headerEndTimeMs: Long
                 val headerDurationSec: Int
                 val headerDistanceKm: Double
-                val headerMaxSpeedKmh: Double
+                val headerMaxSpeedKmh = tripStats?.maxSpeedKmh ?: s.samples.firstOrNull()?.speedKmh ?: 0.0
+                val headerMaxPwmPercent = tripStats?.maxPwmPercent
                 if (s.trip != null) {
                     headerStartTimeMs = s.trip.start.toLong() * 1000L
                     headerDurationSec = s.trip.duration * 60
                     headerEndTimeMs = headerStartTimeMs + headerDurationSec * 1000L
                     headerDistanceKm = s.trip.distance / 1000.0
-                    headerMaxSpeedKmh = s.trip.maxSpeed.toDouble()
                 } else {
                     headerStartTimeMs = s.samples.first().timestampMs
                     headerEndTimeMs = s.samples.last().timestampMs
                     headerDurationSec = ((headerEndTimeMs - headerStartTimeMs) / 1000).toInt()
-                    headerMaxSpeedKmh = s.samples.maxOf { it.speedKmh }
                     headerDistanceKm = 0.0
                 }
 
@@ -356,6 +360,7 @@ fun TripDetailScreen(
                     durationSeconds = headerDurationSec,
                     distanceKm = headerDistanceKm,
                     maxSpeedKmh = headerMaxSpeedKmh,
+                    maxPwmPercent = headerMaxPwmPercent,
                     useMph = useMph
                 )
 

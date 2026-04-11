@@ -20,6 +20,7 @@ object RidesLabels {
     const val START_TIME = "Start"
     const val END_TIME = "End"
     const val TOP_SPEED = "Top Speed"
+    const val MAX_PWM = "Max PWM"
 
     // Ride management
     const val MERGE_RIDES = "Merge Rides"
@@ -41,4 +42,5 @@ object RidesLabels {
     const val POWER_LABEL = "Power"
     const val BATTERY_LABEL = "Battery"
     const val TEMP_LABEL = "Temp"
+    const val PWM_LABEL = "PWM"
 }
