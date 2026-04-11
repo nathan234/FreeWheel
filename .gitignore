@@ -56,3 +56,6 @@ private.properties
 # Xcode user data
 iosApp/**/*.xcworkspace/
 iosApp/**/xcuserdata/
+
+# Ride Replay (web CSV viewer — not yet part of the main repo)
+ride-replay/
