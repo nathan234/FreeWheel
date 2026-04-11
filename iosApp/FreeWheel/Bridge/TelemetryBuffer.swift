@@ -8,6 +8,8 @@ typealias MetricType = FreeWheelCore.MetricType
 typealias MetricStats = FreeWheelCore.MetricStats
 typealias TripStats = FreeWheelCore.TripStats
 typealias ChartDataPrep = FreeWheelCore.ChartDataPrep
+typealias ReplayPlaybackState = FreeWheelCore.ReplayPlaybackState
+typealias ReplayPlaybackReducer = FreeWheelCore.ReplayPlaybackReducer
 
 /// Swift wrapper around the KMP TelemetryBuffer.
 /// Exposes samples as a Published array for SwiftUI observation.

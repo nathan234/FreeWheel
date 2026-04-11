@@ -24,7 +24,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -38,57 +37,48 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import org.freewheel.core.domain.RidesLabels
+import org.freewheel.core.telemetry.ReplayPlaybackReducer
+import org.freewheel.core.telemetry.ReplayPlaybackState
 import org.freewheel.core.telemetry.TelemetrySample
 import org.freewheel.core.utils.DisplayUtils
 
+/**
+ * Compose-facing wrapper around the shared [ReplayPlaybackReducer]. All state transitions are
+ * delegated to the reducer; this class only owns the Compose-observable container and the
+ * coroutine that drives the playback clock.
+ */
 @Stable
 class CsvReplayController(
     val samples: List<TelemetrySample>
 ) {
-    var isPlaying by mutableStateOf(false)
-        private set
-    var currentIndex by mutableIntStateOf(0)
-        private set
-    var speedMultiplier by mutableStateOf(4f)
-        private set
-    var isFinished by mutableStateOf(false)
-        private set
-
+    private var state by mutableStateOf(ReplayPlaybackState())
     private var playJob: Job? = null
 
+    val isPlaying: Boolean get() = state.isPlaying
+    val currentIndex: Int get() = state.currentIndex
+    val speedMultiplier: Float get() = state.speedMultiplier
+    val isFinished: Boolean get() = state.isFinished
+
     val currentSample: TelemetrySample?
-        get() = samples.getOrNull(currentIndex)
+        get() = ReplayPlaybackReducer.currentSample(state, samples)
 
     val progress: Float
-        get() = if (samples.size <= 1) 0f else currentIndex.toFloat() / (samples.size - 1)
+        get() = ReplayPlaybackReducer.progress(state, samples)
 
     val totalDurationMs: Long
-        get() = if (samples.size < 2) 0L
-        else samples.last().timestampMs - samples.first().timestampMs
+        get() = ReplayPlaybackReducer.totalDurationMs(samples)
 
     val elapsedMs: Long
-        get() {
-            val first = samples.firstOrNull()?.timestampMs ?: return 0L
-            val current = currentSample?.timestampMs ?: return 0L
-            return current - first
-        }
+        get() = ReplayPlaybackReducer.elapsedMs(state, samples)
 
     fun play(scope: CoroutineScope) {
-        if (isPlaying) return
-        if (isFinished) {
-            currentIndex = 0
-            isFinished = false
-        }
-        isPlaying = true
+        if (state.isPlaying) return
+        state = ReplayPlaybackReducer.play(state)
         playJob = scope.launch {
-            while (isActive && currentIndex < samples.size - 1) {
-                val delayMs = samples[currentIndex + 1].timestampMs - samples[currentIndex].timestampMs
-                delay((delayMs / speedMultiplier).toLong().coerceAtLeast(10))
-                currentIndex++
-            }
-            if (currentIndex >= samples.size - 1) {
-                isPlaying = false
-                isFinished = true
+            while (isActive && state.isPlaying) {
+                val tick = ReplayPlaybackReducer.advanceOne(state, samples)
+                delay(tick.delayMs)
+                state = tick.state
             }
         }
     }
@@ -96,54 +86,42 @@ class CsvReplayController(
     fun pause() {
         playJob?.cancel()
         playJob = null
-        isPlaying = false
+        state = ReplayPlaybackReducer.pause(state)
     }
 
     fun togglePlayPause(scope: CoroutineScope) {
-        if (isPlaying) pause() else play(scope)
+        if (state.isPlaying) pause() else play(scope)
     }
 
     fun seekTo(progress: Float) {
-        if (isPlaying) pause()
-        val idx = (progress * (samples.size - 1)).toInt().coerceIn(0, samples.size - 1)
-        currentIndex = idx
-        isFinished = false
+        if (state.isPlaying) pause()
+        state = ReplayPlaybackReducer.seekTo(state, progress, samples)
     }
 
     fun skipForward(scope: CoroutineScope) {
-        seekByMs(30_000L, scope)
+        val wasPlaying = state.isPlaying
+        if (wasPlaying) pause()
+        state = ReplayPlaybackReducer.skipForward(state, samples)
+        if (wasPlaying) play(scope)
     }
 
     fun skipBackward(scope: CoroutineScope) {
-        seekByMs(-30_000L, scope)
-    }
-
-    private fun seekByMs(deltaMs: Long, scope: CoroutineScope) {
-        val wasPlaying = isPlaying
+        val wasPlaying = state.isPlaying
         if (wasPlaying) pause()
-        val current = currentSample?.timestampMs ?: return
-        val target = current + deltaMs
-        val idx = if (deltaMs > 0) {
-            samples.indexOfFirst { it.timestampMs >= target }.let { if (it < 0) samples.size - 1 else it }
-        } else {
-            samples.indexOfLast { it.timestampMs <= target }.let { if (it < 0) 0 else it }
-        }
-        currentIndex = idx
-        isFinished = false
+        state = ReplayPlaybackReducer.skipBackward(state, samples)
         if (wasPlaying) play(scope)
     }
 
     fun setSpeed(multiplier: Float, scope: CoroutineScope) {
-        val wasPlaying = isPlaying
+        val wasPlaying = state.isPlaying
         if (wasPlaying) pause()
-        speedMultiplier = multiplier
+        state = ReplayPlaybackReducer.setSpeed(state, multiplier)
         if (wasPlaying) play(scope)
     }
 
     fun stop() {
         pause()
-        currentIndex = 0
-        isFinished = false
+        state = ReplayPlaybackReducer.stop(state)
     }
 }
 

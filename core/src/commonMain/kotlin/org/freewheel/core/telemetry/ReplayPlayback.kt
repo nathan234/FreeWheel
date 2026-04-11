@@ -18,7 +18,12 @@ data class ReplayPlaybackState(
     val isPlaying: Boolean = false,
     val speedMultiplier: Float = 4f,
     val isFinished: Boolean = false
-)
+) {
+    companion object {
+        /** Swift-callable factory — Kotlin default-parameter constructors aren't visible from ObjC/Swift. */
+        fun initial(): ReplayPlaybackState = ReplayPlaybackState()
+    }
+}
 
 /**
  * Outcome of an [ReplayPlaybackReducer.advanceOne] tick: the new state plus the millisecond delay
