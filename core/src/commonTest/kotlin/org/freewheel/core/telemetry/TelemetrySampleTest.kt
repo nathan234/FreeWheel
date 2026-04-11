@@ -70,47 +70,6 @@ class TelemetrySampleTest {
         assertEquals(0.0, sample.gpsSpeedKmh)
     }
 
-    // ==================== computeTripStats ====================
-
-    @Test
-    fun `computeTripStats returns null for empty list`() {
-        assertEquals(null, TelemetrySample.computeTripStats(emptyList()))
-    }
-
-    @Test
-    fun `computeTripStats returns null for single sample`() {
-        val sample = TelemetrySample(
-            timestampMs = 1000L, speedKmh = 25.0, voltageV = 84.0,
-            currentA = 10.0, powerW = 840.0, temperatureC = 35.0,
-            batteryPercent = 80.0, pwmPercent = 40.0
-        )
-        assertEquals(null, TelemetrySample.computeTripStats(listOf(sample)))
-    }
-
-    @Test
-    fun `computeTripStats computes correct duration and max speed`() {
-        val samples = listOf(
-            TelemetrySample(timestampMs = 0L, speedKmh = 10.0, voltageV = 84.0, currentA = 5.0, powerW = 420.0, temperatureC = 30.0, batteryPercent = 90.0, pwmPercent = 20.0),
-            TelemetrySample(timestampMs = 60000L, speedKmh = 30.0, voltageV = 82.0, currentA = 15.0, powerW = 1230.0, temperatureC = 35.0, batteryPercent = 85.0, pwmPercent = 50.0),
-            TelemetrySample(timestampMs = 120000L, speedKmh = 20.0, voltageV = 80.0, currentA = 10.0, powerW = 800.0, temperatureC = 38.0, batteryPercent = 80.0, pwmPercent = 35.0)
-        )
-        val stats = TelemetrySample.computeTripStats(samples)!!
-        assertEquals(120000L, stats.durationMs)
-        assertEquals(30.0, stats.maxSpeedKmh)
-        assertEquals(1230.0, stats.maxPowerW)
-    }
-
-    @Test
-    fun `computeTripStats computes correct average speed`() {
-        val samples = listOf(
-            TelemetrySample(timestampMs = 0L, speedKmh = 10.0, voltageV = 84.0, currentA = 5.0, powerW = 420.0, temperatureC = 30.0, batteryPercent = 90.0, pwmPercent = 20.0),
-            TelemetrySample(timestampMs = 60000L, speedKmh = 30.0, voltageV = 82.0, currentA = 15.0, powerW = 1230.0, temperatureC = 35.0, batteryPercent = 85.0, pwmPercent = 50.0),
-            TelemetrySample(timestampMs = 120000L, speedKmh = 20.0, voltageV = 80.0, currentA = 10.0, powerW = 800.0, temperatureC = 38.0, batteryPercent = 80.0, pwmPercent = 35.0)
-        )
-        val stats = TelemetrySample.computeTripStats(samples)!!
-        assertEquals(20.0, stats.avgSpeedKmh, 0.001)
-    }
-
     @Test
     fun `fromTelemetry maps all fields from realistic state`() {
         val telemetry = TelemetryState(

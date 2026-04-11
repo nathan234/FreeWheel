@@ -33,22 +33,5 @@ data class TelemetrySample(
             pwmPercent = telemetry.pwmPercent,
             gpsSpeedKmh = gpsSpeedKmh
         )
-
-        fun computeTripStats(samples: List<TelemetrySample>): TripStats? {
-            if (samples.size < 2) return null
-            return TripStats(
-                durationMs = samples.last().timestampMs - samples.first().timestampMs,
-                maxSpeedKmh = samples.maxOf { it.speedKmh },
-                avgSpeedKmh = samples.map { it.speedKmh }.average(),
-                maxPowerW = samples.maxOf { it.powerW }
-            )
-        }
     }
 }
-
-data class TripStats(
-    val durationMs: Long,
-    val maxSpeedKmh: Double,
-    val avgSpeedKmh: Double,
-    val maxPowerW: Double
-)
