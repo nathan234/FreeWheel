@@ -19,6 +19,7 @@ struct DashboardView: View {
                     startDate: startDate,
                     elapsedSeconds: wheelManager.liveRideElapsedSeconds,
                     maxSpeedKmh: wheelManager.liveRideMaxSpeedKmh,
+                    maxPwmPercent: wheelManager.liveRideMaxPwmPercent,
                     distanceKm: wheelManager.liveRideDistanceKm,
                     useMph: wheelManager.useMph
                 )
@@ -175,6 +176,7 @@ struct LiveRecordingHeader: View {
     let startDate: Date
     let elapsedSeconds: TimeInterval
     let maxSpeedKmh: Double
+    let maxPwmPercent: Double
     let distanceKm: Double
     let useMph: Bool
 
@@ -189,6 +191,10 @@ struct LiveRecordingHeader: View {
                 headerStatItem(label: RidesLabels.shared.TOP_SPEED, value: DisplayUtils.shared.formatSpeed(kmh: maxSpeedKmh, useMph: useMph, decimals: 0))
                 Spacer()
                 headerStatItem(label: RidesLabels.shared.DISTANCE, value: DisplayUtils.shared.formatDistance(km: distanceKm, useMph: useMph, decimals: 2))
+                if maxPwmPercent > 0 {
+                    Spacer()
+                    headerStatItem(label: RidesLabels.shared.MAX_PWM, value: String(format: "%.0f%%", maxPwmPercent))
+                }
             }
         }
         .padding(.horizontal)

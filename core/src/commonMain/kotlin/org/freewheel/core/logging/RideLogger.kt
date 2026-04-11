@@ -54,7 +54,8 @@ class RideLogger(private val fileWriter: FileWriter = FileWriter()) {
             startTimeMs = startTimeMs,
             elapsedMs = maxOf(activeElapsedMs, 0L),
             maxSpeedKmh = maxSpeedKmh,
-            distanceMeters = distM
+            distanceMeters = distM,
+            maxPwmPercent = maxPwmPercent
         )
     }
 

@@ -156,6 +156,7 @@ class WheelManager: ObservableObject {
     @Published private(set) var liveRideStartDate: Date?
     @Published private(set) var liveRideElapsedSeconds: TimeInterval = 0
     @Published private(set) var liveRideMaxSpeedKmh: Double = 0
+    @Published private(set) var liveRideMaxPwmPercent: Double = 0
     @Published private(set) var liveRideDistanceKm: Double = 0
     private var ridePauseTimeoutTask: Task<Void, Never>?
     private var pausedRideAddress: String?
@@ -815,6 +816,7 @@ class WheelManager: ObservableObject {
                 liveRideStartDate = Date(timeIntervalSince1970: Double(stats.startTimeMs) / 1000.0)
                 liveRideElapsedSeconds = Double(stats.elapsedMs) / 1000.0
                 liveRideMaxSpeedKmh = stats.maxSpeedKmh
+                liveRideMaxPwmPercent = stats.maxPwmPercent
                 liveRideDistanceKm = Double(stats.distanceMeters) / 1000.0
             }
         }
@@ -1305,6 +1307,7 @@ class WheelManager: ObservableObject {
         liveRideStartDate = nil
         liveRideElapsedSeconds = 0
         liveRideMaxSpeedKmh = 0
+        liveRideMaxPwmPercent = 0
         liveRideDistanceKm = 0
     }
 

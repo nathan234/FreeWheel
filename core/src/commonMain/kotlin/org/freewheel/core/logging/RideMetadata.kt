@@ -7,7 +7,8 @@ data class LiveRideStats(
     val startTimeMs: Long,
     val elapsedMs: Long,
     val maxSpeedKmh: Double,
-    val distanceMeters: Long
+    val distanceMeters: Long,
+    val maxPwmPercent: Double = 0.0
 )
 
 /**
