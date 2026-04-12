@@ -97,35 +97,36 @@ struct TripDetailView: View {
                 // Persistent ride stats header
                 rideStatsHeader
 
-                ScrollView {
-                    VStack(spacing: 16) {
-                        if let controller = replayController {
-                            ReplayStatsView(controller: controller, useMph: wheelManager.useMph, useFahrenheit: wheelManager.useFahrenheit)
+                if let controller = replayController {
+                    ReplayStatsView(controller: controller, useMph: wheelManager.useMph, useFahrenheit: wheelManager.useFahrenheit)
+                        .padding(.top, 12)
+                }
+                toggleChips
+                    .padding(.vertical, 8)
+
+                if !samples.isEmpty {
+                    ZStack(alignment: .topTrailing) {
+                        mainChart
+                        ChartResetButton(visibleDomain: mainChartDomain, samples: samples) {
+                            let domain = chartFullDomain(samples: samples)
+                            mainChartDomain = domain
+                            mainChartBaseDomain = domain
                         }
-                        toggleChips
-                        if !samples.isEmpty {
-                            ZStack(alignment: .topTrailing) {
-                                mainChart
-                                ChartResetButton(visibleDomain: mainChartDomain, samples: samples) {
-                                    let domain = chartFullDomain(samples: samples)
-                                    mainChartDomain = domain
-                                    mainChartBaseDomain = domain
-                                }
-                                .padding(.trailing, 20)
+                        .padding(.trailing, 20)
+                        .padding(.top, 4)
+                    }
+                    .overlay(alignment: .topLeading) {
+                        if !mainChartYAxisUnit.isEmpty {
+                            Text(mainChartYAxisUnit)
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                                .padding(.leading, 20)
                                 .padding(.top, 4)
-                            }
-                            .overlay(alignment: .topLeading) {
-                                if !mainChartYAxisUnit.isEmpty {
-                                    Text(mainChartYAxisUnit)
-                                        .font(.caption2)
-                                        .foregroundColor(.secondary)
-                                        .padding(.leading, 20)
-                                        .padding(.top, 4)
-                                }
-                            }
                         }
                     }
-                    .padding(.vertical)
+                    .frame(maxHeight: .infinity)
+                } else {
+                    Spacer()
                 }
 
                 // Split controls at bottom
@@ -400,10 +401,12 @@ struct TripDetailView: View {
             }
         }
 
-        // chartOverlay's DragGesture is layered *after* zoomableChart so it sits on top
-        // and captures drags before they reach the scroll axes — Apple's chartXSelection
-        // API defers to long-press on scrollable charts, which is not what we want here:
-        // a plain one-finger drag should show per-sample values as the user scrubs.
+        // chartOverlay attaches a DragGesture via .simultaneousGesture so it fires
+        // alongside zoomableChart's MagnifyGesture (pinch-to-zoom stays working) and
+        // alongside scroll behavior when the chart is zoomed in. Using .gesture() here
+        // would block pinch, and Apple's chartXSelection(value:) API on a scrollable
+        // chart defers to long-press rather than plain drag — neither matches the UX
+        // we want, which is: plain one-finger drag scrubs and shows per-sample values.
         if #available(iOS 17, *) {
             chart
                 .zoomableChart(samples: samples, visibleDomain: $mainChartDomain, baseDomain: $mainChartBaseDomain)
@@ -412,10 +415,9 @@ struct TripDetailView: View {
                         Rectangle()
                             .fill(Color.clear)
                             .contentShape(Rectangle())
-                            .gesture(chartSelectionOverlay(proxy: proxy, geometry: geometry, samples: samples) { selectedSample = $0 })
+                            .simultaneousGesture(chartSelectionOverlay(proxy: proxy, geometry: geometry, samples: samples) { selectedSample = $0 })
                     }
                 }
-                .frame(height: 250)
                 .padding(.horizontal)
         } else {
             chart
@@ -424,10 +426,9 @@ struct TripDetailView: View {
                         Rectangle()
                             .fill(Color.clear)
                             .contentShape(Rectangle())
-                            .gesture(chartSelectionOverlay(proxy: proxy, geometry: geometry, samples: samples) { selectedSample = $0 })
+                            .simultaneousGesture(chartSelectionOverlay(proxy: proxy, geometry: geometry, samples: samples) { selectedSample = $0 })
                     }
                 }
-                .frame(height: 250)
                 .padding(.horizontal)
         }
     }

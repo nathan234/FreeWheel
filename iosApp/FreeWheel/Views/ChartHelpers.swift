@@ -85,7 +85,11 @@ func isChartZoomed(visibleDomain: TimeInterval, samples: [TelemetrySample]) -> B
 
 @available(iOS 17, *)
 extension View {
-    /// Adds horizontal scroll, pinch-to-zoom, and double-tap-to-reset to a Chart.
+    /// Adds pinch-to-zoom and double-tap-to-reset to a Chart. Intentionally does
+    /// *not* apply chartScrollableAxes — that modifier installs an internal scroll
+    /// gesture recognizer that eats horizontal drags before chartOverlay's
+    /// DragGesture can see them, which breaks drag-to-scrub-values. Callers that
+    /// need horizontal pan while zoomed can layer chartScrollableAxes on top.
     func zoomableChart(
         samples: [TelemetrySample],
         visibleDomain: Binding<TimeInterval>,
@@ -93,7 +97,6 @@ extension View {
     ) -> some View {
         let fullDomain = chartFullDomain(samples: samples)
         return self
-            .chartScrollableAxes(.horizontal)
             .chartXVisibleDomain(length: max(visibleDomain.wrappedValue, 1))
             .simultaneousGesture(
                 MagnifyGesture()
