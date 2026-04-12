@@ -19,6 +19,7 @@ struct TripDetailView: View {
     @State private var showPower = false
     @State private var showTemperature = false
     @State private var showPwm = false
+    @State private var showVoltage = false
     @State private var selectedSample: TelemetrySample?
     @State private var selectedDate: Date?
     @State private var mainChartDomain: TimeInterval = 0
@@ -55,6 +56,7 @@ struct TripDetailView: View {
         if showPower { units.append("W") }
         if showTemperature { units.append(tempUnit) }
         if showPwm { units.append("%") }
+        if showVoltage { units.append("V") }
         return units.joined(separator: " · ")
     }
 
@@ -122,7 +124,6 @@ struct TripDetailView: View {
                                         .padding(.top, 4)
                                 }
                             }
-                            voltageChart
                         }
                     }
                     .padding(.vertical)
@@ -293,6 +294,7 @@ struct TripDetailView: View {
                 ToggleChip(label: MetricType.power.label, color: .green, isOn: $showPower)
                 ToggleChip(label: MetricType.temperature.label, color: .red, isOn: $showTemperature)
                 ToggleChip(label: MetricType.pwm.label, color: .pink, isOn: $showPwm)
+                ToggleChip(label: ChartLabels.shared.VOLTAGE, color: .purple, isOn: $showVoltage)
             }
             .padding(.horizontal)
         }
@@ -361,6 +363,16 @@ struct TripDetailView: View {
                         series: .value("Series", "PWM")
                     )
                     .foregroundStyle(.pink)
+                }
+            }
+            if showVoltage {
+                ForEach(samples) { sample in
+                    LineMark(
+                        x: .value("Time", sample.timestamp),
+                        y: .value("Voltage", sample.voltage),
+                        series: .value("Series", "Voltage")
+                    )
+                    .foregroundStyle(.purple)
                 }
             }
 
@@ -440,18 +452,10 @@ struct TripDetailView: View {
         if showPwm {
             series.append(("PWM", .pink, String(format: "%.1f%%", selected.pwmPercent)))
         }
+        if showVoltage {
+            series.append(("Voltage", .purple, String(format: "%.1f V", selected.voltage)))
+        }
         return series
-    }
-
-    // MARK: - Voltage Chart
-
-    private var voltageChart: some View {
-        VoltageChartView(
-            samples: samples,
-            axisStride: .minute,
-            axisStrideCount: axisStrideCount,
-            axisFormat: .dateTime.hour().minute()
-        )
     }
 
     // MARK: - Data Loading

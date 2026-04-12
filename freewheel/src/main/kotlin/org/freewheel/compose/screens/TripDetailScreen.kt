@@ -118,6 +118,7 @@ fun TripDetailScreen(
     var showPower by remember { mutableStateOf(false) }
     var showTemperature by remember { mutableStateOf(false) }
     var showPwm by remember { mutableStateOf(false) }
+    var showVoltage by remember { mutableStateOf(false) }
 
     LaunchedEffect(fileName) {
         state = TripDetailState.Loading
@@ -393,6 +394,7 @@ fun TripDetailScreen(
                         item { SeriesChip(MetricType.POWER.label, POWER_COLOR, showPower) { showPower = !showPower } }
                         item { SeriesChip(MetricType.TEMPERATURE.label, TEMP_COLOR, showTemperature) { showTemperature = !showTemperature } }
                         item { SeriesChip(MetricType.PWM.label, PWM_COLOR, showPwm) { showPwm = !showPwm } }
+                        item { SeriesChip(ChartLabels.VOLTAGE, VOLTAGE_COLOR, showVoltage) { showVoltage = !showVoltage } }
                     }
 
                     val speedUnit = if (useMph) "mph" else "km/h"
@@ -425,6 +427,10 @@ fun TripDetailScreen(
                         visibleSeries += SeriesInfo(PWM_COLOR, s.samples.map { it.pwmPercent })
                         visibleMarkerInfo += MarkerSeriesInfo(MetricType.PWM.label, "%", 1)
                     }
+                    if (showVoltage) {
+                        visibleSeries += SeriesInfo(VOLTAGE_COLOR, s.samples.map { it.voltageV })
+                        visibleMarkerInfo += MarkerSeriesInfo(ChartLabels.VOLTAGE, "V", 1)
+                    }
 
                     val timeFormatPattern = "HH:mm"
 
@@ -436,6 +442,7 @@ fun TripDetailScreen(
                             if (showPower) add("W")
                             if (showTemperature) add(tempUnit)
                             if (showPwm) add("%")
+                            if (showVoltage) add("V")
                         }
                         VicoLineChart(
                             samples = s.samples,
@@ -448,32 +455,6 @@ fun TripDetailScreen(
                             yAxisUnit = yAxisUnits.joinToString(" · ").ifEmpty { null },
                         )
                     }
-
-                    Spacer(Modifier.height(16.dp))
-
-                    // Voltage chart
-                    Text(
-                        ChartLabels.VOLTAGE,
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = VOLTAGE_COLOR,
-                        modifier = Modifier.padding(horizontal = 16.dp)
-                    )
-                    val voltageMarker = rememberChartMarker(
-                        s.samples, listOf(MarkerSeriesInfo(ChartLabels.VOLTAGE, "V", 1)), timeFormatPattern
-                    )
-                    VicoLineChart(
-                        samples = s.samples,
-                        seriesList = listOf(
-                            SeriesInfo(VOLTAGE_COLOR, s.samples.map { it.voltageV })
-                        ),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(200.dp)
-                            .padding(horizontal = 16.dp),
-                        marker = voltageMarker,
-                        yAxisUnit = "V",
-                    )
 
                     Spacer(Modifier.height(16.dp))
                 }
