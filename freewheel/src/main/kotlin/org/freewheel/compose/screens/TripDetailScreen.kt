@@ -476,6 +476,18 @@ fun TripDetailScreen(
                                 .padding(horizontal = 16.dp),
                             marker = marker,
                             yAxisUnit = yAxisUnits.joinToString(" · ").ifEmpty { null },
+                            onSelectedIndexChanged = { index ->
+                                if (index != null && s.routePoints.isNotEmpty()) {
+                                    val sample = s.samples.getOrNull(index)
+                                    if (sample != null) {
+                                        mapSelectedPoint = ChartDataPrep.nearestRoutePoint(
+                                            s.routePoints, sample.timestampMs
+                                        )
+                                    }
+                                } else {
+                                    mapSelectedPoint = null
+                                }
+                            },
                         )
                     }
 

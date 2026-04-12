@@ -39,6 +39,7 @@ import com.patrykandpatrick.vico.core.cartesian.data.CartesianValueFormatter
 import com.patrykandpatrick.vico.core.cartesian.data.lineSeries
 import com.patrykandpatrick.vico.core.cartesian.layer.LineCartesianLayer
 import com.patrykandpatrick.vico.core.cartesian.marker.CartesianMarker
+import com.patrykandpatrick.vico.core.cartesian.marker.CartesianMarkerVisibilityListener
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -74,6 +75,7 @@ fun VicoLineChart(
     marker: CartesianMarker? = null,
     zoomEnabled: Boolean = true,
     yAxisUnit: String? = null,
+    onSelectedIndexChanged: ((Int?) -> Unit)? = null,
 ) {
     if (samples.isEmpty() || seriesList.isEmpty()) return
 
@@ -95,6 +97,23 @@ fun VicoLineChart(
         CartesianValueFormatter { _, value, _ ->
             val index = value.toInt().coerceIn(0, samples.lastIndex)
             timeFormat.format(Date(samples[index].timestampMs))
+        }
+    }
+
+    val markerVisibilityListener = remember(onSelectedIndexChanged) {
+        if (onSelectedIndexChanged == null) return@remember null
+        object : CartesianMarkerVisibilityListener {
+            override fun onShown(marker: CartesianMarker, targets: List<CartesianMarker.Target>) {
+                val index = targets.firstOrNull()?.x?.toInt()
+                onSelectedIndexChanged(index)
+            }
+            override fun onUpdated(marker: CartesianMarker, targets: List<CartesianMarker.Target>) {
+                val index = targets.firstOrNull()?.x?.toInt()
+                onSelectedIndexChanged(index)
+            }
+            override fun onHidden(marker: CartesianMarker) {
+                onSelectedIndexChanged(null)
+            }
         }
     }
 
@@ -129,6 +148,7 @@ fun VicoLineChart(
                     startAxis = VerticalAxis.rememberStart(),
                     bottomAxis = HorizontalAxis.rememberBottom(valueFormatter = bottomAxisFormatter),
                     marker = marker,
+                    markerVisibilityListener = markerVisibilityListener,
                 ),
                 modelProducer = modelProducer,
                 scrollState = scrollState,
