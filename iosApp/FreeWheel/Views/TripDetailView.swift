@@ -302,6 +302,28 @@ struct TripDetailView: View {
 
     // MARK: - Main Chart
 
+    private var chartYDomain: ClosedRange<Double> {
+        var lo = Double.infinity
+        var hi = -Double.infinity
+        func scan(_ extractor: (TelemetrySample) -> Double) {
+            for s in samples {
+                let v = extractor(s)
+                if v < lo { lo = v }
+                if v > hi { hi = v }
+            }
+        }
+        if showSpeed { scan { displaySpeed($0.speed) } }
+        if showGpsSpeed { scan { displaySpeed($0.gpsSpeed) } }
+        if showCurrent { scan { $0.current } }
+        if showPower { scan { $0.power } }
+        if showTemperature { scan { displayTemp($0.temperature) } }
+        if showPwm { scan { $0.pwmPercent } }
+        if showVoltage { scan { $0.voltage } }
+        guard lo.isFinite, hi.isFinite, lo < hi else { return 0...1 }
+        let padding = (hi - lo) * 0.05
+        return (lo - padding)...(hi + padding)
+    }
+
     @ViewBuilder
     private var mainChart: some View {
         let chart = Chart {
@@ -394,6 +416,7 @@ struct TripDetailView: View {
                 AxisValueLabel(format: .dateTime.hour().minute())
             }
         }
+        .chartYScale(domain: chartYDomain)
         .chartYAxis {
             AxisMarks { _ in
                 AxisGridLine()
