@@ -31,6 +31,15 @@ import platform.posix.memcpy
  *
  * This class bridges the delegate pattern to Kotlin coroutines and StateFlow.
  *
+ * ## Session State Machine
+ *
+ * Internal BLE state is tracked via a `BleSessionState` sealed class that bundles
+ * peripheral references, scan callbacks, and discovery tracking with the state
+ * variants that own them. This makes illegal states unrepresentable at compile time:
+ * - `Idle` and `Scanning` have no peripheral — can't accidentally use a stale one
+ * - `Discovering` owns a CoroutineScope that's cancelled on any transition away
+ * - `disconnectRequested` is eliminated — intent is encoded by state
+ *
  * ## Required Capabilities
  *
  * Add to Info.plist:
@@ -42,40 +51,52 @@ actual class BleManager : BleManagerPort {
     private val _connectionState = MutableStateFlow<ConnectionState>(ConnectionState.Disconnected)
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
-    // CoreBluetooth objects
+    // ==================== Session State Machine ====================
+
+    /**
+     * Internal BLE session state. Each variant holds only the data relevant to that
+     * state, making illegal combinations unrepresentable at compile time.
+     */
+    private sealed class BleSessionState {
+        /** Null for states that don't hold a peripheral (Idle, Scanning). */
+        open val peripheral: CBPeripheral? get() = null
+
+        data object Idle : BleSessionState()
+        data class Scanning(val callback: (BleDevice) -> Unit) : BleSessionState()
+        data class Connecting(override val peripheral: CBPeripheral) : BleSessionState()
+        data class Discovering(
+            override val peripheral: CBPeripheral,
+            /** Cancelled automatically on any transition away from Discovering. */
+            val scope: CoroutineScope = CoroutineScope(Dispatchers.Main + Job()),
+            val discoveredUuids: MutableSet<String> = mutableSetOf(),
+            var expectedCount: Int = 0,
+        ) : BleSessionState()
+        data class Connected(override val peripheral: CBPeripheral) : BleSessionState()
+        data class AwaitingReconnect(override val peripheral: CBPeripheral) : BleSessionState()
+    }
+
+    private var session: BleSessionState = BleSessionState.Idle
+
+    // CoreBluetooth infrastructure
     private var centralManager: CBCentralManager? = null
-    private var currentPeripheral: CBPeripheral? = null
     private var writeCharacteristic: CBCharacteristic? = null
     private var readCharacteristic: CBCharacteristic? = null
 
-    // UUID configuration
+    // UUID configuration (persists across reconnects, set by configureForWheel)
     private var readServiceUuid: String? = null
     private var readCharUuid: String? = null
     private var writeServiceUuid: String? = null
     private var writeCharUuid: String? = null
 
-    // Callbacks
+    // Callbacks (set once at initialization, not session-related)
     private var onDataReceivedCallback: ((ByteArray) -> Unit)? = null
     private var onBleErrorCallback: (() -> Unit)? = null
     private var onBleDisconnectedCallback: ((String, String) -> Unit)? = null
     private var onServicesDiscoveredCallback: ((DiscoveredServices, String?) -> Unit)? = null
-    private var scanCallback: ((BleDevice) -> Unit)? = null
 
-    // Disconnect tracking — prevents auto-reconnect on user-initiated disconnect
-    private var disconnectRequested = false
-
-    // Connection continuation for suspend function (protected by continuationLock)
+    // Connection continuation for suspend function (cross-thread lifecycle)
     private var connectionContinuation: CancellableContinuation<Boolean>? = null
     private val continuationLock = Lock()
-
-    // Track which services have completed characteristic discovery
-    private val discoveredServiceUuids = mutableSetOf<String>()
-    // Number of services we kicked off characteristic discovery for
-    private var expectedServiceCount: Int = 0
-    // Timeout job for service/characteristic discovery phase
-    private var serviceDiscoveryTimeoutJob: Job? = null
-    // Guard against completeServiceDiscovery being called twice (timeout + callback race)
-    private var serviceDiscoveryCompleted: Boolean = false
 
     // Delegate instances (prevent garbage collection)
     private var centralDelegate: CBCentralManagerDelegateImpl? = null
@@ -86,6 +107,125 @@ actual class BleManager : BleManagerPort {
 
     actual override val connectionState: StateFlow<ConnectionState>
         get() = _connectionState.asStateFlow()
+
+    // ==================== Transition Functions ====================
+    //
+    // Each transition has an exhaustive `when` over BleSessionState.
+    // Adding a new state variant produces a compile error until all
+    // transitions handle it.
+
+    private fun resumeContinuation(result: Boolean) {
+        continuationLock.withLock {
+            connectionContinuation?.resume(result) {}
+            connectionContinuation = null
+        }
+    }
+
+    private fun transitionToIdle() {
+        when (val s = session) {
+            is BleSessionState.Idle -> return
+            is BleSessionState.Scanning -> centralManager?.stopScan()
+            is BleSessionState.Connecting -> {
+                centralManager?.cancelPeripheralConnection(s.peripheral)
+            }
+            is BleSessionState.Discovering -> {
+                s.scope.cancel()
+                centralManager?.cancelPeripheralConnection(s.peripheral)
+            }
+            is BleSessionState.Connected -> {
+                centralManager?.cancelPeripheralConnection(s.peripheral)
+            }
+            is BleSessionState.AwaitingReconnect -> {
+                centralManager?.cancelPeripheralConnection(s.peripheral)
+            }
+        }
+        resumeContinuation(false)
+        writeCharacteristic = null
+        readCharacteristic = null
+        session = BleSessionState.Idle
+        _connectionState.value = ConnectionState.Disconnected
+    }
+
+    private fun transitionToScanning(callback: (BleDevice) -> Unit) {
+        when (val s = session) {
+            is BleSessionState.Idle -> {}
+            is BleSessionState.Scanning -> centralManager?.stopScan() // reset dedup filter
+            is BleSessionState.Connecting -> {
+                centralManager?.cancelPeripheralConnection(s.peripheral)
+                resumeContinuation(false)
+            }
+            is BleSessionState.Discovering -> {
+                s.scope.cancel()
+                centralManager?.cancelPeripheralConnection(s.peripheral)
+                resumeContinuation(false)
+            }
+            is BleSessionState.Connected -> {
+                centralManager?.cancelPeripheralConnection(s.peripheral)
+            }
+            is BleSessionState.AwaitingReconnect -> {
+                centralManager?.cancelPeripheralConnection(s.peripheral)
+            }
+        }
+        writeCharacteristic = null
+        readCharacteristic = null
+        session = BleSessionState.Scanning(callback)
+        _connectionState.value = ConnectionState.Scanning
+    }
+
+    private fun transitionToConnecting(peripheral: CBPeripheral) {
+        when (val s = session) {
+            is BleSessionState.Idle -> {}
+            is BleSessionState.Scanning -> centralManager?.stopScan()
+            is BleSessionState.Connecting -> {
+                centralManager?.cancelPeripheralConnection(s.peripheral)
+                resumeContinuation(false)
+            }
+            is BleSessionState.Discovering -> {
+                s.scope.cancel()
+                centralManager?.cancelPeripheralConnection(s.peripheral)
+                resumeContinuation(false)
+            }
+            is BleSessionState.Connected -> {
+                centralManager?.cancelPeripheralConnection(s.peripheral)
+            }
+            is BleSessionState.AwaitingReconnect -> {
+                centralManager?.cancelPeripheralConnection(s.peripheral)
+            }
+        }
+        writeCharacteristic = null
+        readCharacteristic = null
+        session = BleSessionState.Connecting(peripheral)
+    }
+
+    private fun transitionToDiscovering(peripheral: CBPeripheral) {
+        when (val s = session) {
+            is BleSessionState.Idle -> {}
+            is BleSessionState.Scanning -> centralManager?.stopScan()
+            is BleSessionState.Connecting -> {} // normal path: Connecting -> Discovering
+            is BleSessionState.Discovering -> s.scope.cancel()
+            is BleSessionState.Connected -> {}
+            is BleSessionState.AwaitingReconnect -> {} // reconnect completed
+        }
+        session = BleSessionState.Discovering(peripheral)
+    }
+
+    private fun transitionToConnected(peripheral: CBPeripheral) {
+        when (val s = session) {
+            is BleSessionState.Idle -> {}
+            is BleSessionState.Scanning -> centralManager?.stopScan()
+            is BleSessionState.Connecting -> {}
+            is BleSessionState.Discovering -> s.scope.cancel() // normal path
+            is BleSessionState.Connected -> {}
+            is BleSessionState.AwaitingReconnect -> {}
+        }
+        session = BleSessionState.Connected(peripheral)
+        _connectionState.value = ConnectionState.Connected(
+            address = peripheral.identifier.UUIDString,
+            wheelName = peripheral.name ?: "Unknown"
+        )
+    }
+
+    // ==================== Initialization ====================
 
     /**
      * Initialize the CBCentralManager.
@@ -154,8 +294,10 @@ actual class BleManager : BleManagerPort {
         this.writeServiceUuid = writeServiceUuid
         this.writeCharUuid = writeCharUuid
         // Set up characteristics now that UUIDs are configured
-        currentPeripheral?.let { setupCharacteristics(it) }
+        session.peripheral?.let { setupCharacteristics(it) }
     }
+
+    // ==================== Connection ====================
 
     actual override suspend fun connect(address: String): Boolean {
         val central = centralManager ?: run {
@@ -168,39 +310,33 @@ actual class BleManager : BleManagerPort {
             throw IllegalStateException("Bluetooth is not powered on. State: ${central.state}")
         }
 
-        disconnectRequested = false
-        _connectionState.value = ConnectionState.Connecting(address)
+        // Try to retrieve peripheral by UUID
+        val uuid = NSUUID(uUIDString = address)
+        val peripherals = central.retrievePeripheralsWithIdentifiers(listOf(uuid))
 
-        serviceDiscoveryCompleted = false
+        if (peripherals.isEmpty()) {
+            _connectionState.value = ConnectionState.Failed(
+                error = "Peripheral not found",
+                address = address
+            )
+            return false
+        }
+
+        val peripheral = peripherals.first() as CBPeripheral
+        peripheral.delegate = peripheralDelegate
+
+        transitionToConnecting(peripheral)
+        _connectionState.value = ConnectionState.Connecting(address)
 
         return suspendCancellableCoroutine { continuation ->
             continuationLock.withLock {
                 connectionContinuation = continuation
             }
 
-            // Try to retrieve peripheral by UUID
-            val uuid = NSUUID(uUIDString = address)
-            val peripherals = central.retrievePeripheralsWithIdentifiers(listOf(uuid))
-
-            if (peripherals.isNotEmpty()) {
-                val peripheral = peripherals.first() as CBPeripheral
-                currentPeripheral = peripheral
-                peripheral.delegate = peripheralDelegate
-                central.connectPeripheral(peripheral, options = null)
-            } else {
-                // Peripheral not found, need to scan
-                _connectionState.value = ConnectionState.Failed(
-                    error = "Peripheral not found",
-                    address = address
-                )
-                continuationLock.withLock {
-                    connectionContinuation?.resume(false) {}
-                    connectionContinuation = null
-                }
-            }
+            central.connectPeripheral(peripheral, options = null)
 
             continuation.invokeOnCancellation {
-                currentPeripheral?.let { central.cancelPeripheralConnection(it) }
+                centralManager?.cancelPeripheralConnection(peripheral)
                 continuationLock.withLock {
                     connectionContinuation = null
                 }
@@ -209,28 +345,11 @@ actual class BleManager : BleManagerPort {
     }
 
     actual override suspend fun disconnect() {
-        disconnectRequested = true
-        serviceDiscoveryTimeoutJob?.cancel()
-        serviceDiscoveryTimeoutJob = null
-        // Unblock any pending connect() coroutine BEFORE cancelling BLE
-        continuationLock.withLock {
-            connectionContinuation?.resume(false) {}
-            connectionContinuation = null
-        }
-        currentPeripheral?.let { peripheral ->
-            centralManager?.cancelPeripheralConnection(peripheral)
-        }
-        currentPeripheral = null
-        writeCharacteristic = null
-        readCharacteristic = null
-        discoveredServiceUuids.clear()
-        expectedServiceCount = 0
-        serviceDiscoveryCompleted = false
-        _connectionState.value = ConnectionState.Disconnected
+        transitionToIdle()
     }
 
     actual override suspend fun write(data: ByteArray): Boolean {
-        val peripheral = currentPeripheral ?: return false
+        val peripheral = session.peripheral ?: return false
         val characteristic = writeCharacteristic ?: return false
 
         if (peripheral.state != CBPeripheralStateConnected) {
@@ -246,7 +365,7 @@ actual class BleManager : BleManagerPort {
      * Write data with chunking for protocols that need it (e.g., InMotion V1).
      */
     suspend fun writeChunked(data: ByteArray, chunkSize: Int = 20, delayMs: Long = 20): Boolean {
-        val peripheral = currentPeripheral ?: return false
+        val peripheral = session.peripheral ?: return false
         val characteristic = writeCharacteristic ?: return false
 
         if (peripheral.state != CBPeripheralStateConnected) {
@@ -269,16 +388,32 @@ actual class BleManager : BleManagerPort {
     }
 
     override fun destroy() {
+        // Clean up any active session state
+        when (val s = session) {
+            is BleSessionState.Idle -> {}
+            is BleSessionState.Scanning -> centralManager?.stopScan()
+            is BleSessionState.Connecting -> centralManager?.cancelPeripheralConnection(s.peripheral)
+            is BleSessionState.Discovering -> {
+                s.scope.cancel()
+                centralManager?.cancelPeripheralConnection(s.peripheral)
+            }
+            is BleSessionState.Connected -> centralManager?.cancelPeripheralConnection(s.peripheral)
+            is BleSessionState.AwaitingReconnect -> centralManager?.cancelPeripheralConnection(s.peripheral)
+        }
+        session = BleSessionState.Idle
+        writeCharacteristic = null
+        readCharacteristic = null
         scope.cancel()
         onDataReceivedCallback = null
         onBleErrorCallback = null
         onBleDisconnectedCallback = null
         onServicesDiscoveredCallback = null
-        scanCallback = null
         centralManager = null
         centralDelegate = null
         peripheralDelegate = null
     }
+
+    // ==================== Scanning ====================
 
     actual override suspend fun startScan(onDeviceFound: (BleDevice) -> Unit) {
         val central = centralManager ?: run {
@@ -290,13 +425,11 @@ actual class BleManager : BleManagerPort {
             return
         }
 
-        // Stop any existing scan to reset CoreBluetooth's deduplication filter.
-        // Without this, peripherals discovered in a previous scan session
-        // won't be reported again (CoreBluetooth dedup is per-session).
-        central.stopScan()
-
-        scanCallback = onDeviceFound
-        _connectionState.value = ConnectionState.Scanning
+        // transitionToScanning handles:
+        // - Cancelling any pending OS auto-reconnect (AwaitingReconnect peripheral)
+        // - Stopping any existing scan to reset CoreBluetooth's deduplication filter
+        // - Cleaning up Connecting/Discovering/Connected state
+        transitionToScanning(onDeviceFound)
 
         central.scanForPeripheralsWithServices(serviceUUIDs = null, options = null)
     }
@@ -315,8 +448,7 @@ actual class BleManager : BleManagerPort {
             return
         }
 
-        scanCallback = onDeviceFound
-        _connectionState.value = ConnectionState.Scanning
+        transitionToScanning(onDeviceFound)
 
         central.scanForPeripheralsWithServices(
             serviceUUIDs = listOf(CBUUID.UUIDWithString(serviceUuid)),
@@ -326,8 +458,8 @@ actual class BleManager : BleManagerPort {
 
     actual override suspend fun stopScan() {
         centralManager?.stopScan()
-        scanCallback = null
-        if (_connectionState.value is ConnectionState.Scanning) {
+        if (session is BleSessionState.Scanning) {
+            session = BleSessionState.Idle
             _connectionState.value = ConnectionState.Disconnected
         }
     }
@@ -351,13 +483,14 @@ actual class BleManager : BleManagerPort {
     }
 
     internal fun onPeripheralDiscovered(peripheral: CBPeripheral, advertisementData: Map<Any?, *>, rssi: Int) {
+        val scanning = session as? BleSessionState.Scanning ?: return
         val advertisedName = advertisementData[CBAdvertisementDataLocalNameKey] as? String
         val device = BleDevice(
             address = peripheral.identifier.UUIDString,
             name = peripheral.name ?: advertisedName,
             rssi = rssi
         )
-        scanCallback?.invoke(device)
+        scanning.callback(device)
     }
 
     internal fun onPeripheralConnected(peripheral: CBPeripheral) {
@@ -367,11 +500,10 @@ actual class BleManager : BleManagerPort {
             forKey = "FreeWheelLastPeripheralUUID"
         )
 
+        transitionToDiscovering(peripheral)
         _connectionState.value = ConnectionState.DiscoveringServices(
             peripheral.identifier.UUIDString
         )
-        discoveredServiceUuids.clear()
-        expectedServiceCount = 0
 
         // Fast path: CoreBluetooth caches services + characteristics for previously
         // connected peripherals. If the cache is populated, skip discovery entirely.
@@ -386,9 +518,24 @@ actual class BleManager : BleManagerPort {
         // failures on wheels whose services didn't match the hardcoded list.
         peripheral.discoverServices(serviceUUIDs = null)
 
-        // Safety timeout — if service/characteristic discovery doesn't complete
-        // within 15 seconds, fail the connection instead of hanging forever.
-        startDiscoveryTimeout(peripheral)
+        // Safety timeout — launched in the Discovering scope, so it's automatically
+        // cancelled if we transition away from Discovering (e.g., discovery completes
+        // normally or the connection drops).
+        val discovering = session as? BleSessionState.Discovering ?: return
+        val address = peripheral.identifier.UUIDString
+        discovering.scope.launch {
+            delay(15_000)
+            // If we've transitioned away from Discovering, this scope is cancelled
+            // and we never reach here. Safety check anyway:
+            if (session !is BleSessionState.Discovering) return@launch
+            Logger.w("BleManager", "Service discovery timed out after 15s for $address")
+            _connectionState.value = ConnectionState.Failed(
+                error = "Service discovery timed out",
+                address = address
+            )
+            centralManager?.cancelPeripheralConnection(peripheral)
+            resumeContinuation(false)
+        }
     }
 
     /**
@@ -427,69 +574,58 @@ actual class BleManager : BleManagerPort {
         return true
     }
 
-    private fun startDiscoveryTimeout(peripheral: CBPeripheral) {
-        serviceDiscoveryTimeoutJob?.cancel()
-        serviceDiscoveryTimeoutJob = scope.launch {
-            delay(15_000)
-            // Check under lock — completeServiceDiscovery may have won the race
-            val alreadyCompleted = continuationLock.withLock { serviceDiscoveryCompleted }
-            if (alreadyCompleted) return@launch
-            val address = peripheral.identifier.UUIDString
-            Logger.w("BleManager", "Service discovery timed out after 15s for $address")
-            _connectionState.value = ConnectionState.Failed(
-                error = "Service discovery timed out",
-                address = address
-            )
-            centralManager?.cancelPeripheralConnection(peripheral)
-            continuationLock.withLock {
-                connectionContinuation?.resume(false) {}
-                connectionContinuation = null
-            }
-        }
-    }
-
     internal fun onWillRestoreState(peripherals: List<CBPeripheral>?) {
         peripherals?.firstOrNull()?.let { peripheral ->
-            currentPeripheral = peripheral
+            session = BleSessionState.AwaitingReconnect(peripheral)
             peripheral.delegate = peripheralDelegate
             Logger.d("BleManager", "Restored peripheral: ${peripheral.identifier.UUIDString}")
         }
     }
 
     internal fun onConnectionFailed(peripheral: CBPeripheral, error: NSError?) {
-        serviceDiscoveryTimeoutJob?.cancel()
-        serviceDiscoveryTimeoutJob = null
-        val errorMessage = error?.localizedDescription ?: "Connection failed"
-        _connectionState.value = ConnectionState.Failed(error = errorMessage, address = peripheral.identifier.UUIDString)
+        // Cancel discovering scope if we somehow got into that state
+        (session as? BleSessionState.Discovering)?.scope?.cancel()
 
-        continuationLock.withLock {
-            connectionContinuation?.resume(false) {}
-            connectionContinuation = null
-        }
+        val errorMessage = error?.localizedDescription ?: "Connection failed"
+        session = BleSessionState.Idle
+        writeCharacteristic = null
+        readCharacteristic = null
+        _connectionState.value = ConnectionState.Failed(
+            error = errorMessage,
+            address = peripheral.identifier.UUIDString
+        )
+        resumeContinuation(false)
     }
 
     internal fun onPeripheralDisconnected(peripheral: CBPeripheral, error: NSError?) {
-        serviceDiscoveryTimeoutJob?.cancel()
-        serviceDiscoveryTimeoutJob = null
         // Safety net: resume any pending connect continuation
-        continuationLock.withLock {
-            connectionContinuation?.resume(false) {}
-            connectionContinuation = null
-        }
+        resumeContinuation(false)
+
         val address = peripheral.identifier.UUIDString
+
+        // Check session to determine if this was intentional.
+        // disconnect() transitions to Idle BEFORE the OS fires this callback,
+        // so Idle/Scanning means intentional. Everything else is unexpected.
+        when (val s = session) {
+            is BleSessionState.Idle, is BleSessionState.Scanning -> {
+                // Intentional disconnect — cleanup already done by transitionToIdle/transitionToScanning
+                return
+            }
+            is BleSessionState.Connecting -> {}
+            is BleSessionState.Discovering -> s.scope.cancel()
+            is BleSessionState.Connected -> {}
+            is BleSessionState.AwaitingReconnect -> {}
+        }
 
         // Clear characteristic references (will be re-set on reconnect via configureForWheel)
         writeCharacteristic = null
         readCharacteristic = null
-        discoveredServiceUuids.clear()
-        expectedServiceCount = 0
-        serviceDiscoveryCompleted = false
 
-        if (!disconnectRequested && error != null) {
+        if (error != null) {
             // Unexpected disconnect — initiate OS-level auto-reconnect.
             // CoreBluetooth's connect() never times out and works in background.
-            // Keep the peripheral reference alive so CoreBluetooth can reconnect.
             val reason = error.localizedDescription ?: "Unknown error"
+            session = BleSessionState.AwaitingReconnect(peripheral)
             _connectionState.value = ConnectionState.ConnectionLost(
                 address = address,
                 reason = reason
@@ -500,24 +636,30 @@ actual class BleManager : BleManagerPort {
             // Notify WCM immediately so it transitions to ConnectionLost
             onBleDisconnectedCallback?.invoke(address, reason)
         } else {
-            // User-initiated disconnect — clean up fully
-            currentPeripheral = null
+            // Graceful disconnect without error from an active state
+            session = BleSessionState.Idle
             _connectionState.value = ConnectionState.Disconnected
         }
     }
 
     internal fun onServicesDiscovered(peripheral: CBPeripheral, error: NSError?) {
+        val discovering = session as? BleSessionState.Discovering
+        if (discovering == null) {
+            Logger.w("BleManager", "onServicesDiscovered called but not in Discovering state")
+            return
+        }
+
         if (error != null) {
-            serviceDiscoveryTimeoutJob?.cancel()
-            serviceDiscoveryTimeoutJob = null
+            discovering.scope.cancel()
+            centralManager?.cancelPeripheralConnection(peripheral)
+            session = BleSessionState.Idle
+            writeCharacteristic = null
+            readCharacteristic = null
             _connectionState.value = ConnectionState.Failed(
                 error = error.localizedDescription ?: "Service discovery failed",
                 address = peripheral.identifier.UUIDString
             )
-            continuationLock.withLock {
-                connectionContinuation?.resume(false) {}
-                connectionContinuation = null
-            }
+            resumeContinuation(false)
             return
         }
 
@@ -525,21 +667,21 @@ actual class BleManager : BleManagerPort {
         // peripheral.services here contains exactly the services matching our
         // discoverServices(serviceUUIDs:) filter — not all services on the device.
         val services = peripheral.services ?: emptyList<Any>()
-        expectedServiceCount = services.size
+        discovering.expectedCount = services.size
 
-        if (expectedServiceCount == 0) {
-            serviceDiscoveryTimeoutJob?.cancel()
-            serviceDiscoveryTimeoutJob = null
+        if (discovering.expectedCount == 0) {
+            discovering.scope.cancel()
+            centralManager?.cancelPeripheralConnection(peripheral)
+            session = BleSessionState.Idle
+            writeCharacteristic = null
+            readCharacteristic = null
             val address = peripheral.identifier.UUIDString
             Logger.w("BleManager", "No matching services found on $address")
             _connectionState.value = ConnectionState.Failed(
                 error = "No supported services found",
                 address = address
             )
-            continuationLock.withLock {
-                connectionContinuation?.resume(false) {}
-                connectionContinuation = null
-            }
+            resumeContinuation(false)
             return
         }
 
@@ -552,6 +694,8 @@ actual class BleManager : BleManagerPort {
     }
 
     internal fun onCharacteristicsDiscovered(peripheral: CBPeripheral, service: CBService, error: NSError?) {
+        val discovering = session as? BleSessionState.Discovering ?: return
+
         val serviceUuid = service.UUID.UUIDString
 
         if (error != null) {
@@ -559,11 +703,11 @@ actual class BleManager : BleManagerPort {
         }
 
         // Track this service as having completed characteristic discovery
-        discoveredServiceUuids.add(serviceUuid.lowercase())
+        discovering.discoveredUuids.add(serviceUuid.lowercase())
 
         // Check if all services we kicked off discovery for have reported back
-        val allServicesDiscovered = expectedServiceCount > 0 &&
-            discoveredServiceUuids.size >= expectedServiceCount
+        val allServicesDiscovered = discovering.expectedCount > 0 &&
+            discovering.discoveredUuids.size >= discovering.expectedCount
 
         if (allServicesDiscovered) {
             completeServiceDiscovery(peripheral)
@@ -573,18 +717,14 @@ actual class BleManager : BleManagerPort {
     /**
      * Shared completion path for service/characteristic discovery.
      * Called from both the cache-hit fast path and the normal discovery callback path.
+     *
+     * Guard: only completes if still in Discovering state. The transition from
+     * Discovering to Connected is one-shot — a second call sees Connected and returns.
+     * This replaces the old `serviceDiscoveryCompleted` boolean guard.
      */
     private fun completeServiceDiscovery(peripheral: CBPeripheral) {
-        // Guard: timeout and callback can race — use lock to prevent double-completion
-        val alreadyCompleted = continuationLock.withLock {
-            if (serviceDiscoveryCompleted) return@withLock true
-            serviceDiscoveryCompleted = true
-            false
-        }
-        if (alreadyCompleted) return
-
-        serviceDiscoveryTimeoutJob?.cancel()
-        serviceDiscoveryTimeoutJob = null
+        val discovering = session as? BleSessionState.Discovering ?: return
+        discovering.scope.cancel()
 
         // Build complete DiscoveredServices (expand short CoreBluetooth UUIDs to 128-bit)
         val discoveredServices = peripheral.services?.mapNotNull { svc ->
@@ -608,17 +748,9 @@ actual class BleManager : BleManagerPort {
             peripheral.name
         )
 
-        // Connection complete
-        val address = peripheral.identifier.UUIDString
-        _connectionState.value = ConnectionState.Connected(
-            address = address,
-            wheelName = peripheral.name ?: "Unknown"
-        )
-
-        continuationLock.withLock {
-            connectionContinuation?.resume(true) {}
-            connectionContinuation = null
-        }
+        // Transition to Connected
+        transitionToConnected(peripheral)
+        resumeContinuation(true)
     }
 
     /**
@@ -801,8 +933,8 @@ private fun wheelServiceUUIDs(): List<CBUUID> = listOf(
  * Expand CoreBluetooth short UUID strings to full 128-bit format.
  *
  * CoreBluetooth returns short UUIDs for standard Bluetooth SIG services:
- * - 4-char: "FFE0" → "0000FFE0-0000-1000-8000-00805F9B34FB"
- * - 8-char: "0000FFE0" → "0000FFE0-0000-1000-8000-00805F9B34FB"
+ * - 4-char: "FFE0" -> "0000FFE0-0000-1000-8000-00805F9B34FB"
+ * - 8-char: "0000FFE0" -> "0000FFE0-0000-1000-8000-00805F9B34FB"
  * - Full 128-bit UUIDs are returned as-is.
  */
 private fun expandCoreBluetoothUuid(uuidString: String): String {

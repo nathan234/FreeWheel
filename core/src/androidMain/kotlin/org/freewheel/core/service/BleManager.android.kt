@@ -40,6 +40,17 @@ import kotlin.coroutines.resume
  * - Connection state tracking
  * - Auto-reconnect on unexpected disconnect
  *
+ * ## Session State Machine
+ *
+ * Internal BLE state is tracked via a `BleSessionState` sealed class that bundles
+ * peripheral references and scan callbacks with the state variants that own them.
+ * This makes illegal states unrepresentable at compile time:
+ * - `Idle` and `Scanning` have no peripheral — can't accidentally use a stale one
+ * - `disconnectRequested` is eliminated — intent is encoded by state
+ *
+ * The `session` var is `@Volatile` because it's read from the BLE HandlerThread
+ * callbacks and written from the coroutine dispatcher.
+ *
  * ## Usage
  *
  * ### Standalone Mode (Recommended for new code)
@@ -67,8 +78,30 @@ actual class BleManager : BleManagerPort {
     override fun setBluetoothAdapterState(state: BluetoothAdapterState) {
         _bluetoothState.value = state
     }
+
+    // ==================== Session State Machine ====================
+
+    /**
+     * Internal BLE session state. Each variant holds only the data relevant to that
+     * state, making illegal combinations unrepresentable at compile time.
+     *
+     * No `Discovering` variant — Blessed handles service discovery atomically.
+     */
+    private sealed class BleSessionState {
+        /** Null for states that don't hold a peripheral (Idle, Scanning). */
+        open val peripheral: BluetoothPeripheral? get() = null
+
+        data object Idle : BleSessionState()
+        data class Scanning(val callback: (BleDevice) -> Unit) : BleSessionState()
+        data class Connecting(override val peripheral: BluetoothPeripheral) : BleSessionState()
+        data class Connected(override val peripheral: BluetoothPeripheral) : BleSessionState()
+        data class AwaitingReconnect(override val peripheral: BluetoothPeripheral) : BleSessionState()
+    }
+
+    @Volatile
+    private var session: BleSessionState = BleSessionState.Idle
+
     private var central: BluetoothCentralManager? = null
-    private var currentPeripheral: BluetoothPeripheral? = null
     private var writeCharacteristic: BluetoothGattCharacteristic? = null
     private var readCharacteristic: BluetoothGattCharacteristic? = null
 
@@ -76,30 +109,74 @@ actual class BleManager : BleManagerPort {
     private var connectionContinuation: CancellableContinuation<Boolean>? = null
     private val continuationLock = Lock()
 
-    // Callback for data received from the wheel
+    // Callbacks (set once at initialization, not session-related)
     private var onDataReceivedCallback: ((ByteArray) -> Unit)? = null
-
-    // Callback for BLE characteristic update errors (GATT errors)
     private var onBleErrorCallback: (() -> Unit)? = null
-
-    // Callback for unexpected OS-level disconnect (address, reason)
     private var onBleDisconnectedCallback: ((String, String) -> Unit)? = null
-
-    // Callback for services discovered
     private var onServicesDiscoveredCallback: ((DiscoveredServices, String?) -> Unit)? = null
-
-    // Scan callback
-    private var scanDeviceFoundCallback: ((BleDevice) -> Unit)? = null
 
     // Dedicated BLE thread — stored for cleanup in destroy()
     private var bleThread: HandlerThread? = null
 
-    // Disconnect tracking — accessed from BLE thread + coroutine dispatcher
-    @Volatile
-    private var disconnectRequested = false
-
     actual override val connectionState: StateFlow<ConnectionState>
         get() = _connectionState.asStateFlow()
+
+    // ==================== Transition Functions ====================
+    //
+    // Each transition has an exhaustive `when` over BleSessionState.
+    // Adding a new state variant produces a compile error until all
+    // transitions handle it.
+
+    private fun resumeContinuation(result: Boolean) {
+        continuationLock.withLock {
+            connectionContinuation?.resume(result) {}
+            connectionContinuation = null
+        }
+    }
+
+    private fun transitionToIdle() {
+        when (val s = session) {
+            is BleSessionState.Idle -> return
+            is BleSessionState.Scanning -> central?.stopScan()
+            is BleSessionState.Connecting -> central?.cancelConnection(s.peripheral)
+            is BleSessionState.Connected -> central?.cancelConnection(s.peripheral)
+            is BleSessionState.AwaitingReconnect -> central?.cancelConnection(s.peripheral)
+        }
+        resumeContinuation(false)
+        writeCharacteristic = null
+        readCharacteristic = null
+        session = BleSessionState.Idle
+        _connectionState.value = ConnectionState.Disconnected
+    }
+
+    private fun transitionToScanning(callback: (BleDevice) -> Unit) {
+        when (val s = session) {
+            is BleSessionState.Idle -> {}
+            is BleSessionState.Scanning -> central?.stopScan()
+            is BleSessionState.Connecting -> central?.cancelConnection(s.peripheral)
+            is BleSessionState.Connected -> central?.cancelConnection(s.peripheral)
+            is BleSessionState.AwaitingReconnect -> central?.cancelConnection(s.peripheral)
+        }
+        resumeContinuation(false)
+        writeCharacteristic = null
+        readCharacteristic = null
+        session = BleSessionState.Scanning(callback)
+        _connectionState.value = ConnectionState.Scanning
+    }
+
+    private fun transitionToConnecting(peripheral: BluetoothPeripheral) {
+        when (val s = session) {
+            is BleSessionState.Idle -> {}
+            is BleSessionState.Scanning -> central?.stopScan()
+            is BleSessionState.Connecting -> central?.cancelConnection(s.peripheral)
+            is BleSessionState.Connected -> central?.cancelConnection(s.peripheral)
+            is BleSessionState.AwaitingReconnect -> central?.cancelConnection(s.peripheral)
+        }
+        resumeContinuation(false)
+        writeCharacteristic = null
+        readCharacteristic = null
+        session = BleSessionState.Connecting(peripheral)
+    }
 
     // ==================== Central Manager Callback ====================
 
@@ -108,7 +185,8 @@ actual class BleManager : BleManagerPort {
             peripheral: BluetoothPeripheral,
             scanResult: ScanResult
         ) {
-            scanDeviceFoundCallback?.invoke(
+            val scanning = session as? BleSessionState.Scanning ?: return
+            scanning.callback(
                 BleDevice(
                     address = peripheral.address,
                     name = peripheral.name ?: scanResult.scanRecord?.deviceName,
@@ -123,53 +201,65 @@ actual class BleManager : BleManagerPort {
             // Request MTU for extended frames
             peripheral.requestMtu(BluetoothPeripheral.MAX_MTU)
 
+            session = BleSessionState.Connected(peripheral)
+
             // Resume connection continuation
-            continuationLock.withLock {
-                connectionContinuation?.resume(true) {}
-                connectionContinuation = null
-            }
+            resumeContinuation(true)
         }
 
         override fun onConnectionFailed(peripheral: BluetoothPeripheral, status: HciStatus) {
             Logger.w("BleManager", "onConnectionFailed: ${peripheral.address}, status=$status")
-            _connectionState.value = ConnectionState.Failed(error = "Connection failed: $status", address = peripheral.address)
 
-            continuationLock.withLock {
-                connectionContinuation?.resume(false) {}
-                connectionContinuation = null
-            }
+            session = BleSessionState.Idle
+            writeCharacteristic = null
+            readCharacteristic = null
+            _connectionState.value = ConnectionState.Failed(
+                error = "Connection failed: $status",
+                address = peripheral.address
+            )
+
+            resumeContinuation(false)
         }
 
         override fun onDisconnectedPeripheral(peripheral: BluetoothPeripheral, status: HciStatus) {
             // Safety net: resume any pending connect continuation
-            continuationLock.withLock {
-                connectionContinuation?.resume(false) {}
-                connectionContinuation = null
-            }
+            resumeContinuation(false)
 
             val address = peripheral.address
-            Logger.d("BleManager", "onDisconnectedPeripheral: $address, requested=$disconnectRequested, status=$status")
+            Logger.d("BleManager", "onDisconnectedPeripheral: $address, session=${session::class.simpleName}, status=$status")
 
             writeCharacteristic = null
             readCharacteristic = null
 
-            if (!disconnectRequested && address.isNotEmpty()) {
-                // Unexpected disconnect — use passive OS-level auto-reconnect.
-                // autoConnectPeripheral adds the device to the OS whitelist and
-                // reconnects in the background when the peripheral is found again.
-                _connectionState.value = ConnectionState.ConnectionLost(
-                    address = address,
-                    reason = "Disconnected unexpectedly: $status"
-                )
-                Logger.d("BleManager", "Starting OS auto-reconnect for $address")
-                central?.autoConnectPeripheral(peripheral, peripheralCallback)
-                // Notify WCM immediately so it transitions to ConnectionLost
-                // without waiting for data timeout (which could take 30+ seconds)
-                onBleDisconnectedCallback?.invoke(address, "Disconnected unexpectedly: $status")
-            } else {
-                // User-requested disconnect
-                currentPeripheral = null
-                _connectionState.value = ConnectionState.Disconnected
+            // Check session to determine if this was intentional.
+            // disconnect() transitions to Idle BEFORE the OS fires this callback,
+            // so Idle/Scanning means intentional. Everything else is unexpected.
+            when (session) {
+                is BleSessionState.Idle, is BleSessionState.Scanning -> {
+                    // Intentional disconnect — cleanup already done
+                    return
+                }
+                is BleSessionState.Connecting, is BleSessionState.Connected,
+                is BleSessionState.AwaitingReconnect -> {
+                    if (address.isNotEmpty()) {
+                        // Unexpected disconnect — use passive OS-level auto-reconnect.
+                        // autoConnectPeripheral adds the device to the OS whitelist and
+                        // reconnects in the background when the peripheral is found again.
+                        session = BleSessionState.AwaitingReconnect(peripheral)
+                        _connectionState.value = ConnectionState.ConnectionLost(
+                            address = address,
+                            reason = "Disconnected unexpectedly: $status"
+                        )
+                        Logger.d("BleManager", "Starting OS auto-reconnect for $address")
+                        central?.autoConnectPeripheral(peripheral, peripheralCallback)
+                        // Notify WCM immediately so it transitions to ConnectionLost
+                        // without waiting for data timeout (which could take 30+ seconds)
+                        onBleDisconnectedCallback?.invoke(address, "Disconnected unexpectedly: $status")
+                    } else {
+                        session = BleSessionState.Idle
+                        _connectionState.value = ConnectionState.Disconnected
+                    }
+                }
             }
         }
     }
@@ -239,7 +329,11 @@ actual class BleManager : BleManagerPort {
         writeChar: BluetoothGattCharacteristic? = null,
         readChar: BluetoothGattCharacteristic? = null
     ) {
-        currentPeripheral = peripheral
+        session = when (peripheral.state) {
+            BlessedConnectionState.CONNECTED -> BleSessionState.Connected(peripheral)
+            BlessedConnectionState.CONNECTING -> BleSessionState.Connecting(peripheral)
+            BlessedConnectionState.DISCONNECTING, BlessedConnectionState.DISCONNECTED -> BleSessionState.Idle
+        }
         writeCharacteristic = writeChar
         readCharacteristic = readChar
 
@@ -257,17 +351,17 @@ actual class BleManager : BleManagerPort {
     /**
      * Get the current peripheral.
      */
-    fun getPeripheral(): BluetoothPeripheral? = currentPeripheral
+    fun getPeripheral(): BluetoothPeripheral? = session.peripheral
 
     /**
      * Get discovered services from the current peripheral.
      */
-    fun getServices(): List<BluetoothGattService>? = currentPeripheral?.services
+    fun getServices(): List<BluetoothGattService>? = session.peripheral?.services
 
     /**
      * Get a specific service by UUID.
      */
-    fun getService(uuid: UUID): BluetoothGattService? = currentPeripheral?.getService(uuid)
+    fun getService(uuid: UUID): BluetoothGattService? = session.peripheral?.getService(uuid)
 
     // ==================== Peripheral Callback ====================
 
@@ -333,16 +427,14 @@ actual class BleManager : BleManagerPort {
             "BleManager not initialized. Call initialize() first."
         )
 
-        disconnectRequested = false
+        val peripheral = manager.getPeripheral(address)
+        transitionToConnecting(peripheral)
         _connectionState.value = ConnectionState.Connecting(address)
 
         return suspendCancellableCoroutine { continuation ->
             continuationLock.withLock {
                 connectionContinuation = continuation
             }
-
-            val peripheral = manager.getPeripheral(address)
-            currentPeripheral = peripheral
 
             manager.connectPeripheral(peripheral, peripheralCallback)
 
@@ -362,34 +454,20 @@ actual class BleManager : BleManagerPort {
      */
     fun autoReconnect(address: String) {
         val manager = central ?: return
-        disconnectRequested = false
-        val peripheral = currentPeripheral ?: manager.getPeripheral(address).also {
-            currentPeripheral = it
-        }
+        val peripheral = session.peripheral ?: manager.getPeripheral(address)
+        session = BleSessionState.AwaitingReconnect(peripheral)
         _connectionState.value = ConnectionState.Connecting(address)
         manager.autoConnectPeripheral(peripheral, peripheralCallback)
     }
 
     actual override suspend fun disconnect() {
-        disconnectRequested = true
-        // Unblock any pending connect() coroutine BEFORE cancelling BLE
-        continuationLock.withLock {
-            connectionContinuation?.resume(false) {}
-            connectionContinuation = null
-        }
-        currentPeripheral?.let { peripheral ->
-            central?.cancelConnection(peripheral)
-        }
-        currentPeripheral = null
-        writeCharacteristic = null
-        readCharacteristic = null
-        _connectionState.value = ConnectionState.Disconnected
+        transitionToIdle()
     }
 
     // ==================== Write ====================
 
     actual override suspend fun write(data: ByteArray): Boolean {
-        val peripheral = currentPeripheral ?: return false
+        val peripheral = session.peripheral ?: return false
         val characteristic = writeCharacteristic ?: return false
 
         if (peripheral.state != BlessedConnectionState.CONNECTED) {
@@ -407,7 +485,7 @@ actual class BleManager : BleManagerPort {
      * Write data with chunking for protocols that need it (e.g., InMotion V1).
      */
     suspend fun writeChunked(data: ByteArray, chunkSize: Int = 20, delayMs: Long = 20): Boolean {
-        val peripheral = currentPeripheral ?: return false
+        val peripheral = session.peripheral ?: return false
         val characteristic = writeCharacteristic ?: return false
 
         if (peripheral.state != BlessedConnectionState.CONNECTED) {
@@ -435,13 +513,13 @@ actual class BleManager : BleManagerPort {
     // ==================== Characteristic Configuration ====================
 
     fun setWriteCharacteristic(serviceUuid: String, charUuid: String) {
-        val peripheral = currentPeripheral ?: return
+        val peripheral = session.peripheral ?: return
         val service = peripheral.getService(UUID.fromString(serviceUuid)) ?: return
         writeCharacteristic = service.getCharacteristic(UUID.fromString(charUuid))
     }
 
     fun setReadCharacteristic(serviceUuid: String, charUuid: String) {
-        val peripheral = currentPeripheral ?: return
+        val peripheral = session.peripheral ?: return
         val service = peripheral.getService(UUID.fromString(serviceUuid)) ?: return
         readCharacteristic = service.getCharacteristic(UUID.fromString(charUuid))
 
@@ -463,6 +541,16 @@ actual class BleManager : BleManagerPort {
     // ==================== Lifecycle ====================
 
     override fun destroy() {
+        when (val s = session) {
+            is BleSessionState.Idle -> {}
+            is BleSessionState.Scanning -> central?.stopScan()
+            is BleSessionState.Connecting -> central?.cancelConnection(s.peripheral)
+            is BleSessionState.Connected -> central?.cancelConnection(s.peripheral)
+            is BleSessionState.AwaitingReconnect -> central?.cancelConnection(s.peripheral)
+        }
+        session = BleSessionState.Idle
+        writeCharacteristic = null
+        readCharacteristic = null
         central?.close()
         central = null
         bleThread?.quitSafely()
@@ -473,8 +561,7 @@ actual class BleManager : BleManagerPort {
 
     actual override suspend fun startScan(onDeviceFound: (BleDevice) -> Unit) {
         val manager = central ?: return
-        scanDeviceFoundCallback = onDeviceFound
-        _connectionState.value = ConnectionState.Scanning
+        transitionToScanning(onDeviceFound)
         manager.scanForPeripherals()
     }
 
@@ -484,15 +571,14 @@ actual class BleManager : BleManagerPort {
      */
     override suspend fun startScanForService(serviceUuid: String, onDeviceFound: (BleDevice) -> Unit) {
         val manager = central ?: return
-        scanDeviceFoundCallback = onDeviceFound
-        _connectionState.value = ConnectionState.Scanning
+        transitionToScanning(onDeviceFound)
         manager.scanForPeripheralsWithServices(arrayOf(UUID.fromString(serviceUuid)))
     }
 
     actual override suspend fun stopScan() {
         central?.stopScan()
-        scanDeviceFoundCallback = null
-        if (_connectionState.value is ConnectionState.Scanning) {
+        if (session is BleSessionState.Scanning) {
+            session = BleSessionState.Idle
             _connectionState.value = ConnectionState.Disconnected
         }
     }
