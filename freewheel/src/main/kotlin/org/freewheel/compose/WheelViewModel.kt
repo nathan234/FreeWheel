@@ -1555,13 +1555,13 @@ class WheelViewModel(
 
     /** Request GPS updates from the bound service. Idempotent. */
     fun requestLocationTracking() {
-        wheelService?.startLocationTracking()
+        binding?.service?.startLocationTracking()
     }
 
     /** Stop GPS updates if no other component still needs them (i.e. not connected). */
     fun releaseLocationTrackingIfIdle() {
         if (!_connectionState.value.isConnected) {
-            wheelService?.stopLocationTracking()
+            binding?.service?.stopLocationTracking()
         }
     }
 
