@@ -82,7 +82,7 @@
     <string name="reset_user_distance_title">Обнулить мой пробег</string>
     <string name="edit_mac_addr_title">Изменить MAC адрес</string>
     <string name="profile_name_title">Изменить имя профиля</string>
-    <string name="about_app_title">О программе Wheellog</string>
+    <string name="about_app_title">О программе FreeWheel</string>
     <string name="settings_title">Настройки</string>
     <string name="amp">А</string>
     <string name="max_speed_dial_title">Верхняя граница внешней шкалы</string>
@@ -128,7 +128,7 @@
     <string name="use_gps_title">Использование GPS</string>
     <string name="use_gps_description">Использовать данные GPS для точного определения местоположения. При использовании GPS повышается энергопотребление телефона, а если параметр отключен, используются данные сотовой связи.</string>
     <string name="use_raw_title">Запись Raw данных</string>
-    <string name="use_raw_description">Когда включено, все пакеты Bluetooth от колеса будут записаны в отдельный CSV файл. Запись начинается когда первый пакет будет получен. Лог файл остается открыт пока эта опция включена, и автоматически будет продолжено после подключения и отключения колеса. Отключите эту настройку, чтобы закончить запись лога. Файлы сохраняются в Download/Wheellog/[MAC_ADDRESS]/RAW_yyyy_MM_dd_HH_mm_ss.csv</string>
+    <string name="use_raw_description">Когда включено, все пакеты Bluetooth от колеса будут записаны в отдельный CSV файл. Запись начинается когда первый пакет будет получен. Лог файл остается открыт пока эта опция включена, и автоматически будет продолжено после подключения и отключения колеса. Отключите эту настройку, чтобы закончить запись лога. Файлы сохраняются в Downloads/FreeWheel/[MAC_ADDRESS]/RAW_yyyy_MM_dd_HH_mm_ss.csv</string>
     <string name="on_off_strobe">Выкл./Вкл./Строб</string>
     <string name="soft_medium_hard">Мягкие/Средние/Жесткие</string>
     <string name="mode1_2_3_4">Режим1/Режим2/Режим3/Режим4</string>
@@ -423,7 +423,7 @@
     <string name="handlebutton_fail">Ошибка изменения настроек кнопки</string>
     <string name="handlebutton_success">Успешное изменение настроек кнопки</string>
     <string name="ks18l_scaler_title">Исправление одометра 18L</string>
-    <string name="ks18l_scaler_description">18L показывает неправильную дистанцию и Wheellog может ее скорректировать</string>
+    <string name="ks18l_scaler_description">18L показывает неправильную дистанцию и FreeWheel может ее скорректировать</string>
     <string name="bmsBattery1Title">Батарея 1</string>
     <string name="bmsBattery2Title">Батарея 2</string>
     <string name="bmsFactoryCap">Начальная емкость</string>

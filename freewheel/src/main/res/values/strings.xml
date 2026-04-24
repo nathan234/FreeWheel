@@ -292,7 +292,7 @@
     <string name="battery_alarm_title">Battery level Alarm</string>
     <string name="battery_title">Battery level</string>
     <string name="alarm_battery_description">Battery level that triggers the alarm</string>
-    <string name="alarm_wheel_title">Wheel Alarm by Wheellog</string>
+    <string name="alarm_wheel_title">Wheel Alarm by FreeWheel</string>
     <string name="alarm_wheel_description">Alarm that triggers by wheel alarm</string>
     <string name="speed_axis">speed</string>
     <string name="current_axis">current</string>
@@ -608,7 +608,7 @@
     <string name="no_file_read_permission">Permission to read the file is denied</string>
     <string name="files_not_found">audio files not found</string>
     <string name="app_theme_title">Theme</string>
-    <string name="app_theme_description">UI theme of Wheellog</string>
+    <string name="app_theme_description">UI theme of FreeWheel</string>
     <string name="day_night_theme_title">Dark mode</string>
     <string name="day_night_theme_as_system">Use phone settings</string>
     <string name="day_night_theme_day">Day theme</string>
