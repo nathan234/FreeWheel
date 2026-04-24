@@ -10,6 +10,8 @@ import kotlinx.cinterop.*
 import kotlin.experimental.ExperimentalObjCName
 import kotlinx.cinterop.ObjCSignatureOverride
 import kotlinx.coroutines.*
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock as mutexWithLock
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -98,6 +100,13 @@ actual class BleManager : BleManagerPort {
     private var connectionContinuation: CancellableContinuation<Boolean>? = null
     private val continuationLock = Lock()
 
+    // Write flow control — CoreBluetooth silently drops writes when buffer is full
+    private val writeMutex = Mutex()
+    private var writeReadyContinuation: CancellableContinuation<Unit>? = null
+
+    // MTU-aware chunk size — updated after connection from negotiated value
+    private var maxWriteLength: Int = 20
+
     // Delegate instances (prevent garbage collection)
     private var centralDelegate: CBCentralManagerDelegateImpl? = null
     private var peripheralDelegate: CBPeripheralDelegateImpl? = null
@@ -121,6 +130,27 @@ actual class BleManager : BleManagerPort {
         }
     }
 
+    /**
+     * Suspend until CoreBluetooth's write buffer has space.
+     * Returns immediately if the peripheral can accept a write now.
+     */
+    private suspend fun awaitWriteReady(peripheral: CBPeripheral) {
+        if (peripheral.canSendWriteWithoutResponse) return
+        Logger.d("BleManager", "Write buffer full, waiting for ready callback")
+        suspendCancellableCoroutine { cont ->
+            writeReadyContinuation = cont
+            cont.invokeOnCancellation { writeReadyContinuation = null }
+        }
+    }
+
+    /**
+     * Called from the peripheral delegate when CoreBluetooth's write buffer drains.
+     */
+    internal fun onReadyToWrite() {
+        writeReadyContinuation?.resume(Unit) {}
+        writeReadyContinuation = null
+    }
+
     private fun transitionToIdle() {
         when (val s = session) {
             is BleSessionState.Idle -> return
@@ -140,6 +170,8 @@ actual class BleManager : BleManagerPort {
             }
         }
         resumeContinuation(false)
+        writeReadyContinuation?.cancel()
+        writeReadyContinuation = null
         writeCharacteristic = null
         readCharacteristic = null
         session = BleSessionState.Idle
@@ -357,14 +389,17 @@ actual class BleManager : BleManagerPort {
         }
 
         val nsData = data.toNSData()
-        peripheral.writeValue(nsData, characteristic, CBCharacteristicWriteWithoutResponse)
+        writeMutex.mutexWithLock {
+            awaitWriteReady(peripheral)
+            peripheral.writeValue(nsData, characteristic, CBCharacteristicWriteWithoutResponse)
+        }
         return true
     }
 
     /**
      * Write data with chunking for protocols that need it (e.g., InMotion V1).
      */
-    suspend fun writeChunked(data: ByteArray, chunkSize: Int = 20, delayMs: Long = 20): Boolean {
+    suspend fun writeChunked(data: ByteArray, chunkSize: Int = maxWriteLength, delayMs: Long = 20): Boolean {
         val peripheral = session.peripheral ?: return false
         val characteristic = writeCharacteristic ?: return false
 
@@ -377,6 +412,7 @@ actual class BleManager : BleManagerPort {
             val end = minOf(offset + chunkSize, data.size)
             val chunk = data.copyOfRange(offset, end)
             val nsData = chunk.toNSData()
+            awaitWriteReady(peripheral)
             peripheral.writeValue(nsData, characteristic, CBCharacteristicWriteWithoutResponse)
 
             offset += chunkSize
@@ -401,6 +437,8 @@ actual class BleManager : BleManagerPort {
             is BleSessionState.AwaitingReconnect -> centralManager?.cancelPeripheralConnection(s.peripheral)
         }
         session = BleSessionState.Idle
+        writeReadyContinuation?.cancel()
+        writeReadyContinuation = null
         writeCharacteristic = null
         readCharacteristic = null
         scope.cancel()
@@ -475,11 +513,59 @@ actual class BleManager : BleManagerPort {
             CBManagerStateResetting -> BluetoothAdapterState.RESETTING
             else -> BluetoothAdapterState.UNKNOWN
         }
-        // BT adapter state (powered off, unauthorized, unsupported) is surfaced
-        // exclusively via bluetoothState. Connection lifecycle (connecting, connected,
-        // disconnected, failed) is a separate concern in connectionState.
-        // When BT powers off mid-connection, CoreBluetooth fires didDisconnectPeripheral
-        // which sets ConnectionLost — no need to duplicate that here.
+
+        // When Bluetooth powers off, didDisconnectPeripheral is unreliable on some
+        // iOS versions (particularly Control Center toggle). Clean up immediately.
+        if (state == CBManagerStatePoweredOff) {
+            when (val s = session) {
+                is BleSessionState.Idle -> { /* nothing to clean up */ }
+                is BleSessionState.Scanning -> {
+                    session = BleSessionState.Idle
+                    _connectionState.value = ConnectionState.Disconnected
+                }
+                is BleSessionState.Connecting -> {
+                    val address = s.peripheral.identifier.UUIDString
+                    writeCharacteristic = null
+                    readCharacteristic = null
+                    writeReadyContinuation?.cancel()
+                    writeReadyContinuation = null
+                    resumeContinuation(false)
+                    session = BleSessionState.Idle
+                    _connectionState.value = ConnectionState.ConnectionLost(address, "Bluetooth powered off")
+                    onBleDisconnectedCallback?.invoke(address, "Bluetooth powered off")
+                }
+                is BleSessionState.Discovering -> {
+                    val address = s.peripheral.identifier.UUIDString
+                    s.scope.cancel()
+                    writeCharacteristic = null
+                    readCharacteristic = null
+                    writeReadyContinuation?.cancel()
+                    writeReadyContinuation = null
+                    resumeContinuation(false)
+                    session = BleSessionState.Idle
+                    _connectionState.value = ConnectionState.ConnectionLost(address, "Bluetooth powered off")
+                    onBleDisconnectedCallback?.invoke(address, "Bluetooth powered off")
+                }
+                is BleSessionState.Connected -> {
+                    val address = s.peripheral.identifier.UUIDString
+                    writeCharacteristic = null
+                    readCharacteristic = null
+                    writeReadyContinuation?.cancel()
+                    writeReadyContinuation = null
+                    session = BleSessionState.Idle
+                    _connectionState.value = ConnectionState.ConnectionLost(address, "Bluetooth powered off")
+                    onBleDisconnectedCallback?.invoke(address, "Bluetooth powered off")
+                }
+                is BleSessionState.AwaitingReconnect -> {
+                    val address = s.peripheral.identifier.UUIDString
+                    writeCharacteristic = null
+                    readCharacteristic = null
+                    session = BleSessionState.Idle
+                    _connectionState.value = ConnectionState.ConnectionLost(address, "Bluetooth powered off")
+                    onBleDisconnectedCallback?.invoke(address, "Bluetooth powered off")
+                }
+            }
+        }
     }
 
     internal fun onPeripheralDiscovered(peripheral: CBPeripheral, advertisementData: Map<Any?, *>, rssi: Int) {
@@ -582,11 +668,29 @@ actual class BleManager : BleManagerPort {
         }
     }
 
+    /**
+     * Map CoreBluetooth NSError codes to deterministic, locale-independent display strings.
+     * CBError.Code values from CBErrorDomain — falls back to localizedDescription for
+     * CBATTError codes and other domains.
+     */
+    private fun NSError.toDisconnectDisplayText(): String {
+        return when (code.toInt()) {
+            0 -> "Unknown error"
+            6 -> "Connection timed out"
+            7 -> "Peripheral disconnected"
+            9 -> "Invalid handle"
+            10 -> "Connection failed"
+            14 -> "Peer removed pairing"
+            15 -> "Encryption timed out"
+            else -> localizedDescription ?: "Disconnect error $code"
+        }
+    }
+
     internal fun onConnectionFailed(peripheral: CBPeripheral, error: NSError?) {
         // Cancel discovering scope if we somehow got into that state
         (session as? BleSessionState.Discovering)?.scope?.cancel()
 
-        val errorMessage = error?.localizedDescription ?: "Connection failed"
+        val errorMessage = error?.toDisconnectDisplayText() ?: "Connection failed"
         session = BleSessionState.Idle
         writeCharacteristic = null
         readCharacteristic = null
@@ -618,13 +722,15 @@ actual class BleManager : BleManagerPort {
         }
 
         // Clear characteristic references (will be re-set on reconnect via configureForWheel)
+        writeReadyContinuation?.cancel()
+        writeReadyContinuation = null
         writeCharacteristic = null
         readCharacteristic = null
 
         if (error != null) {
             // Unexpected disconnect — initiate OS-level auto-reconnect.
             // CoreBluetooth's connect() never times out and works in background.
-            val reason = error.localizedDescription ?: "Unknown error"
+            val reason = error.toDisconnectDisplayText()
             session = BleSessionState.AwaitingReconnect(peripheral)
             _connectionState.value = ConnectionState.ConnectionLost(
                 address = address,
@@ -798,6 +904,12 @@ actual class BleManager : BleManagerPort {
             }
         }
 
+        // Query negotiated MTU for chunk sizing
+        maxWriteLength = peripheral.maximumWriteValueLengthForType(
+            CBCharacteristicWriteWithoutResponse
+        ).toInt()
+        Logger.d("BleManager", "Max write length: $maxWriteLength bytes")
+
         if (readCharacteristic == null) {
             Logger.w("BleManager", "Read characteristic not found: service=$rServiceUuid char=$rCharUuid")
         }
@@ -895,6 +1007,10 @@ private class CBPeripheralDelegateImpl(
         error: NSError?
     ) {
         manager.onCharacteristicValueUpdated(didUpdateValueForCharacteristic, error)
+    }
+
+    override fun peripheralIsReadyToSendWriteWithoutResponse(peripheral: CBPeripheral) {
+        manager.onReadyToWrite()
     }
 }
 

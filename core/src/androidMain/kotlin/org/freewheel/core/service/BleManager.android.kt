@@ -105,6 +105,9 @@ actual class BleManager : BleManagerPort {
     private var writeCharacteristic: BluetoothGattCharacteristic? = null
     private var readCharacteristic: BluetoothGattCharacteristic? = null
 
+    // MTU-aware chunk size — updated after MTU negotiation
+    private var maxWriteLength: Int = 20
+
     // Connection continuation (protected by continuationLock)
     private var connectionContinuation: CancellableContinuation<Boolean>? = null
     private val continuationLock = Lock()
@@ -210,11 +213,12 @@ actual class BleManager : BleManagerPort {
         override fun onConnectionFailed(peripheral: BluetoothPeripheral, status: HciStatus) {
             Logger.w("BleManager", "onConnectionFailed: ${peripheral.address}, status=$status")
 
+            val reason = hciStatusToDisplayText(status)
             session = BleSessionState.Idle
             writeCharacteristic = null
             readCharacteristic = null
             _connectionState.value = ConnectionState.Failed(
-                error = "Connection failed: $status",
+                error = reason,
                 address = peripheral.address
             )
 
@@ -245,16 +249,17 @@ actual class BleManager : BleManagerPort {
                         // Unexpected disconnect — use passive OS-level auto-reconnect.
                         // autoConnectPeripheral adds the device to the OS whitelist and
                         // reconnects in the background when the peripheral is found again.
+                        val reason = hciStatusToDisplayText(status)
                         session = BleSessionState.AwaitingReconnect(peripheral)
                         _connectionState.value = ConnectionState.ConnectionLost(
                             address = address,
-                            reason = "Disconnected unexpectedly: $status"
+                            reason = reason
                         )
                         Logger.d("BleManager", "Starting OS auto-reconnect for $address")
                         central?.autoConnectPeripheral(peripheral, peripheralCallback)
                         // Notify WCM immediately so it transitions to ConnectionLost
                         // without waiting for data timeout (which could take 30+ seconds)
-                        onBleDisconnectedCallback?.invoke(address, "Disconnected unexpectedly: $status")
+                        onBleDisconnectedCallback?.invoke(address, reason)
                     } else {
                         session = BleSessionState.Idle
                         _connectionState.value = ConnectionState.Disconnected
@@ -415,7 +420,8 @@ actual class BleManager : BleManagerPort {
             status: GattStatus
         ) {
             if (status == GattStatus.SUCCESS) {
-                Logger.d("BleManager", "MTU negotiated: $mtu bytes")
+                maxWriteLength = mtu - 3  // ATT header overhead
+                Logger.d("BleManager", "MTU negotiated: $mtu bytes, max write: $maxWriteLength")
             }
         }
     }
@@ -484,7 +490,7 @@ actual class BleManager : BleManagerPort {
     /**
      * Write data with chunking for protocols that need it (e.g., InMotion V1).
      */
-    suspend fun writeChunked(data: ByteArray, chunkSize: Int = 20, delayMs: Long = 20): Boolean {
+    suspend fun writeChunked(data: ByteArray, chunkSize: Int = maxWriteLength, delayMs: Long = 20): Boolean {
         val peripheral = session.peripheral ?: return false
         val characteristic = writeCharacteristic ?: return false
 
@@ -581,6 +587,18 @@ actual class BleManager : BleManagerPort {
             session = BleSessionState.Idle
             _connectionState.value = ConnectionState.Disconnected
         }
+    }
+
+    // ==================== Helpers ====================
+
+    private fun hciStatusToDisplayText(status: HciStatus): String = when (status) {
+        HciStatus.SUCCESS -> "Disconnected"
+        HciStatus.CONNECTION_TIMEOUT -> "Connection timed out"
+        HciStatus.REMOTE_USER_TERMINATED_CONNECTION -> "Wheel disconnected"
+        HciStatus.CONNECTION_TERMINATED_BY_LOCAL_HOST -> "Connection cancelled"
+        HciStatus.CONNECTION_FAILED_ESTABLISHMENT -> "Connection failed"
+        HciStatus.ERROR -> "GATT error"
+        else -> "Disconnected: ${status.name}"
     }
 }
 
