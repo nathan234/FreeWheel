@@ -8,6 +8,7 @@ import androidx.compose.material.icons.filled.Bluetooth
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Route
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Speed
@@ -43,6 +44,7 @@ import org.freewheel.compose.screens.BleCaptureScreen
 import org.freewheel.compose.screens.ConnectionErrorLogScreen
 import org.freewheel.compose.screens.EventLogScreen
 import org.freewheel.compose.screens.ChargerScreen
+import org.freewheel.compose.screens.MapScreen
 import org.freewheel.compose.screens.RidesScreen
 import org.freewheel.compose.screens.AutoConnectContent
 import org.freewheel.compose.screens.ScanScreen
@@ -58,6 +60,7 @@ fun tabIcon(tab: NavigationTab): ImageVector = when (tab.iconName) {
     "show_chart" -> Icons.AutoMirrored.Filled.ShowChart
     "battery_full" -> Icons.Default.BatteryFull
     "route" -> Icons.Default.Route
+    "map" -> Icons.Default.Map
     "tune" -> Icons.Default.Tune
     "settings" -> Icons.Default.Settings
     "dashboard" -> Icons.Default.Dashboard
@@ -162,6 +165,11 @@ fun AppNavigation(viewModel: WheelViewModel) {
                         navController.navigate(Routes.tripDetail(fileName))
                     }
                 )
+            }
+
+            // Map tab (live ride)
+            composable(NavigationTab.Map.route) {
+                MapScreen(viewModel = viewModel)
             }
 
             // Wheel Settings — as tab or overlay

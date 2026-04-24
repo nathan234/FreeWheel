@@ -158,6 +158,13 @@ class WheelManager: ObservableObject {
     @Published private(set) var liveRideMaxSpeedKmh: Double = 0
     @Published private(set) var liveRideMaxPwmPercent: Double = 0
     @Published private(set) var liveRideDistanceKm: Double = 0
+    @Published private(set) var liveRoutePoints: [RoutePoint] = []
+    @Published private(set) var liveRouteSpeedRange: SpeedRange?
+    private let liveRouteBuffer = FreeWheelCore.LiveRouteBuffer(
+        minIntervalMs: 1_000,
+        minDistanceMeters: 1.0,
+        maxPoints: 10_000
+    )
     private var ridePauseTimeoutTask: Task<Void, Never>?
     private var pausedRideAddress: String?
     private static let ridePauseTimeoutSeconds: TimeInterval = 3600 // 1 hour
@@ -819,6 +826,24 @@ class WheelManager: ObservableObject {
                 liveRideMaxPwmPercent = stats.maxPwmPercent
                 liveRideDistanceKm = Double(stats.distanceMeters) / 1000.0
             }
+
+            // Append to live-ride route buffer for the Map tab
+            if !isRidePaused, let loc = locationManager.currentLocation {
+                let gpsSpeedKmh = ByteUtils.shared.metersPerSecondToKmh(speedMs: max(0, loc.speed))
+                let rp = RoutePoint(
+                    timestampMs: Int64(loc.timestamp.timeIntervalSince1970 * 1000),
+                    latitude: loc.coordinate.latitude,
+                    longitude: loc.coordinate.longitude,
+                    altitude: loc.altitude,
+                    bearing: loc.course >= 0 ? loc.course : 0,
+                    speedKmh: newTelemetry.speedKmh,
+                    gpsSpeedKmh: gpsSpeedKmh
+                )
+                if liveRouteBuffer.addPointIfNeeded(point: rp) {
+                    liveRoutePoints = liveRouteBuffer.snapshot()
+                    liveRouteSpeedRange = liveRouteBuffer.speedRangeKmh()
+                }
+            }
         }
 
         // Range estimate
@@ -1309,6 +1334,9 @@ class WheelManager: ObservableObject {
         liveRideMaxSpeedKmh = 0
         liveRideMaxPwmPercent = 0
         liveRideDistanceKm = 0
+        liveRouteBuffer.clear()
+        liveRoutePoints = []
+        liveRouteSpeedRange = nil
     }
 
     // MARK: - Ride Stitch & Split

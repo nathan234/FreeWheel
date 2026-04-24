@@ -8,10 +8,15 @@ import kotlin.test.assertTrue
 class NavigationConfigTest {
 
     @Test
-    fun `default config matches current 3-tab layout`() {
+    fun `default config matches current 4-tab layout`() {
         val config = NavigationConfig()
         assertEquals(
-            listOf(NavigationTab.Devices, NavigationTab.Rides, NavigationTab.Settings),
+            listOf(
+                NavigationTab.Devices,
+                NavigationTab.Map,
+                NavigationTab.Rides,
+                NavigationTab.Settings
+            ),
             config.tabs
         )
     }
@@ -53,7 +58,7 @@ class NavigationConfigTest {
     }
 
     @Test
-    fun `config with 6 tabs is invalid`() {
+    fun `config with more than 5 tabs is invalid`() {
         val config = NavigationConfig(tabs = NavigationTab.builtIn)
         assertFalse(config.isValid())
     }

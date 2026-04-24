@@ -48,6 +48,7 @@
 		O1000001221F000000002D /* ReplayControlsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = O1000001221F000000001D /* ReplayControlsView.swift */; };
 		P1000001221F000000002E /* RideReplayController.swift in Sources */ = {isa = PBXBuildFile; fileRef = P1000001221F000000001E /* RideReplayController.swift */; };
 		S1000001221F000000002S /* RideMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = S1000001221F000000001S /* RideMapView.swift */; };
+		T1000001221F000000002T /* LiveRideMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = T1000001221F000000001T /* LiveRideMapView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -94,6 +95,7 @@
 		O1000001221F000000001D /* ReplayControlsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReplayControlsView.swift; sourceTree = "<group>"; };
 		P1000001221F000000001E /* RideReplayController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RideReplayController.swift; sourceTree = "<group>"; };
 		S1000001221F000000001S /* RideMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RideMapView.swift; sourceTree = "<group>"; };
+		T1000001221F000000001T /* LiveRideMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveRideMapView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -192,6 +194,7 @@
 				N1000001221F000000001C /* SplashView.swift */,
 				O1000001221F000000001D /* ReplayControlsView.swift */,
 				S1000001221F000000001S /* RideMapView.swift */,
+				T1000001221F000000001T /* LiveRideMapView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -328,6 +331,7 @@
 				O1000001221F000000002D /* ReplayControlsView.swift in Sources */,
 				P1000001221F000000002E /* RideReplayController.swift in Sources */,
 				S1000001221F000000002S /* RideMapView.swift in Sources */,
+				T1000001221F000000002T /* LiveRideMapView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

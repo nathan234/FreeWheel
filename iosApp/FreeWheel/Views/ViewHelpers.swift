@@ -10,6 +10,7 @@ func sfSymbol(for iconName: String) -> String {
     case "show_chart": return "chart.xyaxis.line"
     case "battery_full": return "battery.100"
     case "route": return "road.lanes"
+    case "map": return "map.fill"
     case "tune": return "slider.horizontal.3"
     case "settings": return "gearshape"
     case "dashboard": return "gauge"

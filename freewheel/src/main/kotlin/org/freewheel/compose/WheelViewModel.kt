@@ -15,8 +15,11 @@ import org.freewheel.core.logging.DiagnosticSnapshotBuilder
 import org.freewheel.core.logging.UnhandledFrameCollector
 import org.freewheel.core.logging.UnhandledFrameFormatter
 import org.freewheel.core.logging.GpsLocation
+import org.freewheel.core.logging.LiveRouteBuffer
 import org.freewheel.core.logging.RideCsvEditor
 import org.freewheel.core.logging.RideLogger
+import org.freewheel.core.logging.RoutePoint
+import org.freewheel.core.logging.SpeedRange
 import org.freewheel.core.telemetry.ChartTimeRange
 import org.freewheel.core.telemetry.TelemetryBuffer
 import org.freewheel.core.telemetry.TelemetryHistory
@@ -272,8 +275,20 @@ class WheelViewModel(
 
     // GPS location (full location for ride logging, speed for display/telemetry)
     private val _lastGpsLocation = MutableStateFlow<android.location.Location?>(null)
+    val lastGpsLocation: StateFlow<android.location.Location?> = _lastGpsLocation.asStateFlow()
     private val _gpsSpeedKmh = MutableStateFlow(0.0)
     val gpsSpeedKmh: StateFlow<Double> = _gpsSpeedKmh.asStateFlow()
+
+    // Live-ride map polyline (filled in lock-step with the ride log)
+    private val liveRouteBuffer = LiveRouteBuffer(
+        minIntervalMs = 1_000L,
+        minDistanceMeters = 1.0,
+        maxPoints = 10_000
+    )
+    private val _liveRoutePoints = MutableStateFlow<List<RoutePoint>>(emptyList())
+    val liveRoutePoints: StateFlow<List<RoutePoint>> = _liveRoutePoints.asStateFlow()
+    private val _liveRouteSpeedRange = MutableStateFlow<SpeedRange?>(null)
+    val liveRouteSpeedRange: StateFlow<SpeedRange?> = _liveRouteSpeedRange.asStateFlow()
 
     // Expose samples as StateFlow — merges buffer (5m) or history (1h/24h)
     private val _telemetrySamples = MutableStateFlow<List<TelemetrySample>>(emptyList())
@@ -1111,6 +1126,9 @@ class WheelViewModel(
         val metadata = rideLogger.stop(System.currentTimeMillis(), telemetryState.value.totalDistance)
         _isLogging.value = false
         _liveRideStats.value = null
+        liveRouteBuffer.clear()
+        _liveRoutePoints.value = emptyList()
+        _liveRouteSpeedRange.value = null
 
         if (metadata != null) {
             // Must use runBlocking — callers (disconnect, shutdownService, onCleared)
@@ -1141,13 +1159,14 @@ class WheelViewModel(
         logSamplingJob = viewModelScope.launch {
             activeTelemetryOrNull.filterNotNull().collect { telemetry ->
                 if (rideLogger.isLogging) {
-                    val gps = _lastGpsLocation.value?.let { loc ->
+                    val loc = _lastGpsLocation.value
+                    val gps = loc?.let {
                         GpsLocation(
-                            latitude = loc.latitude,
-                            longitude = loc.longitude,
-                            speedKmh = ByteUtils.metersPerSecondToKmh(loc.speed.toDouble()),
-                            altitude = loc.altitude,
-                            bearing = loc.bearing.toDouble(),
+                            latitude = it.latitude,
+                            longitude = it.longitude,
+                            speedKmh = ByteUtils.metersPerSecondToKmh(it.speed.toDouble()),
+                            altitude = it.altitude,
+                            bearing = it.bearing.toDouble(),
                             cumulativeDistance = 0.0
                         )
                     }
@@ -1155,6 +1174,23 @@ class WheelViewModel(
                     _liveRideStats.value = rideLogger.liveStats(
                         System.currentTimeMillis(), telemetry.totalDistance
                     )
+
+                    // Live-ride map polyline
+                    if (!_isRidePaused.value && loc != null) {
+                        val rp = RoutePoint(
+                            timestampMs = if (loc.time > 0) loc.time else System.currentTimeMillis(),
+                            latitude = loc.latitude,
+                            longitude = loc.longitude,
+                            altitude = loc.altitude,
+                            bearing = loc.bearing.toDouble(),
+                            speedKmh = telemetry.speedKmh,
+                            gpsSpeedKmh = ByteUtils.metersPerSecondToKmh(loc.speed.toDouble())
+                        )
+                        if (liveRouteBuffer.addPointIfNeeded(rp)) {
+                            _liveRoutePoints.value = liveRouteBuffer.snapshot()
+                            _liveRouteSpeedRange.value = liveRouteBuffer.speedRangeKmh()
+                        }
+                    }
                 }
             }
         }
@@ -1515,6 +1551,18 @@ class WheelViewModel(
     fun updateGpsLocation(location: android.location.Location) {
         _lastGpsLocation.value = location
         _gpsSpeedKmh.value = ByteUtils.metersPerSecondToKmh(location.speed.toDouble())
+    }
+
+    /** Request GPS updates from the bound service. Idempotent. */
+    fun requestLocationTracking() {
+        wheelService?.startLocationTracking()
+    }
+
+    /** Stop GPS updates if no other component still needs them (i.e. not connected). */
+    fun releaseLocationTrackingIfIdle() {
+        if (!_connectionState.value.isConnected) {
+            wheelService?.stopLocationTracking()
+        }
     }
 
     fun setChartTimeRange(range: ChartTimeRange) {

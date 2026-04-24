@@ -42,6 +42,7 @@ data class NavigationConfig(
         val DEFAULT_TABS by lazy {
             listOf(
                 NavigationTab.Devices,
+                NavigationTab.Map,
                 NavigationTab.Rides,
                 NavigationTab.Settings
             )

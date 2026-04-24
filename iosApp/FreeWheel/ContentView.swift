@@ -34,6 +34,8 @@ struct ContentView: View {
             SmartBmsView()
         } else if tab is NavigationTab.Rides {
             RidesView()
+        } else if tab is NavigationTab.Map {
+            LiveRideMapScreen()
         } else if tab is NavigationTab.WheelSettings {
             WheelSettingsView()
         } else if tab is NavigationTab.Charger {

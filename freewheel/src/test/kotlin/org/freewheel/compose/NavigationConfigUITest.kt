@@ -15,9 +15,9 @@ import org.junit.runners.JUnit4
 class NavigationConfigUITest {
 
     @Test
-    fun `default config has 3 tabs`() {
+    fun `default config has 4 tabs`() {
         val config = NavigationConfig()
-        assertThat(config.tabs).hasSize(3)
+        assertThat(config.tabs).hasSize(4)
         assertThat(config.isValid()).isTrue()
     }
 
@@ -52,7 +52,7 @@ class NavigationConfigUITest {
     }
 
     @Test
-    fun `config with 6 tabs is invalid`() {
+    fun `config with more than 5 tabs is invalid`() {
         val config = NavigationConfig(
             tabs = NavigationTab.builtIn
         )

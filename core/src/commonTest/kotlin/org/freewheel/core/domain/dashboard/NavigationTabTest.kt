@@ -35,8 +35,8 @@ class NavigationTabTest {
     }
 
     @Test
-    fun `there are 7 built-in navigation tabs`() {
-        assertEquals(7, NavigationTab.builtIn.size)
+    fun `there are 8 built-in navigation tabs`() {
+        assertEquals(8, NavigationTab.builtIn.size)
     }
 
     @Test
@@ -57,6 +57,7 @@ class NavigationTabTest {
         assertEquals(NavigationTab.Chart, NavigationTab.builtInById("CHART"))
         assertEquals(NavigationTab.Bms, NavigationTab.builtInById("BMS"))
         assertEquals(NavigationTab.Rides, NavigationTab.builtInById("RIDES"))
+        assertEquals(NavigationTab.Map, NavigationTab.builtInById("MAP"))
         assertEquals(NavigationTab.WheelSettings, NavigationTab.builtInById("WHEEL_SETTINGS"))
         assertEquals(NavigationTab.Settings, NavigationTab.builtInById("SETTINGS"))
     }
