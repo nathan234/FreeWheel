@@ -57,5 +57,8 @@ private.properties
 iosApp/**/*.xcworkspace/
 iosApp/**/xcuserdata/
 
+# iOS local secrets (xcconfig)
+iosApp/**/Secrets.xcconfig
+
 # Ride Replay (web CSV viewer — not yet part of the main repo)
 ride-replay/

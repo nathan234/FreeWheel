@@ -10,6 +10,9 @@ struct LiveRideMapView: UIViewRepresentable {
     let routePoints: [RoutePoint]
     let speedRange: SpeedRange?
     @Binding var followMode: Bool
+    var chargers: [ChargingStation] = []
+    var onChargerTap: (ChargingStation) -> Void = { _ in }
+    var onCameraIdle: (CLLocationCoordinate2D) -> Void = { _ in }
 
     func makeCoordinator() -> Coordinator { Coordinator(parent: self) }
 
@@ -25,10 +28,17 @@ struct LiveRideMapView: UIViewRepresentable {
 
     func updateUIView(_ mapView: MKMapView, context: Context) {
         let coordinator = context.coordinator
+        coordinator.parent = self
 
         if coordinator.lastRouteCount != routePoints.count {
             coordinator.lastRouteCount = routePoints.count
             rebuildPolyline(on: mapView, coordinator: coordinator)
+        }
+
+        let stationIds = Set(chargers.map { $0.id })
+        if coordinator.displayedStationIds != stationIds {
+            coordinator.displayedStationIds = stationIds
+            rebuildChargerAnnotations(on: mapView, coordinator: coordinator)
         }
 
         // Sync follow-mode binding → MapKit tracking mode, without fighting the
@@ -36,6 +46,15 @@ struct LiveRideMapView: UIViewRepresentable {
         let desired: MKUserTrackingMode = followMode ? .follow : .none
         if mapView.userTrackingMode != desired {
             mapView.setUserTrackingMode(desired, animated: true)
+        }
+    }
+
+    private func rebuildChargerAnnotations(on mapView: MKMapView, coordinator: Coordinator) {
+        for ann in mapView.annotations where ann is ChargingStationAnnotation {
+            mapView.removeAnnotation(ann)
+        }
+        for station in chargers {
+            mapView.addAnnotation(ChargingStationAnnotation(station: station))
         }
     }
 
@@ -104,6 +123,17 @@ struct LiveRideMapView: UIViewRepresentable {
         }
     }
 
+    class ChargingStationAnnotation: MKPointAnnotation {
+        let station: ChargingStation
+        init(station: ChargingStation) {
+            self.station = station
+            super.init()
+            self.coordinate = CLLocationCoordinate2D(latitude: station.latitude, longitude: station.longitude)
+            self.title = station.name
+            self.subtitle = station.address
+        }
+    }
+
     // MARK: - Coordinator
 
     class Coordinator: NSObject, MKMapViewDelegate {
@@ -111,6 +141,7 @@ struct LiveRideMapView: UIViewRepresentable {
         var lastRouteCount = 0
         var polylineColors: [UIColor] = []
         var polylineLocations: [CGFloat] = []
+        var displayedStationIds: Set<String> = []
 
         init(parent: LiveRideMapView) { self.parent = parent }
 
@@ -143,7 +174,27 @@ struct LiveRideMapView: UIViewRepresentable {
                 }
                 return view
             }
+            if let charger = annotation as? ChargingStationAnnotation {
+                let id = "charger-pin"
+                let view = (mapView.dequeueReusableAnnotationView(withIdentifier: id) as? MKMarkerAnnotationView)
+                    ?? MKMarkerAnnotationView(annotation: charger, reuseIdentifier: id)
+                view.annotation = charger
+                view.markerTintColor = .systemBlue
+                view.glyphImage = UIImage(systemName: "bolt.fill")
+                view.canShowCallout = true
+                return view
+            }
             return nil
+        }
+
+        func mapView(_ mapView: MKMapView, didSelect view: MKAnnotationView) {
+            if let charger = view.annotation as? ChargingStationAnnotation {
+                parent.onChargerTap(charger.station)
+            }
+        }
+
+        func mapView(_ mapView: MKMapView, regionDidChangeAnimated animated: Bool) {
+            parent.onCameraIdle(mapView.centerCoordinate)
         }
 
         /// MapKit auto-reverts tracking mode to .none on any user pan/zoom gesture.
@@ -162,13 +213,19 @@ struct LiveRideMapView: UIViewRepresentable {
 struct LiveRideMapScreen: View {
     @EnvironmentObject var wheelManager: WheelManager
     @State private var followMode: Bool = true
+    @State private var selectedCharger: ChargingStation?
 
     var body: some View {
         ZStack(alignment: .top) {
             LiveRideMapView(
                 routePoints: wheelManager.liveRoutePoints,
                 speedRange: wheelManager.liveRouteSpeedRange,
-                followMode: $followMode
+                followMode: $followMode,
+                chargers: wheelManager.nearbyChargers,
+                onChargerTap: { selectedCharger = $0 },
+                onCameraIdle: { coord in
+                    wheelManager.refreshChargers(latitude: coord.latitude, longitude: coord.longitude)
+                }
             )
             .ignoresSafeArea(edges: .bottom)
 
@@ -177,6 +234,10 @@ struct LiveRideMapScreen: View {
                     .padding(.horizontal, 12)
                     .padding(.top, 8)
             }
+        }
+        .sheet(item: $selectedCharger) { station in
+            ChargingStationSheet(station: station)
+                .presentationDetents([.fraction(0.35), .medium])
         }
         .overlay(alignment: .bottomTrailing) {
             if !followMode {
@@ -209,6 +270,36 @@ struct LiveRideMapScreen: View {
                 wheelManager.locationManager.stopTracking()
             }
         }
+    }
+}
+
+extension ChargingStation: @retroactive Identifiable {}
+
+private struct ChargingStationSheet: View {
+    let station: ChargingStation
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(station.name)
+                .font(.title3.weight(.semibold))
+            if let address = station.address {
+                Text(address).font(.subheadline).foregroundStyle(.secondary)
+            }
+            if let op = station.operator_ {
+                Text("Operator: \(op)").font(.subheadline)
+            }
+            let connectors = station.connectors.map { $0.displayName }.joined(separator: ", ")
+            Text("Connectors: \(connectors)").font(.subheadline)
+            if let distanceBoxed = station.distanceKm {
+                Text(String(format: "~%.1f km away", distanceBoxed.doubleValue))
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 20)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

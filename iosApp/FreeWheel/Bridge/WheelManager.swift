@@ -160,6 +160,22 @@ class WheelManager: ObservableObject {
     @Published private(set) var liveRideDistanceKm: Double = 0
     @Published private(set) var liveRoutePoints: [RoutePoint] = []
     @Published private(set) var liveRouteSpeedRange: SpeedRange?
+
+    // Nearby charging stations (OpenChargeMap, refreshed as the Map tab camera idles)
+    @Published private(set) var nearbyChargers: [ChargingStation] = []
+    private let chargingStationRepository: ChargingStationRepository = {
+        let key = (Bundle.main.object(forInfoDictionaryKey: "OpenChargeMapApiKey") as? String) ?? ""
+        return ChargingStationManagerHelper.shared.create(apiKey: key)
+    }()
+    private var chargersObserver: FlowObservation?
+
+    func refreshChargers(latitude: Double, longitude: Double) {
+        ChargingStationManagerHelper.shared.refreshNearby(
+            repository: chargingStationRepository,
+            latitude: latitude,
+            longitude: longitude
+        )
+    }
     private let liveRouteBuffer = FreeWheelCore.LiveRouteBuffer(
         minIntervalMs: 1_000,
         minDistanceMeters: 1.0,
@@ -694,6 +710,15 @@ class WheelManager: ObservableObject {
     private func startObserving() {
         guard let cm = connectionManager else { return }
         let helper = WheelConnectionManagerHelper.shared
+
+        // Nearby chargers (independent of the wheel — always on)
+        chargersObserver = ChargingStationManagerHelper.shared.observeStations(
+            repository: chargingStationRepository
+        ) { [weak self] stations in
+            Task { @MainActor in
+                self?.nearbyChargers = stations
+            }
+        }
 
         // Observe granular sub-states from WheelConnectionManager
         telemetryObserver = helper.observeTelemetryState(manager: cm) { [weak self] tel in

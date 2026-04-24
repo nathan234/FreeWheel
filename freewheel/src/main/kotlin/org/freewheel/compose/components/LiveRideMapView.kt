@@ -23,6 +23,7 @@ import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.MarkerState
 import com.google.maps.android.compose.Polyline
 import com.google.maps.android.compose.rememberCameraPositionState
+import org.freewheel.core.location.ChargingStation
 import org.freewheel.core.logging.RoutePoint
 import org.freewheel.core.logging.SpeedRange
 
@@ -39,7 +40,10 @@ fun LiveRideMapView(
     currentLatLng: LatLng?,
     followMode: Boolean,
     onUserPanned: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    chargers: List<ChargingStation> = emptyList(),
+    onChargerTap: (ChargingStation) -> Unit = {},
+    onCameraIdle: (LatLng) -> Unit = {}
 ) {
     val cameraPositionState = rememberCameraPositionState()
 
@@ -78,6 +82,17 @@ fun LiveRideMapView(
         }
     }
 
+    // Report camera-idle target so the parent can refresh nearby POIs
+    LaunchedEffect(cameraPositionState.isMoving) {
+        if (!cameraPositionState.isMoving) {
+            onCameraIdle(cameraPositionState.position.target)
+        }
+    }
+
+    val chargerIcon = remember {
+        BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE)
+    }
+
     val uiSettings = remember {
         MapUiSettings(
             rotationGesturesEnabled = false,
@@ -113,6 +128,18 @@ fun LiveRideMapView(
                 anchor = androidx.compose.ui.geometry.Offset(0.5f, 0.5f),
                 flat = true,
                 zIndex = 1f
+            )
+        }
+        chargers.forEach { station ->
+            Marker(
+                state = MarkerState(position = LatLng(station.latitude, station.longitude)),
+                title = station.name,
+                snippet = station.address,
+                icon = chargerIcon,
+                onClick = {
+                    onChargerTap(station)
+                    false
+                }
             )
         }
     }

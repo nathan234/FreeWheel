@@ -38,6 +38,8 @@ import org.freewheel.core.replay.ReplayEngine
 import org.freewheel.core.replay.ReplayPosition
 import org.freewheel.core.replay.ReplayState
 import org.freewheel.core.ble.BleUuids
+import org.freewheel.core.location.ChargingStation
+import org.freewheel.core.location.ChargingStationRepository
 import org.freewheel.core.charger.ChargerConnectionManagerPort
 import org.freewheel.core.charger.ChargerState
 import org.freewheel.core.domain.BmsState
@@ -110,7 +112,8 @@ class WheelViewModel(
     val chargerProfileStore: ChargerProfileStore,
     private val demoDataProvider: DemoDataProvider,
     private val alarmChecker: AlarmChecker = AlarmChecker(),
-    val telemetryBuffer: TelemetryBuffer = TelemetryBuffer()
+    val telemetryBuffer: TelemetryBuffer = TelemetryBuffer(),
+    private val chargingStationRepository: ChargingStationRepository
 ) : AndroidViewModel(application) {
 
     private companion object {
@@ -289,6 +292,15 @@ class WheelViewModel(
     val liveRoutePoints: StateFlow<List<RoutePoint>> = _liveRoutePoints.asStateFlow()
     private val _liveRouteSpeedRange = MutableStateFlow<SpeedRange?>(null)
     val liveRouteSpeedRange: StateFlow<SpeedRange?> = _liveRouteSpeedRange.asStateFlow()
+
+    // Nearby charging stations (fed by ChargingStationRepository, refreshed from MapScreen)
+    val nearbyChargers: StateFlow<List<ChargingStation>> = chargingStationRepository.stations
+
+    fun refreshChargers(latitude: Double, longitude: Double) {
+        viewModelScope.launch {
+            chargingStationRepository.refreshNearby(latitude, longitude)
+        }
+    }
 
     // Expose samples as StateFlow — merges buffer (5m) or history (1h/24h)
     private val _telemetrySamples = MutableStateFlow<List<TelemetrySample>>(emptyList())

@@ -36,6 +36,10 @@ android {
         val mapsKey = localProps.getProperty("MAPS_API_KEY", "")
         manifestPlaceholders["MAPS_API_KEY"] = mapsKey
 
+        // OpenChargeMap key (see https://openchargemap.org/site/develop/api) for charger POIs
+        val openChargeMapKey = localProps.getProperty("OPENCHARGEMAP_API_KEY", "")
+        buildConfigField("String", "OPENCHARGEMAP_API_KEY", "\"$openChargeMapKey\"")
+
         vectorDrawables.useSupportLibrary = true
         multiDexEnabled = true
         ksp {

@@ -1,5 +1,5 @@
 [versions]
-agp = "9.2.0"
+agp = "9.0.0-beta02"
 kotlin = "2.2.21"
 ksp = "2.3.2"
 compose = "1.9.2"
@@ -30,6 +30,8 @@ androidxTestCore = "1.7.0"
 mockwebserver = "5.1.0"
 json = "20250517"
 mockk = "1.14.6"
+ktor = "3.0.3"
+kotlinxSerialization = "1.7.3"
 
 [libraries]
 # Kotlin
@@ -93,6 +95,17 @@ mockwebserver = { module = "com.squareup.okhttp3:mockwebserver", version.ref = "
 json = { module = "org.json:json", version.ref = "json" }
 mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
 
+# Ktor (KMP HTTP client)
+ktor-client-core = { module = "io.ktor:ktor-client-core", version.ref = "ktor" }
+ktor-client-content-negotiation = { module = "io.ktor:ktor-client-content-negotiation", version.ref = "ktor" }
+ktor-serialization-kotlinx-json = { module = "io.ktor:ktor-serialization-kotlinx-json", version.ref = "ktor" }
+ktor-client-okhttp = { module = "io.ktor:ktor-client-okhttp", version.ref = "ktor" }
+ktor-client-darwin = { module = "io.ktor:ktor-client-darwin", version.ref = "ktor" }
+ktor-client-mock = { module = "io.ktor:ktor-client-mock", version.ref = "ktor" }
+
+# Kotlinx Serialization
+kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
+
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 android-library = { id = "com.android.library", version.ref = "agp" }
@@ -100,3 +113,4 @@ kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-multiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
+kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }

@@ -18,11 +18,14 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MyLocation
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -39,6 +42,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.google.android.gms.maps.model.LatLng
 import org.freewheel.compose.WheelViewModel
 import org.freewheel.compose.components.LiveRideMapView
+import org.freewheel.core.location.ChargingStation
 import org.freewheel.core.utils.ByteUtils
 import org.freewheel.core.utils.DisplayUtils
 
@@ -55,9 +59,11 @@ fun MapScreen(viewModel: WheelViewModel) {
     val routePoints by viewModel.liveRoutePoints.collectAsStateWithLifecycle()
     val speedRange by viewModel.liveRouteSpeedRange.collectAsStateWithLifecycle()
     val location by viewModel.lastGpsLocation.collectAsStateWithLifecycle()
+    val chargers by viewModel.nearbyChargers.collectAsStateWithLifecycle()
     val currentLatLng = location?.let { LatLng(it.latitude, it.longitude) }
 
     var followMode by rememberSaveable { mutableStateOf(true) }
+    var selectedCharger by remember { mutableStateOf<ChargingStation?>(null) }
 
     Box(modifier = Modifier.fillMaxSize()) {
         LiveRideMapView(
@@ -66,7 +72,12 @@ fun MapScreen(viewModel: WheelViewModel) {
             currentLatLng = currentLatLng,
             followMode = followMode,
             onUserPanned = { followMode = false },
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier.fillMaxSize(),
+            chargers = chargers,
+            onChargerTap = { selectedCharger = it },
+            onCameraIdle = { target ->
+                viewModel.refreshChargers(target.latitude, target.longitude)
+            }
         )
 
         if (isLogging) {
@@ -92,7 +103,41 @@ fun MapScreen(viewModel: WheelViewModel) {
             }
         }
     }
+
+    selectedCharger?.let { station ->
+        ChargingStationSheet(station = station, onDismiss = { selectedCharger = null })
+    }
 }
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ChargingStationSheet(station: ChargingStation, onDismiss: () -> Unit) {
+    val sheetState = rememberModalBottomSheetState()
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
+        Column(
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
+        ) {
+            Text(station.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            station.address?.let {
+                Spacer(Modifier.height(4.dp))
+                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            station.operator?.let {
+                Spacer(Modifier.height(8.dp))
+                Text("Operator: $it", style = MaterialTheme.typography.bodySmall)
+            }
+            Spacer(Modifier.height(8.dp))
+            val connectors = station.connectors.joinToString(", ") { it.displayName }
+            Text("Connectors: $connectors", style = MaterialTheme.typography.bodyMedium)
+            station.distanceKm?.let {
+                Spacer(Modifier.height(4.dp))
+                Text("~%.1f km away".format(it), style = MaterialTheme.typography.bodySmall)
+            }
+            Spacer(Modifier.height(16.dp))
+        }
+    }
+}
+
 
 @Composable
 private fun LiveRideOverlayCard(viewModel: WheelViewModel, modifier: Modifier = Modifier) {

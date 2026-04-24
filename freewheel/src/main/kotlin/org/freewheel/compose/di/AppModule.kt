@@ -13,10 +13,14 @@ import org.freewheel.core.domain.ChargerProfileStore
 import org.freewheel.core.domain.SharedPreferencesKeyValueStore
 import org.freewheel.core.domain.WheelProfileStore
 import org.freewheel.core.alarm.AlarmChecker
+import org.freewheel.core.location.ChargingStationRepository
+import org.freewheel.core.location.OpenChargeMapClient
+import org.freewheel.core.location.OpenChargeMapSource
 import org.freewheel.core.logging.BleCaptureLogger
 import org.freewheel.core.logging.RideLogger
 import org.freewheel.core.service.DemoDataProvider
 import org.freewheel.core.telemetry.PlatformTelemetryFileIO
+import org.freewheel.BuildConfig
 import org.freewheel.core.telemetry.TelemetryBuffer
 import org.freewheel.core.telemetry.TelemetryFileIO
 import org.freewheel.data.TripDatabase
@@ -70,4 +74,9 @@ object AppModule {
     val demoDataProvider: DemoDataProvider by lazy { DemoDataProvider() }
     val alarmChecker: AlarmChecker by lazy { AlarmChecker() }
     val telemetryBuffer: TelemetryBuffer by lazy { TelemetryBuffer() }
+    val chargingStationRepository: ChargingStationRepository by lazy {
+        ChargingStationRepository(
+            source = OpenChargeMapSource(OpenChargeMapClient(apiKey = BuildConfig.OPENCHARGEMAP_API_KEY)),
+        )
+    }
 }

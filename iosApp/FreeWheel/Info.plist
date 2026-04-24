@@ -31,6 +31,8 @@
 	</dict>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>FreeWheel uses your location to record GPS data in ride logs.</string>
+	<key>OpenChargeMapApiKey</key>
+	<string>$(OPENCHARGEMAP_API_KEY)</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>bluetooth-central</string>
