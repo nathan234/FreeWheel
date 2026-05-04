@@ -35,9 +35,26 @@ object PreferenceKeys {
     const val ALARM_MOTOR_TEMPERATURE = "alarm_motor_temperature"
     const val ALARM_WHEEL = "alarm_wheel"
 
+    // The MAC of the last-connected wheel; also used as the prefix for per-wheel keys.
+    const val LAST_MAC = "last_mac"
+
     // Connection (global)
     const val USE_RECONNECT = "use_reconnect"
     const val SHOW_UNKNOWN_DEVICES = "show_unknown_devices"
+
+    // Decoder config (custom_percents global; rest per-wheel)
+    const val CUSTOM_PERCENTS = "custom_percents"
+    const val CELL_VOLTAGE_TILTBACK = "cell_voltage_tiltback"
+    const val ROTATION_SPEED = "rotation_speed"
+    const val ROTATION_VOLTAGE = "rotation_voltage"
+    const val POWER_FACTOR = "power_factor"
+    const val BATTERY_CAPACITY = "battery_capacity"
+    const val GOTWAY_NEGATIVE = "gotway_negative"
+    const val GOTWAY_VOLTAGE = "gotway_voltage"
+    const val USE_RATIO = "use_ratio"
+    const val HW_PWM = "hw_pwm"
+    const val AUTO_VOLTAGE = "auto_voltage"
+    const val KS18L_SCALER = "ks18l_scaler"
 
     // Logging (global)
     const val AUTO_LOG = "auto_log"

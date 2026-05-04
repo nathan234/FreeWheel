@@ -13,7 +13,6 @@ class WheelViewModelFactory(
         @Suppress("UNCHECKED_CAST")
         return WheelViewModel(
             application = application,
-            appConfig = AppModule.appConfig,
             prefs = AppModule.prefs,
             vibrator = AppModule.vibrator,
             tripRepository = AppModule.tripRepository,
@@ -23,6 +22,7 @@ class WheelViewModelFactory(
             profileStore = AppModule.profileStore,
             chargerProfileStore = AppModule.chargerProfileStore,
             appSettingsStore = AppModule.appSettingsStore,
+            decoderConfigStore = AppModule.decoderConfigStore,
             demoDataProvider = AppModule.demoDataProvider,
             alarmChecker = AppModule.alarmChecker,
             telemetryBuffer = AppModule.telemetryBuffer,

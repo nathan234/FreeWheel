@@ -11,9 +11,9 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
-import org.freewheel.AppConfig
 import org.freewheel.core.domain.AppSettingsStore
 import org.freewheel.core.domain.ChargerProfileStore
+import org.freewheel.core.domain.DecoderConfigStore
 import org.freewheel.core.domain.SharedPreferencesKeyValueStore
 import org.freewheel.core.domain.WheelProfile
 import org.freewheel.core.domain.WheelProfileStore
@@ -48,7 +48,6 @@ class WheelViewModelAutoConnectTest {
     private val testDispatcher = StandardTestDispatcher()
     private lateinit var app: Application
     private lateinit var viewModel: WheelViewModel
-    private lateinit var appConfig: AppConfig
     private lateinit var prefs: android.content.SharedPreferences
 
     private lateinit var fakeCm: FakeWheelConnectionManager
@@ -63,18 +62,19 @@ class WheelViewModelAutoConnectTest {
 
         prefs = PreferenceManager.getDefaultSharedPreferences(app)
         prefs.edit().clear().commit()
-        appConfig = AppConfig(app, prefs)
+        val kvs = SharedPreferencesKeyValueStore(prefs)
 
         val db = TripDatabase.getDataBase(app)
         viewModel = WheelViewModel(
-            app, appConfig, prefs, null,
+            app, prefs, null,
             tripRepository = TripRepository(db.tripDao()),
             rideLogger = RideLogger(),
             captureLogger = BleCaptureLogger(),
             telemetryFileIO = PlatformTelemetryFileIO(),
-            profileStore = WheelProfileStore(SharedPreferencesKeyValueStore(prefs)),
-            chargerProfileStore = ChargerProfileStore(SharedPreferencesKeyValueStore(prefs)),
-            appSettingsStore = AppSettingsStore(SharedPreferencesKeyValueStore(prefs)),
+            profileStore = WheelProfileStore(kvs),
+            chargerProfileStore = ChargerProfileStore(kvs),
+            appSettingsStore = AppSettingsStore(kvs),
+            decoderConfigStore = DecoderConfigStore(kvs),
             demoDataProvider = DemoDataProvider(),
             chargingStationRepository = ChargingStationRepository(NoopChargingStationSource)
         )

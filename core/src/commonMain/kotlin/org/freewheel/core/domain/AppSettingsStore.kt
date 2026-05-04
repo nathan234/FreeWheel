@@ -5,9 +5,8 @@ package org.freewheel.core.domain
  * slider values keyed by [SettingsCommandId]).
  *
  * Wraps a [KeyValueStore], handling [SettingScope] and per-wheel MAC prefixing so
- * callers do not have to. The MAC is read fresh on each call from the same
- * `last_mac` key the legacy AppConfig uses, so the two views of the same prefs
- * never diverge during the migration.
+ * callers do not have to. The MAC is read fresh on each call from
+ * [PreferenceKeys.LAST_MAC], the same key [DecoderConfigStore] reads.
  */
 class AppSettingsStore(private val store: KeyValueStore) {
 
@@ -23,6 +22,14 @@ class AppSettingsStore(private val store: KeyValueStore) {
 
     fun setInt(id: AppSettingId, value: Int) {
         store.putInt(scopedKey(id), value)
+    }
+
+    /** Returns the MAC of the last-connected wheel, or empty string if none. */
+    fun getLastMac(): String = currentMac()
+
+    /** Records the MAC of the connected wheel; pass empty string to clear. */
+    fun setLastMac(mac: String) {
+        store.putString(PreferenceKeys.LAST_MAC, mac)
     }
 
     /**
@@ -61,12 +68,5 @@ class AppSettingsStore(private val store: KeyValueStore) {
         SettingScope.PER_WHEEL -> "${currentMac()}_${id.prefKey}"
     }
 
-    private fun currentMac(): String = store.getString(LAST_MAC_KEY, "") ?: ""
-
-    private companion object {
-        // Key used by AppConfig.lastMac (resolved from R.string.last_mac on Android).
-        // Hardcoded here so the store stays platform-agnostic while still pointing at
-        // the same SharedPreferences/UserDefaults entry.
-        const val LAST_MAC_KEY = "last_mac"
-    }
+    private fun currentMac(): String = store.getString(PreferenceKeys.LAST_MAC, "") ?: ""
 }

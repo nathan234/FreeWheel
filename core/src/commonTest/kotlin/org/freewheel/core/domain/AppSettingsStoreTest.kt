@@ -128,4 +128,37 @@ class AppSettingsStoreTest {
         setMac(kvs, "AA:BB:CC:DD:EE:FF")
         assertEquals(42, store.loadSliderValue(SettingsCommandId.MAX_SPEED))
     }
+
+    @Test
+    fun `getLastMac returns empty when unset`() {
+        val (store, _) = newStore()
+        assertEquals("", store.getLastMac())
+    }
+
+    @Test
+    fun `getLastMac returns stored value`() {
+        val (store, kvs) = newStore()
+        setMac(kvs, "AA:BB:CC:DD:EE:FF")
+        assertEquals("AA:BB:CC:DD:EE:FF", store.getLastMac())
+    }
+
+    @Test
+    fun `setLastMac writes the last_mac key`() {
+        val (store, kvs) = newStore()
+        store.setLastMac("AA:BB:CC:DD:EE:FF")
+        assertEquals("AA:BB:CC:DD:EE:FF", kvs.getString("last_mac", null))
+        assertEquals("AA:BB:CC:DD:EE:FF", store.getLastMac())
+    }
+
+    @Test
+    fun `setLastMac empty string clears the wheel binding`() {
+        val (store, kvs) = newStore()
+        store.setLastMac("AA:BB:CC:DD:EE:FF")
+        store.setLastMac("")
+        assertEquals("", store.getLastMac())
+        // After clearing, per-wheel reads fall back to the unscoped default
+        kvs.putBool("AA:BB:CC:DD:EE:FF_${PreferenceKeys.ALARMS_ENABLED}", true)
+        assertEquals(false, store.getBool(AppSettingId.ALARMS_ENABLED))
+    }
+
 }

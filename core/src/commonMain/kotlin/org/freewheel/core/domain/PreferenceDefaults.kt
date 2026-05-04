@@ -17,7 +17,7 @@ object PreferenceDefaults {
 
     // PWM-based alarm thresholds (%)
     const val ALARM_FACTOR_1 = 80
-    const val ALARM_FACTOR_2 = 95
+    const val ALARM_FACTOR_2 = 90
 
     // Pre-warning settings (0 = disabled)
     const val WARNING_PWM = 0
@@ -45,6 +45,20 @@ object PreferenceDefaults {
     // Connection
     const val USE_RECONNECT = false
     const val SHOW_UNKNOWN_DEVICES = false
+
+    // Decoder config
+    const val CUSTOM_PERCENTS = false
+    const val CELL_VOLTAGE_TILTBACK = 330  // hundredths of a volt
+    const val ROTATION_SPEED = 500
+    const val ROTATION_VOLTAGE = 840
+    const val POWER_FACTOR = 90
+    const val BATTERY_CAPACITY = 0
+    const val GOTWAY_NEGATIVE = "0"
+    const val GOTWAY_VOLTAGE = "1"
+    const val USE_RATIO = false
+    const val HW_PWM = false
+    const val AUTO_VOLTAGE = true
+    const val KS18L_SCALER = false
 
     // Logging
     const val AUTO_LOG = false

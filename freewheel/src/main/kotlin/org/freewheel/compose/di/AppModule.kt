@@ -8,9 +8,9 @@ import android.location.LocationManager
 import android.os.Vibrator
 import androidx.core.content.ContextCompat.getSystemService
 import androidx.preference.PreferenceManager
-import org.freewheel.AppConfig
 import org.freewheel.core.domain.AppSettingsStore
 import org.freewheel.core.domain.ChargerProfileStore
+import org.freewheel.core.domain.DecoderConfigStore
 import org.freewheel.core.domain.SharedPreferencesKeyValueStore
 import org.freewheel.core.domain.WheelProfileStore
 import org.freewheel.core.alarm.AlarmChecker
@@ -35,9 +35,6 @@ object AppModule {
     }
     val prefs: SharedPreferences by lazy {
         PreferenceManager.getDefaultSharedPreferences(appContext)
-    }
-    val appConfig: AppConfig by lazy {
-        AppConfig(appContext, prefs)
     }
     val locationManager: LocationManager? by lazy {
         getSystemService(
@@ -73,6 +70,7 @@ object AppModule {
     val profileStore: WheelProfileStore by lazy { WheelProfileStore(keyValueStore) }
     val chargerProfileStore: ChargerProfileStore by lazy { ChargerProfileStore(keyValueStore) }
     val appSettingsStore: AppSettingsStore by lazy { AppSettingsStore(keyValueStore) }
+    val decoderConfigStore: DecoderConfigStore by lazy { DecoderConfigStore(keyValueStore) }
     val demoDataProvider: DemoDataProvider by lazy { DemoDataProvider() }
     val alarmChecker: AlarmChecker by lazy { AlarmChecker() }
     val telemetryBuffer: TelemetryBuffer by lazy { TelemetryBuffer() }

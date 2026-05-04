@@ -8,7 +8,7 @@ data class AlarmConfig(
     // PWM-based alarms (modern mode)
     val pwmBasedAlarms: Boolean = false,
     val alarmFactor1: Int = 80,  // PWM % to start alarm
-    val alarmFactor2: Int = 95,  // PWM % for max alarm intensity
+    val alarmFactor2: Int = 90,  // PWM % for max alarm intensity
 
     // Pre-warning settings
     val warningPwm: Int = 0,           // PWM % for warning (0 = disabled)

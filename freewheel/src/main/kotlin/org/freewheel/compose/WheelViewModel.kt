@@ -3,7 +3,6 @@ package org.freewheel.compose
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import org.freewheel.AppConfig
 import org.freewheel.core.utils.ByteUtils
 import org.freewheel.core.utils.PlatformDateFormatter
 import org.freewheel.core.utils.StringUtil
@@ -54,6 +53,7 @@ import org.freewheel.core.domain.AlarmAction
 import org.freewheel.core.domain.AlarmType
 import org.freewheel.core.domain.AppSettingId
 import org.freewheel.core.domain.AppSettingsStore
+import org.freewheel.core.domain.DecoderConfigStore
 import org.freewheel.core.domain.SettingsCommandId
 import org.freewheel.core.domain.ChargerProfile
 import org.freewheel.core.domain.ChargerProfileStore
@@ -112,7 +112,6 @@ import org.freewheel.compose.service.WheelServiceContract
 @OptIn(ExperimentalCoroutinesApi::class)
 class WheelViewModel(
     application: Application,
-    val appConfig: AppConfig,
     private val prefs: SharedPreferences,
     private val vibrator: Vibrator?,
     private val tripRepository: TripRepository,
@@ -122,6 +121,7 @@ class WheelViewModel(
     val profileStore: WheelProfileStore,
     val chargerProfileStore: ChargerProfileStore,
     val appSettingsStore: AppSettingsStore,
+    private val decoderConfigStore: DecoderConfigStore,
     private val demoDataProvider: DemoDataProvider,
     private val alarmChecker: AlarmChecker = AlarmChecker(),
     val telemetryBuffer: TelemetryBuffer = TelemetryBuffer(),
@@ -412,19 +412,19 @@ class WheelViewModel(
         return DecoderConfig(
             useMph = appSettingsStore.getBool(AppSettingId.USE_MPH),
             useFahrenheit = appSettingsStore.getBool(AppSettingId.USE_FAHRENHEIT),
-            useCustomPercents = appConfig.customPercents,
-            cellVoltageTiltback = appConfig.cellVoltageTiltback,
-            rotationSpeed = appConfig.rotationSpeed,
-            rotationVoltage = appConfig.rotationVoltage,
-            powerFactor = appConfig.powerFactor,
-            batteryCapacity = appConfig.batteryCapacity,
-            wheelPassword = appConfig.passwordForWheel,
-            gotwayNegative = appConfig.gotwayNegative.toIntOrNull() ?: 0,
-            useRatio = appConfig.useRatio,
-            gotwayVoltage = appConfig.gotwayVoltage.toIntOrNull() ?: 0,
-            hwPwmEnabled = appConfig.hwPwm,
-            autoVoltage = appConfig.autoVoltage,
-            ks18LScaler = appConfig.ks18LScaler
+            useCustomPercents = decoderConfigStore.getCustomPercents(),
+            cellVoltageTiltback = decoderConfigStore.getCellVoltageTiltback(),
+            rotationSpeed = decoderConfigStore.getRotationSpeed(),
+            rotationVoltage = decoderConfigStore.getRotationVoltage(),
+            powerFactor = decoderConfigStore.getPowerFactor(),
+            batteryCapacity = decoderConfigStore.getBatteryCapacity(),
+            wheelPassword = decoderConfigStore.getWheelPassword(),
+            gotwayNegative = decoderConfigStore.getGotwayNegative(),
+            useRatio = decoderConfigStore.getUseRatio(),
+            gotwayVoltage = decoderConfigStore.getGotwayVoltage(),
+            hwPwmEnabled = decoderConfigStore.getHwPwm(),
+            autoVoltage = decoderConfigStore.getAutoVoltage(),
+            ks18LScaler = decoderConfigStore.getKs18LScaler()
         )
     }
 
@@ -535,7 +535,7 @@ class WheelViewModel(
             context = getApplication(),
             telemetryFlow = telemetryState,
             activeAlarmsFlow = activeAlarms,
-            appConfig = appConfig,
+            appSettingsStore = appSettingsStore,
             onHornRequested = ::wheelBeep,
             onLightToggleRequested = ::toggleLight
         ).also { it.start(viewModelScope) }
@@ -760,7 +760,7 @@ class WheelViewModel(
     }
 
     private fun addDiscoveredDevice(device: BleDevice) {
-        if (!appConfig.showUnknownDevices && device.name.isNullOrEmpty()) {
+        if (!appSettingsStore.getBool(AppSettingId.SHOW_UNKNOWN_DEVICES) && device.name.isNullOrEmpty()) {
             return
         }
         val current = _discoveredDevices.value.toMutableList()
@@ -781,7 +781,7 @@ class WheelViewModel(
     fun connect(address: String) {
         val cm = binding?.connectionManager ?: return
         _isScanning.value = false
-        appConfig.lastMac = address
+        appSettingsStore.setLastMac(address)
         // Clear unhandled frames from previous session
         unhandledCollector.clear()
         _unhandledCount.value = 0
@@ -803,7 +803,7 @@ class WheelViewModel(
         connectJob?.cancel()
         connectJob = null
         binding?.wearOsManager?.stop()
-        appConfig.lastMac = ""
+        appSettingsStore.setLastMac("")
         binding?.autoConnectManager?.stop()
         if (captureLogger.isCapturing) stopCapture()
         if (rideLogger.isLogging) stopLogging()
@@ -843,9 +843,9 @@ class WheelViewModel(
     }
 
     fun attemptStartupAutoConnect() {
-        val lastMac = appConfig.lastMac
+        val lastMac = appSettingsStore.getLastMac()
         if (lastMac.isEmpty()) return
-        if (!appConfig.useReconnect) return
+        if (!appSettingsStore.getBool(AppSettingId.AUTO_RECONNECT)) return
         val acm = binding?.autoConnectManager ?: return
 
         acm.attemptStartupConnect(lastMac)
@@ -856,7 +856,7 @@ class WheelViewModel(
     private var startupScanJob: Job? = null
 
     fun startupScan() {
-        val lastMac = appConfig.lastMac
+        val lastMac = appSettingsStore.getLastMac()
         if (lastMac.isEmpty()) return
         val ble = binding?.bleManager ?: return
 
@@ -1807,7 +1807,7 @@ class WheelViewModel(
     private fun startAlarmMonitoring() {
         viewModelScope.launch {
             activeTelemetryOrNull.filterNotNull().collect { telemetry ->
-                if (!appConfig.alarmsEnabled) {
+                if (!appSettingsStore.getBool(AppSettingId.ALARMS_ENABLED)) {
                     if (_activeAlarms.value.isNotEmpty()) {
                         _activeAlarms.value = emptySet()
                     }
@@ -1815,30 +1815,30 @@ class WheelViewModel(
                 }
 
                 val config = AlarmConfig(
-                    pwmBasedAlarms = appConfig.pwmBasedAlarms,
-                    alarmFactor1 = appConfig.alarmFactor1,
-                    alarmFactor2 = appConfig.alarmFactor2,
-                    warningPwm = appConfig.warningPwm,
-                    warningSpeed = appConfig.warningSpeed,
-                    warningSpeedPeriod = appConfig.warningSpeedPeriod,
-                    alarm1Speed = appConfig.alarm1Speed,
-                    alarm1Battery = appConfig.alarm1Battery,
-                    alarm2Speed = appConfig.alarm2Speed,
-                    alarm2Battery = appConfig.alarm2Battery,
-                    alarm3Speed = appConfig.alarm3Speed,
-                    alarm3Battery = appConfig.alarm3Battery,
-                    alarmCurrent = appConfig.alarmCurrent,
-                    alarmPhaseCurrent = appConfig.alarmPhaseCurrent,
-                    alarmTemperature = appConfig.alarmTemperature,
-                    alarmMotorTemperature = appConfig.alarmMotorTemperature,
-                    alarmBattery = appConfig.alarmBattery,
-                    alarmWheel = appConfig.alarmWheel
+                    pwmBasedAlarms = appSettingsStore.getBool(AppSettingId.PWM_BASED_ALARMS),
+                    alarmFactor1 = appSettingsStore.getInt(AppSettingId.ALARM_FACTOR_1),
+                    alarmFactor2 = appSettingsStore.getInt(AppSettingId.ALARM_FACTOR_2),
+                    warningPwm = appSettingsStore.getInt(AppSettingId.WARNING_PWM),
+                    warningSpeed = appSettingsStore.getInt(AppSettingId.WARNING_SPEED),
+                    warningSpeedPeriod = appSettingsStore.getInt(AppSettingId.WARNING_SPEED_PERIOD),
+                    alarm1Speed = appSettingsStore.getInt(AppSettingId.ALARM_1_SPEED),
+                    alarm1Battery = appSettingsStore.getInt(AppSettingId.ALARM_1_BATTERY),
+                    alarm2Speed = appSettingsStore.getInt(AppSettingId.ALARM_2_SPEED),
+                    alarm2Battery = appSettingsStore.getInt(AppSettingId.ALARM_2_BATTERY),
+                    alarm3Speed = appSettingsStore.getInt(AppSettingId.ALARM_3_SPEED),
+                    alarm3Battery = appSettingsStore.getInt(AppSettingId.ALARM_3_BATTERY),
+                    alarmCurrent = appSettingsStore.getInt(AppSettingId.ALARM_CURRENT),
+                    alarmPhaseCurrent = appSettingsStore.getInt(AppSettingId.ALARM_PHASE_CURRENT),
+                    alarmTemperature = appSettingsStore.getInt(AppSettingId.ALARM_TEMPERATURE),
+                    alarmMotorTemperature = appSettingsStore.getInt(AppSettingId.ALARM_MOTOR_TEMPERATURE),
+                    alarmBattery = appSettingsStore.getInt(AppSettingId.ALARM_BATTERY),
+                    alarmWheel = appSettingsStore.getBool(AppSettingId.ALARM_WHEEL)
                 )
 
                 val now = System.currentTimeMillis()
                 val result = alarmChecker.check(telemetry, config, now)
                 _activeAlarms.value = result.triggeredAlarms.map { it.type }.toSet()
-                alarmHandler.handleAlarmResult(result, AlarmAction.fromValue(appConfig.alarmAction))
+                alarmHandler.handleAlarmResult(result, AlarmAction.fromValue(appSettingsStore.getInt(AppSettingId.ALARM_ACTION)))
             }
         }
     }

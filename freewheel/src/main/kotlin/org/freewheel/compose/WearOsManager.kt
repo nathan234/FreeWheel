@@ -13,8 +13,9 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
-import org.freewheel.AppConfig
 import org.freewheel.core.domain.AlarmType
+import org.freewheel.core.domain.AppSettingId
+import org.freewheel.core.domain.AppSettingsStore
 import org.freewheel.core.domain.TelemetryState
 import org.freewheel.shared.Constants
 import org.freewheel.shared.WearPage
@@ -22,6 +23,10 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import kotlin.math.abs
+
+// Mirrors the value of R.string.value_on_dial — kept inline because AppSettingsStore
+// has no String accessor yet and this pref is read on every telemetry tick.
+private const val VALUE_ON_DIAL_KEY = "value_on_dial"
 
 /**
  * Manages WearOS DataClient/MessageClient communication from the phone side.
@@ -31,7 +36,7 @@ class WearOsManager(
     private val context: Context,
     private val telemetryFlow: StateFlow<TelemetryState>,
     private val activeAlarmsFlow: StateFlow<Set<AlarmType>>,
-    private val appConfig: AppConfig,
+    private val appSettingsStore: AppSettingsStore,
     private val onHornRequested: () -> Unit,
     private val onLightToggleRequested: () -> Unit,
     private val prefs: SharedPreferences = PreferenceManager.getDefaultSharedPreferences(context)
@@ -140,7 +145,8 @@ class WearOsManager(
         if (AlarmType.CURRENT in alarms) alarmBits = alarmBits or 2
         if (AlarmType.TEMPERATURE in alarms) alarmBits = alarmBits or 4
 
-        val distance = if (appConfig.useMph) {
+        val useMph = appSettingsStore.getBool(AppSettingId.USE_MPH)
+        val distance = if (useMph) {
             telemetry.wheelDistanceKm * 0.621371
         } else {
             telemetry.wheelDistanceKm
@@ -161,20 +167,22 @@ class WearOsManager(
             dataMap.putInt(Constants.wearOsBatteryData, battery)
             dataMap.putInt(Constants.wearOsBatteryLowData, if (minBattery > 100) 0 else minBattery)
             dataMap.putDouble(Constants.wearOsDistanceData, distance)
-            dataMap.putString(Constants.wearOsUnitData, if (appConfig.useMph) "mph" else "kmh")
-            dataMap.putBoolean(Constants.wearOsCurrentOnDialData, appConfig.valueOnDial == "1")
+            dataMap.putString(Constants.wearOsUnitData, if (useMph) "mph" else "kmh")
+            dataMap.putBoolean(Constants.wearOsCurrentOnDialData, prefs.getString(VALUE_ON_DIAL_KEY, "0") == "1")
             dataMap.putInt(Constants.wearOsAlarmData, alarmBits)
             dataMap.putLong(Constants.wearOsTimestampData, System.currentTimeMillis())
             dataMap.putString(Constants.wearOsTimeStringData, timeFormat.format(Date()))
-            dataMap.putInt(Constants.wearOsAlarmFactor1Data, appConfig.alarmFactor1)
-            dataMap.putInt(Constants.wearOsAlarmFactor2Data, appConfig.alarmFactor2)
+            dataMap.putInt(Constants.wearOsAlarmFactor1Data, appSettingsStore.getInt(AppSettingId.ALARM_FACTOR_1))
+            dataMap.putInt(Constants.wearOsAlarmFactor2Data, appSettingsStore.getInt(AppSettingId.ALARM_FACTOR_2))
         }
         request.setUrgent()
         Wearable.getDataClient(context).putDataItem(request.asPutDataRequest())
     }
 
     private fun sendUpdatePages() {
-        val pagesString = WearPage.serialize(appConfig.wearOsPages)
+        val rawPages = prefs.getString(Constants.wearPages, null)
+        val pages = if (rawPages != null) WearPage.deserialize(rawPages) else (WearPage.Main and WearPage.Voltage)
+        val pagesString = WearPage.serialize(pages)
         val request = PutDataMapRequest.create(Constants.wearOsPagesItemPath).apply {
             dataMap.putString(Constants.wearOsPagesData, pagesString)
         }
