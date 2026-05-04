@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import FreeWheelCore
 
 @main
 struct FreeWheelApp: App {
@@ -7,6 +8,10 @@ struct FreeWheelApp: App {
     @StateObject private var chargerManager = ChargerManager()
     @Environment(\.scenePhase) var scenePhase
     @State private var showSplash = true
+
+    init() {
+        DiagnosticsBootstrap.initialize()
+    }
 
     var body: some Scene {
         WindowGroup {

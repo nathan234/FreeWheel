@@ -1,5 +1,6 @@
 package org.freewheel.core.logging
 
+import org.freewheel.core.diagnostics.Diagnostics
 import org.freewheel.core.domain.TelemetryState
 import org.freewheel.core.utils.Logger
 
@@ -18,6 +19,7 @@ class RideLogger(private val fileWriter: FileWriter = FileWriter()) {
     private var isActive = false
     private var formatter: CsvFormatter? = null
     private var fileName = ""
+    private var sessionId: String = ""
 
     // Throttle state
     private var lastWriteTimeMs = 0L
@@ -63,10 +65,11 @@ class RideLogger(private val fileWriter: FileWriter = FileWriter()) {
      * Mark the ride as paused (e.g. on BLE disconnect).
      * Records the pause start time so [resume] can subtract the gap.
      */
-    fun pause(currentTimeMs: Long) {
+    fun pause(currentTimeMs: Long, reason: String = "external") {
         if (!isActive) return
         if (pauseStartMs == 0L) {
             pauseStartMs = currentTimeMs
+            Diagnostics.ridePause(sessionId, reason)
         }
     }
 
@@ -77,8 +80,10 @@ class RideLogger(private val fileWriter: FileWriter = FileWriter()) {
      */
     fun resume(currentTimeMs: Long) {
         if (pauseStartMs > 0L) {
-            totalPausedMs += currentTimeMs - pauseStartMs
+            val pausedMs = currentTimeMs - pauseStartMs
+            totalPausedMs += pausedMs
             pauseStartMs = 0L
+            Diagnostics.rideResume(sessionId, pausedMs)
         }
         lastWriteTimeMs = 0L
     }
@@ -98,16 +103,33 @@ class RideLogger(private val fileWriter: FileWriter = FileWriter()) {
      * @param filePath Full path to the CSV file to create.
      * @param withGps true to include GPS columns in the header.
      * @param currentTimeMs Current epoch time in milliseconds (for testability).
+     * @param wheelType Optional wheel-type identifier for diagnostic events.
      * @return true if the file was created successfully.
      */
-    fun start(filePath: String, withGps: Boolean, currentTimeMs: Long): Boolean {
-        if (isActive) return false
+    fun start(
+        filePath: String,
+        withGps: Boolean,
+        currentTimeMs: Long,
+        wheelType: String? = null,
+    ): Boolean {
+        val candidateName = filePath.substringAfterLast('/')
+        val candidateSession = candidateName.substringBeforeLast('.')
+        Diagnostics.rideStartRequested(candidateSession)
 
-        if (!fileWriter.open(filePath)) return false
+        if (isActive) {
+            Diagnostics.rideStartFailed(candidateSession, candidateName, "already active")
+            return false
+        }
+
+        if (!fileWriter.open(filePath)) {
+            Diagnostics.rideStartFailed(candidateSession, candidateName, "file open failed")
+            return false
+        }
 
         val fmt = CsvFormatter.create(withGps)
         formatter = fmt
-        fileName = filePath.substringAfterLast('/')
+        fileName = candidateName
+        sessionId = candidateSession
 
         fileWriter.writeLine(fmt.header)
 
@@ -124,6 +146,8 @@ class RideLogger(private val fileWriter: FileWriter = FileWriter()) {
         maxPwmPercent = 0.0
         totalPowerW = 0.0
         isActive = true
+
+        Diagnostics.rideStartOk(sessionId, fileName, withGps, wheelType)
         return true
     }
 
@@ -169,6 +193,7 @@ class RideLogger(private val fileWriter: FileWriter = FileWriter()) {
             fileWriter.writeLine(row)
         } catch (e: Exception) {
             Logger.e("RideLogger", "Failed to write sample", e)
+            Diagnostics.rideSampleWriteFailed(sessionId, e.message ?: e::class.simpleName ?: "unknown")
         }
     }
 
@@ -179,7 +204,11 @@ class RideLogger(private val fileWriter: FileWriter = FileWriter()) {
      * @return [RideMetadata] for the completed ride, or null if not logging.
      */
     fun stop(currentTimeMs: Long, lastTotalDistance: Long = 0): RideMetadata? {
-        if (!isActive) return null
+        Diagnostics.rideStopRequested(sessionId)
+        if (!isActive) {
+            Diagnostics.rideStopNoMetadata(sessionId)
+            return null
+        }
 
         fileWriter.close()
         isActive = false
@@ -205,6 +234,8 @@ class RideLogger(private val fileWriter: FileWriter = FileWriter()) {
         val avgPowerW = if (sampleCount > 0) totalPowerW / sampleCount else 0.0
         val consumptionWh = if (durationSec > 0) avgPowerW * durationSec / 3600.0 else 0.0
         val consumptionWhPerKm = if (distanceM > 0) consumptionWh * 1000.0 / distanceM else 0.0
+
+        Diagnostics.rideStopOk(sessionId, fileName, sampleCount, durationSec, distanceM)
 
         return RideMetadata(
             fileName = fileName,

@@ -49,6 +49,9 @@
 		P1000001221F000000002E /* RideReplayController.swift in Sources */ = {isa = PBXBuildFile; fileRef = P1000001221F000000001E /* RideReplayController.swift */; };
 		S1000001221F000000002S /* RideMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = S1000001221F000000001S /* RideMapView.swift */; };
 		T1000001221F000000002T /* LiveRideMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = T1000001221F000000001T /* LiveRideMapView.swift */; };
+		U1000001221F000000002U /* BuildConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = U1000001221F000000001U /* BuildConstants.swift */; };
+		V1000001221F000000002V /* DiagnosticsBootstrap.swift in Sources */ = {isa = PBXBuildFile; fileRef = V1000001221F000000001V /* DiagnosticsBootstrap.swift */; };
+		W1000001221F000000002W /* DiagnosticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = W1000001221F000000001W /* DiagnosticsView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -96,6 +99,9 @@
 		P1000001221F000000001E /* RideReplayController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RideReplayController.swift; sourceTree = "<group>"; };
 		S1000001221F000000001S /* RideMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RideMapView.swift; sourceTree = "<group>"; };
 		T1000001221F000000001T /* LiveRideMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveRideMapView.swift; sourceTree = "<group>"; };
+		U1000001221F000000001U /* BuildConstants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildConstants.swift; sourceTree = "<group>"; };
+		V1000001221F000000001V /* DiagnosticsBootstrap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticsBootstrap.swift; sourceTree = "<group>"; };
+		W1000001221F000000001W /* DiagnosticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticsView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -123,6 +129,7 @@
 			children = (
 				A1000001221F0000000011 /* FreeWheelApp.swift */,
 				A1000001221F0000000012 /* ContentView.swift */,
+				U1000001221F000000001U /* BuildConstants.swift */,
 				A1000001221F000000001A /* Info.plist */,
 				A1000001221F0000000304 /* Bridge */,
 				A1000001221F0000000305 /* Views */,
@@ -159,6 +166,7 @@
 				E1000001221F000000000E /* TelemetryHistory.swift */,
 				M1000001221F000000001A /* ChargerManager.swift */,
 				P1000001221F000000001E /* RideReplayController.swift */,
+				V1000001221F000000001V /* DiagnosticsBootstrap.swift */,
 			);
 			path = Bridge;
 			sourceTree = "<group>";
@@ -195,6 +203,7 @@
 				O1000001221F000000001D /* ReplayControlsView.swift */,
 				S1000001221F000000001S /* RideMapView.swift */,
 				T1000001221F000000001T /* LiveRideMapView.swift */,
+				W1000001221F000000001W /* DiagnosticsView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -332,6 +341,9 @@
 				P1000001221F000000002E /* RideReplayController.swift in Sources */,
 				S1000001221F000000002S /* RideMapView.swift in Sources */,
 				T1000001221F000000002T /* LiveRideMapView.swift in Sources */,
+				U1000001221F000000002U /* BuildConstants.swift in Sources */,
+				V1000001221F000000002V /* DiagnosticsBootstrap.swift in Sources */,
+				W1000001221F000000002W /* DiagnosticsView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

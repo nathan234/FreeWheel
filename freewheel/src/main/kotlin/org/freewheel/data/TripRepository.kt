@@ -3,7 +3,7 @@ package org.freewheel.data
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-class TripRepository (private val tripDao: TripDao) {
+class TripRepository (val tripDao: TripDao) {
 
     suspend fun insertNewData(statisticDbEntity: TripDataDbEntry) {
         withContext(Dispatchers.IO) {

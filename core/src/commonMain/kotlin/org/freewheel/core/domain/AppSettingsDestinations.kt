@@ -9,6 +9,7 @@ object AppSettingsDestinations {
     const val BLE_CAPTURE = "ble_capture"
     const val CONNECTION_ERROR_LOG = "connection_error_log"
     const val WHEEL_EVENT_LOG = "wheel_event_log"
+    const val DIAGNOSTICS = "diagnostics"
 }
 
 /**

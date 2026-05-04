@@ -17,6 +17,7 @@ object Routes {
     const val BLE_CAPTURE = "ble_capture"
     const val CONNECTION_ERROR_LOG = "connection_error_log"
     const val EVENT_LOG = "event_log"
+    const val DIAGNOSTICS = "diagnostics"
 
     // Route prefixes (for bottom-bar visibility checks)
     const val CUSTOM_PREFIX = "custom/"

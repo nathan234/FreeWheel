@@ -17,8 +17,11 @@ import org.freewheel.core.logging.UnhandledFrameFormatter
 import org.freewheel.core.logging.GpsLocation
 import org.freewheel.core.logging.LiveRouteBuffer
 import org.freewheel.core.logging.RideCsvEditor
+import org.freewheel.core.diagnostics.Diagnostics
+import org.freewheel.core.diagnostics.formatMacForDiagnostics
 import org.freewheel.core.logging.RideLogger
 import org.freewheel.core.logging.RoutePoint
+import org.freewheel.data.createRideReconciler
 import org.freewheel.core.logging.SpeedRange
 import org.freewheel.core.telemetry.ChartTimeRange
 import org.freewheel.core.telemetry.TelemetryBuffer
@@ -423,6 +426,41 @@ class WheelViewModel(
         startTelemetryBuffering()
         startAlarmMonitoring()
         startAutoTorchMonitoring()
+        runRideReconciliation()
+    }
+
+    private fun runRideReconciliation() {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val app = getApplication<Application>()
+                val ridesDir = File(app.getExternalFilesDir(null), "rides")
+                ridesDir.mkdirs()
+                val reconciler = createRideReconciler(tripRepository.tripDao, ridesDir)
+                val result = reconciler.reconcile()
+
+                val activeLogPath = Diagnostics.activeFilePath()
+                val activeLogBytes = activeLogPath?.let { File(it).length() } ?: 0L
+                val lastProfile = profileStore.getSavedProfiles().firstOrNull()
+
+                Diagnostics.snapshot(
+                    ridesOnDisk = result.csvCount,
+                    indexEntries = result.indexCount,
+                    phantoms = result.phantom,
+                    orphansAtBoot = result.recovered,
+                    isLogging = false,
+                    currentlyConnected = false,
+                    lastWheelType = lastProfile?.wheelTypeName,
+                    lastWheelMacRedacted = formatMacForDiagnostics(lastProfile?.address),
+                    currentLogFileBytes = activeLogBytes,
+                )
+            } catch (e: Throwable) {
+                org.freewheel.core.utils.Logger.e(
+                    "WheelViewModel",
+                    "Ride reconcile failed",
+                    e,
+                )
+            }
+        }
     }
 
     override fun onCleared() {
