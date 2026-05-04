@@ -41,7 +41,7 @@ enum class WheelType {
         GOTWAY, GOTWAY_VIRTUAL -> "Begode"
         NINEBOT, NINEBOT_Z -> "Ninebot"
         INMOTION, INMOTION_V2 -> "InMotion"
-        VETERAN -> ""
+        VETERAN -> "Veteran"
         LEAPERKIM -> "Leaperkim"
         Unknown -> ""
     }

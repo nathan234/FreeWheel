@@ -53,10 +53,20 @@ class WheelCatalogTest {
     }
 
     @Test
-    fun matchReturnsNullWhenCatalogEmpty() {
+    fun populatedCatalogMatchesKnownWheel() {
         val matched = WheelCatalog.match(
             wheelType = WheelType.GOTWAY,
             identity = WheelIdentity(version = "Master Pro v1.5"),
+        )
+        assertNotNull(matched)
+        assertEquals("begode-master-pro", matched.id)
+    }
+
+    @Test
+    fun populatedCatalogReturnsNullForUnknownTokens() {
+        val matched = WheelCatalog.match(
+            wheelType = WheelType.GOTWAY,
+            identity = WheelIdentity(btName = "ASTROLABE-X1"),
         )
         assertNull(matched)
     }
