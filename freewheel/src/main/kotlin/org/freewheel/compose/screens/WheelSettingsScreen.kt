@@ -4,15 +4,16 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Card
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -21,40 +22,28 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.runtime.LaunchedEffect
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.freewheel.compose.WheelViewModel
+import org.freewheel.compose.components.WheelSettingsContent
 import org.freewheel.core.domain.CommonLabels
 import org.freewheel.core.domain.DashboardLabels
-import org.freewheel.compose.components.DangerousActionDialog
-import org.freewheel.compose.components.SectionCard
-import org.freewheel.core.domain.ControlSpec
-import org.freewheel.core.domain.SettingsCommandId
 import org.freewheel.core.domain.WheelSettingsConfig
 
 // CROSS-PLATFORM SYNC: This screen mirrors iosApp/FreeWheel/Views/WheelSettingsView.swift.
-// When adding, removing, or reordering sections, update the counterpart.
-//
-// Shared sections (in order):
-//  1. Top bar with back button
-//  2. Dynamic sections from WheelSettingsConfig.sections(wheelType)
-//  3. Control rendering: Toggle, Segmented, Picker, Slider, DangerousButton, DangerousToggle
-//  4. Confirmation dialogs for dangerous actions (calibrate, power off, lock)
-//  5. Empty state when no settings available for wheel type
-//  Note: iOS has reusable WheelSettingsContent component embedded in SettingsView;
-//        Android has standalone WheelSettingsScreen + SectionCard component
+// Section structure comes from the shared WheelSettingsConfig; the platform-specific
+// pieces here are the top bar, the gauge top-speed override card, and the empty-state
+// fallback. Section rendering and dangerous-action confirmation live in
+// WheelSettingsContent (mirrors iOS's WheelSettingsContent embedded in SettingsView).
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -65,26 +54,6 @@ fun WheelSettingsScreen(viewModel: WheelViewModel, onBack: () -> Unit) {
     val sections = remember(identity.wheelType, capabilities) {
         WheelSettingsConfig.sections(identity.wheelType, capabilities)
     }
-
-    // Local toggle state for write-only commands
-    val toggleStates = remember { mutableStateMapOf<SettingsCommandId, Boolean>() }
-
-    // Persisted slider values for write-only commands (e.g. beeper volume)
-    val sliderOverrides = remember(sections) {
-        val map = mutableStateMapOf<SettingsCommandId, Int>()
-        for (section in sections) {
-            for (control in section.controls) {
-                if (control is ControlSpec.Slider) {
-                    val saved = viewModel.loadSliderValue(control.commandId)
-                    if (saved != null) map[control.commandId] = saved
-                }
-            }
-        }
-        map
-    }
-
-    // Pending confirmation dialog
-    var pendingAction by remember { mutableStateOf<ControlSpec?>(null) }
 
     Scaffold(
         topBar = {
@@ -98,68 +67,35 @@ fun WheelSettingsScreen(viewModel: WheelViewModel, onBack: () -> Unit) {
             )
         }
     ) { contentPadding ->
-        LazyColumn(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(contentPadding)
-                .padding(horizontal = 16.dp),
+                .padding(horizontal = 16.dp)
+                .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            item { Spacer(Modifier.height(4.dp)) }
+            Spacer(Modifier.height(4.dp))
 
-            item("__gauge_override__") {
-                GaugeTopSpeedOverrideCard(viewModel)
-            }
+            GaugeTopSpeedOverrideCard(viewModel)
 
             if (sections.isEmpty()) {
-                item("__empty__") {
-                    Text(
-                        DashboardLabels.WHEEL_SETTINGS_EMPTY,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(top = 16.dp)
-                    )
-                }
+                Text(
+                    DashboardLabels.WHEEL_SETTINGS_EMPTY,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 16.dp)
+                )
             } else {
-                for (section in sections) {
-                    item(key = section.title) {
-                        SectionCard(
-                            section = section,
-                            wheelSettings = wheelSettings,
-                            toggleStates = toggleStates,
-                            sliderOverrides = sliderOverrides,
-                            useMph = viewModel.appConfig.useMph,
-                            onIntCommand = { id, value ->
-                                viewModel.saveSliderValue(id, value)
-                                sliderOverrides[id] = value
-                                viewModel.executeWheelCommand(id, intValue = value)
-                            },
-                            onBoolCommand = { id, value ->
-                                toggleStates[id] = value
-                                viewModel.executeWheelCommand(id, boolValue = value)
-                            },
-                            onDangerousAction = { control -> pendingAction = control }
-                        )
-                    }
-                }
+                WheelSettingsContent(
+                    viewModel = viewModel,
+                    sections = sections,
+                    wheelSettings = wheelSettings,
+                    useMph = viewModel.appConfig.useMph
+                )
             }
 
-            item { Spacer(Modifier.height(16.dp)) }
+            Spacer(Modifier.height(16.dp))
         }
-
-        // Confirmation dialog
-        DangerousActionDialog(
-            pendingAction = pendingAction,
-            onDismiss = { pendingAction = null },
-            onConfirmButton = { commandId ->
-                viewModel.executeWheelCommand(commandId)
-                pendingAction = null
-            },
-            onConfirmToggle = { commandId ->
-                toggleStates[commandId] = true
-                viewModel.executeWheelCommand(commandId, boolValue = true)
-                pendingAction = null
-            }
-        )
     }
 }
 

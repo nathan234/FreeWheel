@@ -47,9 +47,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.freewheel.BuildConfig
 import org.freewheel.compose.WheelViewModel
-import org.freewheel.compose.components.DangerousActionDialog
-import org.freewheel.compose.components.SectionCard
 import org.freewheel.compose.components.StatRow
+import org.freewheel.compose.components.WheelSettingsContent
 import org.freewheel.core.domain.AlarmAction
 import org.freewheel.core.domain.AppSettingId
 import org.freewheel.core.domain.AppSettingSpec
@@ -60,8 +59,6 @@ import org.freewheel.core.domain.AppSettingsActions
 import org.freewheel.core.domain.AppSettingsSection
 import org.freewheel.core.domain.AppSettingsState
 import org.freewheel.core.domain.AppSettingsValueIds
-import org.freewheel.core.domain.ControlSpec
-import org.freewheel.core.domain.SettingsCommandId
 import org.freewheel.core.domain.SettingsLabels
 import org.freewheel.core.domain.SettingScope
 import org.freewheel.core.domain.WheelSettingsConfig
@@ -118,25 +115,12 @@ fun SettingsScreen(
     val useMph = boolStates[AppSettingId.USE_MPH] ?: AppSettingId.USE_MPH.defaultBool
     val useFahrenheit = boolStates[AppSettingId.USE_FAHRENHEIT] ?: AppSettingId.USE_FAHRENHEIT.defaultBool
 
-    // Wheel settings config-driven state (existing system)
+    // Wheel settings sections — rendering, toggle/slider state, and dangerous-action
+    // confirmation are owned by WheelSettingsContent.
     val capabilities by viewModel.capabilities.collectAsStateWithLifecycle()
     val wheelSections = remember(identity.wheelType, capabilities) {
         WheelSettingsConfig.sections(identity.wheelType, capabilities)
     }
-    val wheelToggleStates = remember { mutableStateMapOf<SettingsCommandId, Boolean>() }
-    val sliderOverrides = remember(wheelSections) {
-        val map = mutableStateMapOf<SettingsCommandId, Int>()
-        for (section in wheelSections) {
-            for (control in section.controls) {
-                if (control is ControlSpec.Slider) {
-                    val saved = viewModel.loadSliderValue(control.commandId)
-                    if (saved != null) map[control.commandId] = saved
-                }
-            }
-        }
-        map
-    }
-    var pendingAction by remember { mutableStateOf<ControlSpec?>(null) }
 
     Column(
         modifier = Modifier
@@ -155,28 +139,15 @@ fun SettingsScreen(
         for (section in sections) {
             if (!AppSettingVisibilityEvaluator.isVisible(section.visibility, visibilityState)) continue
 
-            // Wheel settings placeholder: delegate to existing WheelSettingsConfig rendering
+            // Wheel settings placeholder: delegate to shared WheelSettingsContent
             if (section.title == AppSettingsConfig.WHEEL_SETTINGS_TITLE) {
                 if (wheelSections.isNotEmpty()) {
-                    for (ws in wheelSections) {
-                        SectionCard(
-                            section = ws,
-                            wheelSettings = wheelSettings,
-                            toggleStates = wheelToggleStates,
-                            sliderOverrides = sliderOverrides,
-                            useMph = useMph,
-                            onIntCommand = { id, value ->
-                                viewModel.saveSliderValue(id, value)
-                                sliderOverrides[id] = value
-                                viewModel.executeWheelCommand(id, intValue = value)
-                            },
-                            onBoolCommand = { id, value ->
-                                wheelToggleStates[id] = value
-                                viewModel.executeWheelCommand(id, boolValue = value)
-                            },
-                            onDangerousAction = { control -> pendingAction = control }
-                        )
-                    }
+                    WheelSettingsContent(
+                        viewModel = viewModel,
+                        sections = wheelSections,
+                        wheelSettings = wheelSettings,
+                        useMph = useMph
+                    )
                 }
                 continue
             }
@@ -247,21 +218,6 @@ fun SettingsScreen(
 
         Spacer(Modifier.height(16.dp))
     }
-
-    // Confirmation dialog for dangerous wheel settings actions
-    DangerousActionDialog(
-        pendingAction = pendingAction,
-        onDismiss = { pendingAction = null },
-        onConfirmButton = { commandId ->
-            viewModel.executeWheelCommand(commandId)
-            pendingAction = null
-        },
-        onConfirmToggle = { commandId ->
-            wheelToggleStates[commandId] = true
-            viewModel.executeWheelCommand(commandId, boolValue = true)
-            pendingAction = null
-        }
-    )
 }
 
 // ---------------------------------------------------------------------------
