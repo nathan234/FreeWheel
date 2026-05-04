@@ -27,10 +27,14 @@ import kotlin.test.assertTrue
 class GotwayDecoderTest {
 
     private val decoder = GotwayDecoder()
+    // Test fixtures below were captured against a 16S Gotway profile (no voltage
+    // scaling). Pin gotwayVoltage = 0 so assertions stay valid regardless of what
+    // the data class default is set to.
     private val config = DecoderConfig(
         useMph = false,
         useFahrenheit = false,
-        useCustomPercents = false
+        useCustomPercents = false,
+        gotwayVoltage = 0,
     )
 
 

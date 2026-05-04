@@ -34,6 +34,9 @@ internal object GotwayFixtures {
             useMph = false,
             useFahrenheit = false,
             useCustomPercents = false,
+            // 2020 board capture is from a 16S wheel — pin scaler so the raw 6593
+            // voltage passes through unchanged.
+            gotwayVoltage = 0,
         ),
         expect = DecoderFixture.Expected(
             lastResult = DecoderFixture.ResultKind.SUCCESS,

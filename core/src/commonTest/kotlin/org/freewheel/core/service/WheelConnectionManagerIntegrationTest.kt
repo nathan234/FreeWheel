@@ -13,6 +13,7 @@ import org.freewheel.core.domain.TelemetryState
 import org.freewheel.core.domain.WheelIdentity
 import org.freewheel.core.domain.WheelSettings
 import org.freewheel.core.domain.WheelType
+import org.freewheel.core.protocol.DecoderConfig
 import org.freewheel.core.protocol.DefaultWheelDecoderFactory
 import org.freewheel.core.protocol.buildKsAlertFrame
 import org.freewheel.core.protocol.buildKsBmsCellFrame
@@ -313,6 +314,9 @@ class WheelConnectionManagerIntegrationTest {
     @Test
     fun `B1 gotway live data decode through pipeline`() = runTest(timeout = 5.seconds) {
         val manager = connectWithType(WheelType.GOTWAY)
+        // Pin the 16S voltage profile (1.0 scaler) so this test asserts the
+        // round-trip independent of whatever default the data class carries.
+        manager.updateConfig(DecoderConfig(gotwayVoltage = 0))
 
         // First send firmware string to make decoder ready
         manager.onDataReceived("GW1.23".encodeToByteArray())
@@ -323,7 +327,7 @@ class WheelConnectionManagerIntegrationTest {
         runCurrent()
 
         val tel = manager.telemetryState.value!!
-        // GotwayDecoder: voltage is passed through scaleVoltage (default scaler=1.0)
+        // GotwayDecoder: voltage is passed through scaleVoltage (16S profile = 1.0)
         assertEquals(6000, tel.voltage)
         // GotwayDecoder: speed = signedShort * 3.6, with gotwayNegative=0 → abs()
         // speed = abs(100 * 3.6) = 360

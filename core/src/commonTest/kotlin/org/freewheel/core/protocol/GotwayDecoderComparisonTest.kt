@@ -21,7 +21,9 @@ class GotwayDecoderComparisonTest {
 
     private val decoder = GotwayDecoder()
     private val defaultState = DecoderState()
-    private val defaultConfig = DecoderConfig()
+    // Legacy fixtures were captured against a 16S Gotway profile; pin the scaler
+    // explicitly so assertions hold regardless of the data class default.
+    private val defaultConfig = DecoderConfig(gotwayVoltage = 0)
 
 
     // ==================== Basic Packet Parsing ====================
