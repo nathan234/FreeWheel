@@ -9,6 +9,7 @@ import android.os.Vibrator
 import androidx.core.content.ContextCompat.getSystemService
 import androidx.preference.PreferenceManager
 import org.freewheel.AppConfig
+import org.freewheel.core.domain.AppSettingsStore
 import org.freewheel.core.domain.ChargerProfileStore
 import org.freewheel.core.domain.SharedPreferencesKeyValueStore
 import org.freewheel.core.domain.WheelProfileStore
@@ -71,6 +72,7 @@ object AppModule {
     private val keyValueStore: SharedPreferencesKeyValueStore by lazy { SharedPreferencesKeyValueStore(prefs) }
     val profileStore: WheelProfileStore by lazy { WheelProfileStore(keyValueStore) }
     val chargerProfileStore: ChargerProfileStore by lazy { ChargerProfileStore(keyValueStore) }
+    val appSettingsStore: AppSettingsStore by lazy { AppSettingsStore(keyValueStore) }
     val demoDataProvider: DemoDataProvider by lazy { DemoDataProvider() }
     val alarmChecker: AlarmChecker by lazy { AlarmChecker() }
     val telemetryBuffer: TelemetryBuffer by lazy { TelemetryBuffer() }

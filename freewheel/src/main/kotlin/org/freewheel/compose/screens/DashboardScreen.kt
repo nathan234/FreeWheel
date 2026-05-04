@@ -32,8 +32,8 @@ import org.freewheel.compose.WheelViewModel
 import org.freewheel.compose.components.DashboardContent
 import org.freewheel.compose.components.ReplayControls
 import org.freewheel.compose.components.RideStatsHeader
+import org.freewheel.core.domain.AppSettingId
 import org.freewheel.core.domain.SpeedDisplayMode
-import org.freewheel.core.domain.PreferenceKeys
 import org.freewheel.core.replay.ReplayState
 
 // CROSS-PLATFORM SYNC: This screen mirrors iosApp/FreeWheel/Views/DashboardView.swift.
@@ -70,11 +70,11 @@ fun DashboardScreen(
     val replayPosition by viewModel.replayEngine.position.collectAsStateWithLifecycle()
     val replaySpeed by viewModel.replayEngine.speed.collectAsStateWithLifecycle()
     val isReplay = dataSource == WheelViewModel.WheelDataSource.REPLAY
-    val useMph = viewModel.getGlobalBool(PreferenceKeys.USE_MPH, false)
-    val useFahrenheit = viewModel.getGlobalBool(PreferenceKeys.USE_FAHRENHEIT, false)
+    val useMph = viewModel.appSettingsStore.getBool(AppSettingId.USE_MPH)
+    val useFahrenheit = viewModel.appSettingsStore.getBool(AppSettingId.USE_FAHRENHEIT)
 
     var speedDisplayMode by remember {
-        mutableStateOf(SpeedDisplayMode.entries[viewModel.getGlobalInt(PreferenceKeys.SPEED_DISPLAY_MODE, 0).coerceIn(0, 2)])
+        mutableStateOf(viewModel.appSettingsStore.getSpeedDisplayMode())
     }
 
     val title = identity.displayName
@@ -144,7 +144,7 @@ fun DashboardScreen(
                 speedDisplayMode = speedDisplayMode,
                 onSpeedDisplayModeChange = { mode ->
                     speedDisplayMode = mode
-                    viewModel.setGlobalInt(PreferenceKeys.SPEED_DISPLAY_MODE, mode.ordinal)
+                    viewModel.appSettingsStore.setSpeedDisplayMode(mode)
                 },
                 onNavigateToChart = onNavigateToChart,
                 onNavigateToBms = onNavigateToBms,

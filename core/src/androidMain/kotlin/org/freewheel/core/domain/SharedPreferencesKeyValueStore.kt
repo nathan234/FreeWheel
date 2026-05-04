@@ -40,6 +40,23 @@ class SharedPreferencesKeyValueStore(private val prefs: SharedPreferences) : Key
         prefs.edit().putLong(key, java.lang.Double.doubleToRawLongBits(value)).apply()
     }
 
+    override fun getBool(key: String, default: Boolean): Boolean =
+        prefs.getBoolean(key, default)
+
+    override fun putBool(key: String, value: Boolean) {
+        prefs.edit().putBoolean(key, value).apply()
+    }
+
+    override fun getInt(key: String, default: Int): Int =
+        prefs.getInt(key, default)
+
+    override fun putInt(key: String, value: Int) {
+        prefs.edit().putInt(key, value).apply()
+    }
+
+    override fun contains(key: String): Boolean =
+        prefs.contains(key)
+
     override fun remove(key: String) {
         prefs.edit().remove(key).apply()
     }

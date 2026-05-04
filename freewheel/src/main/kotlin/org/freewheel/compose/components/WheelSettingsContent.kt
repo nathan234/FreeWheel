@@ -37,7 +37,7 @@ fun WheelSettingsContent(
             for (section in sections) {
                 for (control in section.controls) {
                     if (control is ControlSpec.Slider) {
-                        viewModel.loadSliderValue(control.commandId)?.let { put(control.commandId, it) }
+                        viewModel.appSettingsStore.loadSliderValue(control.commandId)?.let { put(control.commandId, it) }
                     }
                 }
             }
@@ -54,7 +54,7 @@ fun WheelSettingsContent(
                 sliderOverrides = sliderOverrides,
                 useMph = useMph,
                 onIntCommand = { id, value ->
-                    viewModel.saveSliderValue(id, value)
+                    viewModel.appSettingsStore.saveSliderValue(id, value)
                     sliderOverrides[id] = value
                     viewModel.executeWheelCommand(id, intValue = value)
                 },

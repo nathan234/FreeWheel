@@ -30,6 +30,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import org.freewheel.compose.WheelViewModel
+import org.freewheel.core.domain.AppSettingId
 import org.freewheel.core.domain.CommonLabels
 import org.freewheel.compose.components.MarkerSeriesInfo
 import org.freewheel.compose.components.SeriesInfo
@@ -50,8 +51,8 @@ fun MetricDetailScreen(
 ) {
     val selectedRange by viewModel.chartTimeRange.collectAsStateWithLifecycle()
     val samples by viewModel.chartSamples.collectAsStateWithLifecycle()
-    val useMph = viewModel.appConfig.useMph
-    val useFahrenheit = viewModel.appConfig.useFahrenheit
+    val useMph = viewModel.appSettingsStore.getBool(AppSettingId.USE_MPH)
+    val useFahrenheit = viewModel.appSettingsStore.getBool(AppSettingId.USE_FAHRENHEIT)
 
     val metric = remember(metricId) {
         MetricType.entries.firstOrNull { it.name.lowercase() == metricId.lowercase() }

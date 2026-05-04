@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.freewheel.compose.WheelViewModel
 import org.freewheel.compose.components.WheelSettingsContent
+import org.freewheel.core.domain.AppSettingId
 import org.freewheel.core.domain.CommonLabels
 import org.freewheel.core.domain.DashboardLabels
 import org.freewheel.core.domain.WheelSettingsConfig
@@ -90,7 +91,7 @@ fun WheelSettingsScreen(viewModel: WheelViewModel, onBack: () -> Unit) {
                     viewModel = viewModel,
                     sections = sections,
                     wheelSettings = wheelSettings,
-                    useMph = viewModel.appConfig.useMph
+                    useMph = viewModel.appSettingsStore.getBool(AppSettingId.USE_MPH)
                 )
             }
 

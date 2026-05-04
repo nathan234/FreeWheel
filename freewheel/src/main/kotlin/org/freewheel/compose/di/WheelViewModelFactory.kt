@@ -22,6 +22,7 @@ class WheelViewModelFactory(
             telemetryFileIO = AppModule.telemetryFileIO,
             profileStore = AppModule.profileStore,
             chargerProfileStore = AppModule.chargerProfileStore,
+            appSettingsStore = AppModule.appSettingsStore,
             demoDataProvider = AppModule.demoDataProvider,
             alarmChecker = AppModule.alarmChecker,
             telemetryBuffer = AppModule.telemetryBuffer,

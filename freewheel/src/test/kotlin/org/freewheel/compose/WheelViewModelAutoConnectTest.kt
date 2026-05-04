@@ -12,6 +12,7 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.freewheel.AppConfig
+import org.freewheel.core.domain.AppSettingsStore
 import org.freewheel.core.domain.ChargerProfileStore
 import org.freewheel.core.domain.SharedPreferencesKeyValueStore
 import org.freewheel.core.domain.WheelProfile
@@ -73,6 +74,7 @@ class WheelViewModelAutoConnectTest {
             telemetryFileIO = PlatformTelemetryFileIO(),
             profileStore = WheelProfileStore(SharedPreferencesKeyValueStore(prefs)),
             chargerProfileStore = ChargerProfileStore(SharedPreferencesKeyValueStore(prefs)),
+            appSettingsStore = AppSettingsStore(SharedPreferencesKeyValueStore(prefs)),
             demoDataProvider = DemoDataProvider(),
             chargingStationRepository = ChargingStationRepository(NoopChargingStationSource)
         )

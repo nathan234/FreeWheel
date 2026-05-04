@@ -42,6 +42,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.google.android.gms.maps.model.LatLng
 import org.freewheel.compose.WheelViewModel
 import org.freewheel.compose.components.LiveRideMapView
+import org.freewheel.core.domain.AppSettingId
 import org.freewheel.core.location.ChargingStation
 import org.freewheel.core.utils.ByteUtils
 import org.freewheel.core.utils.DisplayUtils
@@ -143,7 +144,7 @@ private fun ChargingStationSheet(station: ChargingStation, onDismiss: () -> Unit
 private fun LiveRideOverlayCard(viewModel: WheelViewModel, modifier: Modifier = Modifier) {
     val telemetry by viewModel.telemetryState.collectAsStateWithLifecycle()
     val stats by viewModel.liveRideStats.collectAsStateWithLifecycle()
-    val useMph = viewModel.appConfig.useMph
+    val useMph = viewModel.appSettingsStore.getBool(AppSettingId.USE_MPH)
 
     val speedDisplay = DisplayUtils.convertSpeed(telemetry.speedKmh, useMph)
     val speedUnit = if (useMph) "mph" else "km/h"

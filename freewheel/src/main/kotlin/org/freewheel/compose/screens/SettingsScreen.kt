@@ -60,7 +60,6 @@ import org.freewheel.core.domain.AppSettingsSection
 import org.freewheel.core.domain.AppSettingsState
 import org.freewheel.core.domain.AppSettingsValueIds
 import org.freewheel.core.domain.SettingsLabels
-import org.freewheel.core.domain.SettingScope
 import org.freewheel.core.domain.WheelSettingsConfig
 import org.freewheel.core.domain.displayUnit
 import org.freewheel.core.domain.displayValue
@@ -94,9 +93,9 @@ fun SettingsScreen(
             for (control in section.controls) {
                 val id = control.settingId ?: continue
                 when (control) {
-                    is AppSettingSpec.Toggle -> boolStates[id] = readBool(id, viewModel)
-                    is AppSettingSpec.Slider -> intStates[id] = readInt(id, viewModel)
-                    is AppSettingSpec.Picker -> intStates[id] = readInt(id, viewModel)
+                    is AppSettingSpec.Toggle -> boolStates[id] = viewModel.appSettingsStore.getBool(id)
+                    is AppSettingSpec.Slider -> intStates[id] = viewModel.appSettingsStore.getInt(id)
+                    is AppSettingSpec.Picker -> intStates[id] = viewModel.appSettingsStore.getInt(id)
                     else -> {}
                 }
             }
@@ -245,7 +244,7 @@ private fun RenderAppControl(
                 checked = checked,
                 onCheckedChange = {
                     boolStates[id] = it
-                    writeBool(id, it, viewModel)
+                    viewModel.appSettingsStore.setBool(id, it)
                 }
             )
         }
@@ -282,7 +281,7 @@ private fun RenderAppControl(
                                 text = { Text(label) },
                                 onClick = {
                                     intStates[id] = index
-                                    writeInt(id, index, viewModel)
+                                    viewModel.appSettingsStore.setInt(id, index)
                                     expanded = false
                                 }
                             )
@@ -306,7 +305,7 @@ private fun RenderAppControl(
                 onValueChange = {
                     val newValue = it.toInt()
                     intStates[id] = newValue
-                    writeInt(id, newValue, viewModel)
+                    viewModel.appSettingsStore.setInt(id, newValue)
                 }
             )
         }
@@ -336,36 +335,6 @@ private fun RenderAppControl(
         is AppSettingSpec.ActionButton -> {
             // Handled at section level for standalone rendering
         }
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Pref read/write helpers
-// ---------------------------------------------------------------------------
-
-private fun readBool(id: AppSettingId, viewModel: WheelViewModel): Boolean =
-    when (id.scope) {
-        SettingScope.GLOBAL -> viewModel.getGlobalBool(id.prefKey, id.defaultBool)
-        SettingScope.PER_WHEEL -> viewModel.getPerWheelBool(id.prefKey, id.defaultBool)
-    }
-
-private fun readInt(id: AppSettingId, viewModel: WheelViewModel): Int =
-    when (id.scope) {
-        SettingScope.GLOBAL -> viewModel.getGlobalInt(id.prefKey, id.defaultInt)
-        SettingScope.PER_WHEEL -> viewModel.getPerWheelInt(id.prefKey, id.defaultInt)
-    }
-
-private fun writeBool(id: AppSettingId, value: Boolean, viewModel: WheelViewModel) {
-    when (id.scope) {
-        SettingScope.GLOBAL -> viewModel.setGlobalBool(id.prefKey, value)
-        SettingScope.PER_WHEEL -> viewModel.setPerWheelBool(id.prefKey, value)
-    }
-}
-
-private fun writeInt(id: AppSettingId, value: Int, viewModel: WheelViewModel) {
-    when (id.scope) {
-        SettingScope.GLOBAL -> viewModel.setGlobalInt(id.prefKey, value)
-        SettingScope.PER_WHEEL -> viewModel.setPerWheelInt(id.prefKey, value)
     }
 }
 

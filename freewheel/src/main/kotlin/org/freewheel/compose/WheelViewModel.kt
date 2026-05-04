@@ -52,12 +52,13 @@ import org.freewheel.core.domain.WheelIdentity
 import org.freewheel.core.domain.WheelSettings
 import org.freewheel.core.domain.AlarmAction
 import org.freewheel.core.domain.AlarmType
+import org.freewheel.core.domain.AppSettingId
+import org.freewheel.core.domain.AppSettingsStore
 import org.freewheel.core.domain.SettingsCommandId
 import org.freewheel.core.domain.ChargerProfile
 import org.freewheel.core.domain.ChargerProfileStore
 import org.freewheel.core.domain.WheelProfile
 import org.freewheel.core.domain.WheelProfileStore
-import org.freewheel.core.domain.PreferenceDefaults
 import org.freewheel.core.domain.PreferenceKeys
 import org.freewheel.core.domain.dashboard.DashboardLayout
 import org.freewheel.core.domain.dashboard.DashboardLayoutSerializer
@@ -120,6 +121,7 @@ class WheelViewModel(
     private val telemetryFileIO: TelemetryFileIO,
     val profileStore: WheelProfileStore,
     val chargerProfileStore: ChargerProfileStore,
+    val appSettingsStore: AppSettingsStore,
     private val demoDataProvider: DemoDataProvider,
     private val alarmChecker: AlarmChecker = AlarmChecker(),
     val telemetryBuffer: TelemetryBuffer = TelemetryBuffer(),
@@ -408,8 +410,8 @@ class WheelViewModel(
 
     private fun buildDecoderConfig(): DecoderConfig {
         return DecoderConfig(
-            useMph = appConfig.useMph,
-            useFahrenheit = appConfig.useFahrenheit,
+            useMph = appSettingsStore.getBool(AppSettingId.USE_MPH),
+            useFahrenheit = appSettingsStore.getBool(AppSettingId.USE_FAHRENHEIT),
             useCustomPercents = appConfig.customPercents,
             cellVoltageTiltback = appConfig.cellVoltageTiltback,
             rotationSpeed = appConfig.rotationSpeed,
@@ -609,7 +611,7 @@ class WheelViewModel(
 
                     // Auto BLE capture
                     if (!captureLogger.isCapturing &&
-                        getGlobalBool(PreferenceKeys.AUTO_CAPTURE, PreferenceDefaults.AUTO_CAPTURE)
+                        appSettingsStore.getBool(AppSettingId.AUTO_CAPTURE)
                     ) {
                         startCapture()
                     }
@@ -920,7 +922,7 @@ class WheelViewModel(
         val newState = !_isLightOn.value
         _isLightOn.value = newState
         // If auto-torch is active, latch manual override so it stops controlling the light
-        if (getGlobalBool(PreferenceKeys.AUTO_TORCH_ENABLED, PreferenceDefaults.AUTO_TORCH_ENABLED)) {
+        if (appSettingsStore.getBool(AppSettingId.AUTO_TORCH_ENABLED)) {
             autoTorchManualOverride = true
         }
         viewModelScope.launch {
@@ -947,50 +949,6 @@ class WheelViewModel(
     fun clearEventLog() {
         binding?.connectionManager?.clearEventLog()
     }
-
-    // --- Slider persistence for write-only commands ---
-    // Keys are scoped to the currently-connected wheel's MAC. With no wheel connected
-    // there is no fallback to read or write — that would mean leaking values across wheels.
-
-    fun saveSliderValue(commandId: SettingsCommandId, value: Int) {
-        val mac = macPrefix.takeIf { it.isNotBlank() } ?: return
-        prefs.edit().putInt(PreferenceKeys.wheelSliderKey(mac, commandId.name), value).apply()
-    }
-
-    fun loadSliderValue(commandId: SettingsCommandId): Int? {
-        val mac = macPrefix.takeIf { it.isNotBlank() } ?: return null
-        val key = PreferenceKeys.wheelSliderKey(mac, commandId.name)
-        return if (prefs.contains(key)) prefs.getInt(key, 0) else null
-    }
-
-    // --- SharedPreferences helpers (PreferenceKeys-based, bypasses AppConfig) ---
-
-    private val macPrefix: String
-        get() = prefs.getString("last_mac", "") ?: ""
-
-    fun getGlobalBool(key: String, default: Boolean): Boolean =
-        prefs.getBoolean(key, default)
-
-    fun setGlobalBool(key: String, value: Boolean) =
-        prefs.edit().putBoolean(key, value).apply()
-
-    fun getGlobalInt(key: String, default: Int): Int =
-        prefs.getInt(key, default)
-
-    fun setGlobalInt(key: String, value: Int) =
-        prefs.edit().putInt(key, value).apply()
-
-    fun getPerWheelBool(key: String, default: Boolean): Boolean =
-        prefs.getBoolean("${macPrefix}_$key", default)
-
-    fun setPerWheelBool(key: String, value: Boolean) =
-        prefs.edit().putBoolean("${macPrefix}_$key", value).apply()
-
-    fun getPerWheelInt(key: String, default: Int): Int =
-        prefs.getInt("${macPrefix}_$key", default)
-
-    fun setPerWheelInt(key: String, value: Int) =
-        prefs.edit().putInt("${macPrefix}_$key", value).apply()
 
     fun executeWheelCommand(commandId: SettingsCommandId, intValue: Int = 0, boolValue: Boolean = false) {
         binding?.connectionManager?.executeCommand(commandId, intValue, boolValue)
@@ -1111,6 +1069,9 @@ class WheelViewModel(
 
     // --- Dashboard & Navigation config ---
 
+    private val macPrefix: String
+        get() = prefs.getString("last_mac", "") ?: ""
+
     fun loadDashboardLayout() {
         val key = "${macPrefix}_${PreferenceKeys.DASHBOARD_LAYOUT}"
         val raw = prefs.getString(key, null)
@@ -1198,7 +1159,7 @@ class WheelViewModel(
         ridesDir.mkdirs()
         val fileName = "${PlatformDateFormatter.formatRideFilename(System.currentTimeMillis())}.csv"
         val filePath = File(ridesDir, fileName).absolutePath
-        val includeGps = getGlobalBool(PreferenceKeys.LOG_LOCATION_DATA, false)
+        val includeGps = appSettingsStore.getBool(AppSettingId.LOG_LOCATION_DATA)
 
         val now = System.currentTimeMillis()
         if (rideLogger.start(filePath, includeGps, now)) {
@@ -1802,7 +1763,7 @@ class WheelViewModel(
     private fun startAutoTorchMonitoring() {
         viewModelScope.launch {
             activeTelemetryOrNull.filterNotNull().collect { telemetry ->
-                val enabled = getGlobalBool(PreferenceKeys.AUTO_TORCH_ENABLED, PreferenceDefaults.AUTO_TORCH_ENABLED)
+                val enabled = appSettingsStore.getBool(AppSettingId.AUTO_TORCH_ENABLED)
                 if (!enabled) {
                     if (autoTorchLightRequested) {
                         // Auto-torch was on but user disabled the feature — turn off
@@ -1813,14 +1774,8 @@ class WheelViewModel(
                     return@collect
                 }
 
-                val speedThreshold = getGlobalInt(
-                    PreferenceKeys.AUTO_TORCH_SPEED_THRESHOLD,
-                    PreferenceDefaults.AUTO_TORCH_SPEED_THRESHOLD
-                )
-                val useSunset = getGlobalBool(
-                    PreferenceKeys.AUTO_TORCH_USE_SUNSET,
-                    PreferenceDefaults.AUTO_TORCH_USE_SUNSET
-                )
+                val speedThreshold = appSettingsStore.getInt(AppSettingId.AUTO_TORCH_SPEED_THRESHOLD)
+                val useSunset = appSettingsStore.getBool(AppSettingId.AUTO_TORCH_USE_SUNSET)
                 val gpsLocation = _lastGpsLocation.value
 
                 // User manually toggled light — back off until reconnect

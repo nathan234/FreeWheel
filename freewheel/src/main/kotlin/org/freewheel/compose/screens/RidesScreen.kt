@@ -60,6 +60,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.freewheel.compose.WheelViewModel
+import org.freewheel.core.domain.AppSettingId
 import org.freewheel.core.domain.CommonLabels
 import org.freewheel.core.domain.RidesLabels
 import org.freewheel.data.TripDataDbEntry
@@ -90,7 +91,7 @@ fun RidesScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var trips by remember { mutableStateOf<List<TripDataDbEntry>>(emptyList()) }
-    val useMph = viewModel.appConfig.useMph
+    val useMph = viewModel.appSettingsStore.getBool(AppSettingId.USE_MPH)
 
     var isSelecting by remember { mutableStateOf(false) }
     var selectedIds by remember { mutableStateOf(setOf<Int>()) }

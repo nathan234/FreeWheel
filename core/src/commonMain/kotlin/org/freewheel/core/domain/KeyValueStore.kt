@@ -15,5 +15,10 @@ interface KeyValueStore {
     fun putLong(key: String, value: Long)
     fun getDouble(key: String, default: Double): Double
     fun putDouble(key: String, value: Double)
+    fun getBool(key: String, default: Boolean): Boolean
+    fun putBool(key: String, value: Boolean)
+    fun getInt(key: String, default: Int): Int
+    fun putInt(key: String, value: Int)
+    fun contains(key: String): Boolean
     fun remove(key: String)
 }

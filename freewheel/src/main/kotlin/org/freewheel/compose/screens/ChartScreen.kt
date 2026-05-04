@@ -34,6 +34,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import org.freewheel.compose.WheelViewModel
+import org.freewheel.core.domain.AppSettingId
 import org.freewheel.core.domain.ChartLabels
 import org.freewheel.core.domain.CommonLabels
 import org.freewheel.core.telemetry.ChartTimeRange
@@ -73,8 +74,8 @@ fun ChartScreen(
 ) {
     val samples by viewModel.chartSamples.collectAsStateWithLifecycle()
     val selectedRange by viewModel.chartTimeRange.collectAsStateWithLifecycle()
-    val useMph = viewModel.appConfig.useMph
-    val useFahrenheit = viewModel.appConfig.useFahrenheit
+    val useMph = viewModel.appSettingsStore.getBool(AppSettingId.USE_MPH)
+    val useFahrenheit = viewModel.appSettingsStore.getBool(AppSettingId.USE_FAHRENHEIT)
 
     var showSpeed by remember { mutableStateOf(true) }
     var showGpsSpeed by remember { mutableStateOf(false) }

@@ -19,7 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.freewheel.compose.WheelViewModel
 import org.freewheel.compose.components.DashboardContent
-import org.freewheel.core.domain.PreferenceKeys
+import org.freewheel.core.domain.AppSettingId
 import org.freewheel.core.domain.SpeedDisplayMode
 import org.freewheel.core.domain.dashboard.DashboardLayout
 import org.freewheel.core.domain.dashboard.NavigationTab
@@ -92,8 +92,8 @@ fun CustomTabScreen(
                 activeAlarms = activeAlarms,
                 isDemo = isDemo,
                 gpsSpeed = gpsSpeed,
-                useMph = viewModel.getGlobalBool(PreferenceKeys.USE_MPH, false),
-                useFahrenheit = viewModel.getGlobalBool(PreferenceKeys.USE_FAHRENHEIT, false),
+                useMph = viewModel.appSettingsStore.getBool(AppSettingId.USE_MPH),
+                useFahrenheit = viewModel.appSettingsStore.getBool(AppSettingId.USE_FAHRENHEIT),
                 telemetryBuffer = viewModel.telemetryBuffer,
                 samples = samples,
                 speedDisplayMode = SpeedDisplayMode.WHEEL,

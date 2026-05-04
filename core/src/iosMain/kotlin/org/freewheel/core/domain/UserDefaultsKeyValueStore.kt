@@ -50,6 +50,33 @@ class UserDefaultsKeyValueStore(
         defaults.setDouble(value, forKey = key)
     }
 
+    override fun getBool(key: String, default: Boolean): Boolean {
+        return if (defaults.objectForKey(key) != null) {
+            defaults.boolForKey(key)
+        } else {
+            default
+        }
+    }
+
+    override fun putBool(key: String, value: Boolean) {
+        defaults.setBool(value, forKey = key)
+    }
+
+    override fun getInt(key: String, default: Int): Int {
+        return if (defaults.objectForKey(key) != null) {
+            defaults.integerForKey(key).toInt()
+        } else {
+            default
+        }
+    }
+
+    override fun putInt(key: String, value: Int) {
+        defaults.setInteger(value.toLong(), forKey = key)
+    }
+
+    override fun contains(key: String): Boolean =
+        defaults.objectForKey(key) != null
+
     override fun remove(key: String) {
         defaults.removeObjectForKey(key)
     }

@@ -46,6 +46,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import org.freewheel.compose.WheelViewModel
+import org.freewheel.core.domain.AppSettingId
 import org.freewheel.core.domain.ChartLabels
 import org.freewheel.core.domain.CommonLabels
 import org.freewheel.core.domain.RidesLabels
@@ -102,8 +103,8 @@ fun TripDetailScreen(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val useMph = viewModel.appConfig.useMph
-    val useFahrenheit = viewModel.appConfig.useFahrenheit
+    val useMph = viewModel.appSettingsStore.getBool(AppSettingId.USE_MPH)
+    val useFahrenheit = viewModel.appSettingsStore.getBool(AppSettingId.USE_FAHRENHEIT)
 
     var state by remember { mutableStateOf<TripDetailState>(TripDetailState.Loading) }
 
