@@ -28,6 +28,8 @@ android {
         val buildDate = SimpleDateFormat("dd.MM.yyyy").format(Date())
         buildConfigField("String", "BUILD_TIME", "\"$buildTime\"")
         buildConfigField("String", "BUILD_DATE", "\"$buildDate\"")
+        // Diagnostics email — placeholder; swap to a real forwarding alias before release.
+        buildConfigField("String", "SUPPORT_EMAIL", "\"support@freewheel.invalid\"")
 
         // Google Maps API key from local.properties (not committed to git)
         val localProps = Properties()

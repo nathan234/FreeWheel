@@ -78,7 +78,8 @@ fun SettingsScreen(
     onNavigateToEditNavigation: () -> Unit = {},
     onNavigateToCapture: () -> Unit = {},
     onNavigateToEventLog: () -> Unit = {},
-    onNavigateToErrorLog: () -> Unit = {}
+    onNavigateToErrorLog: () -> Unit = {},
+    onNavigateToDiagnostics: () -> Unit = {}
 ) {
     val wheelSettings by viewModel.settingsState.collectAsStateWithLifecycle()
     val identity by viewModel.identityState.collectAsStateWithLifecycle()
@@ -228,6 +229,7 @@ fun SettingsScreen(
                                 AppSettingsDestinations.BLE_CAPTURE -> onNavigateToCapture()
                                 AppSettingsDestinations.CONNECTION_ERROR_LOG -> onNavigateToErrorLog()
                                 AppSettingsDestinations.WHEEL_EVENT_LOG -> onNavigateToEventLog()
+                                AppSettingsDestinations.DIAGNOSTICS -> onNavigateToDiagnostics()
                             }
                         }
                     )

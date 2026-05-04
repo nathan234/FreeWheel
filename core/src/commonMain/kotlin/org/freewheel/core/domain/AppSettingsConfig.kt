@@ -276,6 +276,10 @@ object AppSettingsConfig {
                 label = "Wheel Event Log",
                 destinationId = AppSettingsDestinations.WHEEL_EVENT_LOG,
                 visibility = veteranOrLeaperkim
+            ),
+            AppSettingSpec.NavLink(
+                "Diagnostics",
+                AppSettingsDestinations.DIAGNOSTICS
             )
         )
     )

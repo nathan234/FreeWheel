@@ -174,6 +174,10 @@ struct SettingsView: View {
             NavigationLink("Wheel Event Log") {
                 EventLogView(manager: wheelManager)
             }
+        case AppSettingsDestinations.shared.DIAGNOSTICS:
+            NavigationLink("Diagnostics") {
+                DiagnosticsView()
+            }
         default:
             EmptyView()
         }

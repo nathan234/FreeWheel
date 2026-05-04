@@ -1,4 +1,7 @@
 import Foundation
+import FreeWheelCore
+
+private typealias KmpRideMetadata = FreeWheelCore.RideMetadata
 
 /// Where a ride row came from. Mirrors the Android `RideSource` enum so the
 /// sqlite side + on-disk JSON stay semantically aligned.
@@ -85,6 +88,84 @@ class RideStore: ObservableObject {
     /// Must be called after init to load persisted rides.
     func initialize() {
         loadRides()
+        reconcileWithFilesystem()
+    }
+
+    /// Bidirectional reconcile between rides/ on disk and the in-memory
+    /// metadata index. Recovers orphan CSVs (e.g. from a crash) and drops
+    /// phantom entries (e.g. user deleted CSV via Files.app). Emits one
+    /// diagnostic event per finding plus a state snapshot.
+    private func reconcileWithFilesystem() {
+        let helper = RideReconcilerHelper()
+        let dir = Self.ridesDirectory()
+        try? FileManager.default.createDirectory(
+            at: dir, withIntermediateDirectories: true
+        )
+
+        let result = helper.reconcile(
+            ridesDir: dir.path,
+            listIndex: { [weak self] in
+                guard let self = self else { return [] }
+                return self.rides.map { IndexEntry(fileName: $0.fileName) }
+            },
+            addToIndex: { [weak self] kmpMeta in
+                guard let self = self else { return }
+                self.rides.insert(self.toLocal(kmpMeta), at: 0)
+            },
+            removeFromIndex: { [weak self] fileName in
+                guard let self = self else { return }
+                self.rides.removeAll { $0.fileName == fileName }
+            },
+            sanitySamples: 5,
+            sanityDurationSec: 10
+        )
+
+        if result.recovered > 0 || result.phantom > 0 {
+            self.rides.sort { $0.startDate > $1.startDate }
+            self.saveRides()
+        }
+
+        // App-state snapshot — captured once per reconcile pass (every launch).
+        let activeLogPath = Diagnostics.shared.activeFilePath()
+        let activeLogBytes: Int64
+        if let p = activeLogPath,
+           let attrs = try? FileManager.default.attributesOfItem(atPath: p),
+           let size = attrs[.size] as? Int64 {
+            activeLogBytes = size
+        } else {
+            activeLogBytes = 0
+        }
+        Diagnostics.shared.snapshot(
+            ridesOnDisk: Int32(result.csvCount),
+            indexEntries: Int32(result.indexCount),
+            phantoms: Int32(result.phantom),
+            orphansAtBoot: Int32(result.recovered),
+            isLogging: false,
+            currentlyConnected: false,
+            lastWheelType: nil,
+            lastWheelMacRedacted: nil,
+            currentLogFileBytes: activeLogBytes
+        )
+    }
+
+    private func toLocal(_ kmp: KmpRideMetadata) -> RideMetadata {
+        RideMetadata(
+            id: UUID().uuidString,
+            fileName: kmp.fileName,
+            startDate: Date(timeIntervalSince1970: Double(kmp.startTimeMillis) / 1000.0),
+            endDate: Date(timeIntervalSince1970: Double(kmp.endTimeMillis) / 1000.0),
+            duration: TimeInterval(kmp.durationSeconds),
+            distance: Double(kmp.distanceMeters) / 1000.0,
+            maxSpeed: kmp.maxSpeedKmh,
+            avgSpeed: kmp.avgSpeedKmh,
+            sampleCount: Int(kmp.sampleCount),
+            fileSize: 0,
+            maxCurrent: kmp.maxCurrentA,
+            maxPower: kmp.maxPowerW,
+            maxPwm: kmp.maxPwmPercent,
+            consumptionWh: kmp.consumptionWh,
+            consumptionWhPerKm: kmp.consumptionWhPerKm
+        )
     }
 
     // MARK: - CRUD

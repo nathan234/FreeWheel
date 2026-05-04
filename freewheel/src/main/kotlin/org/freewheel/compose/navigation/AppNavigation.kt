@@ -42,6 +42,7 @@ import org.freewheel.compose.screens.MetricDetailScreen
 import org.freewheel.compose.screens.NavigationEditScreen
 import org.freewheel.compose.screens.BleCaptureScreen
 import org.freewheel.compose.screens.ConnectionErrorLogScreen
+import org.freewheel.compose.screens.DiagnosticsScreen
 import org.freewheel.compose.screens.EventLogScreen
 import org.freewheel.compose.screens.ChargerScreen
 import org.freewheel.compose.screens.MapScreen
@@ -192,7 +193,8 @@ fun AppNavigation(viewModel: WheelViewModel) {
                     onNavigateToEditNavigation = { navController.navigate(Routes.EDIT_NAVIGATION) },
                     onNavigateToCapture = { navController.navigate(Routes.BLE_CAPTURE) },
                     onNavigateToEventLog = { navController.navigate(Routes.EVENT_LOG) },
-                    onNavigateToErrorLog = { navController.navigate(Routes.CONNECTION_ERROR_LOG) }
+                    onNavigateToErrorLog = { navController.navigate(Routes.CONNECTION_ERROR_LOG) },
+                    onNavigateToDiagnostics = { navController.navigate(Routes.DIAGNOSTICS) }
                 )
             }
 
@@ -260,6 +262,13 @@ fun AppNavigation(viewModel: WheelViewModel) {
             composable(Routes.EVENT_LOG) {
                 EventLogScreen(
                     viewModel = viewModel,
+                    onBack = { navController.popBackStack() }
+                )
+            }
+
+            // Diagnostics (overlay)
+            composable(Routes.DIAGNOSTICS) {
+                DiagnosticsScreen(
                     onBack = { navController.popBackStack() }
                 )
             }
