@@ -27,7 +27,7 @@ import kotlin.time.Duration.Companion.seconds
  *
  * Uses [FakeBleManager] with the real [DefaultWheelDecoderFactory] (not fakes)
  * to verify that real protocol packets flow through the full pipeline and
- * produce correct [WheelState] values.
+ * produce correct telemetry values.
  *
  * Packet data sourced from [KingsongDecoderComparisonTest].
  */

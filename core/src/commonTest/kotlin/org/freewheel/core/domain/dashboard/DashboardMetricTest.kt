@@ -1,7 +1,6 @@
 package org.freewheel.core.domain.dashboard
 
 import org.freewheel.core.domain.TelemetryState
-import org.freewheel.core.domain.WheelState
 import org.freewheel.core.domain.WheelType
 import org.freewheel.core.telemetry.MetricType
 import kotlin.test.Test
@@ -254,8 +253,8 @@ class DashboardMetricTest {
 
     @Test
     fun `effectiveMax uses maxSpeed as fallback`() {
-        val state = WheelState(maxSpeed = 60)
-        assertEquals(60.0, DashboardMetric.SPEED.effectiveMax(state.toTelemetryState()), 0.01)
+        val telemetry = TelemetryState(maxSpeed = 60)
+        assertEquals(60.0, DashboardMetric.SPEED.effectiveMax(telemetry), 0.01)
     }
 
     @Test
@@ -278,8 +277,8 @@ class DashboardMetricTest {
 
     @Test
     fun `effectiveMax prefers speedLimit over maxSpeed`() {
-        val state = WheelState(speedLimit = 90.0, maxSpeed = 60)
-        assertEquals(90.0, DashboardMetric.SPEED.effectiveMax(state.toTelemetryState()), 0.01)
+        val telemetry = TelemetryState(speedLimit = 90.0, maxSpeed = 60)
+        assertEquals(90.0, DashboardMetric.SPEED.effectiveMax(telemetry), 0.01)
     }
 
     // --- Classification flags ---

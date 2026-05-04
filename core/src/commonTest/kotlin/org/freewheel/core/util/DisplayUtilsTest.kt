@@ -2,7 +2,6 @@ package org.freewheel.core.util
 
 import org.freewheel.core.domain.AlarmType
 import org.freewheel.core.domain.WheelIdentity
-import org.freewheel.core.domain.WheelState
 import org.freewheel.core.domain.WheelType
 import org.freewheel.core.utils.currentTimeMillis
 import org.freewheel.core.telemetry.MetricType
@@ -213,67 +212,7 @@ class DisplayUtilsTest {
         assertEquals("Weak", DisplayUtils.signalDescription(-80))
     }
 
-    // ==================== WheelState.displayName ====================
-
-    @Test
-    fun `WheelState displayName with model`() {
-        val state = WheelState(wheelType = WheelType.KINGSONG, model = "KS-S18")
-        assertEquals("KingSong KS-S18", state.displayName)
-    }
-
-    @Test
-    fun `WheelState displayName brand dedup`() {
-        val state = WheelState(wheelType = WheelType.KINGSONG, model = "KingSong KS-16X")
-        assertEquals("KingSong KS-16X", state.displayName)
-    }
-
-    @Test
-    fun `WheelState displayName fallback to Dashboard`() {
-        val state = WheelState()
-        assertEquals("Dashboard", state.displayName)
-    }
-
-    @Test
-    fun `WheelState displayName VETERAN with no model returns Veteran`() {
-        val state = WheelState(wheelType = WheelType.VETERAN)
-        assertEquals("Veteran", state.displayName)
-    }
-
-    @Test
-    fun `WheelState displayName falls back to btName`() {
-        val state = WheelState(wheelType = WheelType.GOTWAY, btName = "GW-12345")
-        assertEquals("Begode GW-12345", state.displayName)
-    }
-
-    @Test
-    fun `WheelState displayName prefers model over btName`() {
-        val state = WheelState(wheelType = WheelType.GOTWAY, model = "MCM5", btName = "GW-12345")
-        assertEquals("Begode MCM5", state.displayName)
-    }
-
-    @Test
-    fun `WheelState displayName brand only when btName also empty`() {
-        val state = WheelState(wheelType = WheelType.GOTWAY)
-        assertEquals("Begode", state.displayName)
-    }
-
-    @Test
-    fun `WheelState displayName uses brand override for Extreme Bull`() {
-        val state = WheelState(wheelType = WheelType.GOTWAY, model = "Commander Max", brand = "Extreme Bull")
-        assertEquals("Extreme Bull Commander Max", state.displayName)
-    }
-
-    @Test
-    fun `WheelState displayName brand override without model`() {
-        val state = WheelState(wheelType = WheelType.GOTWAY, brand = "Extreme Bull")
-        assertEquals("Extreme Bull", state.displayName)
-    }
-
-    @Test
-    fun `WheelState displayName brand override dedup`() {
-        val state = WheelState(wheelType = WheelType.GOTWAY, model = "Extreme Bull RS", brand = "Extreme Bull")
-        assertEquals("Extreme Bull RS", state.displayName)
-    }
+    // ==================== WheelIdentity.displayName ====================
 
     @Test
     fun `WheelIdentity displayName uses brand override`() {
