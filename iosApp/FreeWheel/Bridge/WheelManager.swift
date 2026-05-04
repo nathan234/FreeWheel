@@ -20,23 +20,23 @@ class WheelManager: ObservableObject {
     @Published var isMockMode: Bool = false
     @Published var isTestMode: Bool = false
 
-    // Unit preferences (persisted to UserDefaults, keys from shared KMP PreferenceKeys)
-    @Published var useMph: Bool = UserDefaults.standard.bool(forKey: PreferenceKeys.shared.USE_MPH) {
+    // Unit preferences (persisted via AppSettingsStore; GLOBAL scope)
+    @Published var useMph: Bool = WheelManager.initSettingsStore.getBool(id: AppSettingId.useMph) {
         didSet {
-            UserDefaults.standard.set(useMph, forKey: PreferenceKeys.shared.USE_MPH)
+            appSettingsStore.setBool(id: AppSettingId.useMph, value: useMph)
             pushDecoderConfig()
         }
     }
-    @Published var useFahrenheit: Bool = UserDefaults.standard.bool(forKey: PreferenceKeys.shared.USE_FAHRENHEIT) {
+    @Published var useFahrenheit: Bool = WheelManager.initSettingsStore.getBool(id: AppSettingId.useFahrenheit) {
         didSet {
-            UserDefaults.standard.set(useFahrenheit, forKey: PreferenceKeys.shared.USE_FAHRENHEIT)
+            appSettingsStore.setBool(id: AppSettingId.useFahrenheit, value: useFahrenheit)
             pushDecoderConfig()
         }
     }
     @Published var isLightOn: Bool = false
 
-    @Published var speedDisplayMode: SpeedDisplayMode = SpeedDisplayMode.fromRawValue(UserDefaults.standard.integer(forKey: PreferenceKeys.shared.SPEED_DISPLAY_MODE)) ?? .wheel {
-        didSet { UserDefaults.standard.set(speedDisplayMode.rawValue, forKey: PreferenceKeys.shared.SPEED_DISPLAY_MODE) }
+    @Published var speedDisplayMode: SpeedDisplayMode = WheelManager.initSettingsStore.getSpeedDisplayMode() {
+        didSet { appSettingsStore.setSpeedDisplayMode(mode: speedDisplayMode) }
     }
 
     // Alarm settings (persisted to UserDefaults, stored in km/h and °C internally)
@@ -324,6 +324,12 @@ class WheelManager: ObservableObject {
     // would silently lose existing users' values.
     private let appSettingsStore = AppSettingsStore(store: UserDefaultsKeyValueStore(defaults: .standard))
     private let decoderConfigStore = DecoderConfigStore(store: UserDefaultsKeyValueStore(defaults: .standard))
+
+    // Initializer-only counterpart to appSettingsStore. @Published property
+    // initializers run before init() body and cannot reference `self`, so the
+    // instance store isn't available yet. Both wrap the same NSUserDefaults
+    // singleton — they are functionally interchangeable for read/write.
+    private static let initSettingsStore = AppSettingsStore(store: UserDefaultsKeyValueStore(defaults: .standard))
 
     // MARK: - Saved Wheel Profiles (KMP-backed)
 

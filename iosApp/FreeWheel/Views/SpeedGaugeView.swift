@@ -1,27 +1,6 @@
 import SwiftUI
 import FreeWheelCore
 
-/// Maps KMP SpeedDisplayMode to Swift-friendly Int raw values for UserDefaults persistence.
-extension FreeWheelCore.SpeedDisplayMode {
-    static func fromRawValue(_ rawValue: Int) -> FreeWheelCore.SpeedDisplayMode? {
-        switch rawValue {
-        case 0: return .wheel
-        case 1: return .gps
-        case 2: return .both
-        default: return nil
-        }
-    }
-
-    var rawValue: Int {
-        switch self {
-        case .wheel: return 0
-        case .gps: return 1
-        case .both: return 2
-        default: return 0
-        }
-    }
-}
-
 typealias SpeedDisplayMode = FreeWheelCore.SpeedDisplayMode
 
 private let gpsCyan = Color(red: 0, green: 0.737, blue: 0.831) // #00BCD4
