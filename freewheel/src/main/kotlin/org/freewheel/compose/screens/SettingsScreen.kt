@@ -49,7 +49,6 @@ import org.freewheel.BuildConfig
 import org.freewheel.compose.WheelViewModel
 import org.freewheel.compose.components.StatRow
 import org.freewheel.compose.components.WheelSettingsContent
-import org.freewheel.core.domain.AlarmAction
 import org.freewheel.core.domain.AppSettingId
 import org.freewheel.core.domain.AppSettingSpec
 import org.freewheel.core.domain.AppSettingVisibilityEvaluator
@@ -63,6 +62,7 @@ import org.freewheel.core.domain.SettingsLabels
 import org.freewheel.core.domain.WheelSettingsConfig
 import org.freewheel.core.domain.displayUnit
 import org.freewheel.core.domain.displayValue
+import org.freewheel.core.service.ConnectionState
 
 // Settings screen structure is driven by AppSettingsConfig (KMP shared).
 // Both Android and iOS render from the same config to prevent drift.
@@ -82,25 +82,41 @@ fun SettingsScreen(
     val connectionState by viewModel.connectionState.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
-    // App settings state (for reading/writing prefs and evaluating visibility)
-    val boolStates = remember { mutableStateMapOf<AppSettingId, Boolean>() }
-    val intStates = remember { mutableStateMapOf<AppSettingId, Int>() }
-
-    // Initialize state from prefs on first composition
     val sections = remember { AppSettingsConfig.sections() }
-    remember {
-        for (section in sections) {
-            for (control in section.controls) {
-                val id = control.settingId ?: continue
-                when (control) {
-                    is AppSettingSpec.Toggle -> boolStates[id] = viewModel.appSettingsStore.getBool(id)
-                    is AppSettingSpec.Slider -> intStates[id] = viewModel.appSettingsStore.getInt(id)
-                    is AppSettingSpec.Picker -> intStates[id] = viewModel.appSettingsStore.getInt(id)
-                    else -> {}
+
+    // Per-wheel scoping anchor. Keying the in-memory caches on this rebuilds them
+    // when the connected wheel changes, so leaving Settings open across a wheel
+    // switch does not bleed the previous wheel's per-wheel values into the new one.
+    val scopingMac = remember(connectionState) {
+        (connectionState as? ConnectionState.Connected)?.address
+            ?: viewModel.appSettingsStore.getLastConnectedMac()
+    }
+
+    val boolStates = remember(scopingMac) {
+        mutableStateMapOf<AppSettingId, Boolean>().apply {
+            for (section in sections) {
+                for (control in section.controls) {
+                    val id = control.settingId ?: continue
+                    if (control is AppSettingSpec.Toggle) {
+                        put(id, viewModel.appSettingsStore.getBool(id))
+                    }
                 }
             }
         }
-        true // Stable return for remember
+    }
+    val intStates = remember(scopingMac) {
+        mutableStateMapOf<AppSettingId, Int>().apply {
+            for (section in sections) {
+                for (control in section.controls) {
+                    val id = control.settingId ?: continue
+                    when (control) {
+                        is AppSettingSpec.Slider -> put(id, viewModel.appSettingsStore.getInt(id))
+                        is AppSettingSpec.Picker -> put(id, viewModel.appSettingsStore.getInt(id))
+                        else -> {}
+                    }
+                }
+            }
+        }
     }
 
     // Build visibility state
@@ -252,7 +268,7 @@ private fun RenderAppControl(
         is AppSettingSpec.Picker -> {
             val id = spec.settingId
             val currentIndex = intStates[id] ?: id.defaultInt
-            val selectedLabel = AlarmAction.fromValue(currentIndex).label
+            val selectedLabel = spec.options.getOrNull(currentIndex) ?: ""
             var expanded by remember { mutableStateOf(false) }
             Row(
                 modifier = Modifier.fillMaxWidth(),

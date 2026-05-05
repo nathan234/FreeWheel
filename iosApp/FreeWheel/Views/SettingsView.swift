@@ -70,19 +70,23 @@ struct SettingsView: View {
 
     // MARK: - Visibility State
 
+    /// Builds the visibility state by iterating every [AppSettingId] and routing
+    /// through the same bindings the controls render with. New ids are picked up
+    /// automatically — no hand-maintained subset that can silently drift behind
+    /// new visibility rules in shared config.
     private func buildVisibilityState() -> AppSettingsState {
-        let boolValues: [AppSettingId: KotlinBoolean] = [
-            .alarmsEnabled: KotlinBoolean(value: wheelManager.alarmsEnabled),
-            .pwmBasedAlarms: KotlinBoolean(value: wheelManager.pwmBasedAlarms),
-            .autoTorchEnabled: KotlinBoolean(value: wheelManager.autoTorchEnabled)
-        ]
-        let intValues: [AppSettingId: KotlinInt] = [
-            .warningSpeed: KotlinInt(value: Int32(wheelManager.warningSpeed)),
-            .warningPwm: KotlinInt(value: Int32(wheelManager.warningPwm))
-        ]
+        var bools: [AppSettingId: KotlinBoolean] = [:]
+        var ints: [AppSettingId: KotlinInt] = [:]
+        for id in AppSettingId.entries {
+            if id.isBool {
+                bools[id] = KotlinBoolean(value: boolBinding(id).wrappedValue)
+            } else {
+                ints[id] = KotlinInt(value: Int32(intBinding(id).wrappedValue))
+            }
+        }
         return AppSettingsState(
-            boolValues: boolValues,
-            intValues: intValues,
+            boolValues: bools,
+            intValues: ints,
             isConnected: wheelManager.connectionState.isConnected,
             wheelType: wheelManager.identity.wheelType
         )
@@ -117,27 +121,24 @@ struct SettingsView: View {
 
     @ViewBuilder
     private func renderPicker(_ spec: AppSettingSpec.Picker) -> some View {
-        let binding = Binding<FreeWheelCore.AlarmAction>(
-            get: {
-                FreeWheelCore.AlarmAction.companion.fromValue(value: Int32(wheelManager.alarmAction.value))
-            },
-            set: { newValue in
-                wheelManager.alarmAction = newValue
-            }
-        )
-        Picker(spec.label, selection: binding) {
-            ForEach([FreeWheelCore.AlarmAction.phoneOnly, .phoneAndWheel, .all], id: \.self) { action in
-                Text(action.label).tag(action)
+        let selection = intBinding(spec.settingId)
+        Picker(spec.label, selection: selection) {
+            ForEach(Array(spec.options.enumerated()), id: \.offset) { index, label in
+                Text(label).tag(index)
             }
         }
     }
 
     @ViewBuilder
     private func renderSlider(_ spec: AppSettingSpec.Slider) -> some View {
-        let valueBinding = doubleBinding(spec.settingId)
+        let intSource = intBinding(spec.settingId)
+        let doubleSource = Binding<Double>(
+            get: { Double(intSource.wrappedValue) },
+            set: { intSource.wrappedValue = Int($0) }
+        )
         let useMph = wheelManager.useMph
         let useFahrenheit = wheelManager.useFahrenheit
-        let displayVal = spec.displayValue(storedValue: Int32(valueBinding.wrappedValue),
+        let displayVal = spec.displayValue(storedValue: Int32(intSource.wrappedValue),
                                            useMph: useMph,
                                            useFahrenheit: useFahrenheit)
         let unitText = spec.displayUnit(useMph: useMph, useFahrenheit: useFahrenheit)
@@ -149,7 +150,7 @@ struct SettingsView: View {
                 Text("\(displayVal) \(unitText)")
                     .foregroundColor(.secondary)
             }
-            Slider(value: valueBinding,
+            Slider(value: doubleSource,
                    in: Double(spec.min)...Double(spec.max),
                    step: 1)
         }
@@ -227,6 +228,9 @@ struct SettingsView: View {
 
     // MARK: - Binding Helpers (bridge AppSettingId to WheelManager @Published properties)
 
+    /// Returns a bool binding for a known id. Hits assertionFailure for unmapped ids
+    /// so a new shared AppSettingId without an iOS wire-up surfaces in DEBUG instead
+    /// of silently dropping writes from the rendered control.
     private func boolBinding(_ id: AppSettingId) -> Binding<Bool> {
         switch id {
         case .useMph: return $wheelManager.useMph
@@ -241,35 +245,52 @@ struct SettingsView: View {
         case .autoCapture: return $wheelManager.autoCapture
         case .autoTorchEnabled: return $wheelManager.autoTorchEnabled
         case .autoTorchUseSunset: return $wheelManager.autoTorchUseSunset
-        default: return .constant(false)
+        default:
+            assertionFailure("boolBinding missing for AppSettingId \(id)")
+            return .constant(false)
         }
     }
 
-    private func doubleBinding(_ id: AppSettingId) -> Binding<Double> {
+    /// Returns an int binding for a known id. Sliders and pickers both store ints
+    /// in shared config, so this is the single binding helper for non-bool controls.
+    /// assertionFailure mirrors [boolBinding].
+    private func intBinding(_ id: AppSettingId) -> Binding<Int> {
         switch id {
         case .alarmAction: return Binding(
-            get: { Double(wheelManager.alarmAction.value) },
+            get: { Int(wheelManager.alarmAction.value) },
             set: { wheelManager.alarmAction = FreeWheelCore.AlarmAction.companion.fromValue(value: Int32($0)) }
         )
-        case .alarmFactor1: return $wheelManager.alarmFactor1
-        case .alarmFactor2: return $wheelManager.alarmFactor2
-        case .warningSpeed: return $wheelManager.warningSpeed
-        case .warningPwm: return $wheelManager.warningPwm
-        case .warningSpeedPeriod: return $wheelManager.warningSpeedPeriod
-        case .alarm1Speed: return $wheelManager.alarm1Speed
-        case .alarm1Battery: return $wheelManager.alarm1Battery
-        case .alarm2Speed: return $wheelManager.alarm2Speed
-        case .alarm2Battery: return $wheelManager.alarm2Battery
-        case .alarm3Speed: return $wheelManager.alarm3Speed
-        case .alarm3Battery: return $wheelManager.alarm3Battery
-        case .alarmCurrent: return $wheelManager.alarmCurrent
-        case .alarmPhaseCurrent: return $wheelManager.alarmPhaseCurrent
-        case .alarmTemperature: return $wheelManager.alarmTemperature
-        case .alarmMotorTemperature: return $wheelManager.alarmMotorTemperature
-        case .alarmBattery: return $wheelManager.alarmBattery
-        case .autoTorchSpeedThreshold: return $wheelManager.autoTorchSpeedThreshold
-        default: return .constant(0)
+        case .alarmFactor1: return doubleAsInt(\.alarmFactor1)
+        case .alarmFactor2: return doubleAsInt(\.alarmFactor2)
+        case .warningSpeed: return doubleAsInt(\.warningSpeed)
+        case .warningPwm: return doubleAsInt(\.warningPwm)
+        case .warningSpeedPeriod: return doubleAsInt(\.warningSpeedPeriod)
+        case .alarm1Speed: return doubleAsInt(\.alarm1Speed)
+        case .alarm1Battery: return doubleAsInt(\.alarm1Battery)
+        case .alarm2Speed: return doubleAsInt(\.alarm2Speed)
+        case .alarm2Battery: return doubleAsInt(\.alarm2Battery)
+        case .alarm3Speed: return doubleAsInt(\.alarm3Speed)
+        case .alarm3Battery: return doubleAsInt(\.alarm3Battery)
+        case .alarmCurrent: return doubleAsInt(\.alarmCurrent)
+        case .alarmPhaseCurrent: return doubleAsInt(\.alarmPhaseCurrent)
+        case .alarmTemperature: return doubleAsInt(\.alarmTemperature)
+        case .alarmMotorTemperature: return doubleAsInt(\.alarmMotorTemperature)
+        case .alarmBattery: return doubleAsInt(\.alarmBattery)
+        case .autoTorchSpeedThreshold: return doubleAsInt(\.autoTorchSpeedThreshold)
+        default:
+            assertionFailure("intBinding missing for AppSettingId \(id)")
+            return .constant(0)
         }
+    }
+
+    /// Bridge a Double-typed @Published on WheelManager to an Int binding. The
+    /// underlying storage is int (via AppSettingsStore), so the Double round-trip
+    /// is a UI artifact only.
+    private func doubleAsInt(_ keyPath: ReferenceWritableKeyPath<WheelManager, Double>) -> Binding<Int> {
+        Binding(
+            get: { Int(wheelManager[keyPath: keyPath]) },
+            set: { wheelManager[keyPath: keyPath] = Double($0) }
+        )
     }
 }
 

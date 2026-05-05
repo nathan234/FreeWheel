@@ -69,6 +69,22 @@ enum class AppSettingId(
     AUTO_TORCH_SPEED_THRESHOLD(PreferenceKeys.AUTO_TORCH_SPEED_THRESHOLD, SettingScope.GLOBAL),
     AUTO_TORCH_USE_SUNSET(PreferenceKeys.AUTO_TORCH_USE_SUNSET, SettingScope.GLOBAL);
 
+    /**
+     * Discriminator between boolean-valued and int-valued settings. Exhaustive: a new id
+     * must be classified here, which is what lets iOS auto-build its visibility-state map
+     * from [entries] instead of hand-maintaining a subset.
+     */
+    val isBool: Boolean
+        get() = when (this) {
+            USE_MPH, USE_FAHRENHEIT, ALARMS_ENABLED, PWM_BASED_ALARMS, ALARM_WHEEL,
+            AUTO_RECONNECT, SHOW_UNKNOWN_DEVICES, AUTO_LOG, LOG_LOCATION_DATA, AUTO_CAPTURE,
+            AUTO_TORCH_ENABLED, AUTO_TORCH_USE_SUNSET -> true
+            ALARM_ACTION, ALARM_FACTOR_1, ALARM_FACTOR_2, WARNING_SPEED, WARNING_PWM,
+            WARNING_SPEED_PERIOD, ALARM_1_SPEED, ALARM_1_BATTERY, ALARM_2_SPEED, ALARM_2_BATTERY,
+            ALARM_3_SPEED, ALARM_3_BATTERY, ALARM_CURRENT, ALARM_PHASE_CURRENT, ALARM_TEMPERATURE,
+            ALARM_MOTOR_TEMPERATURE, ALARM_BATTERY, AUTO_TORCH_SPEED_THRESHOLD -> false
+        }
+
     /** Default boolean value for this setting, or false if not a boolean setting. */
     val defaultBool: Boolean
         get() = when (this) {
