@@ -1,6 +1,7 @@
 package org.freewheel
 
 import android.app.Application
+import com.google.android.gms.maps.MapsInitializer
 import java.io.File
 import org.freewheel.compose.di.AppModule
 import org.freewheel.core.diagnostics.Diagnostics
@@ -12,6 +13,8 @@ class FreeWheel : Application() {
         super.onCreate()
         AppModule.initialize(this)
         initDiagnostics()
+        // Pre-init so BitmapDescriptorFactory is ready before the first GoogleMap composes.
+        MapsInitializer.initialize(this, MapsInitializer.Renderer.LATEST, null)
         if (BuildConfig.DEBUG) {
             Timber.plant(Timber.DebugTree(), EventsLoggingTree(applicationContext))
         }
