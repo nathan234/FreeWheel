@@ -157,98 +157,77 @@ class WheelTypeDetector {
      * Returns null if name doesn't match any known pattern.
      */
     private fun detectFromName(deviceName: String?): DetectionResult? {
-        val name = deviceName?.uppercase() ?: return null
+        val type = deriveTypeFromName(deviceName) ?: return null
+        val info = WheelConnectionInfo.forType(type) ?: return null
+        return DetectionResult.Detected(
+            wheelType = info.wheelType,
+            readServiceUuid = info.readServiceUuid,
+            readCharacteristicUuid = info.readCharacteristicUuid,
+            writeServiceUuid = info.writeServiceUuid,
+            writeCharacteristicUuid = info.writeCharacteristicUuid,
+            confidence = Confidence.HIGH
+        )
+    }
 
-        return when {
-            // Veteran/Leaperkim patterns (legacy DC 5A 5C protocol)
-            // Official Leaperkim app filters by "LK" prefix; all known LK wheels
-            // use the legacy Veteran protocol, not CAN-over-BLE.
-            name.contains("LEAPERKIM") ||
-            name.contains("LPKIM") ||
-            name.startsWith("LK") ||
-            name.contains("VETERAN") ||
-            name.contains("SHERMAN") ||
-            name.contains("LYNX") ||
-            name.contains("PATTON") ||
-            name.contains("ABRAMS") ||
-            name.contains("ORYX") ||
-            name.contains("NOSFET") ||
-            name.startsWith("NF") -> {
-                DetectionResult.Detected(
-                    wheelType = WheelType.VETERAN,
-                    readServiceUuid = BleUuids.Gotway.SERVICE,
-                    readCharacteristicUuid = BleUuids.Gotway.READ_CHARACTERISTIC,
-                    writeServiceUuid = BleUuids.Gotway.SERVICE,
-                    writeCharacteristicUuid = BleUuids.Gotway.WRITE_CHARACTERISTIC,
-                    confidence = Confidence.HIGH
-                )
+    companion object {
+        /**
+         * Derive wheel type from device name patterns alone.
+         *
+         * Public so the iOS scan-time path can pass a wheel-type hint into
+         * `WheelConnectionManager.connect(address, wheelType)` before service
+         * discovery completes. Returns null if the name doesn't match any
+         * known pattern (caller should fall through to topology-based detection).
+         */
+        fun deriveTypeFromName(deviceName: String?): WheelType? {
+            val name = deviceName?.uppercase() ?: return null
+            if (name.isEmpty()) return null
+
+            return when {
+                // Veteran/Leaperkim patterns (legacy DC 5A 5C protocol).
+                // Official Leaperkim app filters by "LK" prefix; all known LK wheels
+                // use the legacy Veteran protocol, not CAN-over-BLE.
+                name.contains("LEAPERKIM") ||
+                name.contains("LPKIM") ||
+                name.startsWith("LK") ||
+                name.contains("VETERAN") ||
+                name.contains("SHERMAN") ||
+                name.contains("LYNX") ||
+                name.contains("PATTON") ||
+                name.contains("ABRAMS") ||
+                name.contains("ORYX") ||
+                name.contains("NOSFET") ||
+                name.startsWith("NF") -> WheelType.VETERAN
+
+                // InMotion V2 patterns (before Gotway to avoid conflicts with names like "MASTER")
+                name.startsWith("V11") || name.startsWith("V12") || name.startsWith("V13") ||
+                name.startsWith("V14") || name.startsWith("V9") || name.startsWith("P6") ||
+                name.startsWith("E20") || name.startsWith("CLIMBER") || name.startsWith("GLIDE") ||
+                name.contains("INMOTION") -> WheelType.INMOTION_V2
+
+                // Gotway/Begode patterns
+                name.contains("GOTWAY") ||
+                name.startsWith("GW") ||
+                name.contains("BEGODE") ||
+                name.contains("MCMASTER") ||
+                name.contains("NIKOLA") ||
+                name.contains("MONSTER") ||
+                name.contains("MSP") ||
+                name.contains("RSHS") ||
+                name.contains("EX.N") ||
+                name.contains("HERO") ||
+                name.contains("MASTER") -> WheelType.GOTWAY
+
+                // KingSong patterns
+                name.contains("KS-") ||
+                name.contains("KINGSONG") ||
+                name.startsWith("KS") -> WheelType.KINGSONG
+
+                // Ninebot patterns
+                name.contains("NINEBOT") ||
+                name.contains("NB-") -> WheelType.NINEBOT
+
+                else -> null
             }
-
-            // InMotion V2 patterns (before Gotway to avoid conflicts with names like "MASTER")
-            name.startsWith("V11") || name.startsWith("V12") || name.startsWith("V13") ||
-            name.startsWith("V14") || name.startsWith("V9") || name.startsWith("P6") ||
-            name.startsWith("E20") || name.startsWith("CLIMBER") || name.startsWith("GLIDE") ||
-            name.contains("INMOTION") -> {
-                DetectionResult.Detected(
-                    wheelType = WheelType.INMOTION_V2,
-                    readServiceUuid = BleUuids.InMotionV2.SERVICE,
-                    readCharacteristicUuid = BleUuids.InMotionV2.READ_CHARACTERISTIC,
-                    writeServiceUuid = BleUuids.InMotionV2.SERVICE,
-                    writeCharacteristicUuid = BleUuids.InMotionV2.WRITE_CHARACTERISTIC,
-                    confidence = Confidence.HIGH
-                )
-            }
-
-            // Gotway/Begode patterns
-            name.contains("GOTWAY") ||
-            name.startsWith("GW") ||
-            name.contains("BEGODE") ||
-            name.contains("MCMASTER") ||
-            name.contains("NIKOLA") ||
-            name.contains("MONSTER") ||
-            name.contains("MSP") ||
-            name.contains("RSHS") ||
-            name.contains("EX.N") ||
-            name.contains("HERO") ||
-            name.contains("MASTER") -> {
-                DetectionResult.Detected(
-                    wheelType = WheelType.GOTWAY,
-                    readServiceUuid = BleUuids.Gotway.SERVICE,
-                    readCharacteristicUuid = BleUuids.Gotway.READ_CHARACTERISTIC,
-                    writeServiceUuid = BleUuids.Gotway.SERVICE,
-                    writeCharacteristicUuid = BleUuids.Gotway.WRITE_CHARACTERISTIC,
-                    confidence = Confidence.HIGH
-                )
-            }
-
-            // KingSong patterns
-            name.contains("KS-") ||
-            name.contains("KINGSONG") ||
-            name.startsWith("KS") -> {
-                DetectionResult.Detected(
-                    wheelType = WheelType.KINGSONG,
-                    readServiceUuid = BleUuids.Kingsong.SERVICE,
-                    readCharacteristicUuid = BleUuids.Kingsong.READ_CHARACTERISTIC,
-                    writeServiceUuid = BleUuids.Kingsong.SERVICE,
-                    writeCharacteristicUuid = BleUuids.Kingsong.WRITE_CHARACTERISTIC,
-                    confidence = Confidence.HIGH
-                )
-            }
-
-            // Ninebot patterns
-            name.contains("NINEBOT") ||
-            name.contains("NB-") -> {
-                DetectionResult.Detected(
-                    wheelType = WheelType.NINEBOT,
-                    readServiceUuid = BleUuids.Ninebot.SERVICE,
-                    readCharacteristicUuid = BleUuids.Ninebot.READ_CHARACTERISTIC,
-                    writeServiceUuid = BleUuids.Ninebot.SERVICE,
-                    writeCharacteristicUuid = BleUuids.Ninebot.WRITE_CHARACTERISTIC,
-                    confidence = Confidence.HIGH
-                )
-            }
-
-            else -> null
         }
     }
 }

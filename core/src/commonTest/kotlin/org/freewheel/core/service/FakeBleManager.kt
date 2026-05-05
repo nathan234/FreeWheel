@@ -70,8 +70,27 @@ class FakeBleManager : BleManagerPort {
         _connectionState.value = ConnectionState.Disconnected
     }
 
+    /**
+     * When true, [write] returns false until [configureForWheel] has been called
+     * with a successful result — mirroring the real Android/iOS BleManager, where
+     * `write()` requires the write characteristic to be bound. Off by default so
+     * legacy tests that exercise the SendBytes path without service discovery
+     * stay passing; opt in for tests that need to prove init dispatch waits for
+     * BLE configuration.
+     */
+    var requireConfigureBeforeWrite: Boolean = false
+
+    /** Number of write() calls that returned false because configure hadn't run yet. */
+    var writesDroppedBeforeConfigure: Int = 0
+        private set
+
     override suspend fun write(data: ByteArray): Boolean {
         if (!isConnected) return false
+        if (requireConfigureBeforeWrite &&
+            (lastConfigureForWheel == null || !configureForWheelResult)) {
+            writesDroppedBeforeConfigure += 1
+            return false
+        }
         writtenData.add(data.copyOf())
         return true
     }
@@ -95,13 +114,17 @@ class FakeBleManager : BleManagerPort {
     var lastConfigureForWheel: List<String>? = null
         private set
 
+    /** Return value for configureForWheel. Default true (happy path). */
+    var configureForWheelResult: Boolean = true
+
     override fun configureForWheel(
         readServiceUuid: String,
         readCharUuid: String,
         writeServiceUuid: String,
         writeCharUuid: String
-    ) {
+    ): Boolean {
         lastConfigureForWheel = listOf(readServiceUuid, readCharUuid, writeServiceUuid, writeCharUuid)
+        return configureForWheelResult
     }
 
     /** Simulate connection state changes for testing. */

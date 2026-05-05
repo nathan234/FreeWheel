@@ -7,6 +7,7 @@ import org.freewheel.core.domain.EventLogEntry
 import org.freewheel.core.domain.TelemetryState
 import org.freewheel.core.domain.WheelIdentity
 import org.freewheel.core.domain.WheelSettings
+import org.freewheel.core.domain.WheelType
 import org.freewheel.core.logging.BlePacketDirection
 import org.freewheel.core.logging.ConnectionErrorEvent
 import org.freewheel.core.protocol.DecoderConfig
@@ -45,6 +46,13 @@ data class WcmState(
     // Per-field throttle state for telemetry bounds validator (reducer stays pure
     // by carrying this across frames instead of mutating a field-side cache).
     val telemetryThrottleState: TelemetryThrottleState = TelemetryThrottleState(),
+    // Speculative wheel-type hint passed at connect() time (e.g. derived from
+    // the advertised name on iOS scan, or a saved per-MAC profile on Android).
+    // The hint biases service-discovery's Ambiguous branch toward this type
+    // instead of falling back to GOTWAY_VIRTUAL. Cleared once consumed by
+    // reduceServicesDiscovered. Distinct from `identity.wheelType`, which is
+    // CONFIRMED state populated only from successful detection or decoded data.
+    val wheelTypeHint: WheelType? = null,
     // Internal — not exposed as public flows
     val decoder: WheelDecoder? = null,
     val decoderConfig: DecoderConfig = DecoderConfig(),

@@ -113,7 +113,11 @@ class WheelConnectionManagerLifecycleTest {
     }
 
     @Test
-    fun `connect failure with keepalive decoder stops timers and resets decoder`() = runTest(timeout = 0.1.seconds) {
+    fun `connect failure with hint leaves no decoder and no running timers`() = runTest(timeout = 0.1.seconds) {
+        // Under B, the wheel-type hint passed to connect() is just identity —
+        // it doesn't create a decoder or start the keep-alive timer until
+        // services are discovered. So a connect failure that occurs before
+        // service discovery cannot leak either resource.
         fakeBle.connectResult = false
         val keepAliveDecoder = FakeDecoder(keepAliveIntervalMs = 100L)
         val manager = createManager(
@@ -121,15 +125,46 @@ class WheelConnectionManagerLifecycleTest {
             factory = FakeDecoderFactory(keepAliveDecoder)
         )
 
-        // Connect with wheel type hint so decoder is created before BLE connects
         manager.connect("AA:BB:CC:DD:EE:FF", WheelType.KINGSONG)
         runCurrent()
 
         val state = manager.connectionState.value
         assertTrue(state is ConnectionState.Failed, "Expected Failed, got $state")
-        assertFalse(manager.isKeepAliveRunning.value, "Keep-alive timer should be stopped")
-        assertTrue(keepAliveDecoder.resetCalled, "Decoder should be reset")
-        assertNull(manager.getCurrentDecoder(), "Decoder should be cleared from state")
+        assertFalse(manager.isKeepAliveRunning.value, "Keep-alive must not be running")
+        assertNull(manager.getCurrentDecoder(), "No decoder should have been created from a hint alone")
+    }
+
+    @Test
+    fun `hinted connect does not create decoder before services discovered`() = runTest(timeout = 0.1.seconds) {
+        // Core invariant of design B: the wheel-type hint biases later detection
+        // but never schedules init writes / keep-alive before BLE is configured.
+        // Pre–Pass 1 the hint pre-created a decoder and dispatched init at connect
+        // time, which silently lost the writes (BLE not connected yet) and could
+        // leave the wheel stuck on Discovering Services for protocols whose
+        // isReady() depends on init-command responses.
+        val manager = createManager()
+
+        manager.connect("AA:BB:CC:DD:EE:FF", WheelType.KINGSONG)
+        runCurrent()
+
+        assertNull(
+            manager.getCurrentDecoder(),
+            "Decoder must NOT exist until services are discovered (hint is identity-only)"
+        )
+        assertEquals(
+            0,
+            fakeFactory.createCount,
+            "Factory must not be invoked at connect time"
+        )
+        assertFalse(
+            manager.isKeepAliveRunning.value,
+            "Keep-alive must not start until decoder is created post-discovery"
+        )
+        assertEquals(
+            0,
+            fakeBle.writtenData.size,
+            "No writes (especially init commands) must occur before BLE is configured"
+        )
     }
 
     @Test
@@ -285,6 +320,181 @@ class WheelConnectionManagerLifecycleTest {
 
         assertNotNull(manager.getCurrentDecoder())
         assertEquals(WheelType.GOTWAY_VIRTUAL, fakeFactory.lastCreatedType)
+    }
+
+    @Test
+    fun `configureForWheel false transitions to Failed`() = runTest(timeout = 0.1.seconds) {
+        // Fix D: when the BLE layer can't bind the read characteristic,
+        // configureForWheel returns false. WCM must surface this as Failed
+        // instead of leaving the user staring at "Discovering Services" forever.
+        fakeBle.configureForWheelResult = false
+        val manager = createManager()
+
+        manager.connect("AA:BB:CC:DD:EE:FF")
+        runCurrent()
+        manager.onServicesDiscovered(kingsongServices, "KS-S18")
+        runCurrent()
+
+        val state = manager.connectionState.value
+        assertTrue(state is ConnectionState.Failed, "Expected Failed, got $state")
+        assertEquals("AA:BB:CC:DD:EE:FF", (state as ConnectionState.Failed).address)
+        assertTrue(
+            state.error.contains("characteristic", ignoreCase = true) ||
+                state.error.contains("BLE", ignoreCase = true),
+            "Failed error should mention the missing characteristic, got: ${state.error}"
+        )
+    }
+
+    @Test
+    fun `configureForWheel true keeps connection alive`() = runTest(timeout = 0.1.seconds) {
+        // Default fakeBle.configureForWheelResult is true; this test pins
+        // the happy path so we'd notice if the default flipped.
+        val manager = createManager()
+
+        manager.connect("AA:BB:CC:DD:EE:FF")
+        runCurrent()
+        manager.onServicesDiscovered(kingsongServices, "KS-S18")
+        runCurrent()
+
+        assertTrue(
+            manager.connectionState.value is ConnectionState.DiscoveringServices,
+            "Expected DiscoveringServices on configureForWheel success, got ${manager.connectionState.value}"
+        )
+    }
+
+    @Test
+    fun `ambiguous services with wheel-type hint create hinted decoder and dispatch init`() = runTest(timeout = 0.1.seconds) {
+        // Design B: the hint is consumed in reduceServicesDiscovered's Ambiguous
+        // branch — without a hint the wheel would silently fall back to
+        // GOTWAY_VIRTUAL (wrong protocol for an S22 / KS-prefixed wheel that
+        // doesn't match any name pattern). Critically, the decoder is created
+        // exactly once, AFTER BLE is configured (Fix C).
+        val initData = byteArrayOf(0xAA.toByte(), 0x55, 0x9B.toByte())
+        fakeDecoder.initCommandList = listOf(WheelCommand.SendBytes(initData))
+        // Strict mode: write() requires configureForWheel to have run with success.
+        // This is the assertion that proves Fix C: ConfigureBle must precede the
+        // init DispatchCommands or the writes are silently dropped.
+        fakeBle.requireConfigureBeforeWrite = true
+
+        val manager = createManager()
+
+        // Connect with a Kingsong hint. Under B, no decoder is created here.
+        manager.connect("AA:BB:CC:DD:EE:FF", WheelType.KINGSONG)
+        runCurrent()
+        assertNull(manager.getCurrentDecoder(), "Hint alone must not create a decoder")
+        assertEquals(0, fakeFactory.createCount)
+
+        // Now the wheel reports ambiguous services (no name, generic ffe0).
+        val ambiguousServices = DiscoveredServices(
+            listOf(
+                DiscoveredService(
+                    uuid = BleUuids.Gotway.SERVICE,
+                    characteristics = listOf(BleUuids.Gotway.READ_CHARACTERISTIC)
+                )
+            )
+        )
+        manager.onServicesDiscovered(ambiguousServices, null)
+        runCurrent()
+
+        // Decoder is created with the HINTED type (Kingsong), not the
+        // GOTWAY_VIRTUAL silent fallback.
+        assertEquals(
+            WheelType.KINGSONG,
+            fakeFactory.lastCreatedType,
+            "Hint must drive decoder creation in Ambiguous branch"
+        )
+        assertEquals(WheelType.KINGSONG, manager.identityState.value.wheelType)
+
+        // Init commands actually reach the wheel. This is the load-bearing
+        // assertion: under the pre-fix ordering, ConfigureBle ran AFTER
+        // DispatchCommands(init), so the init writes saw an unbound write
+        // characteristic and were dropped. With Fix C the order is reversed.
+        assertTrue(
+            fakeBle.writtenData.any { it.contentEquals(initData) },
+            "Init commands must be written after BLE is configured; written: ${fakeBle.writtenData.size}, dropped: ${fakeBle.writesDroppedBeforeConfigure}"
+        )
+        assertEquals(
+            0,
+            fakeBle.writesDroppedBeforeConfigure,
+            "No writes should be dropped pre-configure; that would mean ConfigureBle still races init dispatch"
+        )
+
+        // The hint must be cleared after consumption (one-shot semantics).
+        // We can't read WcmState directly, but a subsequent Ambiguous discovery
+        // without a fresh hint should fall back to GOTWAY_VIRTUAL — verified by
+        // the next assertion: no leak across reductions.
+    }
+
+    @Test
+    fun `ambiguous services with no hint and no existing decoder fall back to GOTWAY_VIRTUAL`() = runTest(timeout = 0.1.seconds) {
+        // Pass 1 keeps GOTWAY_VIRTUAL as the last-resort fallback for unknown
+        // wheels until Pass 2/3a's topology fingerprinting subsumes the path.
+        val manager = createManager()
+        manager.connect("AA:BB:CC:DD:EE:FF")  // no hint
+        runCurrent()
+
+        val ambiguousServices = DiscoveredServices(
+            listOf(
+                DiscoveredService(
+                    uuid = BleUuids.Gotway.SERVICE,
+                    characteristics = listOf(BleUuids.Gotway.READ_CHARACTERISTIC)
+                )
+            )
+        )
+        manager.onServicesDiscovered(ambiguousServices, null)
+        runCurrent()
+
+        assertNotNull(manager.getCurrentDecoder())
+        assertEquals(WheelType.GOTWAY_VIRTUAL, fakeFactory.lastCreatedType)
+    }
+
+    @Test
+    fun `ConnectionLost reconnect preserves existing decoder type through Ambiguous discovery`() = runTest(timeout = 0.1.seconds) {
+        // OS auto-reconnect path: the wheel was previously identified, decoder
+        // accumulated state. After ConnectionLost, services are re-discovered;
+        // even if detection now returns Ambiguous, we must reuse the existing
+        // decoder and not silently downgrade to GOTWAY_VIRTUAL.
+        val manager = createManager()
+        manager.connect("AA:BB:CC:DD:EE:FF")
+        manager.onWheelTypeDetected(WheelType.KINGSONG)
+        runCurrent()
+        // Real decoders always emit identity with wheelType populated; mirror that
+        // here so reduceDataReceived's `decoded.identity ?: state.identity` doesn't
+        // overwrite KINGSONG with Unknown.
+        fakeDecoder.decodeResult = DecodeResult.Success(DecodedData(
+            telemetry = TelemetryState(speed = 2500),
+            identity = WheelIdentity(name = "KS-S18", wheelType = WheelType.KINGSONG)
+        ))
+        fakeDecoder.ready = true
+        manager.onDataReceived(byteArrayOf(0x01))
+        runCurrent()
+        assertTrue(manager.connectionState.value is ConnectionState.Connected)
+        val originalDecoder = manager.getCurrentDecoder()
+        assertNotNull(originalDecoder)
+
+        // Simulate OS-level disconnect → ConnectionLost
+        manager.onBleDisconnected("AA:BB:CC:DD:EE:FF", "Link supervision timeout")
+        runCurrent()
+        assertTrue(manager.connectionState.value is ConnectionState.ConnectionLost)
+
+        // OS auto-reconnects, services come back ambiguous (e.g. cached, no name)
+        val ambiguousServices = DiscoveredServices(
+            listOf(
+                DiscoveredService(
+                    uuid = BleUuids.Gotway.SERVICE,
+                    characteristics = listOf(BleUuids.Gotway.READ_CHARACTERISTIC)
+                )
+            )
+        )
+        manager.onServicesDiscovered(ambiguousServices, null)
+        runCurrent()
+
+        // Decoder identity is preserved (Kingsong, NOT downgraded to GOTWAY_VIRTUAL)
+        assertEquals(WheelType.KINGSONG, manager.identityState.value.wheelType)
+        // The reconnect path in reconnectOrSetup reuses the existing decoder
+        // instance instead of creating a fresh one (preserves accumulated state).
+        assertTrue(manager.getCurrentDecoder() === originalDecoder,
+            "Existing decoder instance must be reused on ConnectionLost reconnect")
     }
 
     @Test

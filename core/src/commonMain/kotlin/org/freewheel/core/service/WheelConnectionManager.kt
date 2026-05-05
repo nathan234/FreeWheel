@@ -489,6 +489,7 @@ class WheelConnectionManager(
             is WheelEvent.ConnectRequested -> reduceConnect(state, event)
             is WheelEvent.DisconnectRequested -> reduceDisconnect(state)
             is WheelEvent.BleConnectResult -> reduceBleResult(state, event)
+            is WheelEvent.BleConfigureFailed -> reduceBleConfigureFailed(state, event)
             is WheelEvent.ServicesDiscovered -> reduceServicesDiscovered(state, event)
             is WheelEvent.WheelTypeDetected -> reduceWheelTypeDetected(state, event)
             is WheelEvent.DataReceived -> reduceDataReceived(state, event)
@@ -510,18 +511,18 @@ class WheelConnectionManager(
             return WcmTransition(state)
         }
 
-        var newState = WcmState(
+        // The wheel-type argument is purely a HINT — it biases service-discovery
+        // detection but does not create a decoder yet. Creating the decoder here
+        // would dispatch init commands before BLE is connected (and before
+        // ConfigureBle has bound the write characteristic), causing the wheel
+        // never to receive REQUEST_NAME / REQUEST_SERIAL and isReady() to stay
+        // false forever. Decoder creation is deferred to reduceServicesDiscovered
+        // → reconnectOrSetup, where ConfigureBle precedes init dispatch.
+        val newState = WcmState(
             decoderConfig = state.decoderConfig,
-            connectionState = ConnectionState.Connecting(event.address)
+            connectionState = ConnectionState.Connecting(event.address),
+            wheelTypeHint = event.wheelType
         )
-
-        // Decoder setup effects (if wheel type known)
-        var decoderEffects = emptyList<WcmEffect>()
-        event.wheelType?.let { type ->
-            val (decoderState, effects) = setupDecoderTransition(newState, type)
-            newState = decoderState
-            decoderEffects = effects
-        }
 
         // Emit cleanup effects based on what the current state requires.
         // Connecting → cancel the in-progress BLE job
@@ -540,7 +541,6 @@ class WheelConnectionManager(
             add(WcmEffect.StopTimers)
             add(WcmEffect.CancelCommands)
             state.decoder?.let { add(WcmEffect.ResetDecoder(it)) }
-            addAll(decoderEffects)
             add(WcmEffect.BleConnect(event.address))
         }
         return WcmTransition(newState, effects)
@@ -601,6 +601,16 @@ class WheelConnectionManager(
         }
     }
 
+    private fun reduceBleConfigureFailed(state: WcmState, event: WheelEvent.BleConfigureFailed): WcmTransition {
+        // Ignore stale results: if the user already disconnected or reconnected to
+        // a different address before configureForWheel reported back, drop the event.
+        val currentAddress = getCurrentAddress(state)
+        if (currentAddress != null && currentAddress != event.address) {
+            return WcmTransition(state)
+        }
+        return transitionToFailed(state, error = event.error, address = event.address)
+    }
+
     private fun reduceServicesDiscovered(state: WcmState, event: WheelEvent.ServicesDiscovered): WcmTransition {
         Logger.d(TAG, "onServicesDiscovered: deviceName=${event.deviceName}, services=${event.services.serviceUuids()}")
         var newState = state
@@ -608,8 +618,14 @@ class WheelConnectionManager(
             newState = newState.copy(identity = newState.identity.copy(btName = event.deviceName))
         }
 
+        // Capture and consume the speculative hint here (one-shot). The hint is
+        // only meaningful at the moment detection runs; subsequent reconnect or
+        // re-detection should not silently re-use a stale guess.
+        val hint = newState.wheelTypeHint
+        newState = newState.copy(wheelTypeHint = null)
+
         val result = wheelTypeDetector.detect(event.services, event.deviceName)
-        Logger.d(TAG, "Detection result: $result")
+        Logger.d(TAG, "Detection result: $result (hint=$hint)")
 
         return when (result) {
             is WheelTypeDetector.DetectionResult.Detected -> {
@@ -624,9 +640,26 @@ class WheelConnectionManager(
                 reconnectOrSetup(newState, result.wheelType, info)
             }
             is WheelTypeDetector.DetectionResult.Ambiguous -> {
-                Logger.d(TAG, "Ambiguous: ${result.possibleTypes}, using GOTWAY_VIRTUAL")
-                val info = WheelConnectionInfo.forType(WheelType.GOTWAY_VIRTUAL)
-                reconnectOrSetup(newState, WheelType.GOTWAY_VIRTUAL, info)
+                // Disambiguation precedence:
+                // 1. ConnectionLost reconnect with existing decoder → preserve it
+                //    (so OS auto-reconnect doesn't reset accumulated state).
+                // 2. Fresh connect with a hint (iOS scan-time name match, Android
+                //    saved profile, etc.) → use the hint. Far better than the
+                //    silent GOTWAY_VIRTUAL guess for non-Gotway wheels (S22 etc.).
+                // 3. Otherwise → GOTWAY_VIRTUAL fallback. Pass 2/3a will delete
+                //    this branch once topology fingerprinting subsumes it.
+                val existing = newState.decoder
+                val isReconnect = newState.connectionState is ConnectionState.ConnectionLost &&
+                    existing != null &&
+                    existing.wheelType != WheelType.GOTWAY_VIRTUAL
+                val chosenType = when {
+                    isReconnect -> existing!!.wheelType
+                    hint != null && hint != WheelType.GOTWAY_VIRTUAL && hint != WheelType.Unknown -> hint
+                    else -> WheelType.GOTWAY_VIRTUAL
+                }
+                Logger.d(TAG, "Ambiguous: ${result.possibleTypes}, chose $chosenType")
+                val info = WheelConnectionInfo.forType(chosenType)
+                reconnectOrSetup(newState, chosenType, info)
             }
             is WheelTypeDetector.DetectionResult.Unknown -> {
                 Logger.w(TAG, "Unknown wheel: ${result.reason}")
@@ -683,7 +716,17 @@ class WheelConnectionManager(
             )
         }
 
-        // First connection — full decoder setup
+        // First connection — full decoder setup.
+        //
+        // Ordering matters (Fix C): ConfigureBle must precede DispatchCommands(init).
+        // ConfigureBle runs synchronously inside the WCM event loop and binds the
+        // write characteristic on the BLE manager. DispatchCommands enqueues the
+        // init block on CommandScheduler's channel; the consumer coroutine runs on
+        // the same multi-threaded dispatcher and can pick the block up immediately
+        // — so if ConfigureBle hadn't run yet, bleManager.write() would see a null
+        // writeCharacteristic and silently return false, dropping init forever.
+        // Putting configEffects before decoderEffects guarantees the for-loop in
+        // executeEffects has bound the characteristic before any init write fires.
         val (decoderState, decoderEffects) = setupDecoderTransition(state, wheelType)
         val configEffects = if (info != null) {
             listOf(info.toConfigureBleEffect())
@@ -692,7 +735,7 @@ class WheelConnectionManager(
         }
         return WcmTransition(
             decoderState.copy(connectionInfo = info ?: state.connectionInfo),
-            decoderEffects + configEffects
+            configEffects + decoderEffects
         )
     }
 
@@ -700,9 +743,10 @@ class WheelConnectionManager(
         val info = WheelConnectionInfo.forType(event.wheelType)
         val (decoderState, decoderEffects) = setupDecoderTransition(state, event.wheelType)
         val newState = decoderState.copy(connectionInfo = info ?: state.connectionInfo)
-        // Only emit ConfigureBle if BLE hasn't been configured yet
+        // Same ordering invariant as reconnectOrSetup (Fix C): ConfigureBle before
+        // init dispatch so the characteristic is bound by the time write fires.
         val effects = if (info != null && state.connectionInfo == null) {
-            decoderEffects + info.toConfigureBleEffect()
+            listOf(info.toConfigureBleEffect()) + decoderEffects
         } else {
             decoderEffects
         }
@@ -1046,10 +1090,22 @@ class WheelConnectionManager(
                     effect.decoder.reset()
                 }
                 is WcmEffect.ConfigureBle -> {
-                    bleManager.configureForWheel(
+                    val ok = bleManager.configureForWheel(
                         effect.readServiceUuid, effect.readCharUuid,
                         effect.writeServiceUuid, effect.writeCharUuid
                     )
+                    if (!ok) {
+                        // Fail-fast (Fix D): the BLE layer couldn't bind the read
+                        // characteristic, so notifications will never fire. Surface
+                        // the failure to the reducer so it transitions to Failed
+                        // with full cleanup instead of leaving the user stuck on
+                        // "Discovering Services" forever.
+                        val address = getCurrentAddress(_wcmState.value) ?: ""
+                        events.send(WheelEvent.BleConfigureFailed(
+                            address = address,
+                            error = "Required BLE characteristic not found on wheel"
+                        ))
+                    }
                 }
                 is WcmEffect.LogConnectionError -> {
                     errorLogCallback?.invoke(effect.event)

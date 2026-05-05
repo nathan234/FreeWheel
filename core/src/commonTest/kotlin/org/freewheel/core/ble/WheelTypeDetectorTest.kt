@@ -727,4 +727,85 @@ class WheelTypeDetectorTest {
         assertEquals(BleUuids.InMotionV2.SERVICE, detected.readServiceUuid)
         assertEquals(BleUuids.InMotionV2.READ_CHARACTERISTIC, detected.readCharacteristicUuid)
     }
+
+    // ==================== deriveTypeFromName ====================
+    //
+    // Public API used by the iOS scan-time hint path: given just an advertised
+    // device name, return the wheel type — or null if the name doesn't match
+    // any known pattern. Mirrors `detectFromName` but exposes only the wheel
+    // type (no UUIDs), since the caller will look those up via
+    // WheelConnectionInfo.forType once detection in WCM completes.
+
+    @Test
+    fun `deriveTypeFromName returns null for null name`() {
+        assertNull(WheelTypeDetector.deriveTypeFromName(null))
+    }
+
+    @Test
+    fun `deriveTypeFromName returns null for blank name`() {
+        assertNull(WheelTypeDetector.deriveTypeFromName(""))
+    }
+
+    @Test
+    fun `deriveTypeFromName returns null for unknown name`() {
+        assertNull(WheelTypeDetector.deriveTypeFromName("UNKNOWN-WHEEL"))
+    }
+
+    @Test
+    fun `deriveTypeFromName returns Kingsong for KS- name`() {
+        assertEquals(WheelType.KINGSONG, WheelTypeDetector.deriveTypeFromName("KS-S18"))
+    }
+
+    @Test
+    fun `deriveTypeFromName returns Kingsong for KINGSONG keyword`() {
+        assertEquals(WheelType.KINGSONG, WheelTypeDetector.deriveTypeFromName("Kingsong-14D"))
+    }
+
+    @Test
+    fun `deriveTypeFromName returns Gotway for various names`() {
+        val gotwayNames = listOf("GotWay_75007", "GW-Test", "BEGODE-Hero", "Nikola+", "Monster-Pro")
+        for (name in gotwayNames) {
+            assertEquals(
+                WheelType.GOTWAY,
+                WheelTypeDetector.deriveTypeFromName(name),
+                "Expected GOTWAY for '$name'"
+            )
+        }
+    }
+
+    @Test
+    fun `deriveTypeFromName returns Veteran for LK NF and Sherman names`() {
+        val veteranNames = listOf("LK15724", "NF2790", "Sherman-Max", "Lynx", "PATTON-S", "VETERAN-S")
+        for (name in veteranNames) {
+            assertEquals(
+                WheelType.VETERAN,
+                WheelTypeDetector.deriveTypeFromName(name),
+                "Expected VETERAN for '$name'"
+            )
+        }
+    }
+
+    @Test
+    fun `deriveTypeFromName returns InMotion V2 for V11 V12 P6 names`() {
+        val imNames = listOf("V11Y-001", "V12HS", "P6-60032721", "INMOTION-P6")
+        for (name in imNames) {
+            assertEquals(
+                WheelType.INMOTION_V2,
+                WheelTypeDetector.deriveTypeFromName(name),
+                "Expected INMOTION_V2 for '$name'"
+            )
+        }
+    }
+
+    @Test
+    fun `deriveTypeFromName returns Ninebot for NINEBOT keyword`() {
+        assertEquals(WheelType.NINEBOT, WheelTypeDetector.deriveTypeFromName("NINEBOT-S2"))
+    }
+
+    @Test
+    fun `deriveTypeFromName is case-insensitive`() {
+        assertEquals(WheelType.KINGSONG, WheelTypeDetector.deriveTypeFromName("ks-s18"))
+        assertEquals(WheelType.GOTWAY, WheelTypeDetector.deriveTypeFromName("gotway_123"))
+        assertEquals(WheelType.VETERAN, WheelTypeDetector.deriveTypeFromName("sherman"))
+    }
 }

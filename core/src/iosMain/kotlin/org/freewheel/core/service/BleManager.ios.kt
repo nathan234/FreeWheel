@@ -70,7 +70,11 @@ actual class BleManager : BleManagerPort {
             override val peripheral: CBPeripheral,
             /** Cancelled automatically on any transition away from Discovering. */
             val scope: CoroutineScope = CoroutineScope(Dispatchers.Main + Job()),
-            val discoveredUuids: MutableSet<String> = mutableSetOf(),
+            // Track completion by event count, not unique UUID set (Fix E):
+            // some peripherals expose the same service UUID twice (e.g., a primary
+            // and an included service that share a UUID), and a Set<String> of UUIDs
+            // would never reach expectedCount, leaving us stuck in Discovering.
+            var completedCount: Int = 0,
             var expectedCount: Int = 0,
         ) : BleSessionState()
         data class Connected(override val peripheral: CBPeripheral) : BleSessionState()
@@ -314,19 +318,27 @@ actual class BleManager : BleManagerPort {
 
     /**
      * Configure characteristics based on WheelConnectionInfo.
+     *
+     * Returns true if the read characteristic was bound (notifications enabled),
+     * false if the underlying service or read characteristic was missing — the
+     * caller surfaces the failure as a connection error rather than waiting
+     * indefinitely for data.
      */
     override fun configureForWheel(
         readServiceUuid: String,
         readCharUuid: String,
         writeServiceUuid: String,
         writeCharUuid: String
-    ) {
+    ): Boolean {
         this.readServiceUuid = readServiceUuid
         this.readCharUuid = readCharUuid
         this.writeServiceUuid = writeServiceUuid
         this.writeCharUuid = writeCharUuid
-        // Set up characteristics now that UUIDs are configured
-        session.peripheral?.let { setupCharacteristics(it) }
+        // Set up characteristics now that UUIDs are configured. If the peripheral
+        // hasn't been bound yet (e.g., called before service discovery completed),
+        // treat it as a configuration failure — there's no characteristic to bind.
+        val peripheral = session.peripheral ?: return false
+        return setupCharacteristics(peripheral)
     }
 
     // ==================== Connection ====================
@@ -808,12 +820,13 @@ actual class BleManager : BleManagerPort {
             Logger.w("BleManager", "Characteristic discovery error for service $serviceUuid: ${error.localizedDescription}")
         }
 
-        // Track this service as having completed characteristic discovery
-        discovering.discoveredUuids.add(serviceUuid.lowercase())
+        // Increment per-event (Fix E). Counting events instead of unique UUIDs
+        // means peripherals with duplicate service UUIDs still complete discovery
+        // once every kicked-off discoverCharacteristics call has reported back.
+        discovering.completedCount += 1
 
-        // Check if all services we kicked off discovery for have reported back
         val allServicesDiscovered = discovering.expectedCount > 0 &&
-            discovering.discoveredUuids.size >= discovering.expectedCount
+            discovering.completedCount >= discovering.expectedCount
 
         if (allServicesDiscovered) {
             completeServiceDiscovery(peripheral)
@@ -862,8 +875,13 @@ actual class BleManager : BleManagerPort {
     /**
      * Match read/write characteristics against the configured UUIDs and enable notifications.
      * Must be called after configureForWheel() has set the UUID fields.
+     *
+     * Returns true if the read characteristic was bound. Returns false when
+     * either the read service or read characteristic is missing — the caller
+     * surfaces this as a connection failure. Write characteristic is best-effort:
+     * a missing write isn't fatal (some flows are read-only).
      */
-    private fun setupCharacteristics(peripheral: CBPeripheral) {
+    private fun setupCharacteristics(peripheral: CBPeripheral): Boolean {
         val rServiceUuid = readServiceUuid?.lowercase()
         val rCharUuid = readCharUuid?.lowercase()
         val wServiceUuid = writeServiceUuid?.lowercase()
@@ -871,7 +889,7 @@ actual class BleManager : BleManagerPort {
 
         if (rServiceUuid == null || rCharUuid == null) {
             Logger.w("BleManager", "Read UUIDs not configured, cannot set up characteristics")
-            return
+            return false
         }
 
         peripheral.services?.forEach { svc ->
@@ -916,6 +934,8 @@ actual class BleManager : BleManagerPort {
         if (writeCharacteristic == null && wCharUuid != null) {
             Logger.w("BleManager", "Write characteristic not found: service=$wServiceUuid char=$wCharUuid")
         }
+
+        return readCharacteristic != null
     }
 
     internal fun onCharacteristicValueUpdated(characteristic: CBCharacteristic, error: NSError?) {

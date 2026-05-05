@@ -45,6 +45,17 @@ sealed class WheelEvent {
     ) : WheelEvent()
 
     /**
+     * The platform BLE layer reported that it could not bind the required
+     * characteristics for the configured wheel type (e.g., missing service
+     * or read characteristic). Fail-fast so the user sees an explicit error
+     * instead of an indefinite "Discovering Services" wait.
+     */
+    class BleConfigureFailed(
+        val address: String,
+        val error: String
+    ) : WheelEvent()
+
+    /**
      * Wheel type has been determined (from auto-detect or explicit hint).
      */
     class WheelTypeDetected(

@@ -3,6 +3,7 @@ package org.freewheel.core.service
 import org.freewheel.core.alarm.AlarmChecker
 import org.freewheel.core.alarm.AlarmConfig
 import org.freewheel.core.alarm.AlarmResult
+import org.freewheel.core.ble.WheelTypeDetector
 import org.freewheel.core.logging.BlePacketDirection
 import org.freewheel.core.replay.BleCaptureReader
 import org.freewheel.core.replay.ReplayEngine
@@ -12,6 +13,7 @@ import org.freewheel.core.domain.CapabilitySet
 import org.freewheel.core.domain.TelemetryState
 import org.freewheel.core.domain.WheelIdentity
 import org.freewheel.core.domain.WheelSettings
+import org.freewheel.core.domain.WheelType
 import org.freewheel.core.protocol.DecoderConfig
 import org.freewheel.core.protocol.DefaultWheelDecoderFactory
 import org.freewheel.core.domain.SettingsCommandId
@@ -67,6 +69,25 @@ object WheelConnectionManagerHelper {
             decoderFactory = DefaultWheelDecoderFactory(),
             scope = scope
         )
+    }
+
+    /**
+     * Swift-friendly accessor for the WheelTypeDetector companion-object
+     * `deriveTypeFromName` helper. Swift cannot reach companion-object methods
+     * by reading them as static class members; this re-exports it as a plain
+     * helper function on this object.
+     */
+    fun deriveWheelTypeFromName(name: String?): WheelType? {
+        return WheelTypeDetector.deriveTypeFromName(name)
+    }
+
+    /**
+     * Connect with an optional scan-time wheel-type hint.
+     * Kotlin default parameters don't export to Swift; passing null for
+     * `wheelType` opts out of the hint and falls back to topology-only detection.
+     */
+    fun connectWithHint(manager: WheelConnectionManager, address: String, wheelType: WheelType?) {
+        manager.connect(address, wheelType)
     }
 
     /**

@@ -47,13 +47,18 @@ interface BleManagerPort {
      * Configure which BLE service/characteristic UUIDs to use for read and write.
      * Called after wheel type detection to set up the correct characteristics
      * and enable notifications.
+     *
+     * @return true if the read characteristic was bound (notifications enabled).
+     *         false if the underlying service or characteristic was missing —
+     *         the caller should treat the connection as Failed rather than wait
+     *         indefinitely for data that will never arrive.
      */
     fun configureForWheel(
         readServiceUuid: String,
         readCharUuid: String,
         writeServiceUuid: String,
         writeCharUuid: String
-    ) {}
+    ): Boolean = true
 
     /**
      * Start scanning for BLE devices advertising a specific service UUID.

@@ -476,30 +476,43 @@ actual class BleManager : BleManagerPort {
 
     // ==================== Characteristic Configuration ====================
 
-    fun setWriteCharacteristic(serviceUuid: String, charUuid: String) {
-        val peripheral = session.peripheral ?: return
-        val service = peripheral.getService(UUID.fromString(serviceUuid)) ?: return
+    fun setWriteCharacteristic(serviceUuid: String, charUuid: String): Boolean {
+        val peripheral = session.peripheral ?: return false
+        val service = peripheral.getService(UUID.fromString(serviceUuid)) ?: return false
         writeCharacteristic = service.getCharacteristic(UUID.fromString(charUuid))
+        return writeCharacteristic != null
     }
 
-    fun setReadCharacteristic(serviceUuid: String, charUuid: String) {
-        val peripheral = session.peripheral ?: return
-        val service = peripheral.getService(UUID.fromString(serviceUuid)) ?: return
+    fun setReadCharacteristic(serviceUuid: String, charUuid: String): Boolean {
+        val peripheral = session.peripheral ?: return false
+        val service = peripheral.getService(UUID.fromString(serviceUuid)) ?: run {
+            Logger.w("BleManager", "Service $serviceUuid not found on peripheral")
+            return false
+        }
         readCharacteristic = service.getCharacteristic(UUID.fromString(charUuid))
 
         readCharacteristic?.let { char ->
             peripheral.setNotify(char, true)
+            return true
         }
+        Logger.w("BleManager", "Read characteristic $charUuid not found in service $serviceUuid")
+        return false
     }
 
+    /**
+     * Returns true if the read characteristic was bound (notifications enabled).
+     * Returns false when the read service or characteristic is missing — the
+     * caller surfaces this as a connection failure. Write is best-effort.
+     */
     override fun configureForWheel(
         readServiceUuid: String,
         readCharUuid: String,
         writeServiceUuid: String,
         writeCharUuid: String
-    ) {
-        setReadCharacteristic(readServiceUuid, readCharUuid)
+    ): Boolean {
+        val readOk = setReadCharacteristic(readServiceUuid, readCharUuid)
         setWriteCharacteristic(writeServiceUuid, writeCharUuid)
+        return readOk
     }
 
     // ==================== Lifecycle ====================
