@@ -101,6 +101,7 @@ class KingsongDecoder : WheelDecoder {
                 processBmsData(data, frameType)
                 KsFrameOutput()
             }
+            FrameType.BMS_DATA_3, FrameType.BMS_DATA_4 -> KsFrameOutput()
             FrameType.BMS_SERIAL_1, FrameType.BMS_SERIAL_2 -> {
                 processBmsSerial(data, frameType)
                 null
@@ -235,8 +236,10 @@ class KingsongDecoder : WheelDecoder {
     /**
      * Frame 0xBB: Name and Type data
      *
-     * For firmware >= 1.17, bytes 18-19 contain a checksum of the name bytes.
-     * On mismatch, re-request the name.
+     * Bytes 18-19 are the standard 5A 5A footer — they are NOT a checksum.
+     * Legacy WheelLog.Android performs no checksum validation here, and the
+     * speculative "firmware ≥ 1.17 checksum" check produced an infinite
+     * REQUEST_NAME loop on S22.
      */
     private fun processNameTypeData(
         data: ByteArray,
@@ -251,7 +254,6 @@ class KingsongDecoder : WheelDecoder {
 
         name = data.decodeToString(2, 2 + end).trim()
 
-        // Extract model from name (e.g., "KS-16X-1234" -> "KS-16X")
         val parts = name.split("-")
         model = if (parts.size > 1) {
             parts.dropLast(1).joinToString("-")
@@ -259,7 +261,6 @@ class KingsongDecoder : WheelDecoder {
             name
         }
 
-        // Extract version from last part
         if (parts.size > 1) {
             try {
                 versionNum = parts.last().toInt()
@@ -271,23 +272,8 @@ class KingsongDecoder : WheelDecoder {
             }
         }
 
-        val commands = mutableListOf<WheelCommand>()
-
-        // Checksum validation for firmware >= 1.17
-        if (versionNum >= 117) {
-            var nameSum = 0
-            for (j in 2 until 2 + end) {
-                nameSum += data[j].toInt() and 0xFF
-            }
-            val checksum = ((data[18].toInt() and 0xFF) shl 8) or (data[19].toInt() and 0xFF)
-            if (checksum != nameSum) {
-                commands.add(WheelCommand.SendBytes(createRequest(InitCmd.REQUEST_NAME)))
-            }
-        }
-
         return KsFrameOutput(
-            identity = id.copy(name = name, model = model, version = version),
-            commands = commands
+            identity = id.copy(name = name, model = model, version = version)
         )
     }
 
@@ -813,11 +799,6 @@ class KingsongDecoder : WheelDecoder {
         )
     }
 
-    override val keepAliveIntervalMs: Long = 2500L
-
-    override fun getKeepAliveCommand(): WheelCommand =
-        WheelCommand.SendBytes(createRequest(CmdByte.KEEP_ALIVE))
-
     override fun isReady(): Boolean =
         model.isNotEmpty() && hasReceivedVoltage
 
@@ -1000,6 +981,10 @@ class KingsongDecoder : WheelDecoder {
         const val MAX_SPEED_ALERTS_2 = 0xB5
         const val BMS_DATA_1 = 0xF1
         const val BMS_DATA_2 = 0xF2
+        // Sent by some KingSong firmware (e.g. S22) but always empty — see
+        // legacy WheelLog.Android KingsongAdapter.java:262.
+        const val BMS_DATA_3 = 0xF3
+        const val BMS_DATA_4 = 0xF4
         const val BMS_SERIAL_1 = 0xE1
         const val BMS_SERIAL_2 = 0xE2
         const val BMS_FW_1 = 0xE5
@@ -1026,6 +1011,8 @@ class KingsongDecoder : WheelDecoder {
         FrameType.MAX_SPEED_ALERTS_2 to "MAX_SPEED_ALERTS_2",
         FrameType.BMS_DATA_1 to "BMS_DATA_1",
         FrameType.BMS_DATA_2 to "BMS_DATA_2",
+        FrameType.BMS_DATA_3 to "BMS_DATA_3",
+        FrameType.BMS_DATA_4 to "BMS_DATA_4",
         FrameType.BMS_SERIAL_1 to "BMS_SERIAL_1",
         FrameType.BMS_SERIAL_2 to "BMS_SERIAL_2",
         FrameType.BMS_FW_1 to "BMS_FW_1",
@@ -1059,7 +1046,6 @@ class KingsongDecoder : WheelDecoder {
         const val LED_PATTERN = 0x4D
         const val STROBE_MODE = 0x53
         const val ALARM_SPEED = 0x85
-        const val KEEP_ALIVE = 0x5E
         const val LIFT_SENSOR = 0x7E
         const val INSTRUMENT_BRIGHTNESS = 0x54
     }

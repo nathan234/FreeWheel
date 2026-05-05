@@ -16,6 +16,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -1244,24 +1245,16 @@ class KingsongDecoderTest {
 
     // ==================== Keep-Alive Tests ====================
 
+    /**
+     * KingSong wheels push telemetry on their own; legacy WheelLog.Android
+     * sends no keep-alive. A previously-added 0x5E heartbeat caused the S22
+     * to beep in lockstep with the write cadence. The decoder must rely on
+     * the WheelDecoder defaults (no keep-alive).
+     */
     @Test
-    fun `keepAliveIntervalMs is 2500`() {
-        assertEquals(2500L, decoder.keepAliveIntervalMs)
-    }
-
-    @Test
-    fun `getKeepAliveCommand returns valid frame`() {
-        val command = decoder.getKeepAliveCommand()
-        assertNotNull(command)
-        assertTrue(command is WheelCommand.SendBytes)
-        val frame = (command as WheelCommand.SendBytes).data
-        assertEquals(20, frame.size)
-        assertEquals(0xAA.toByte(), frame[0])
-        assertEquals(0x55.toByte(), frame[1])
-        assertEquals(0x5E.toByte(), frame[16], "Keep-alive frame type should be 0x5E")
-        assertEquals(0x14.toByte(), frame[17])
-        assertEquals(0x5A.toByte(), frame[18])
-        assertEquals(0x5A.toByte(), frame[19])
+    fun `decoder declares no keep-alive`() {
+        assertEquals(0L, decoder.keepAliveIntervalMs)
+        assertNull(decoder.getKeepAliveCommand())
     }
 
     // ==================== Lock/Unlock Tests ====================
@@ -1766,61 +1759,61 @@ class KingsongDecoderTest {
         assertTrue(SettingsCommandId.LIGHT_BRIGHTNESS in KingsongDecoder.SUPPORTED_COMMANDS, "LIGHT_BRIGHTNESS should be supported")
     }
 
-    // ==================== Name Checksum Tests ====================
+    // ==================== Name Frame Tests ====================
 
+    /**
+     * Bytes 18-19 of a 0xBB frame are the standard 5A 5A footer, not a checksum.
+     * Legacy WheelLog.Android does no checksum validation; the speculative
+     * "fw ≥ 1.17 checksum" check produced an infinite REQUEST_NAME loop on S22.
+     */
     @Test
-    fun `name frame 0xBB with valid checksum does not re-request`() {
+    fun `name frame 0xBB never triggers re-request regardless of bytes 18-19`() {
         decoder.reset()
-        // First set version >= 117 by sending a name with version 200
-        val nameStr = "KS-S18-0200"
+
+        // High-version firmware that previously enabled the speculative check
         val packet = ByteArray(20)
         packet[0] = 0xAA.toByte()
         packet[1] = 0x55
-        val nameBytes = nameStr.encodeToByteArray()
-        var nameSum = 0
-        for (i in nameBytes.indices) {
-            if (i + 2 < 16) {
-                packet[i + 2] = nameBytes[i]
-                nameSum += nameBytes[i].toInt() and 0xFF
-            }
-        }
-        packet[16] = 0xBB.toByte()
-        packet[17] = 0x14
-        // Set valid checksum at bytes 18-19
-        packet[18] = ((nameSum shr 8) and 0xFF).toByte()
-        packet[19] = (nameSum and 0xFF).toByte()
-
-        val result = decoder.decode(packet, defaultState, defaultConfig)
-        assertTrue(result is DecodeResult.Success)
-        val decoded = (result as DecodeResult.Success).data
-        assertTrue(decoded.commands.isEmpty(), "Valid checksum should not trigger re-request")
-    }
-
-    @Test
-    fun `name frame 0xBB with invalid checksum triggers re-request`() {
-        decoder.reset()
-        // Set version >= 117 by feeding a name first
-        val namePacket1 = buildKsNamePacket("KS-S18-0200")
-        decoder.decode(namePacket1, defaultState, defaultConfig)
-
-        // Now send another name frame with bad checksum (footer 5A5A won't match)
-        val nameStr = "KS-S18-0200"
-        val packet = ByteArray(20)
-        packet[0] = 0xAA.toByte()
-        packet[1] = 0x55
-        val nameBytes = nameStr.encodeToByteArray()
+        val nameBytes = "KS-S22-0205".encodeToByteArray()
         for (i in nameBytes.indices) {
             if (i + 2 < 16) packet[i + 2] = nameBytes[i]
         }
         packet[16] = 0xBB.toByte()
         packet[17] = 0x14
-        // Wrong checksum
-        packet[18] = 0xFF.toByte()
-        packet[19] = 0xFF.toByte()
+        // Standard footer — what real wheels actually send
+        packet[18] = 0x5A
+        packet[19] = 0x5A
 
         val result = decoder.decode(packet, defaultState, defaultConfig)
         assertTrue(result is DecodeResult.Success)
         val decoded = (result as DecodeResult.Success).data
-        assertTrue(decoded.commands.isNotEmpty(), "Invalid checksum should trigger name re-request")
+        assertTrue(decoded.commands.isEmpty(), "0xBB must never schedule a follow-up command")
+    }
+
+    // ==================== Empty BMS Frame Tests ====================
+
+    /**
+     * 0xF3 and 0xF4 are emitted by some KingSong firmware (e.g. S22) but are
+     * always empty. They must be silently accepted, not logged as Unhandled.
+     */
+    @Test
+    fun `empty BMS frames 0xF3 and 0xF4 decode silently without state change`() {
+        for (frameType in listOf(0xF3, 0xF4)) {
+            decoder.reset()
+            val packet = ByteArray(20)
+            packet[0] = 0xAA.toByte()
+            packet[1] = 0x55
+            packet[16] = frameType.toByte()
+            packet[17] = 0x14
+            packet[18] = 0x5A
+            packet[19] = 0x5A
+
+            val result = decoder.decode(packet, defaultState, defaultConfig)
+            assertTrue(result is DecodeResult.Success, "0x${frameType.toString(16)} should decode as Success, not Unhandled")
+            val decoded = (result as DecodeResult.Success).data
+            assertNull(decoded.telemetry, "no telemetry update")
+            assertNull(decoded.settings, "no settings update")
+            assertTrue(decoded.commands.isEmpty(), "no follow-up commands")
+        }
     }
 }
