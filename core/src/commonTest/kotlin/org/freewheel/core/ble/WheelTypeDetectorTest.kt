@@ -808,4 +808,99 @@ class WheelTypeDetectorTest {
         assertEquals(WheelType.GOTWAY, WheelTypeDetector.deriveTypeFromName("gotway_123"))
         assertEquals(WheelType.VETERAN, WheelTypeDetector.deriveTypeFromName("sherman"))
     }
+
+    // ==================== Catalog-driven Kingsong coverage ====================
+    //
+    // Pass 1.5 Substep 1: every Kingsong token from WheelCatalog must derive
+    // to KINGSONG. Catalog-driven so adding a new Kingsong model to the
+    // catalog can never silently regress the detector.
+
+    @Test
+    fun `every Kingsong catalog token derives to KINGSONG`() {
+        val tokens = org.freewheel.core.domain.wheel.WheelCatalog.entries
+            .filter { it.wheelType == WheelType.KINGSONG }
+            .flatMap { it.nameTokens }
+        assertTrue(tokens.isNotEmpty(), "WheelCatalog has no KINGSONG entries — test data invariant broken")
+        for (token in tokens) {
+            assertEquals(
+                WheelType.KINGSONG,
+                WheelTypeDetector.deriveTypeFromName(token),
+                "Catalog token '$token' should derive to KINGSONG",
+            )
+        }
+    }
+
+    @Test
+    fun `deriveTypeFromName normalizes spaces and hyphens`() {
+        // S22 PRO catalog token must match all common scan-name formattings.
+        for (variant in listOf("S22 PRO", "S22Pro", "S22-PRO", "s22 pro", "S22  PRO", " S22 PRO ")) {
+            assertEquals(
+                WheelType.KINGSONG,
+                WheelTypeDetector.deriveTypeFromName(variant),
+                "Variant '$variant' should normalize to KINGSONG",
+            )
+        }
+    }
+
+    @Test
+    fun `deriveTypeFromName matches plain S-series Kingsong models without KS prefix`() {
+        // Real-world S22 advertisements often appear as "S22" or "S22 PRO" with
+        // no "KS-" prefix. Pass 1 wired up the hint flow assuming the detector
+        // would catch these; this test pins that contract.
+        for (name in listOf("S18", "S19", "S22", "S16", "S22 PRO", "S16 PRO", "F22 PRO")) {
+            assertEquals(
+                WheelType.KINGSONG,
+                WheelTypeDetector.deriveTypeFromName(name),
+                "Plain Kingsong model name '$name' should derive to KINGSONG",
+            )
+        }
+    }
+
+    @Test
+    fun `deriveTypeFromName preserves InMotion precedence over new Kingsong patterns`() {
+        // V-series InMotion names must not be hijacked by widened Kingsong matching.
+        for (name in listOf("V11Y-001", "V12HS", "V13", "V14")) {
+            assertEquals(
+                WheelType.INMOTION_V2,
+                WheelTypeDetector.deriveTypeFromName(name),
+                "InMotion '$name' must not regress to KINGSONG",
+            )
+        }
+    }
+
+    @Test
+    fun `deriveTypeFromName preserves Gotway precedence over new Kingsong patterns`() {
+        // MASTER and MSP must stay Gotway even after Kingsong widening.
+        assertEquals(WheelType.GOTWAY, WheelTypeDetector.deriveTypeFromName("MASTER"))
+        assertEquals(WheelType.GOTWAY, WheelTypeDetector.deriveTypeFromName("MSP-1500"))
+    }
+
+    @Test
+    fun `deriveTypeFromName rejects too-short ambiguous prefixes`() {
+        // "S2" is shorter than any catalog Kingsong token and could be
+        // anything. Don't false-positive.
+        assertNull(WheelTypeDetector.deriveTypeFromName("S2"))
+    }
+
+    @Test
+    fun `deriveTypeFromName does not misclassify Ninebot names that embed Kingsong tokens`() {
+        // Codex regression catch (Pass 1.5 Substep 1 review): NINEBOT-S16
+        // normalizes to NINEBOTS16 which contains the catalog token "S16".
+        // A naive `contains()` match would route this to KINGSONG before the
+        // Ninebot branch fires. Catalog-driven matching must use prefix
+        // semantics so embedded model numbers don't beat later brand checks.
+        assertEquals(WheelType.NINEBOT, WheelTypeDetector.deriveTypeFromName("NINEBOT-S16"))
+        assertEquals(WheelType.NINEBOT, WheelTypeDetector.deriveTypeFromName("NB-F22"))
+        assertEquals(WheelType.NINEBOT, WheelTypeDetector.deriveTypeFromName("NINEBOT-S22"))
+    }
+
+    @Test
+    fun `deriveTypeFromName does not misclassify Gotway names that embed Kingsong tokens`() {
+        // Same class of bug as the Ninebot case — a Gotway-named wheel that
+        // happens to embed an S/F-series token. The Gotway branch already
+        // runs before Kingsong, so the brand keywords protect these names,
+        // but pin the contract anyway.
+        assertEquals(WheelType.GOTWAY, WheelTypeDetector.deriveTypeFromName("BEGODE-S22"))
+        assertEquals(WheelType.GOTWAY, WheelTypeDetector.deriveTypeFromName("MASTER-F22"))
+    }
 }

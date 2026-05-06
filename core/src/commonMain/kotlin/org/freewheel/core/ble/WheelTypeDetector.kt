@@ -1,6 +1,7 @@
 package org.freewheel.core.ble
 
 import org.freewheel.core.domain.WheelType
+import org.freewheel.core.domain.wheel.WheelCatalog
 
 /**
  * Detects wheel type based on discovered BLE services and characteristics.
@@ -217,10 +218,21 @@ class WheelTypeDetector {
                 name.contains("HERO") ||
                 name.contains("MASTER") -> WheelType.GOTWAY
 
-                // KingSong patterns
+                // KingSong patterns. Legacy heuristics ("KS-", "KINGSONG", "KS"
+                // prefix) plus catalog-driven coverage for plain model names
+                // like "S22", "S22 PRO", "F22 PRO" that real-world Kingsong
+                // firmware advertises without any KS prefix. Token list comes
+                // from WheelCatalog so adding a new model can't silently
+                // regress detection. Prefix match (NOT contains) so an
+                // embedded "S16"/"S22"/"F22" segment can't beat later brand
+                // checks (e.g. NINEBOT-S16 must stay Ninebot).
                 name.contains("KS-") ||
                 name.contains("KINGSONG") ||
-                name.startsWith("KS") -> WheelType.KINGSONG
+                name.startsWith("KS") ||
+                run {
+                    val normalized = name.normalizeWheelName()
+                    normalized.isNotEmpty() && kingsongTokens.any { normalized.startsWith(it) }
+                } -> WheelType.KINGSONG
 
                 // Ninebot patterns
                 name.contains("NINEBOT") ||
@@ -228,6 +240,30 @@ class WheelTypeDetector {
 
                 else -> null
             }
+        }
+
+        /**
+         * Normalize a wheel name for token matching: uppercase + strip
+         * non-alphanumerics. Collapses "S22 PRO", "S22Pro", "S22-PRO", and
+         * "s22 pro" to "S22PRO" so a single catalog token covers every
+         * real-world advertisement formatting.
+         */
+        private fun String.normalizeWheelName(): String =
+            uppercase().filter { it.isLetterOrDigit() }
+
+        /**
+         * Catalog-derived Kingsong model tokens, normalized once at first use.
+         * Source of truth: [WheelCatalog]. Adding a new Kingsong entry
+         * automatically widens detection coverage; the catalog-driven test
+         * loop fails fast if any catalog token doesn't resolve.
+         */
+        private val kingsongTokens: Set<String> by lazy {
+            WheelCatalog.entries
+                .filter { it.wheelType == WheelType.KINGSONG }
+                .flatMap { it.nameTokens }
+                .map { it.normalizeWheelName() }
+                .filter { it.isNotEmpty() }
+                .toSet()
         }
     }
 }
