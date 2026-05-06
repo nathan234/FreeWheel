@@ -3,10 +3,14 @@ package org.freewheel.core.service
 import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattService
 import android.content.Context
+import android.os.Build
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.Looper
 import com.welie.blessed.ConnectionPriority
+import org.freewheel.core.ble.BleAdvertisement
+import org.freewheel.core.ble.BleAdvertisementCache
+import org.freewheel.core.ble.BleUuids
 import org.freewheel.core.ble.DiscoveredService
 import org.freewheel.core.ble.DiscoveredServices
 import org.freewheel.core.utils.Lock
@@ -114,6 +118,14 @@ actual class BleManager : BleManagerPort {
     // Dedicated BLE thread — stored for cleanup in destroy()
     private var bleThread: HandlerThread? = null
 
+    // Scan-time advertisement cache (LRU + TTL). Survives across disconnects so
+    // scan→connect-A→disconnect→connect-B from the same scan list still yields
+    // evidence for B's connect path.
+    private val advertisementCache = BleAdvertisementCache()
+
+    override fun getAdvertisement(address: String): BleAdvertisement? =
+        advertisementCache.get(address)
+
     actual override val connectionState: StateFlow<ConnectionState>
         get() = _connectionState.asStateFlow()
 
@@ -182,6 +194,7 @@ actual class BleManager : BleManagerPort {
             scanResult: ScanResult
         ) {
             val scanning = session as? BleSessionState.Scanning ?: return
+            advertisementCache.put(buildAdvertisement(peripheral, scanResult))
             scanning.callback(
                 BleDevice(
                     address = peripheral.address,
@@ -561,6 +574,49 @@ actual class BleManager : BleManagerPort {
     }
 
     // ==================== Helpers ====================
+
+    private fun buildAdvertisement(
+        peripheral: BluetoothPeripheral,
+        scanResult: ScanResult
+    ): BleAdvertisement {
+        val record = scanResult.scanRecord
+        val advertisedServiceUuids: Set<String> = record?.serviceUuids
+            ?.map { BleUuids.canonicalize(it.uuid.toString()) }
+            ?.toSet() ?: emptySet()
+
+        val manufacturer: Map<Int, ByteArray> = record?.manufacturerSpecificData
+            ?.let { sa ->
+                buildMap {
+                    for (i in 0 until sa.size()) {
+                        val key = sa.keyAt(i)
+                        val value = sa.valueAt(i)
+                        if (value != null) put(key, value)
+                    }
+                }
+            } ?: emptyMap()
+
+        val serviceData: Map<String, ByteArray> = record?.serviceData
+            ?.mapKeys { (puuid, _) -> BleUuids.canonicalize(puuid.uuid.toString()) }
+            ?: emptyMap()
+
+        val connectable = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            scanResult.isConnectable
+        } else {
+            true
+        }
+
+        return BleAdvertisement(
+            address = peripheral.address,
+            advertisedName = record?.deviceName,
+            peripheralName = peripheral.name,
+            rssi = scanResult.rssi,
+            advertisedServiceUuids = advertisedServiceUuids,
+            manufacturerData = manufacturer,
+            serviceData = serviceData,
+            connectable = connectable,
+            lastSeenMs = System.currentTimeMillis(),
+        )
+    }
 
     private fun hciStatusToDisplayText(status: HciStatus): String = when (status) {
         HciStatus.SUCCESS -> "Disconnected"

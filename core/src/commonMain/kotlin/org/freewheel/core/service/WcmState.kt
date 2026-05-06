@@ -1,5 +1,6 @@
 package org.freewheel.core.service
 
+import org.freewheel.core.ble.BleAdvertisement
 import org.freewheel.core.ble.WheelConnectionInfo
 import org.freewheel.core.domain.BmsState
 import org.freewheel.core.domain.CapabilitySet
@@ -53,6 +54,10 @@ data class WcmState(
     // reduceServicesDiscovered. Distinct from `identity.wheelType`, which is
     // CONFIRMED state populated only from successful detection or decoded data.
     val wheelTypeHint: WheelType? = null,
+    // Scan-time advertisement evidence captured at connect() time. Read by the
+    // topology fingerprinting matcher (Pass 2). Cleared by reduceDisconnect to
+    // avoid stale carry-over across sessions.
+    val lastAdvertisement: BleAdvertisement? = null,
     // Internal — not exposed as public flows
     val decoder: WheelDecoder? = null,
     val decoderConfig: DecoderConfig = DecoderConfig(),

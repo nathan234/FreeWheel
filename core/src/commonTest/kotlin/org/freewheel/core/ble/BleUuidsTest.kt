@@ -78,6 +78,48 @@ class BleUuidsTest {
         assertEquals(BleUuids.CLIENT_CHARACTERISTIC_CONFIG, BleUuids.Kingsong.DESCRIPTOR)
         assertEquals(BleUuids.CLIENT_CHARACTERISTIC_CONFIG, BleUuids.InMotion.DESCRIPTOR)
     }
+
+    // ----- canonicalize -----
+
+    @Test
+    fun `canonicalize expands 4-char short UUID`() {
+        assertEquals(
+            "0000ffe0-0000-1000-8000-00805f9b34fb",
+            BleUuids.canonicalize("FFE0")
+        )
+    }
+
+    @Test
+    fun `canonicalize expands 8-char short UUID`() {
+        assertEquals(
+            "0000ffe1-0000-1000-8000-00805f9b34fb",
+            BleUuids.canonicalize("0000FFE1")
+        )
+    }
+
+    @Test
+    fun `canonicalize lowercases full 36-char UUID`() {
+        assertEquals(
+            "6e400001-b5a3-f393-e0a9-e50e24dcca9e",
+            BleUuids.canonicalize("6E400001-B5A3-F393-E0A9-E50E24DCCA9E")
+        )
+    }
+
+    @Test
+    fun `canonicalize is idempotent for already-canonical input`() {
+        val canonical = "0000ffe0-0000-1000-8000-00805f9b34fb"
+        assertEquals(canonical, BleUuids.canonicalize(canonical))
+    }
+
+    @Test
+    fun `matches treats 16-bit short form as equal to full form`() {
+        assertTrue(BleUuids.matches("FFE0", BleUuids.Gotway.SERVICE))
+    }
+
+    @Test
+    fun `matches treats 32-bit short form as equal to full form`() {
+        assertTrue(BleUuids.matches("0000FFE1", BleUuids.Kingsong.READ_CHARACTERISTIC))
+    }
 }
 
 /**
@@ -92,16 +134,9 @@ class BleUuidsTest {
  */
 class CoreBluetoothUuidExpansionTest {
 
-    private val BLE_BASE_SUFFIX = "-0000-1000-8000-00805F9B34FB"
-
-    /** Simulate the expansion done in BleManager.ios.kt */
-    private fun expandCoreBluetoothUuid(uuidString: String): String {
-        return when (uuidString.length) {
-            4 -> "0000$uuidString$BLE_BASE_SUFFIX"
-            8 -> "$uuidString$BLE_BASE_SUFFIX"
-            else -> uuidString
-        }
-    }
+    /** Now uses the shared canonicalization helper. */
+    private fun expandCoreBluetoothUuid(uuidString: String): String =
+        BleUuids.canonicalize(uuidString)
 
     @Test
     fun `expand 4-char short UUID to full 128-bit`() {

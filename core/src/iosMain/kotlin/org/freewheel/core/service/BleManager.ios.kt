@@ -1,5 +1,7 @@
 package org.freewheel.core.service
 
+import org.freewheel.core.ble.BleAdvertisement
+import org.freewheel.core.ble.BleAdvertisementCache
 import org.freewheel.core.ble.BleUuids
 import org.freewheel.core.ble.DiscoveredService
 import org.freewheel.core.ble.DiscoveredServices
@@ -120,6 +122,14 @@ actual class BleManager : BleManagerPort {
 
     actual override val connectionState: StateFlow<ConnectionState>
         get() = _connectionState.asStateFlow()
+
+    // Scan-time advertisement cache (LRU + TTL). Survives across disconnects so
+    // scan→connect-A→disconnect→connect-B from the same scan list still yields
+    // evidence for B's connect path.
+    private val advertisementCache = BleAdvertisementCache()
+
+    override fun getAdvertisement(address: String): BleAdvertisement? =
+        advertisementCache.get(address)
 
     // ==================== Transition Functions ====================
     //
@@ -583,12 +593,56 @@ actual class BleManager : BleManagerPort {
     internal fun onPeripheralDiscovered(peripheral: CBPeripheral, advertisementData: Map<Any?, *>, rssi: Int) {
         val scanning = session as? BleSessionState.Scanning ?: return
         val advertisedName = advertisementData[CBAdvertisementDataLocalNameKey] as? String
+        advertisementCache.put(buildAdvertisement(peripheral, advertisementData, advertisedName, rssi))
         val device = BleDevice(
             address = peripheral.identifier.UUIDString,
             name = peripheral.name ?: advertisedName,
             rssi = rssi
         )
         scanning.callback(device)
+    }
+
+    private fun buildAdvertisement(
+        peripheral: CBPeripheral,
+        advertisementData: Map<Any?, *>,
+        advertisedName: String?,
+        rssi: Int,
+    ): BleAdvertisement {
+        @Suppress("UNCHECKED_CAST")
+        val serviceUuids = (advertisementData[CBAdvertisementDataServiceUUIDsKey] as? List<CBUUID>)
+            ?.map { BleUuids.canonicalize(it.UUIDString) }
+            ?.toSet() ?: emptySet()
+
+        val manufacturer: Map<Int, ByteArray> = (advertisementData[CBAdvertisementDataManufacturerDataKey] as? NSData)
+            ?.let { data ->
+                val bytes = data.toByteArray()
+                if (bytes.size >= 2) {
+                    val companyId = (bytes[0].toInt() and 0xFF) or ((bytes[1].toInt() and 0xFF) shl 8)
+                    mapOf(companyId to bytes.copyOfRange(2, bytes.size))
+                } else {
+                    emptyMap()
+                }
+            } ?: emptyMap()
+
+        @Suppress("UNCHECKED_CAST")
+        val serviceData: Map<String, ByteArray> = (advertisementData[CBAdvertisementDataServiceDataKey] as? Map<CBUUID, NSData>)
+            ?.mapKeys { (uuid, _) -> BleUuids.canonicalize(uuid.UUIDString) }
+            ?.mapValues { (_, data) -> data.toByteArray() }
+            ?: emptyMap()
+
+        val connectable = (advertisementData[CBAdvertisementDataIsConnectable] as? NSNumber)?.boolValue ?: true
+
+        return BleAdvertisement(
+            address = peripheral.identifier.UUIDString,
+            advertisedName = advertisedName,
+            peripheralName = peripheral.name,
+            rssi = rssi,
+            advertisedServiceUuids = serviceUuids,
+            manufacturerData = manufacturer,
+            serviceData = serviceData,
+            connectable = connectable,
+            lastSeenMs = (NSDate().timeIntervalSince1970 * 1000.0).toLong(),
+        )
     }
 
     internal fun onPeripheralConnected(peripheral: CBPeripheral) {
@@ -661,7 +715,7 @@ actual class BleManager : BleManagerPort {
         val hasWheelServiceWithCharacteristics = cachedServices.any { svc ->
             val cbService = svc as? CBService ?: return@any false
             if (cbService.characteristics.isNullOrEmpty()) return@any false
-            val uuid = expandCoreBluetoothUuid(cbService.UUID.UUIDString).lowercase()
+            val uuid = BleUuids.canonicalize(cbService.UUID.UUIDString)
             uuid in wheelServiceUuids
         }
 
@@ -845,14 +899,14 @@ actual class BleManager : BleManagerPort {
         val discovering = session as? BleSessionState.Discovering ?: return
         discovering.scope.cancel()
 
-        // Build complete DiscoveredServices (expand short CoreBluetooth UUIDs to 128-bit)
+        // Build complete DiscoveredServices (canonicalize short CoreBluetooth UUIDs to 128-bit)
         val discoveredServices = peripheral.services?.mapNotNull { svc ->
             (svc as? CBService)?.let { cbService ->
                 DiscoveredService(
-                    uuid = expandCoreBluetoothUuid(cbService.UUID.UUIDString),
+                    uuid = BleUuids.canonicalize(cbService.UUID.UUIDString),
                     characteristics = cbService.characteristics?.mapNotNull { char ->
                         (char as? CBCharacteristic)?.let {
-                            expandCoreBluetoothUuid(it.UUID.UUIDString)
+                            BleUuids.canonicalize(it.UUID.UUIDString)
                         }
                     } ?: emptyList()
                 )
@@ -894,12 +948,12 @@ actual class BleManager : BleManagerPort {
 
         peripheral.services?.forEach { svc ->
             val cbService = svc as? CBService ?: return@forEach
-            val serviceUuid = expandCoreBluetoothUuid(cbService.UUID.UUIDString).lowercase()
+            val serviceUuid = BleUuids.canonicalize(cbService.UUID.UUIDString)
 
             if (serviceUuid == rServiceUuid) {
                 readCharacteristic = cbService.characteristics?.firstOrNull { char ->
                     (char as? CBCharacteristic)?.let {
-                        expandCoreBluetoothUuid(it.UUID.UUIDString).lowercase() == rCharUuid
+                        BleUuids.canonicalize(it.UUID.UUIDString) == rCharUuid
                     } ?: false
                 } as? CBCharacteristic
 
@@ -912,7 +966,7 @@ actual class BleManager : BleManagerPort {
             if (wServiceUuid != null && wCharUuid != null && serviceUuid == wServiceUuid) {
                 writeCharacteristic = cbService.characteristics?.firstOrNull { char ->
                     (char as? CBCharacteristic)?.let {
-                        expandCoreBluetoothUuid(it.UUID.UUIDString).lowercase() == wCharUuid
+                        BleUuids.canonicalize(it.UUID.UUIDString) == wCharUuid
                     } ?: false
                 } as? CBCharacteristic
 
@@ -1064,23 +1118,10 @@ private fun wheelServiceUUIDs(): List<CBUUID> = listOf(
 )
 
 // ==================== UUID Normalization ====================
-
-/**
- * Expand CoreBluetooth short UUID strings to full 128-bit format.
- *
- * CoreBluetooth returns short UUIDs for standard Bluetooth SIG services:
- * - 4-char: "FFE0" -> "0000FFE0-0000-1000-8000-00805F9B34FB"
- * - 8-char: "0000FFE0" -> "0000FFE0-0000-1000-8000-00805F9B34FB"
- * - Full 128-bit UUIDs are returned as-is.
- */
-private fun expandCoreBluetoothUuid(uuidString: String): String {
-    val BLE_BASE_SUFFIX = "-0000-1000-8000-00805F9B34FB"
-    return when (uuidString.length) {
-        4 -> "0000$uuidString$BLE_BASE_SUFFIX"
-        8 -> "$uuidString$BLE_BASE_SUFFIX"
-        else -> uuidString
-    }
-}
+//
+// Single source of truth for UUID canonicalization lives in
+// [BleUuids.canonicalize] (commonMain) so the same logic is exercised by
+// Android scanRecord parsing, iOS CoreBluetooth strings, and tests.
 
 // ==================== Extension Functions ====================
 

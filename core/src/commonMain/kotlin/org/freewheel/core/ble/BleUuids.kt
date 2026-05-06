@@ -91,15 +91,33 @@ object BleUuids {
     // ==================== Helper Functions ====================
 
     /**
-     * Normalize a UUID string to lowercase for comparison.
+     * Canonicalize a UUID string into the 128-bit lowercase form.
+     *
+     * - 4-char input: treated as 16-bit short UUID, expanded to `0000xxxx-...-34fb`
+     * - 8-char input: treated as 32-bit short UUID, expanded to `xxxxxxxx-...-34fb`
+     * - Other lengths (typically 36): lowercased and returned as-is
+     *
+     * Single source of truth — used by both Android scanRecord parsing and iOS
+     * CoreBluetooth UUID strings, and by tests that simulate either platform.
      */
-    fun normalize(uuid: String): String = uuid.lowercase()
+    fun canonicalize(uuid: String): String = when (uuid.length) {
+        4 -> "0000${uuid.lowercase()}$BLE_UUID_SUFFIX"
+        8 -> "${uuid.lowercase()}$BLE_UUID_SUFFIX"
+        else -> uuid.lowercase()
+    }
 
     /**
-     * Check if two UUIDs match (case-insensitive).
+     * Normalize a UUID string for comparison. Delegates to [canonicalize] so the
+     * BLE layer has one UUID-comparison semantics everywhere.
+     */
+    fun normalize(uuid: String): String = canonicalize(uuid)
+
+    /**
+     * Check if two UUIDs match. Both sides are canonicalized first, so short
+     * (16/32-bit) forms compare equal to their 128-bit expansion.
      */
     fun matches(uuid1: String, uuid2: String): Boolean =
-        normalize(uuid1) == normalize(uuid2)
+        canonicalize(uuid1) == canonicalize(uuid2)
 }
 
 /**

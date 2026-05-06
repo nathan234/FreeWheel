@@ -1,5 +1,6 @@
 package org.freewheel.core.service
 
+import org.freewheel.core.ble.BleAdvertisement
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -131,6 +132,12 @@ class FakeBleManager : BleManagerPort {
     fun setConnectionState(state: ConnectionState) {
         _connectionState.value = state
     }
+
+    /** Per-address advertisement evidence to be returned by [getAdvertisement]. */
+    val advertisements: MutableMap<String, BleAdvertisement> = mutableMapOf()
+
+    override fun getAdvertisement(address: String): BleAdvertisement? =
+        advertisements[address]
 
     override fun destroy() {
         destroyCallCount++

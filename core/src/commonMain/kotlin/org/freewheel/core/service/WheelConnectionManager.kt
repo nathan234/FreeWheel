@@ -209,7 +209,11 @@ class WheelConnectionManager(
      * @param wheelType Optional wheel type hint; if null, will be auto-detected
      */
     override fun connect(address: String, wheelType: WheelType?) {
-        events.trySend(WheelEvent.ConnectRequested(address, wheelType))
+        // Snapshot any advertisement we observed for this address during the
+        // last scan so the reducer can pass scan evidence to the topology
+        // fingerprint matcher. Cache lookup is non-suspending.
+        val advertisement = bleManager.getAdvertisement(address)
+        events.trySend(WheelEvent.ConnectRequested(address, wheelType, advertisement))
     }
 
     /**
@@ -304,6 +308,14 @@ class WheelConnectionManager(
      * Exposed for testing and advanced use cases.
      */
     fun getCurrentDecoder() = _wcmState.value.decoder
+
+    /**
+     * Last advertisement evidence captured at connect() time.
+     * Exposed for the topology fingerprint matcher and lifecycle tests; not part
+     * of the public surface (no [WheelConnectionManagerPort] entry).
+     */
+    internal val lastAdvertisement: org.freewheel.core.ble.BleAdvertisement?
+        get() = _wcmState.value.lastAdvertisement
 
     // ==================== Convenience command methods ====================
 
@@ -521,7 +533,8 @@ class WheelConnectionManager(
         val newState = WcmState(
             decoderConfig = state.decoderConfig,
             connectionState = ConnectionState.Connecting(event.address),
-            wheelTypeHint = event.wheelType
+            wheelTypeHint = event.wheelType,
+            lastAdvertisement = event.advertisement,
         )
 
         // Emit cleanup effects based on what the current state requires.

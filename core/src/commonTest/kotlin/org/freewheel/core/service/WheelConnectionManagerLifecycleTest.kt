@@ -6,6 +6,7 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import org.freewheel.core.ble.BleAdvertisement
 import org.freewheel.core.ble.BleUuids
 import org.freewheel.core.ble.DiscoveredService
 import org.freewheel.core.ble.DiscoveredServices
@@ -246,6 +247,65 @@ class WheelConnectionManagerLifecycleTest {
 
         assertEquals(1, fakeBle.disconnectCallCount)
         assertEquals("BB:BB:BB:BB:BB:BB", fakeBle.lastConnectAddress)
+    }
+
+    // ==================== Scan-evidence (Pass 1.5 substep 2) ====================
+
+    @Test
+    fun `connect snapshots advertisement from port into state`() = runTest(timeout = 0.1.seconds) {
+        val manager = createManager()
+        val ad = BleAdvertisement(
+            address = "AA:BB:CC:DD:EE:FF",
+            advertisedName = "S22 PRO",
+            peripheralName = "S22 PRO",
+            rssi = -55,
+            advertisedServiceUuids = setOf(BleUuids.Kingsong.SERVICE),
+            manufacturerData = mapOf(0x004C to byteArrayOf(0x01, 0x02)),
+            serviceData = emptyMap(),
+            connectable = true,
+            lastSeenMs = 1_234L,
+        )
+        fakeBle.advertisements["AA:BB:CC:DD:EE:FF"] = ad
+
+        manager.connect("AA:BB:CC:DD:EE:FF")
+        runCurrent()
+
+        assertEquals(ad, manager.lastAdvertisement)
+    }
+
+    @Test
+    fun `connect with no prior scan leaves lastAdvertisement null`() = runTest(timeout = 0.1.seconds) {
+        val manager = createManager()
+        // Cache empty — no scan happened.
+
+        manager.connect("AA:BB:CC:DD:EE:FF")
+        runCurrent()
+
+        assertNull(manager.lastAdvertisement)
+    }
+
+    @Test
+    fun `disconnect clears lastAdvertisement`() = runTest(timeout = 0.1.seconds) {
+        val manager = createManager()
+        fakeBle.advertisements["AA:BB:CC:DD:EE:FF"] = BleAdvertisement(
+            address = "AA:BB:CC:DD:EE:FF",
+            advertisedName = "GotWay_008977",
+            peripheralName = null,
+            rssi = -60,
+            advertisedServiceUuids = emptySet(),
+            manufacturerData = emptyMap(),
+            serviceData = emptyMap(),
+            connectable = true,
+            lastSeenMs = 1_000L,
+        )
+        manager.connect("AA:BB:CC:DD:EE:FF")
+        runCurrent()
+        assertNotNull(manager.lastAdvertisement)
+
+        manager.disconnect()
+        runCurrent()
+
+        assertNull(manager.lastAdvertisement)
     }
 
     // ==================== Service Discovery ====================

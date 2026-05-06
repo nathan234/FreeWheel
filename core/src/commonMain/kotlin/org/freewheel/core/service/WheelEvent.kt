@@ -1,5 +1,6 @@
 package org.freewheel.core.service
 
+import org.freewheel.core.ble.BleAdvertisement
 import org.freewheel.core.ble.DiscoveredServices
 import org.freewheel.core.domain.WheelType
 import org.freewheel.core.protocol.DecoderConfig
@@ -19,7 +20,8 @@ sealed class WheelEvent {
     /** Request to connect to a wheel. */
     class ConnectRequested(
         val address: String,
-        val wheelType: WheelType?
+        val wheelType: WheelType?,
+        val advertisement: BleAdvertisement? = null,
     ) : WheelEvent()
 
     /** Request to disconnect from the current wheel. */

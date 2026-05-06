@@ -1,5 +1,6 @@
 package org.freewheel.core.service
 
+import org.freewheel.core.ble.BleAdvertisement
 import kotlinx.coroutines.flow.StateFlow
 
 /**
@@ -73,6 +74,16 @@ interface BleManagerPort {
      * Default is a no-op; platform implementations track this for reconnect logic.
      */
     fun setBluetoothAdapterState(state: BluetoothAdapterState) {}
+
+    /**
+     * Look up the most recently observed advertisement for [address] from the
+     * scan-time cache, or null if the address was never seen, the entry expired,
+     * or this implementation does not maintain a cache.
+     *
+     * Used by [WheelConnectionManager.connect] to attach scan evidence to the
+     * connect event so the reducer can pass it to topology fingerprinting.
+     */
+    fun getAdvertisement(address: String): BleAdvertisement? = null
 
     /**
      * Release platform resources (threads, broadcast receivers, coroutine scopes).
