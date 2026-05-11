@@ -179,6 +179,26 @@ class WheelManager: ObservableObject {
     private var recoveryEpisodeAddress: String?
     private var lastLoggedReconnectAttempt: Int?
     private var pendingUserDisconnect: Bool = false
+
+    /// Tracks an in-flight recovery episode that posted a "Lost" notification.
+    /// Distinct from `recoveryEpisodeAddress` (which is set on every
+    /// ConnectionLost regardless of foreground state) — this field is set
+    /// only when the lost notification actually fires, so the follow-up
+    /// restored / given_up paths can't post a banner without a corresponding
+    /// "Lost" already in Notification Center.
+    ///
+    /// Lifecycle rule: read → act → clear at terminal handlers. Cleanup
+    /// helpers (`clearReconnectRecovery`, `clearPauseState`) must NOT touch
+    /// this field; every terminal path makes an explicit decision (post,
+    /// remove, or leave).
+    private struct NotificationEpisode {
+        let address: String
+        let wheelName: String
+        let issue: ConnectionIssueContext
+        let startedAtMs: Int64
+    }
+    private var notificationEpisode: NotificationEpisode?
+
     private static let ridePauseTimeoutSeconds: TimeInterval = 3600 // 1 hour
 
     // Auto-torch settings (persisted via AppSettingsStore; GLOBAL scope)
@@ -1024,6 +1044,36 @@ class WheelManager: ObservableObject {
             let recoveredSameWheel = priorRecoveryAddress == address
             lastConnectedAddress = address
             pendingUserDisconnect = false
+
+            // Notification episode: consume BEFORE clearRecoveryEpisode() per
+            // the read → act → clear lifecycle rule. The recovery cleanup
+            // helper must not touch notificationEpisode, so order doesn't
+            // matter, but consuming first keeps the contract explicit.
+            if let episode = notificationEpisode {
+                if episode.address == address {
+                    let durationMs = Int64(Date().timeIntervalSince1970 * 1000) - episode.startedAtMs
+                    backgroundManager.postConnectionRestoredNotification(
+                        wheelName: episode.wheelName,
+                        address: episode.address,
+                        originalIssue: episode.issue,
+                        recoveryDurationMs: durationMs
+                    )
+                } else {
+                    // Different-wheel .connected: replace the prior wheel's
+                    // stale "Lost" banner using the EPISODE's identifier
+                    // (not the new connection's). The banner being replaced
+                    // belongs to the prior wheel.
+                    backgroundManager.postRecoveryGivenUpNotification(
+                        wheelName: episode.wheelName,
+                        address: episode.address,
+                        originalIssue: episode.issue,
+                        terminalIssue: nil,
+                        reason: "Connected to a different wheel"
+                    )
+                }
+                notificationEpisode = nil
+            }
+
             if let priorRecoveryAddress, !recoveredSameWheel {
                 appendRecoveryLogEvent(
                     stage: "EXHAUSTED",
@@ -1115,6 +1165,20 @@ class WheelManager: ObservableObject {
                 ridePauseTimeoutTask = Task { @MainActor [weak self] in
                     try? await Task.sleep(nanoseconds: UInt64(Self.ridePauseTimeoutSeconds * 1_000_000_000))
                     guard !Task.isCancelled, let self else { return }
+                    // Pause timeout ends the recovery — replace any open
+                    // notification episode with a "Gave up" banner.
+                    // terminalIssue is nil because the timeout is a wall-
+                    // clock condition, not a typed BLE failure.
+                    if let episode = self.notificationEpisode {
+                        self.backgroundManager.postRecoveryGivenUpNotification(
+                            wheelName: episode.wheelName,
+                            address: episode.address,
+                            originalIssue: episode.issue,
+                            terminalIssue: nil,
+                            reason: "Ride paused too long without reconnect"
+                        )
+                        self.notificationEpisode = nil
+                    }
                     if let recoveryAddress = self.recoveryEpisodeAddress {
                         self.appendRecoveryLogEvent(
                             stage: "EXHAUSTED",
@@ -1134,6 +1198,12 @@ class WheelManager: ObservableObject {
                     reason: reason,
                     issue: issue
                 )
+                notificationEpisode = NotificationEpisode(
+                    address: address,
+                    wheelName: wheelName,
+                    issue: issue,
+                    startedAtMs: Int64(Date().timeIntervalSince1970 * 1000)
+                )
             }
 
             locationManager.stopTracking()
@@ -1148,6 +1218,19 @@ class WheelManager: ObservableObject {
             let shouldFinalizeRide = oldState.isConnected || isRidePaused || recoveryAddress != nil || explicitDisconnect
             pendingUserDisconnect = false
             guard shouldFinalizeRide else { return }
+
+            // Notification episode: read → act → clear. On user disconnect
+            // mid-recovery, drop the stale "Lost" banner instead of posting
+            // a replacement — the user knows they tapped Disconnect and an
+            // extra banner is noise. Non-user disconnects with an open
+            // episode are rare (transitionToIdle outside the user path) but
+            // also get the banner removed.
+            if let episode = notificationEpisode {
+                backgroundManager.removeConnectionEpisodeNotification(
+                    address: episode.address
+                )
+                notificationEpisode = nil
+            }
 
             if let recoveryAddress, explicitDisconnect {
                 appendRecoveryLogEvent(
@@ -1180,6 +1263,21 @@ class WheelManager: ObservableObject {
                 locationManager.stopTracking()
                 return
             }
+
+            // Terminal failure ends the recovery — replace the prior "Lost"
+            // banner with "Recovery gave up" carrying both the original
+            // disconnect cause and this terminal issue. Read → act → clear.
+            if let episode = notificationEpisode {
+                backgroundManager.postRecoveryGivenUpNotification(
+                    wheelName: episode.wheelName,
+                    address: episode.address,
+                    originalIssue: episode.issue,
+                    terminalIssue: issue,
+                    reason: error
+                )
+                notificationEpisode = nil
+            }
+
             if let recoveryAddress = recoveryEpisodeAddress {
                 appendRecoveryLogEvent(
                     stage: "EXHAUSTED",
