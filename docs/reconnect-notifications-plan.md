@@ -210,14 +210,28 @@ In `handleConnectionStateChange`:
 - `.connected` case: consume the episode **before** calling
   `clearReconnectRecovery()` — the recovery helper might one day grow
   side effects, and the doc rule above forbids relying on its order
-  with respect to notifications. If
-  `notificationEpisode?.address == address`, snapshot the episode,
-  call `postConnectionRestoredNotification(wheelName:, address:,
-  originalIssue: episode.issue, recoveryDurationMs: now -
-  episode.startedAtMs)`, then set `notificationEpisode = nil`. Don't
-  re-check `isInBackground` — the episode's existence already proves
-  we were backgrounded when "lost" was posted, and the OS will deliver
-  the replacement regardless of current foreground state.
+  with respect to notifications. Two sub-cases:
+  - **Same-address recovery** (`notificationEpisode?.address == address`):
+    snapshot the episode, call `postConnectionRestoredNotification(
+    wheelName:, address:, originalIssue: episode.issue,
+    recoveryDurationMs: now - episode.startedAtMs)`, then set
+    `notificationEpisode = nil`. Don't re-check `isInBackground` —
+    the episode's existence already proves we were backgrounded when
+    "lost" was posted, and the OS will deliver the replacement
+    regardless of current foreground state.
+  - **Different-address connect with an open episode**
+    (`notificationEpisode != nil && notificationEpisode.address !=
+    address`): the user (or auto-connect) bound to a different wheel
+    while the prior wheel's recovery was still notional, so the
+    original recovery is implicitly abandoned. Call
+    `postRecoveryGivenUpNotification(wheelName: episode.wheelName,
+    address: episode.address, originalIssue: episode.issue,
+    terminalIssue: nil, reason: "Connected to a different wheel")` so
+    the stale "Lost" banner is replaced with a coherent terminal
+    state, then clear `notificationEpisode`. The replacement uses
+    the **episode's** identifier (`connection_episode_<episode.address>`),
+    not the new connection's, since the banner being replaced belongs
+    to the prior wheel.
 - Terminal `.failed` (the non-preserved branch) and pause-timeout
   exhaustion (in `ridePauseTimeoutTask`): same read → act → clear
   pattern. If `notificationEpisode` is set, call
@@ -352,4 +366,13 @@ Codex review on 2026-05-11. Recorded here so we don't relitigate.
      tap Disconnect. Expect the "Lost" notification to be **removed**
      from Notification Center (via
      `removeConnectionEpisodeNotification`); no replacement banner
-     appears. Regression test for Codex finding #1 on this pass.
+     appears.
+  8. **Different-wheel connect with open episode.** Background app,
+     force a disconnect on wheel A → "Lost" notification appears.
+     Foreground and connect to wheel B (different address). Expect
+     the wheel-A "Lost" banner to be replaced by a "Given up"
+     notification (same `connection_episode_<wheelA-address>`
+     identifier) carrying wheel A's original `issueCode` and
+     `terminalReason="Connected to a different wheel"`. Connecting
+     to wheel B itself triggers no extra notification — that's a
+     fresh session, not a recovery.
