@@ -16,9 +16,12 @@ import org.freewheel.core.ble.ServiceTopology
 import org.freewheel.core.ble.WheelTopology
 import org.freewheel.core.ble.WheelTopologyMatcher
 import org.freewheel.core.ble.WheelTypeDetector
+import org.freewheel.core.domain.BmsSnapshot
+import org.freewheel.core.domain.BmsState
 import org.freewheel.core.domain.ProtocolFamily
 import org.freewheel.core.domain.TelemetryState
 import org.freewheel.core.domain.WheelIdentity
+import org.freewheel.core.domain.WheelSettings
 import org.freewheel.core.protocol.DecoderState
 import org.freewheel.core.domain.WheelType
 import org.freewheel.core.protocol.DecodedData
@@ -1153,6 +1156,65 @@ class WheelConnectionManagerLifecycleTest {
             fakeDecoder.resetCalled,
             "Same-address resume must not call decoder.reset()"
         )
+    }
+
+    @Test
+    fun `active fallback resume preserves telemetry identity bms and settings`() = runTest(timeout = 0.1.seconds) {
+        val manager = createManager()
+        manager.connect("AA:BB:CC:DD:EE:FF")
+        manager.onServicesDiscovered(kingsongServices, "KS-S18")
+        runCurrent()
+
+        // Seed all four domain flows by driving a decode that populates each.
+        val telemetry = TelemetryState(speed = 2500, voltage = 8400, batteryLevel = 73)
+        val identity = WheelIdentity(name = "KS-S18", serialNumber = "SN12345", wheelType = WheelType.KINGSONG)
+        val bms = BmsState(bms1 = BmsSnapshot(serialNumber = "BMS-A", remPerc = 73))
+        val settings = WheelSettings.Kingsong(pedalsMode = 1, ledMode = 2, ksAlarm1Speed = 30)
+        fakeDecoder.decodeResult = DecodeResult.Success(DecodedData(
+            telemetry = telemetry,
+            identity = identity,
+            bms = bms,
+            settings = settings,
+        ))
+        fakeDecoder.ready = true
+        manager.onDataReceived(byteArrayOf(0x01))
+        runCurrent()
+        assertTrue(manager.connectionState.value is ConnectionState.Connected)
+        assertEquals(2500, manager.telemetryState.value?.speed)
+        assertEquals("SN12345", manager.identityState.value.serialNumber)
+        assertEquals("BMS-A", manager.bmsState.value.bms1?.serialNumber)
+        assertEquals(1, (manager.settingsState.value as WheelSettings.Kingsong).pedalsMode)
+
+        // Force ConnectionLost
+        manager.onBleDisconnected(
+            "AA:BB:CC:DD:EE:FF",
+            "Connection timed out",
+            issue = ConnectionIssue.recoverable(
+                code = ConnectionIssueCode.CONNECTION_TIMED_OUT,
+                message = "Connection timed out"
+            )
+        )
+        runCurrent()
+
+        // Active fallback. Stop the decoder from over-writing the seeded state
+        // on the resume; we want to assert what survived the connect itself,
+        // not what the next decode produces.
+        fakeDecoder.decodeResult = DecodeResult.Buffering
+        manager.connect("AA:BB:CC:DD:EE:FF")
+        manager.onServicesDiscovered(kingsongServices, "KS-S18")
+        runCurrent()
+        assertTrue(manager.connectionState.value is ConnectionState.Connected)
+
+        // All four flows must still hold the pre-loss values — preserve is
+        // about the entire domain snapshot, not just the decoder reference.
+        assertEquals(2500, manager.telemetryState.value?.speed,
+            "Telemetry must survive same-address active resume")
+        assertEquals("SN12345", manager.identityState.value.serialNumber,
+            "Identity must survive same-address active resume")
+        assertEquals("BMS-A", manager.bmsState.value.bms1?.serialNumber,
+            "BMS must survive same-address active resume")
+        assertEquals(1, (manager.settingsState.value as WheelSettings.Kingsong).pedalsMode,
+            "Settings must survive same-address active resume")
     }
 
     @Test
