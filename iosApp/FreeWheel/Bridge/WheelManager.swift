@@ -1096,7 +1096,7 @@ class WheelManager: ObservableObject {
         // Connection lost — pause ride instead of ending it.
         // OS-level auto-reconnect handles mid-ride reconnection
         // (centralManager.connect in onPeripheralDisconnected).
-        if case .connectionLost(let address, let reason, _) = newState {
+        if case .connectionLost(let address, let reason, let issue) = newState {
             if recoveryEpisodeAddress != address {
                 recoveryEpisodeAddress = address
                 lastLoggedReconnectAttempt = nil
@@ -1128,7 +1128,12 @@ class WheelManager: ObservableObject {
             }
             if backgroundManager.isInBackground {
                 let wheelName = identity.displayName
-                backgroundManager.postConnectionLostNotification(wheelName: wheelName)
+                backgroundManager.postConnectionLostNotification(
+                    wheelName: wheelName,
+                    address: address,
+                    reason: reason,
+                    issue: issue
+                )
             }
 
             locationManager.stopTracking()
