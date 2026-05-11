@@ -48,7 +48,7 @@ class FlowObservation(private val scope: CoroutineScope) {
  * Handles CoroutineScope creation and provides Swift-friendly accessors.
  */
 object WheelConnectionManagerHelper {
-    private val IOS_RECOVERY_BACKOFF_MS = listOf(5_000L, 5_000L, 10_000L, 15_000L, 30_000L)
+    private val IOS_RECOVERY_BACKOFF_MS = listOf(15_000L, 5_000L, 10_000L, 15_000L, 30_000L)
 
     /**
      * Cancel the shared demoScope.
