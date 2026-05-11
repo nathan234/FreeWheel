@@ -53,6 +53,7 @@
 		V1000001221F000000002V /* DiagnosticsBootstrap.swift in Sources */ = {isa = PBXBuildFile; fileRef = V1000001221F000000001V /* DiagnosticsBootstrap.swift */; };
 		W1000001221F000000002W /* DiagnosticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = W1000001221F000000001W /* DiagnosticsView.swift */; };
 		X1000001221F000000002X /* WheelTypePickerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = X1000001221F000000001X /* WheelTypePickerSheet.swift */; };
+		Y1000001221F000000002Y /* ConnectionIssueKind.swift in Sources */ = {isa = PBXBuildFile; fileRef = Y1000001221F000000001Y /* ConnectionIssueKind.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -106,6 +107,7 @@
 		V1000001221F000000001V /* DiagnosticsBootstrap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticsBootstrap.swift; sourceTree = "<group>"; };
 		W1000001221F000000001W /* DiagnosticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticsView.swift; sourceTree = "<group>"; };
 		X1000001221F000000001X /* WheelTypePickerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WheelTypePickerSheet.swift; sourceTree = "<group>"; };
+		Y1000001221F000000001Y /* ConnectionIssueKind.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionIssueKind.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -173,6 +175,7 @@
 				M1000001221F000000001A /* ChargerManager.swift */,
 				P1000001221F000000001E /* RideReplayController.swift */,
 				V1000001221F000000001V /* DiagnosticsBootstrap.swift */,
+				Y1000001221F000000001Y /* ConnectionIssueKind.swift */,
 			);
 			path = Bridge;
 			sourceTree = "<group>";
@@ -352,6 +355,7 @@
 				V1000001221F000000002V /* DiagnosticsBootstrap.swift in Sources */,
 				W1000001221F000000002W /* DiagnosticsView.swift in Sources */,
 				X1000001221F000000002X /* WheelTypePickerSheet.swift in Sources */,
+				Y1000001221F000000002Y /* ConnectionIssueKind.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
