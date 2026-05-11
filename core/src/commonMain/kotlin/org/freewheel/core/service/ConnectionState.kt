@@ -34,12 +34,20 @@ sealed class ConnectionState {
     /**
      * Connection lost, may attempt reconnection.
      */
-    data class ConnectionLost(val address: String, val reason: String) : ConnectionState()
+    data class ConnectionLost(
+        val address: String,
+        val reason: String,
+        val issue: ConnectionIssue = ConnectionIssue.unknownRecoverable(reason),
+    ) : ConnectionState()
 
     /**
      * Connection failed with an error.
      */
-    data class Failed(val error: String, val address: String? = null) : ConnectionState()
+    data class Failed(
+        val error: String,
+        val address: String? = null,
+        val issue: ConnectionIssue = ConnectionIssue.unknownTerminal(error),
+    ) : ConnectionState()
 
     /**
      * BLE is connected and services discovered, but the wheel type couldn't be
@@ -75,6 +83,13 @@ sealed class ConnectionState {
 
     val failedAddress: String?
         get() = (this as? Failed)?.address
+
+    val connectionIssue: ConnectionIssue?
+        get() = when (this) {
+            is ConnectionLost -> issue
+            is Failed -> issue
+            else -> null
+        }
 
     val statusText: String
         get() = when (this) {

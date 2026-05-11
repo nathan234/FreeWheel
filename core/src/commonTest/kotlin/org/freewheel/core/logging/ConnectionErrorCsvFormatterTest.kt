@@ -126,6 +126,24 @@ class ConnectionErrorCsvFormatterTest {
     }
 
     @Test
+    fun `formatEvent RecoveryLifecycle includes attempt and escaped detail`() {
+        val event = ConnectionErrorEvent.RecoveryLifecycle(
+            timestampMs = 1710600042000L,
+            stage = ConnectionErrorEvent.RecoveryStage.ATTEMPTING,
+            address = "AA:BB:CC",
+            attempt = 3,
+            detail = "App-level retry, waiting on BLE"
+        )
+        val row = ConnectionErrorCsvFormatter.formatEvent(event, sessionStartMs = 1710600000000L)
+
+        assertTrue(row.contains(",42000,"))
+        assertTrue(row.contains("recovery_attempt"))
+        assertTrue(row.contains("address=AA:BB:CC"))
+        assertTrue(row.contains("attempt=3"))
+        assertTrue(row.contains("detail=App-level retry; waiting on BLE"))
+    }
+
+    @Test
     fun `formatEvent TelemetryOutOfBounds`() {
         val event = ConnectionErrorEvent.TelemetryOutOfBounds(
             timestampMs = 1710600015000L,

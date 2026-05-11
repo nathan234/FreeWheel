@@ -176,6 +176,9 @@ class WheelManager: ObservableObject {
     )
     private var ridePauseTimeoutTask: Task<Void, Never>?
     private var pausedRideAddress: String?
+    private var recoveryEpisodeAddress: String?
+    private var lastLoggedReconnectAttempt: Int?
+    private var pendingUserDisconnect: Bool = false
     private static let ridePauseTimeoutSeconds: TimeInterval = 3600 // 1 hour
 
     // Auto-torch settings (persisted via AppSettingsStore; GLOBAL scope)
@@ -565,8 +568,13 @@ class WheelManager: ObservableObject {
         }
 
         // Wire OS-level disconnects to connection manager
-        bleManager?.setBleDisconnectedCallback { [weak self] address, reason, attemptId in
-            self?.connectionManager?.onBleDisconnected(address: address, reason: reason, attemptId: attemptId.int64Value)
+        bleManager?.setBleDisconnectedCallback { [weak self] address, issue, attemptId in
+            self?.connectionManager?.onBleDisconnected(
+                address: address,
+                reason: issue.message,
+                issue: issue,
+                attemptId: attemptId.int64Value
+            )
         }
     }
 
@@ -817,9 +825,18 @@ class WheelManager: ObservableObject {
                             nextRetryMs: helper.reconnectNextRetryMs(state: kmpState)
                         )
                     } else if helper.isReconnectAttempting(state: kmpState) {
-                        self.reconnectState = .attempting(
-                            attempt: Int(helper.reconnectAttemptNumber(state: kmpState))
-                        )
+                        let attempt = Int(helper.reconnectAttemptNumber(state: kmpState))
+                        self.reconnectState = .attempting(attempt: attempt)
+                        if let address = self.recoveryEpisodeAddress,
+                           self.lastLoggedReconnectAttempt != attempt {
+                            self.lastLoggedReconnectAttempt = attempt
+                            self.appendRecoveryLogEvent(
+                                stage: "ATTEMPTING",
+                                address: address,
+                                attempt: attempt,
+                                detail: "App-level reconnect attempt"
+                            )
+                        }
                     }
                 }
             }
@@ -1003,7 +1020,27 @@ class WheelManager: ObservableObject {
     private func handleConnectionStateChange(from oldState: ConnectionStateWrapper, to newState: ConnectionStateWrapper) {
         // Track connected address
         if case .connected(let address, _) = newState {
+            let priorRecoveryAddress = recoveryEpisodeAddress
+            let recoveredSameWheel = priorRecoveryAddress == address
             lastConnectedAddress = address
+            pendingUserDisconnect = false
+            if let priorRecoveryAddress, !recoveredSameWheel {
+                appendRecoveryLogEvent(
+                    stage: "EXHAUSTED",
+                    address: priorRecoveryAddress,
+                    detail: "Connected to a different wheel during recovery"
+                )
+                endErrorLogSession(reason: "Connected to a different wheel during recovery")
+                clearRecoveryEpisode()
+            }
+            if recoveredSameWheel {
+                appendRecoveryLogEvent(
+                    stage: "SUCCEEDED",
+                    address: address,
+                    detail: "Connection restored"
+                )
+                clearRecoveryEpisode()
+            }
             // Per-wheel scoping anchor for AppSettingsStore / DecoderConfigStore.
             appSettingsStore.setLastMac(mac: address)
             // Reload PER_WHEEL alarm fields so @Published values reflect this wheel's
@@ -1049,15 +1086,26 @@ class WheelManager: ObservableObject {
                 startCapture()
             }
 
-            // Start error log session
-            startErrorLogSession(address: address)
+            // Start a new error log only for a fresh session. Recovery resumes
+            // keep the existing file open so the whole episode lives together.
+            if errorLogFileHandle == nil {
+                startErrorLogSession(address: address)
+            }
         }
 
         // Connection lost — pause ride instead of ending it.
         // OS-level auto-reconnect handles mid-ride reconnection
         // (centralManager.connect in onPeripheralDisconnected).
-        if case .connectionLost(_, let reason) = newState {
-            endErrorLogSession(reason: reason)
+        if case .connectionLost(let address, let reason, _) = newState {
+            if recoveryEpisodeAddress != address {
+                recoveryEpisodeAddress = address
+                lastLoggedReconnectAttempt = nil
+                appendRecoveryLogEvent(
+                    stage: "STARTED",
+                    address: address,
+                    detail: reason
+                )
+            }
             if isCapturing { stopCapture() }
             if isLogging && !isRidePaused {
                 rideLogger.pause()
@@ -1067,6 +1115,14 @@ class WheelManager: ObservableObject {
                 ridePauseTimeoutTask = Task { @MainActor [weak self] in
                     try? await Task.sleep(nanoseconds: UInt64(Self.ridePauseTimeoutSeconds * 1_000_000_000))
                     guard !Task.isCancelled, let self else { return }
+                    if let recoveryAddress = self.recoveryEpisodeAddress {
+                        self.appendRecoveryLogEvent(
+                            stage: "EXHAUSTED",
+                            address: recoveryAddress,
+                            detail: "Ride pause timeout"
+                        )
+                        self.endErrorLogSession(reason: "Ride paused too long without reconnect")
+                    }
                     self.stopLogging()
                 }
             }
@@ -1076,11 +1132,27 @@ class WheelManager: ObservableObject {
             }
 
             locationManager.stopTracking()
+            beginReconnectRecovery(for: address)
         }
 
-        // User-initiated disconnect — always end ride
-        if case .disconnected = newState, oldState.isConnected {
-            endErrorLogSession(reason: "User disconnect")
+        // User-initiated disconnect — always end ride, even if the user
+        // disconnected while a paused ride was waiting on reconnect.
+        if case .disconnected = newState {
+            let explicitDisconnect = pendingUserDisconnect
+            let recoveryAddress = recoveryEpisodeAddress
+            let shouldFinalizeRide = oldState.isConnected || isRidePaused || recoveryAddress != nil || explicitDisconnect
+            pendingUserDisconnect = false
+            guard shouldFinalizeRide else { return }
+
+            if let recoveryAddress, explicitDisconnect {
+                appendRecoveryLogEvent(
+                    stage: "CANCELLED",
+                    address: recoveryAddress,
+                    detail: "User disconnect"
+                )
+            }
+            clearRecoveryEpisode()
+            endErrorLogSession(reason: explicitDisconnect ? "User disconnect" : "Disconnected")
             if isCapturing { stopCapture() }
             if isLogging {
                 stopLogging()
@@ -1092,10 +1164,26 @@ class WheelManager: ObservableObject {
             activeAlarms = []
         }
 
-        // Failed state (e.g., reconnect attempt degraded into failure) — end ride immediately
-        if case .failed(_, let error) = newState {
-            endErrorLogSession(reason: error)
+        // Failed state during a reconnect-recovery flow should keep the ride
+        // paused and let the shared AutoConnectManager keep retrying.
+        if case .failed(let address, let error, let issue) = newState {
             if isCapturing { stopCapture() }
+            if shouldPreservePausedRideDuringReconnectFailure(
+                address: address,
+                issueRecoverable: issue.isRecoverable
+            ) {
+                locationManager.stopTracking()
+                return
+            }
+            if let recoveryAddress = recoveryEpisodeAddress {
+                appendRecoveryLogEvent(
+                    stage: "EXHAUSTED",
+                    address: recoveryAddress,
+                    detail: error
+                )
+            }
+            clearRecoveryEpisode()
+            endErrorLogSession(reason: error)
             if isLogging {
                 stopLogging()
             }
@@ -1382,11 +1470,43 @@ class WheelManager: ObservableObject {
         }
     }
 
+    private func beginReconnectRecovery(for address: String) {
+        recoveryEpisodeAddress = address
+        guard autoReconnect || isLogging else { return }
+        guard let acm = autoConnectManager else { return }
+
+        let hint = WheelConnectionManagerHelper.shared.savedProfileHint(
+            store: wheelProfileStore,
+            address: address
+        )
+        WheelConnectionManagerHelper.shared.startReconnectRecovery(
+            manager: acm,
+            address: address,
+            hint: hint
+        )
+    }
+
+    private func clearRecoveryEpisode() {
+        recoveryEpisodeAddress = nil
+        lastLoggedReconnectAttempt = nil
+    }
+
+    private func shouldPreservePausedRideDuringReconnectFailure(
+        address: String?,
+        issueRecoverable: Bool
+    ) -> Bool {
+        guard isRidePaused else { return false }
+        guard issueRecoverable else { return false }
+        guard let recoveryEpisodeAddress else { return false }
+        return address == recoveryEpisodeAddress
+    }
+
     private func clearPauseState() {
         ridePauseTimeoutTask?.cancel()
         ridePauseTimeoutTask = nil
         isRidePaused = false
         pausedRideAddress = nil
+        clearRecoveryEpisode()
     }
 
     func stopLogging() {
@@ -1779,6 +1899,32 @@ class WheelManager: ObservableObject {
 
     // MARK: - Connection Error Log
 
+    private func appendErrorLogRow(_ csvRow: String) {
+        guard let handle = errorLogFileHandle else { return }
+        if let data = (csvRow + "\n").data(using: .utf8) {
+            handle.write(data)
+            errorLogFrameCount += 1
+        }
+    }
+
+    private func appendRecoveryLogEvent(
+        stage: String,
+        address: String,
+        attempt: Int? = nil,
+        detail: String = ""
+    ) {
+        guard errorLogFileHandle != nil else { return }
+        let csvRow = WheelConnectionManagerHelper.shared.formatRecoveryLogEvent(
+            sessionStartMs: errorLogSessionStartMs,
+            timestampMs: Int64(Date().timeIntervalSince1970 * 1000),
+            stage: stage,
+            address: address,
+            attempt: Int32(attempt ?? 0),
+            detail: detail
+        )
+        appendErrorLogRow(csvRow)
+    }
+
     private func startErrorLogSession(address: String) {
         endErrorLogSession(reason: nil)
         let dir = Self.errorLogsDirectory()
@@ -1810,9 +1956,7 @@ class WheelManager: ObservableObject {
                 sessionStartMs: nowMs
             ) { [weak self] csvRow in
                 Task { @MainActor in
-                    guard let self = self, let handle = self.errorLogFileHandle else { return }
-                    if let data = (csvRow + "\n").data(using: .utf8) { handle.write(data) }
-                    self.errorLogFrameCount += 1
+                    self?.appendErrorLogRow(csvRow)
                 }
             }
         }
@@ -2131,6 +2275,7 @@ class WheelManager: ObservableObject {
         if let acm = autoConnectManager {
             WheelConnectionManagerHelper.shared.stopAutoConnect(manager: acm)
         }
+        pendingUserDisconnect = true
         appSettingsStore.setLastMac(mac: "")
 
         // Reset range estimate and auto-torch override
@@ -2147,14 +2292,19 @@ class WheelManager: ObservableObject {
 // MARK: - Swift Wrappers for KMP Types
 
 /// Swift wrapper for KMP ConnectionState
+struct ConnectionIssueContext: Equatable {
+    let code: String
+    let isRecoverable: Bool
+}
+
 enum ConnectionStateWrapper: Equatable {
     case disconnected
     case scanning
     case connecting(address: String)
     case discoveringServices(address: String)
     case connected(address: String, wheelName: String)
-    case connectionLost(address: String, reason: String)
-    case failed(address: String?, error: String)
+    case connectionLost(address: String, reason: String, issue: ConnectionIssueContext)
+    case failed(address: String?, error: String, issue: ConnectionIssueContext)
     /// Pass 4: BLE is connected and services discovered, but the wheel type
     /// couldn't be resolved from topology + name. The picker UI runs against
     /// the still-live peripheral; confirmation transitions to `.connected`.
@@ -2200,7 +2350,7 @@ enum ConnectionStateWrapper: Equatable {
     }
 
     var failedAddress: String? {
-        if case .failed(let address, _) = self { return address }
+        if case .failed(let address, _, _) = self { return address }
         return nil
     }
 
@@ -2211,13 +2361,14 @@ enum ConnectionStateWrapper: Equatable {
         case .connecting: return "Connecting..."
         case .discoveringServices: return "Discovering services..."
         case .connected(_, let name): return "Connected to \(name)"
-        case .connectionLost(_, let reason): return "Connection lost: \(reason)"
-        case .failed(_, let error): return "Failed: \(error)"
+        case .connectionLost(_, let reason, _): return "Connection lost: \(reason)"
+        case .failed(_, let error, _): return "Failed: \(error)"
         case .wheelTypeRequired: return "Select wheel type"
         }
     }
 
     init(from kmpState: ConnectionState) {
+        let helper = WheelConnectionManagerHelper.shared
         switch kmpState {
         case is ConnectionState.Disconnected:
             self = .disconnected
@@ -2230,9 +2381,23 @@ enum ConnectionStateWrapper: Equatable {
         case let connected as ConnectionState.Connected:
             self = .connected(address: connected.address, wheelName: connected.wheelName)
         case let lost as ConnectionState.ConnectionLost:
-            self = .connectionLost(address: lost.address, reason: lost.reason)
+            self = .connectionLost(
+                address: lost.address,
+                reason: lost.reason,
+                issue: ConnectionIssueContext(
+                    code: helper.connectionIssueCode(state: kmpState) ?? "UNKNOWN",
+                    isRecoverable: helper.isRecoverableConnectionIssue(state: kmpState)
+                )
+            )
         case let failed as ConnectionState.Failed:
-            self = .failed(address: failed.address, error: failed.error)
+            self = .failed(
+                address: failed.address,
+                error: failed.error,
+                issue: ConnectionIssueContext(
+                    code: helper.connectionIssueCode(state: kmpState) ?? "UNKNOWN",
+                    isRecoverable: helper.isRecoverableConnectionIssue(state: kmpState)
+                )
+            )
         case let required as ConnectionState.WheelTypeRequired:
             self = .wheelTypeRequired(address: required.address, deviceName: required.deviceName)
         default:

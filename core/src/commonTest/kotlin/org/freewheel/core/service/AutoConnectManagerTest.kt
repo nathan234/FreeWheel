@@ -314,6 +314,56 @@ class AutoConnectManagerTest {
     }
 
     @Test
+    fun `recoverable Failed state keeps reconnect loop running`() = runTest {
+        val connectionState = MutableStateFlow<ConnectionState>(ConnectionState.Disconnected)
+        val (manager, _, connectCalls) = createManager(connectionState)
+
+        manager.startReconnecting("AA:BB:CC:DD:EE:FF", backoffMs = listOf(1_000L))
+        runCurrent()
+        assertTrue(manager.reconnectState.value is AutoConnectManager.ReconnectState.Waiting)
+
+        connectionState.value = ConnectionState.Failed(
+            error = "Connection timed out",
+            address = "AA:BB:CC:DD:EE:FF",
+            issue = ConnectionIssue.recoverable(
+                code = ConnectionIssueCode.CONNECTION_TIMED_OUT,
+                message = "Connection timed out"
+            )
+        )
+        runCurrent()
+
+        assertTrue(manager.reconnectState.value is AutoConnectManager.ReconnectState.Waiting)
+        assertTrue(connectCalls.isEmpty())
+
+        manager.destroy()
+    }
+
+    @Test
+    fun `terminal Failed state stops reconnect loop`() = runTest {
+        val connectionState = MutableStateFlow<ConnectionState>(ConnectionState.Disconnected)
+        val (manager, _, connectCalls) = createManager(connectionState)
+
+        manager.startReconnecting("AA:BB:CC:DD:EE:FF", backoffMs = listOf(1_000L))
+        runCurrent()
+        assertTrue(manager.reconnectState.value is AutoConnectManager.ReconnectState.Waiting)
+
+        connectionState.value = ConnectionState.Failed(
+            error = "Peripheral not found",
+            address = "AA:BB:CC:DD:EE:FF",
+            issue = ConnectionIssue.terminal(
+                code = ConnectionIssueCode.PERIPHERAL_NOT_FOUND,
+                message = "Peripheral not found"
+            )
+        )
+        runCurrent()
+
+        assertEquals(AutoConnectManager.ReconnectState.Idle, manager.reconnectState.value)
+        assertTrue(connectCalls.isEmpty())
+
+        manager.destroy()
+    }
+
+    @Test
     fun `stop during reconnect returns to Idle`() = runTest {
         val (manager, _, _) = createManager()
 
@@ -365,6 +415,33 @@ class AutoConnectManagerTest {
         runCurrent()
 
         assertTrue(manager.isAutoConnecting.value)
+
+        manager.destroy()
+    }
+
+    @Test
+    fun `reconnect skips attempt while same wheel is already discovering services`() = runTest {
+        val connectionState = MutableStateFlow<ConnectionState>(
+            ConnectionState.DiscoveringServices("AA:BB:CC:DD:EE:FF")
+        )
+        val connectCalls = mutableListOf<String>()
+        val (manager, _, _) = createManager(connectionState, connectCalls)
+
+        manager.startReconnecting("AA:BB:CC:DD:EE:FF", backoffMs = listOf(1_000L, 2_000L))
+        runCurrent()
+
+        advanceTimeBy(1_000)
+        runCurrent()
+
+        assertTrue(connectCalls.isEmpty())
+
+        advanceTimeBy(4_000)
+        runCurrent()
+
+        val state = manager.reconnectState.value
+        assertTrue(state is AutoConnectManager.ReconnectState.Waiting, "Expected Waiting but got $state")
+        assertEquals(2, (state as AutoConnectManager.ReconnectState.Waiting).attempt)
+        assertEquals(2_000L, state.nextRetryMs)
 
         manager.destroy()
     }

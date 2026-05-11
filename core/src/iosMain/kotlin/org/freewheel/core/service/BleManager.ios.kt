@@ -120,7 +120,7 @@ actual class BleManager : BleManagerPort {
     // Callbacks (set once at initialization, not session-related)
     private var onDataReceivedCallback: ((ByteArray, Long) -> Unit)? = null
     private var onBleErrorCallback: (() -> Unit)? = null
-    private var onBleDisconnectedCallback: ((String, String, Long) -> Unit)? = null
+    private var onBleDisconnectedCallback: ((String, ConnectionIssue, Long) -> Unit)? = null
     private var onServicesDiscoveredCallback: ((DiscoveredServices, String?, Long) -> Unit)? = null
 
     // Connection continuation for suspend function (cross-thread lifecycle)
@@ -320,9 +320,9 @@ actual class BleManager : BleManagerPort {
 
     /**
      * Set callback for when the OS disconnects unexpectedly.
-     * Called with (address, reason, attemptId). Not called for user-initiated disconnects.
+     * Called with (address, issue, attemptId). Not called for user-initiated disconnects.
      */
-    fun setBleDisconnectedCallback(callback: (String, String, Long) -> Unit) {
+    fun setBleDisconnectedCallback(callback: (String, ConnectionIssue, Long) -> Unit) {
         onBleDisconnectedCallback = callback
     }
 
@@ -376,9 +376,14 @@ actual class BleManager : BleManagerPort {
         val peripherals = central.retrievePeripheralsWithIdentifiers(listOf(uuid))
 
         if (peripherals.isEmpty()) {
+            val issue = ConnectionIssue.terminal(
+                ConnectionIssueCode.PERIPHERAL_NOT_FOUND,
+                "Peripheral not found"
+            )
             _connectionState.value = ConnectionState.Failed(
-                error = "Peripheral not found",
-                address = address
+                error = issue.message,
+                address = address,
+                issue = issue,
             )
             return false
         }
@@ -451,7 +456,11 @@ actual class BleManager : BleManagerPort {
                 )
                 _connectionState.value = ConnectionState.Failed(
                     error = "Bluetooth state changed; please retry",
-                    address = address
+                    address = address,
+                    issue = ConnectionIssue.terminal(
+                        ConnectionIssueCode.BLUETOOTH_STATE_CHANGED,
+                        "Bluetooth state changed; please retry",
+                    ),
                 )
                 false
             }
@@ -465,7 +474,11 @@ actual class BleManager : BleManagerPort {
                 )
                 _connectionState.value = ConnectionState.Failed(
                     error = "Previous connection still draining; please retry",
-                    address = address
+                    address = address,
+                    issue = ConnectionIssue.terminal(
+                        ConnectionIssueCode.PREVIOUS_CONNECTION_STILL_DRAINING,
+                        "Previous connection still draining; please retry",
+                    ),
                 )
                 false
             }
@@ -644,8 +657,12 @@ actual class BleManager : BleManagerPort {
                     writeReadyContinuation = null
                     resumeContinuation(false)
                     session = BleSessionState.Idle
-                    _connectionState.value = ConnectionState.ConnectionLost(address, "Bluetooth powered off")
-                    onBleDisconnectedCallback?.invoke(address, "Bluetooth powered off", s.attemptId)
+                    val issue = ConnectionIssue.recoverable(
+                        ConnectionIssueCode.BLUETOOTH_POWERED_OFF,
+                        "Bluetooth powered off"
+                    )
+                    _connectionState.value = ConnectionState.ConnectionLost(address, issue.message, issue)
+                    onBleDisconnectedCallback?.invoke(address, issue, s.attemptId)
                 }
                 is BleSessionState.Discovering -> {
                     val address = s.peripheral.identifier.UUIDString
@@ -656,8 +673,12 @@ actual class BleManager : BleManagerPort {
                     writeReadyContinuation = null
                     resumeContinuation(false)
                     session = BleSessionState.Idle
-                    _connectionState.value = ConnectionState.ConnectionLost(address, "Bluetooth powered off")
-                    onBleDisconnectedCallback?.invoke(address, "Bluetooth powered off", s.attemptId)
+                    val issue = ConnectionIssue.recoverable(
+                        ConnectionIssueCode.BLUETOOTH_POWERED_OFF,
+                        "Bluetooth powered off"
+                    )
+                    _connectionState.value = ConnectionState.ConnectionLost(address, issue.message, issue)
+                    onBleDisconnectedCallback?.invoke(address, issue, s.attemptId)
                 }
                 is BleSessionState.Connected -> {
                     val address = s.peripheral.identifier.UUIDString
@@ -666,16 +687,24 @@ actual class BleManager : BleManagerPort {
                     writeReadyContinuation?.cancel()
                     writeReadyContinuation = null
                     session = BleSessionState.Idle
-                    _connectionState.value = ConnectionState.ConnectionLost(address, "Bluetooth powered off")
-                    onBleDisconnectedCallback?.invoke(address, "Bluetooth powered off", s.attemptId)
+                    val issue = ConnectionIssue.recoverable(
+                        ConnectionIssueCode.BLUETOOTH_POWERED_OFF,
+                        "Bluetooth powered off"
+                    )
+                    _connectionState.value = ConnectionState.ConnectionLost(address, issue.message, issue)
+                    onBleDisconnectedCallback?.invoke(address, issue, s.attemptId)
                 }
                 is BleSessionState.AwaitingReconnect -> {
                     val address = s.peripheral.identifier.UUIDString
                     writeCharacteristic = null
                     readCharacteristic = null
                     session = BleSessionState.Idle
-                    _connectionState.value = ConnectionState.ConnectionLost(address, "Bluetooth powered off")
-                    onBleDisconnectedCallback?.invoke(address, "Bluetooth powered off", s.attemptId)
+                    val issue = ConnectionIssue.recoverable(
+                        ConnectionIssueCode.BLUETOOTH_POWERED_OFF,
+                        "Bluetooth powered off"
+                    )
+                    _connectionState.value = ConnectionState.ConnectionLost(address, issue.message, issue)
+                    onBleDisconnectedCallback?.invoke(address, issue, s.attemptId)
                 }
             }
         }
@@ -785,9 +814,14 @@ actual class BleManager : BleManagerPort {
             // and we never reach here. Safety check anyway:
             if (session !is BleSessionState.Discovering) return@launch
             Logger.w("BleManager", "Service discovery timed out after 15s for $address")
+            val issue = ConnectionIssue.recoverable(
+                ConnectionIssueCode.SERVICE_DISCOVERY_TIMED_OUT,
+                "Service discovery timed out"
+            )
             _connectionState.value = ConnectionState.Failed(
-                error = "Service discovery timed out",
-                address = address
+                error = issue.message,
+                address = address,
+                issue = issue,
             )
             centralManager?.cancelPeripheralConnection(peripheral)
             resumeContinuation(false)
@@ -847,16 +881,16 @@ actual class BleManager : BleManagerPort {
      * CBError.Code values from CBErrorDomain — falls back to localizedDescription for
      * CBATTError codes and other domains.
      */
-    private fun NSError.toDisconnectDisplayText(): String {
+    private fun NSError.toDisconnectIssue(): ConnectionIssue {
         return when (code.toInt()) {
-            0 -> "Unknown error"
-            6 -> "Connection timed out"
-            7 -> "Peripheral disconnected"
-            9 -> "Invalid handle"
-            10 -> "Connection failed"
-            14 -> "Peer removed pairing"
-            15 -> "Encryption timed out"
-            else -> localizedDescription ?: "Disconnect error $code"
+            0 -> ConnectionIssue.unknownRecoverable("Unknown error")
+            6 -> ConnectionIssue.recoverable(ConnectionIssueCode.CONNECTION_TIMED_OUT, "Connection timed out")
+            7 -> ConnectionIssue.recoverable(ConnectionIssueCode.PERIPHERAL_DISCONNECTED, "Peripheral disconnected")
+            9 -> ConnectionIssue.recoverable(ConnectionIssueCode.INVALID_HANDLE, "Invalid handle")
+            10 -> ConnectionIssue.recoverable(ConnectionIssueCode.CONNECTION_FAILED, "Connection failed")
+            14 -> ConnectionIssue.terminal(ConnectionIssueCode.PEER_REMOVED_PAIRING, "Peer removed pairing")
+            15 -> ConnectionIssue.terminal(ConnectionIssueCode.ENCRYPTION_TIMED_OUT, "Encryption timed out")
+            else -> ConnectionIssue.unknownRecoverable(localizedDescription ?: "Disconnect error $code")
         }
     }
 
@@ -887,13 +921,15 @@ actual class BleManager : BleManagerPort {
         // Cancel discovering scope if we somehow got into that state
         (s as? BleSessionState.Discovering)?.scope?.cancel()
 
-        val errorMessage = error?.toDisconnectDisplayText() ?: "Connection failed"
+        val issue = error?.toDisconnectIssue()
+            ?: ConnectionIssue.recoverable(ConnectionIssueCode.CONNECTION_FAILED, "Connection failed")
         session = BleSessionState.Idle
         writeCharacteristic = null
         readCharacteristic = null
         _connectionState.value = ConnectionState.Failed(
-            error = errorMessage,
-            address = peripheral.identifier.UUIDString
+            error = issue.message,
+            address = peripheral.identifier.UUIDString,
+            issue = issue,
         )
         resumeContinuation(false)
     }
@@ -946,26 +982,25 @@ actual class BleManager : BleManagerPort {
         writeCharacteristic = null
         readCharacteristic = null
 
-        if (error != null) {
-            // Unexpected disconnect — initiate OS-level auto-reconnect.
-            // CoreBluetooth's connect() never times out and works in background.
-            val reason = error.toDisconnectDisplayText()
-            val sessionAttemptId = s.attemptId
-            session = BleSessionState.AwaitingReconnect(peripheral, sessionAttemptId)
-            _connectionState.value = ConnectionState.ConnectionLost(
-                address = address,
-                reason = reason
+        val issue = error?.toDisconnectIssue()
+            ?: ConnectionIssue.recoverable(
+                ConnectionIssueCode.PERIPHERAL_DISCONNECTED,
+                "Peripheral disconnected"
             )
-            Logger.d("BleManager", "Starting OS auto-reconnect for $address")
-            peripheral.delegate = peripheralDelegate
-            centralManager?.connectPeripheral(peripheral, options = null)
-            // Notify WCM immediately so it transitions to ConnectionLost
-            onBleDisconnectedCallback?.invoke(address, reason, sessionAttemptId)
-        } else {
-            // Graceful disconnect without error from an active state
-            session = BleSessionState.Idle
-            _connectionState.value = ConnectionState.Disconnected
-        }
+        // Unexpected disconnect — initiate OS-level auto-reconnect.
+        // CoreBluetooth's connect() never times out and works in background.
+        val sessionAttemptId = s.attemptId
+        session = BleSessionState.AwaitingReconnect(peripheral, sessionAttemptId)
+        _connectionState.value = ConnectionState.ConnectionLost(
+            address = address,
+            reason = issue.message,
+            issue = issue,
+        )
+        Logger.d("BleManager", "Starting OS auto-reconnect for $address")
+        peripheral.delegate = peripheralDelegate
+        centralManager?.connectPeripheral(peripheral, options = null)
+        // Notify WCM immediately so it transitions to ConnectionLost
+        onBleDisconnectedCallback?.invoke(address, issue, sessionAttemptId)
     }
 
     internal fun onServicesDiscovered(peripheral: CBPeripheral, error: NSError?) {
@@ -992,9 +1027,14 @@ actual class BleManager : BleManagerPort {
             session = BleSessionState.Idle
             writeCharacteristic = null
             readCharacteristic = null
+            val issue = ConnectionIssue.recoverable(
+                ConnectionIssueCode.SERVICE_DISCOVERY_FAILED,
+                error.localizedDescription ?: "Service discovery failed"
+            )
             _connectionState.value = ConnectionState.Failed(
-                error = error.localizedDescription ?: "Service discovery failed",
-                address = peripheral.identifier.UUIDString
+                error = issue.message,
+                address = peripheral.identifier.UUIDString,
+                issue = issue,
             )
             resumeContinuation(false)
             return
@@ -1014,9 +1054,14 @@ actual class BleManager : BleManagerPort {
             readCharacteristic = null
             val address = peripheral.identifier.UUIDString
             Logger.w("BleManager", "No matching services found on $address")
+            val issue = ConnectionIssue.terminal(
+                ConnectionIssueCode.NO_SUPPORTED_SERVICES,
+                "No supported services found"
+            )
             _connectionState.value = ConnectionState.Failed(
-                error = "No supported services found",
-                address = address
+                error = issue.message,
+                address = address,
+                issue = issue,
             )
             resumeContinuation(false)
             return

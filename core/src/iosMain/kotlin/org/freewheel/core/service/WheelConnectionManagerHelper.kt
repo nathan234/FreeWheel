@@ -48,6 +48,7 @@ class FlowObservation(private val scope: CoroutineScope) {
  * Handles CoroutineScope creation and provides Swift-friendly accessors.
  */
 object WheelConnectionManagerHelper {
+    private val IOS_RECOVERY_BACKOFF_MS = listOf(5_000L, 5_000L, 10_000L, 15_000L, 30_000L)
 
     /**
      * Cancel the shared demoScope.
@@ -429,6 +430,51 @@ object WheelConnectionManagerHelper {
         return org.freewheel.core.logging.ConnectionErrorCsvFormatter.footerComment(disconnectTimeMs, disconnectReason, totalFramesDecoded, null)
     }
 
+    /**
+     * Format a recovery lifecycle event for the connection error log.
+     * The [stage] string is mapped inside KMP so Swift doesn't have to deal
+     * with sealed-class / enum interop for this diagnostics-only path.
+     */
+    fun formatRecoveryLogEvent(
+        sessionStartMs: Long,
+        timestampMs: Long,
+        stage: String,
+        address: String,
+        attempt: Int = 0,
+        detail: String = "",
+    ): String {
+        val recoveryStage = when (stage.uppercase()) {
+            "STARTED" -> org.freewheel.core.logging.ConnectionErrorEvent.RecoveryStage.STARTED
+            "ATTEMPTING" -> org.freewheel.core.logging.ConnectionErrorEvent.RecoveryStage.ATTEMPTING
+            "CANCELLED" -> org.freewheel.core.logging.ConnectionErrorEvent.RecoveryStage.CANCELLED
+            "SUCCEEDED" -> org.freewheel.core.logging.ConnectionErrorEvent.RecoveryStage.SUCCEEDED
+            "EXHAUSTED" -> org.freewheel.core.logging.ConnectionErrorEvent.RecoveryStage.EXHAUSTED
+            else -> org.freewheel.core.logging.ConnectionErrorEvent.RecoveryStage.EXHAUSTED
+        }
+        val event = org.freewheel.core.logging.ConnectionErrorEvent.RecoveryLifecycle(
+            timestampMs = timestampMs,
+            stage = recoveryStage,
+            address = address,
+            attempt = attempt.takeIf { it > 0 },
+            detail = detail,
+        )
+        return org.freewheel.core.logging.ConnectionErrorCsvFormatter.formatEvent(event, sessionStartMs)
+    }
+
+    fun connectionIssueCode(state: ConnectionState): String? =
+        when (state) {
+            is ConnectionState.ConnectionLost -> state.issue.code.name
+            is ConnectionState.Failed -> state.issue.code.name
+            else -> null
+        }
+
+    fun isRecoverableConnectionIssue(state: ConnectionState): Boolean =
+        when (state) {
+            is ConnectionState.ConnectionLost -> state.issue.isRecoverable
+            is ConnectionState.Failed -> state.issue.isRecoverable
+            else -> false
+        }
+
     // MARK: - Auto-Connect Manager
 
     /**
@@ -458,6 +504,26 @@ object WheelConnectionManagerHelper {
      */
     fun startReconnecting(manager: AutoConnectManager, address: String) {
         manager.startReconnecting(address)
+    }
+
+    /**
+     * Swift-friendly wrapper: start reconnecting with the iOS recovery policy.
+     *
+     * CoreBluetooth already attempts a passive reconnect immediately after an
+     * unexpected disconnect. This helper intentionally waits a few seconds
+     * before escalating to explicit app-level reconnect attempts so the OS has
+     * the first chance to recover the session without us cancelling it.
+     */
+    fun startReconnectRecovery(
+        manager: AutoConnectManager,
+        address: String,
+        hint: ConnectionHint?,
+    ) {
+        manager.startReconnecting(
+            address = address,
+            backoffMs = IOS_RECOVERY_BACKOFF_MS,
+            hint = hint,
+        )
     }
 
     /**

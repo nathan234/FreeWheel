@@ -114,8 +114,8 @@ class WheelService : Service(), WheelServiceContract {
         bleManager.setBleErrorCallback {
             connectionManager.onBleError()
         }
-        bleManager.setBleDisconnectedCallback { address, reason, attemptId ->
-            connectionManager.onBleDisconnected(address, reason, attemptId)
+        bleManager.setBleDisconnectedCallback { address, issue, attemptId ->
+            connectionManager.onBleDisconnected(address, issue.message, issue, attemptId)
         }
 
         // Wire charger BLE data to charger connection manager. Charger flow

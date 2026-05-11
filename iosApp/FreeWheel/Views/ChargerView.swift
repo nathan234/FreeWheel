@@ -142,10 +142,10 @@ private struct DisconnectedChargerContent: View {
             }
             Button("Cancel") { chargerManager.disconnect() }
                 .buttonStyle(.bordered)
-        case .failed(_, let error):
+        case .failed(_, let error, _):
             Text("Connection failed: \(error)")
                 .foregroundColor(.red)
-        case .connectionLost(_, let reason):
+        case .connectionLost(_, let reason, _):
             Text("Connection lost: \(reason)")
                 .foregroundColor(.red)
         default:

@@ -152,7 +152,7 @@ actual class BleManager : BleManagerPort {
     // events from a prior session that the OS BLE stack is still flushing.
     private var onDataReceivedCallback: ((ByteArray, Long) -> Unit)? = null
     private var onBleErrorCallback: (() -> Unit)? = null
-    private var onBleDisconnectedCallback: ((String, String, Long) -> Unit)? = null
+    private var onBleDisconnectedCallback: ((String, ConnectionIssue, Long) -> Unit)? = null
     private var onServicesDiscoveredCallback: ((DiscoveredServices, String?, Long) -> Unit)? = null
 
     // Dedicated BLE thread — stored for cleanup in destroy()
@@ -296,13 +296,14 @@ actual class BleManager : BleManagerPort {
                 return
             }
 
-            val reason = hciStatusToDisplayText(status)
+            val issue = hciStatusToIssue(status)
             session = BleSessionState.Idle
             writeCharacteristic = null
             readCharacteristic = null
             _connectionState.value = ConnectionState.Failed(
-                error = reason,
-                address = peripheral.address
+                error = issue.message,
+                address = peripheral.address,
+                issue = issue,
             )
 
             resumeContinuation(false)
@@ -355,18 +356,19 @@ actual class BleManager : BleManagerPort {
                         // Unexpected disconnect — use passive OS-level auto-reconnect.
                         // autoConnectPeripheral adds the device to the OS whitelist and
                         // reconnects in the background when the peripheral is found again.
-                        val reason = hciStatusToDisplayText(status)
+                        val issue = hciStatusToIssue(status)
                         val sessionAttemptId = s.attemptId
                         session = BleSessionState.AwaitingReconnect(peripheral, sessionAttemptId)
                         _connectionState.value = ConnectionState.ConnectionLost(
                             address = address,
-                            reason = reason
+                            reason = issue.message,
+                            issue = issue,
                         )
                         Logger.d("BleManager", "Starting OS auto-reconnect for $address")
                         central?.autoConnectPeripheral(peripheral, peripheralCallback)
                         // Notify WCM immediately so it transitions to ConnectionLost
                         // without waiting for data timeout (which could take 30+ seconds)
-                        onBleDisconnectedCallback?.invoke(address, reason, sessionAttemptId)
+                        onBleDisconnectedCallback?.invoke(address, issue, sessionAttemptId)
                     } else {
                         session = BleSessionState.Idle
                         _connectionState.value = ConnectionState.Disconnected
@@ -414,9 +416,9 @@ actual class BleManager : BleManagerPort {
 
     /**
      * Set callback for when the OS disconnects unexpectedly.
-     * Called with (address, reason, attemptId). Not called for user-initiated disconnects.
+     * Called with (address, issue, attemptId). Not called for user-initiated disconnects.
      */
-    fun setBleDisconnectedCallback(callback: (String, String, Long) -> Unit) {
+    fun setBleDisconnectedCallback(callback: (String, ConnectionIssue, Long) -> Unit) {
         onBleDisconnectedCallback = callback
     }
 
@@ -593,7 +595,11 @@ actual class BleManager : BleManagerPort {
                 )
                 _connectionState.value = ConnectionState.Failed(
                     error = "Bluetooth state changed; please retry",
-                    address = address
+                    address = address,
+                    issue = ConnectionIssue.terminal(
+                        ConnectionIssueCode.BLUETOOTH_STATE_CHANGED,
+                        "Bluetooth state changed; please retry",
+                    ),
                 )
                 false
             }
@@ -607,7 +613,11 @@ actual class BleManager : BleManagerPort {
                 )
                 _connectionState.value = ConnectionState.Failed(
                     error = "Previous connection still draining; please retry",
-                    address = address
+                    address = address,
+                    issue = ConnectionIssue.terminal(
+                        ConnectionIssueCode.PREVIOUS_CONNECTION_STILL_DRAINING,
+                        "Previous connection still draining; please retry",
+                    ),
                 )
                 false
             }
@@ -814,14 +824,32 @@ actual class BleManager : BleManagerPort {
         )
     }
 
-    private fun hciStatusToDisplayText(status: HciStatus): String = when (status) {
-        HciStatus.SUCCESS -> "Disconnected"
-        HciStatus.CONNECTION_TIMEOUT -> "Connection timed out"
-        HciStatus.REMOTE_USER_TERMINATED_CONNECTION -> "Wheel disconnected"
-        HciStatus.CONNECTION_TERMINATED_BY_LOCAL_HOST -> "Connection cancelled"
-        HciStatus.CONNECTION_FAILED_ESTABLISHMENT -> "Connection failed"
-        HciStatus.ERROR -> "GATT error"
-        else -> "Disconnected: ${status.name}"
+    private fun hciStatusToIssue(status: HciStatus): ConnectionIssue = when (status) {
+        HciStatus.SUCCESS -> ConnectionIssue.recoverable(
+            ConnectionIssueCode.PERIPHERAL_DISCONNECTED,
+            "Disconnected"
+        )
+        HciStatus.CONNECTION_TIMEOUT -> ConnectionIssue.recoverable(
+            ConnectionIssueCode.CONNECTION_TIMED_OUT,
+            "Connection timed out"
+        )
+        HciStatus.REMOTE_USER_TERMINATED_CONNECTION -> ConnectionIssue.recoverable(
+            ConnectionIssueCode.PERIPHERAL_DISCONNECTED,
+            "Wheel disconnected"
+        )
+        HciStatus.CONNECTION_TERMINATED_BY_LOCAL_HOST -> ConnectionIssue.recoverable(
+            ConnectionIssueCode.CONNECTION_FAILED,
+            "Connection cancelled"
+        )
+        HciStatus.CONNECTION_FAILED_ESTABLISHMENT -> ConnectionIssue.recoverable(
+            ConnectionIssueCode.CONNECTION_FAILED,
+            "Connection failed"
+        )
+        HciStatus.ERROR -> ConnectionIssue.recoverable(
+            ConnectionIssueCode.CONNECTION_FAILED,
+            "GATT error"
+        )
+        else -> ConnectionIssue.unknownRecoverable("Disconnected: ${status.name}")
     }
 
     private companion object {

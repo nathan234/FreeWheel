@@ -316,9 +316,10 @@ class WheelConnectionManager(
     fun onBleDisconnected(
         address: String,
         reason: String,
+        issue: ConnectionIssue,
         attemptId: Long = _wcmState.value.currentAttemptId ?: 1L,
     ) {
-        events.trySend(WheelEvent.BleDisconnected(address, reason, attemptId))
+        events.trySend(WheelEvent.BleDisconnected(address, reason, attemptId, issue))
     }
 
     /**
@@ -711,7 +712,10 @@ class WheelConnectionManager(
             return transitionToFailed(
                 state,
                 error = event.error ?: "Connection failed",
-                address = event.address
+                address = event.address,
+                issue = event.issue ?: ConnectionIssue.unknownRecoverable(
+                    event.error ?: "Connection failed"
+                ),
             )
         }
     }
@@ -724,7 +728,12 @@ class WheelConnectionManager(
         if (currentAddress != null && currentAddress != event.address) {
             return WcmTransition(state)
         }
-        return transitionToFailed(state, error = event.error, address = event.address)
+        return transitionToFailed(
+            state,
+            error = event.error,
+            address = event.address,
+            issue = event.issue,
+        )
     }
 
     private fun reduceServicesDiscovered(state: WcmState, event: WheelEvent.ServicesDiscovered): WcmTransition {
@@ -1110,7 +1119,8 @@ class WheelConnectionManager(
         val now = currentTimeMillis()
         val lostState = ConnectionState.ConnectionLost(
             address = event.address,
-            reason = event.reason
+            reason = event.reason,
+            issue = event.issue,
         )
         // Don't stop timers or reset decoder — the OS is auto-reconnecting.
         // Keep-alive commands will silently fail (write returns false) during
@@ -1200,8 +1210,17 @@ class WheelConnectionManager(
      * Stops timers, cancels commands, and resets the decoder so that
      * Failed state is always clean — no leaked resources.
      */
-    private fun transitionToFailed(state: WcmState, error: String, address: String?): WcmTransition {
-        val failedState = ConnectionState.Failed(error = error, address = address)
+    private fun transitionToFailed(
+        state: WcmState,
+        error: String,
+        address: String?,
+        issue: ConnectionIssue = ConnectionIssue.unknownTerminal(error),
+    ): WcmTransition {
+        val failedState = ConnectionState.Failed(
+            error = issue.message,
+            address = address,
+            issue = issue,
+        )
         val effects = buildList {
             add(WcmEffect.StopTimers)
             add(WcmEffect.CancelCommands)
@@ -1211,7 +1230,7 @@ class WheelConnectionManager(
                 timestampMs = currentTimeMillis(),
                 from = state.connectionState.statusText,
                 to = failedState.statusText,
-                reason = error
+                reason = issue.message
             )))
         }
         return WcmTransition(
@@ -1310,6 +1329,10 @@ class WheelConnectionManager(
                             address = address,
                             attemptId = attemptId,
                             error = "Required BLE characteristic not found on wheel",
+                            issue = ConnectionIssue.terminal(
+                                ConnectionIssueCode.REQUIRED_CHARACTERISTIC_MISSING,
+                                "Required BLE characteristic not found on wheel",
+                            ),
                         ))
                     }
                 }
@@ -1334,18 +1357,44 @@ class WheelConnectionManager(
                         address = address,
                         attemptId = attemptId,
                         error = "Connection timed out",
+                        issue = ConnectionIssue.recoverable(
+                            ConnectionIssueCode.CONNECTION_TIMED_OUT,
+                            "Connection timed out",
+                        ),
                     ))
                 } else {
-                    events.send(WheelEvent.BleConnectResult(success, address, attemptId))
+                    val issue = if (!success) {
+                        (bleManager.connectionState.value as? ConnectionState.Failed)?.issue
+                            ?: ConnectionIssue.unknownRecoverable("Connection failed")
+                    } else {
+                        null
+                    }
+                    events.send(WheelEvent.BleConnectResult(
+                        success = success,
+                        address = address,
+                        attemptId = attemptId,
+                        issue = issue,
+                    ))
                 }
             } catch (e: kotlinx.coroutines.CancellationException) {
                 // Cancelled by disconnect — don't send result
             } catch (e: Exception) {
+                val issue = if (e.message?.contains("Bluetooth is not powered on") == true) {
+                    ConnectionIssue.recoverable(
+                        ConnectionIssueCode.BLUETOOTH_UNAVAILABLE,
+                        e.message ?: "Bluetooth is not powered on",
+                    )
+                } else {
+                    ConnectionIssue.unknownRecoverable(
+                        e.message ?: "Connection failed",
+                    )
+                }
                 events.send(WheelEvent.BleConnectResult(
                     success = false,
                     address = address,
                     attemptId = attemptId,
                     error = e.message ?: "Connection failed",
+                    issue = issue,
                 ))
             }
         }

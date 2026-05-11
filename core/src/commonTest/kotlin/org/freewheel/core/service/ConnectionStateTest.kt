@@ -208,6 +208,15 @@ class ConnectionStatePropertiesTest {
         assertEquals("Connection lost: timeout", ConnectionState.ConnectionLost("AA:BB", "timeout").statusText)
     }
 
+    @Test
+    fun `ConnectionLost exposes recoverable connection issue`() {
+        val state = ConnectionState.ConnectionLost("AA:BB", "timeout")
+
+        assertEquals(ConnectionIssueCode.UNKNOWN, state.issue.code)
+        assertTrue(state.issue.isRecoverable)
+        assertEquals(state.issue, state.connectionIssue)
+    }
+
     // ==================== Failed ====================
 
     @Test
@@ -238,6 +247,15 @@ class ConnectionStatePropertiesTest {
     @Test
     fun `Failed statusText includes error`() {
         assertEquals("Failed: something broke", ConnectionState.Failed("something broke").statusText)
+    }
+
+    @Test
+    fun `Failed exposes terminal connection issue by default`() {
+        val state = ConnectionState.Failed("something broke")
+
+        assertEquals(ConnectionIssueCode.UNKNOWN, state.issue.code)
+        assertFalse(state.issue.isRecoverable)
+        assertEquals(state.issue, state.connectionIssue)
     }
 
     // ==================== WheelTypeRequired ====================

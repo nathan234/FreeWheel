@@ -9,6 +9,14 @@ package org.freewheel.core.logging
 sealed class ConnectionErrorEvent {
     abstract val timestampMs: Long
 
+    enum class RecoveryStage {
+        STARTED,
+        ATTEMPTING,
+        CANCELLED,
+        SUCCEEDED,
+        EXHAUSTED,
+    }
+
     /** GATT/CoreBluetooth characteristic update error. */
     data class BleError(
         override val timestampMs: Long,
@@ -40,6 +48,15 @@ sealed class ConnectionErrorEvent {
         val from: String,
         val to: String,
         val reason: String
+    ) : ConnectionErrorEvent()
+
+    /** Recovery lifecycle emitted by the app layer around reconnect episodes. */
+    data class RecoveryLifecycle(
+        override val timestampMs: Long,
+        val stage: RecoveryStage,
+        val address: String,
+        val attempt: Int? = null,
+        val detail: String = "",
     ) : ConnectionErrorEvent()
 
     /**

@@ -41,6 +41,7 @@ sealed class WheelEvent {
         val address: String,
         val attemptId: Long,
         val error: String? = null,
+        val issue: ConnectionIssue? = null,
     ) : WheelEvent()
 
     /**
@@ -62,6 +63,7 @@ sealed class WheelEvent {
         val address: String,
         val attemptId: Long,
         val error: String,
+        val issue: ConnectionIssue,
     ) : WheelEvent()
 
     /**
@@ -113,6 +115,7 @@ sealed class WheelEvent {
         val address: String,
         val reason: String,
         val attemptId: Long,
+        val issue: ConnectionIssue,
     ) : WheelEvent()
 
     // --- Timers ---

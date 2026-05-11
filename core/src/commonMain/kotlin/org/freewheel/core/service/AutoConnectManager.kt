@@ -61,6 +61,9 @@ class AutoConnectManager(
                 }
                 if (state is ConnectionState.Failed) {
                     clearAutoConnect()
+                    if (!state.issue.isRecoverable) {
+                        stopReconnect()
+                    }
                 }
                 // Pass 4: WheelTypeRequired is terminal from auto-connect's POV.
                 // The BLE attempt finished — services discovered, peripheral
@@ -146,6 +149,19 @@ class AutoConnectManager(
                 delay(delayMs)
                 if (!isActive) break
 
+                val currentState = connectionState.value
+                if (shouldSkipReconnectAttempt(currentState, address)) {
+                    Logger.d(
+                        TAG,
+                        "Skipping reconnect attempt $attempt for $address; state=${currentState.statusText}"
+                    )
+                    delay(RECONNECT_SETTLE_MS)
+                    attempt++
+                    delayMs = backoffMs[minOf(attempt - 1, backoffMs.size - 1)]
+                    _reconnectState.value = ReconnectState.Waiting(attempt, delayMs)
+                    continue
+                }
+
                 _reconnectState.value = ReconnectState.Attempting(attempt)
 
                 try {
@@ -194,6 +210,13 @@ class AutoConnectManager(
         reconnectJob?.cancel()
         reconnectJob = null
         _reconnectState.value = ReconnectState.Idle
+    }
+
+    private fun shouldSkipReconnectAttempt(state: ConnectionState, address: String): Boolean {
+        if (state.isConnected && (state as? ConnectionState.Connected)?.address == address) {
+            return true
+        }
+        return state.connectingAddress == address
     }
 
     companion object {

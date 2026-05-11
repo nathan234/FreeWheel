@@ -375,7 +375,15 @@ class WheelConnectionManagerLifecycleTest {
         assertTrue(manager.connectionState.value is ConnectionState.Connected)
 
         // Stale BleDisconnected stamped with id=0 (a never-active session).
-        manager.onBleDisconnected("AA:BB:CC:DD:EE:FF", "Stale callback", attemptId = 0L)
+        manager.onBleDisconnected(
+            "AA:BB:CC:DD:EE:FF",
+            "Stale callback",
+            issue = ConnectionIssue.recoverable(
+                code = ConnectionIssueCode.PERIPHERAL_DISCONNECTED,
+                message = "Stale callback"
+            ),
+            attemptId = 0L
+        )
         runCurrent()
 
         assertTrue(
@@ -1087,13 +1095,21 @@ class WheelConnectionManagerLifecycleTest {
         assertTrue(manager.connectionState.value is ConnectionState.Connected)
 
         // OS-level disconnect — this is the only path to ConnectionLost
-        manager.onBleDisconnected("AA:BB:CC:DD:EE:FF", "Link supervision timeout")
+        manager.onBleDisconnected(
+            "AA:BB:CC:DD:EE:FF",
+            "Link supervision timeout",
+            issue = ConnectionIssue.recoverable(
+                code = ConnectionIssueCode.PERIPHERAL_DISCONNECTED,
+                message = "Link supervision timeout"
+            )
+        )
         runCurrent()
 
         val state = manager.connectionState.value
         assertTrue(state is ConnectionState.ConnectionLost, "Expected ConnectionLost, got $state")
         assertEquals("Link supervision timeout", (state as ConnectionState.ConnectionLost).reason)
         assertEquals("AA:BB:CC:DD:EE:FF", state.address)
+        assertEquals(ConnectionIssueCode.PERIPHERAL_DISCONNECTED, state.issue.code)
     }
 
     // ==================== Derived Flow: consecutiveBleErrors ====================

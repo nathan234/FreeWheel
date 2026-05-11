@@ -75,6 +75,23 @@ object ConnectionErrorCsvFormatter {
                 val safeReason = event.reason.replace(",", ";")
                 "$safeTimestamp,$elapsed,state_transition,from=${event.from} to=${event.to} reason=$safeReason"
             }
+            is ConnectionErrorEvent.RecoveryLifecycle -> {
+                val eventType = when (event.stage) {
+                    ConnectionErrorEvent.RecoveryStage.STARTED -> "recovery_started"
+                    ConnectionErrorEvent.RecoveryStage.ATTEMPTING -> "recovery_attempt"
+                    ConnectionErrorEvent.RecoveryStage.CANCELLED -> "recovery_cancelled"
+                    ConnectionErrorEvent.RecoveryStage.SUCCEEDED -> "recovery_succeeded"
+                    ConnectionErrorEvent.RecoveryStage.EXHAUSTED -> "recovery_exhausted"
+                }
+                val safeDetail = event.detail.replace(",", ";")
+                buildString {
+                    append("$safeTimestamp,$elapsed,$eventType,address=${event.address}")
+                    event.attempt?.let { append(" attempt=$it") }
+                    if (safeDetail.isNotBlank()) {
+                        append(" detail=$safeDetail")
+                    }
+                }
+            }
             is ConnectionErrorEvent.TelemetryOutOfBounds ->
                 "$safeTimestamp,$elapsed,telemetry_out_of_bounds,field=${event.field} value=${event.value} min=${event.min} max=${event.max}"
         }
