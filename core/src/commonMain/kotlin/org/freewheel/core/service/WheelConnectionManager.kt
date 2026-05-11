@@ -600,14 +600,38 @@ class WheelConnectionManager(
         // connect() calls from minting the same id.
         val nextAttemptId = state.attemptCounter + 1
 
-        val newState = WcmState(
-            decoderConfig = state.decoderConfig,
-            connectionState = ConnectionState.Connecting(event.address),
-            connectionHint = event.hint,
-            lastAdvertisement = event.advertisement,
-            attemptCounter = nextAttemptId,
-            currentAttemptId = nextAttemptId,
-        )
+        // Detect same-wheel resume: an active-fallback reconnect after a
+        // ConnectionLost for this address while a decoder is still attached.
+        // Preserve decoder + identity + accumulated domain state across the
+        // gap so we don't re-run init commands (Kingsong 0x9B, Leaperkim
+        // 3-step handshake) and don't lose ~20s of telemetry to a fresh
+        // handshake. The passive OS reconnect path already preserves state
+        // via reduceBleDisconnected; this branch extends the same guarantee
+        // to the active path. reconnectOrSetup recognises the resume via
+        // the still-attached decoder regardless of intermediate Connecting
+        // state.
+        val isResume = cs is ConnectionState.ConnectionLost &&
+            cs.address == event.address &&
+            state.decoder != null
+
+        val newState = if (isResume) {
+            state.copy(
+                connectionState = ConnectionState.Connecting(event.address),
+                connectionHint = event.hint,
+                lastAdvertisement = event.advertisement,
+                attemptCounter = nextAttemptId,
+                currentAttemptId = nextAttemptId,
+            )
+        } else {
+            WcmState(
+                decoderConfig = state.decoderConfig,
+                connectionState = ConnectionState.Connecting(event.address),
+                connectionHint = event.hint,
+                lastAdvertisement = event.advertisement,
+                attemptCounter = nextAttemptId,
+                currentAttemptId = nextAttemptId,
+            )
+        }
 
         // Emit cleanup effects based on what the current state requires.
         // Connecting → cancel the in-progress BLE job
@@ -624,9 +648,16 @@ class WheelConnectionManager(
                 is ConnectionState.Failed,
                 is ConnectionState.Scanning -> { /* nothing to tear down */ }
             }
-            add(WcmEffect.StopTimers)
+            // On same-wheel resume, keep the keep-alive timer running and
+            // the decoder hot. Keep-alive writes silently fail during the
+            // BLE gap and resume on reconnect. CancelCommands still fires
+            // to drop any in-flight command dispatch that was racing the
+            // disconnect.
+            if (!isResume) {
+                add(WcmEffect.StopTimers)
+                state.decoder?.let { add(WcmEffect.ResetDecoder(it)) }
+            }
             add(WcmEffect.CancelCommands)
-            state.decoder?.let { add(WcmEffect.ResetDecoder(it)) }
             add(WcmEffect.BleConnect(event.address, nextAttemptId))
         }
         return WcmTransition(newState, effects)
@@ -841,27 +872,42 @@ class WheelConnectionManager(
         info: WheelConnectionInfo?
     ): WcmTransition {
         val existingDecoder = state.decoder
-        val isReconnect = state.connectionState is ConnectionState.ConnectionLost &&
-            existingDecoder != null &&
+        // Reconnect detection: a decoder is still attached and its protocol
+        // matches the freshly-detected type. This is true for both the passive
+        // OS reconnect path (state.connectionState=ConnectionLost) and the
+        // active-fallback resume path (state.connectionState=Connecting after
+        // reduceConnect preserved the decoder via state.copy). reduceConnect
+        // is the only writer that nulls state.decoder for non-resume
+        // connects, so this predicate cannot fire on a cold connect.
+        val isReconnect = existingDecoder != null &&
             existingDecoder.wheelType == wheelType
+        val resumeAddress = if (isReconnect) getCurrentAddress(state) else null
 
-        if (isReconnect) {
-            val address = (state.connectionState as ConnectionState.ConnectionLost).address
+        if (isReconnect && resumeAddress != null) {
             val displayName = state.identity.displayName
-            Logger.d(TAG, "Reconnecting — reusing decoder for $wheelType")
+            // Differentiate the recovery path in the error log so we can tell
+            // passive (decoder + connection both survived) from active
+            // fallback (decoder survived a forced reconnect) without grep'ing
+            // surrounding state transitions.
+            val reason = if (state.connectionState is ConnectionState.ConnectionLost) {
+                "OS auto-reconnect"
+            } else {
+                "Active reconnect resume"
+            }
+            Logger.d(TAG, "Reconnecting — reusing decoder for $wheelType ($reason)")
             val effects = buildList {
                 if (info != null) add(info.toConfigureBleEffect())
                 add(WcmEffect.LogConnectionError(ConnectionErrorEvent.StateTransition(
                     timestampMs = currentTimeMillis(),
                     from = state.connectionState.statusText,
                     to = "Connected to $displayName",
-                    reason = "OS auto-reconnect"
+                    reason = reason
                 )))
             }
             return WcmTransition(
                 state.copy(
                     connectionState = ConnectionState.Connected(
-                        address = address,
+                        address = resumeAddress,
                         wheelName = displayName
                     ),
                     connectionInfo = info ?: state.connectionInfo

@@ -1112,6 +1112,75 @@ class WheelConnectionManagerLifecycleTest {
         assertEquals(ConnectionIssueCode.PERIPHERAL_DISCONNECTED, state.issue.code)
     }
 
+    // ==================== Active fallback resume preserves decoder ====================
+
+    @Test
+    fun `active fallback connect to same address as ConnectionLost preserves decoder`() = runTest(timeout = 0.1.seconds) {
+        val manager = createManager()
+        manager.connect("AA:BB:CC:DD:EE:FF")
+        manager.onServicesDiscovered(kingsongServices, "KS-S18")
+        runCurrent()
+
+        val initialDecoder = manager.getCurrentDecoder()
+        assertNotNull(initialDecoder, "Decoder must exist after services discovered")
+        val initialCreateCount = fakeFactory.createCount
+
+        manager.onBleDisconnected(
+            "AA:BB:CC:DD:EE:FF",
+            "Connection timed out",
+            issue = ConnectionIssue.recoverable(
+                code = ConnectionIssueCode.CONNECTION_TIMED_OUT,
+                message = "Connection timed out"
+            )
+        )
+        runCurrent()
+        assertTrue(manager.connectionState.value is ConnectionState.ConnectionLost)
+        assertNotNull(manager.getCurrentDecoder(), "Decoder must survive ConnectionLost")
+        assertFalse(fakeDecoder.resetCalled, "ConnectionLost must not reset the decoder")
+
+        // Active fallback: WCM.connect() again for the same address while in
+        // ConnectionLost. Pre-fix this would wipe WcmState and emit
+        // ResetDecoder; post-fix it must preserve the existing decoder.
+        manager.connect("AA:BB:CC:DD:EE:FF")
+        manager.onServicesDiscovered(kingsongServices, "KS-S18")
+        runCurrent()
+
+        assertEquals(
+            initialCreateCount, fakeFactory.createCount,
+            "Same-address resume must not create a new decoder"
+        )
+        assertFalse(
+            fakeDecoder.resetCalled,
+            "Same-address resume must not call decoder.reset()"
+        )
+    }
+
+    @Test
+    fun `active fallback connect to different address as ConnectionLost resets decoder`() = runTest(timeout = 0.1.seconds) {
+        val manager = createManager()
+        manager.connect("AA:AA:AA:AA:AA:AA")
+        manager.onServicesDiscovered(kingsongServices, "KS-S18")
+        runCurrent()
+
+        manager.onBleDisconnected(
+            "AA:AA:AA:AA:AA:AA",
+            "Connection timed out",
+            issue = ConnectionIssue.recoverable(
+                code = ConnectionIssueCode.CONNECTION_TIMED_OUT,
+                message = "Connection timed out"
+            )
+        )
+        runCurrent()
+
+        manager.connect("BB:BB:BB:BB:BB:BB")
+        runCurrent()
+
+        assertTrue(
+            fakeDecoder.resetCalled,
+            "Switching to a different address must still reset the decoder"
+        )
+    }
+
     // ==================== Derived Flow: consecutiveBleErrors ====================
 
     @Test
