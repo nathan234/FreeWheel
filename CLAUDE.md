@@ -267,6 +267,7 @@ Protocol decoder gotchas discovered during development:
 
 - [README.md](README.md) — Project overview, build commands, architecture diagram, contributing guide
 - [KMP_MIGRATION_PLAN.md](KMP_MIGRATION_PLAN.md) — Migration phases, BLE implementation status, current progress
+- [WHEEL_IDENTIFICATION_PLAN.md](WHEEL_IDENTIFICATION_PLAN.md) — Plan for making wheel identification more robust while preserving safe fallback behavior
 - [RESOURCES.md](RESOURCES.md) — EUC protocol references, open-source hardware, VESC resources
 - [docs/claude-reference.md](docs/claude-reference.md) — Deep reference: command matrix, data flow, lifecycle, persistence, expect/actual, test coverage
 - [docs/decoder-parity.md](docs/decoder-parity.md) — Per-decoder checklist of legacy parity gaps
