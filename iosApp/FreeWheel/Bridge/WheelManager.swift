@@ -2292,9 +2292,19 @@ class WheelManager: ObservableObject {
 // MARK: - Swift Wrappers for KMP Types
 
 /// Swift wrapper for KMP ConnectionState
+///
+/// Carries the KMP `ConnectionIssueCode` directly — no Swift mirror — so the
+/// enum stays a single source of truth in `core/.../ConnectionIssue.kt` and
+/// callers can switch exhaustively on the typed value. `Equatable` is hand-
+/// written because KMP enums bridge to Swift as classes (identity-equal
+/// singletons per case) rather than synthesized-`Equatable` value types.
 struct ConnectionIssueContext: Equatable {
-    let code: String
+    let code: ConnectionIssueCode
     let isRecoverable: Bool
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.code === rhs.code && lhs.isRecoverable == rhs.isRecoverable
+    }
 }
 
 enum ConnectionStateWrapper: Equatable {
@@ -2385,7 +2395,7 @@ enum ConnectionStateWrapper: Equatable {
                 address: lost.address,
                 reason: lost.reason,
                 issue: ConnectionIssueContext(
-                    code: helper.connectionIssueCode(state: kmpState) ?? "UNKNOWN",
+                    code: helper.connectionIssueCode(state: kmpState) ?? ConnectionIssueCode.unknown,
                     isRecoverable: helper.isRecoverableConnectionIssue(state: kmpState)
                 )
             )
@@ -2394,7 +2404,7 @@ enum ConnectionStateWrapper: Equatable {
                 address: failed.address,
                 error: failed.error,
                 issue: ConnectionIssueContext(
-                    code: helper.connectionIssueCode(state: kmpState) ?? "UNKNOWN",
+                    code: helper.connectionIssueCode(state: kmpState) ?? ConnectionIssueCode.unknown,
                     isRecoverable: helper.isRecoverableConnectionIssue(state: kmpState)
                 )
             )

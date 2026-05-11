@@ -461,10 +461,15 @@ object WheelConnectionManagerHelper {
         return org.freewheel.core.logging.ConnectionErrorCsvFormatter.formatEvent(event, sessionStartMs)
     }
 
-    fun connectionIssueCode(state: ConnectionState): String? =
+    /**
+     * Typed [ConnectionIssueCode] for the current connection state, or null
+     * when the state has no associated issue (Disconnected, Connecting, etc.).
+     * Swift consumes the bridged enum directly — no string round-tripping.
+     */
+    fun connectionIssueCode(state: ConnectionState): ConnectionIssueCode? =
         when (state) {
-            is ConnectionState.ConnectionLost -> state.issue.code.name
-            is ConnectionState.Failed -> state.issue.code.name
+            is ConnectionState.ConnectionLost -> state.issue.code
+            is ConnectionState.Failed -> state.issue.code
             else -> null
         }
 
