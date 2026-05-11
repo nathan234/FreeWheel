@@ -182,6 +182,22 @@ private struct NotificationEpisode {
 private var notificationEpisode: NotificationEpisode?
 ```
 
+**Episode lifecycle rule (single source of truth).** Every terminal
+path must follow the same three steps in order:
+
+1. **Read** `notificationEpisode` into a local.
+2. **Act** — post the appropriate notification (or call
+   `removeDeliveredNotifications(withIdentifiers:)` for the
+   user-disconnect path; see below).
+3. **Clear** `notificationEpisode = nil`.
+
+`clearReconnectRecovery()` must NOT touch `notificationEpisode` —
+notification lifecycle is owned by the terminal handlers below, not
+by the recovery cleanup helper. If a future caller adds a new
+recovery-clear path, they must make an explicit decision about the
+episode (post / remove / leave) rather than inheriting silent
+cleanup.
+
 In `handleConnectionStateChange`:
 
 - `.connectionLost` case: capture the `issue` (currently discarded as
@@ -191,25 +207,49 @@ In `handleConnectionStateChange`:
   wheelName: identity.displayName, issue: issue, startedAtMs: now)`.
   If foregrounded, post nothing and leave `notificationEpisode` nil so
   the follow-up notifications won't fire either.
-- `.connected` case: after `clearReconnectRecovery()`, if
-  `notificationEpisode?.address == address`, call
-  `postConnectionRestoredNotification(wheelName:, address:,
+- `.connected` case: consume the episode **before** calling
+  `clearReconnectRecovery()` — the recovery helper might one day grow
+  side effects, and the doc rule above forbids relying on its order
+  with respect to notifications. If
+  `notificationEpisode?.address == address`, snapshot the episode,
+  call `postConnectionRestoredNotification(wheelName:, address:,
   originalIssue: episode.issue, recoveryDurationMs: now -
-  episode.startedAtMs)` and clear `notificationEpisode`. Don't
+  episode.startedAtMs)`, then set `notificationEpisode = nil`. Don't
   re-check `isInBackground` — the episode's existence already proves
   we were backgrounded when "lost" was posted, and the OS will deliver
   the replacement regardless of current foreground state.
 - Terminal `.failed` (the non-preserved branch) and pause-timeout
-  exhaustion (in `ridePauseTimeoutTask`): if `notificationEpisode` is
-  set, call `postRecoveryGivenUpNotification(...)` passing the stashed
+  exhaustion (in `ridePauseTimeoutTask`): same read → act → clear
+  pattern. If `notificationEpisode` is set, call
+  `postRecoveryGivenUpNotification(...)` passing the stashed
   `episode.issue` as `originalIssue` and the `.failed` state's issue
-  (or `nil` for the pause-timeout path) as `terminalIssue`. Clear
-  `notificationEpisode`.
-- Any path that already calls `clearReconnectRecovery()` should also
-  clear `notificationEpisode` if it wasn't consumed by the
-  restored/given_up branches above — e.g., user-initiated disconnect
-  while a notification episode is open clears both without posting a
-  notification (the user knows they tapped Disconnect).
+  (or `nil` for the pause-timeout path) as `terminalIssue`. Then clear.
+- **User-initiated disconnect mid-recovery** (handled in
+  `.disconnected` when `pendingUserDisconnect` is true). If
+  `notificationEpisode` is set, the previously delivered "Lost"
+  banner is still in Notification Center and contradicts the user's
+  intent. Call
+  `backgroundManager.removeConnectionEpisodeNotification(address:
+  episode.address)` to drop it, then clear `notificationEpisode`.
+  Don't post a replacement — the user knows they tapped Disconnect
+  and an extra banner would be noise.
+
+### `iosApp/FreeWheel/Bridge/BackgroundManager.swift` additional API
+
+```swift
+func removeConnectionEpisodeNotification(address: String) {
+    let identifier = "connection_episode_\(address)"
+    UNUserNotificationCenter.current().removeDeliveredNotifications(
+        withIdentifiers: [identifier]
+    )
+    // Also drop any pending (not-yet-delivered) request with the same
+    // identifier so a race between post and remove can't strand a
+    // "Lost" banner that arrives after the user disconnects.
+    UNUserNotificationCenter.current().removePendingNotificationRequests(
+        withIdentifiers: [identifier]
+    )
+}
+```
 
 ### New: `iosApp/FreeWheel/Bridge/ConnectionIssueKind.swift`
 
@@ -304,5 +344,12 @@ Codex review on 2026-05-11. Recorded here so we don't relitigate.
      follow-up gate stays closed. Regression test for Codex finding #1.
   5. **Foreground throughout** — no notifications at all (foreground
      gate).
-  6. **User-initiated disconnect** — no notification (existing
-     `pendingUserDisconnect` gate already excludes this).
+  6. **User-initiated disconnect (no recovery)** — no notification
+     (existing `pendingUserDisconnect` gate already excludes this).
+  7. **User-initiated disconnect mid-recovery.** Background app, force
+     a disconnect → "Lost" notification appears in Notification
+     Center. While recovery is still trying, foreground the app and
+     tap Disconnect. Expect the "Lost" notification to be **removed**
+     from Notification Center (via
+     `removeConnectionEpisodeNotification`); no replacement banner
+     appears. Regression test for Codex finding #1 on this pass.
