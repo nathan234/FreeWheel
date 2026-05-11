@@ -335,6 +335,13 @@ fun TripDetailScreen(
             is TripDetailState.Loaded -> {
                 val rc = replayController
 
+                // Replay → map cursor + chart marker. GPS sample rate differs from telemetry,
+                // so we route through ChartDataPrep.routePointForReplay (covered by tests in
+                // ChartDataPrepTest) rather than indexing routePoints by currentIndex.
+                LaunchedEffect(rc, rc?.currentIndex, s.routePoints) {
+                    mapSelectedPoint = rc?.currentRoutePoint(s.routePoints)
+                }
+
                 // Max values come from the loaded samples so they stay accurate for rides
                 // that were split (trip DB maxes don't get recomputed) or imported from
                 // CSVs predating the max-PWM column. Time/distance still come from the
@@ -477,18 +484,24 @@ fun TripDetailScreen(
                                 .padding(horizontal = 16.dp),
                             marker = marker,
                             yAxisUnit = yAxisUnits.joinToString(" · ").ifEmpty { null },
-                            onSelectedIndexChanged = { index ->
-                                if (index != null && s.routePoints.isNotEmpty()) {
-                                    val sample = s.samples.getOrNull(index)
-                                    if (sample != null) {
-                                        mapSelectedPoint = ChartDataPrep.nearestRoutePoint(
-                                            s.routePoints, sample.timestampMs
-                                        )
+                            // During replay the marker tracks the playback index; touch is ignored
+                            // so the user's finger doesn't fight the timeline. Outside replay,
+                            // touch drives the map cursor as before.
+                            onSelectedIndexChanged = if (rc == null) {
+                                { index ->
+                                    if (index != null && s.routePoints.isNotEmpty()) {
+                                        val sample = s.samples.getOrNull(index)
+                                        if (sample != null) {
+                                            mapSelectedPoint = ChartDataPrep.nearestRoutePoint(
+                                                s.routePoints, sample.timestampMs
+                                            )
+                                        }
+                                    } else {
+                                        mapSelectedPoint = null
                                     }
-                                } else {
-                                    mapSelectedPoint = null
                                 }
-                            },
+                            } else null,
+                            persistentMarkerIndex = rc?.currentIndex,
                         )
                     }
 

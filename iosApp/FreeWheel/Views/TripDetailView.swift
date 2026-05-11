@@ -106,6 +106,12 @@ struct TripDetailView: View {
                 rideStatsHeader
 
                 if let controller = replayController {
+                    // Drive selectedSample from the replay controller so the chart RuleMark
+                    // and map cursor (via selectedRoutePoint) follow playback. The parent
+                    // view doesn't observe the controller (it's @State, not @ObservedObject),
+                    // so this child view holds the observation.
+                    ReplaySelectionSync(controller: controller, selectedSample: $selectedSample)
+
                     ReplayStatsView(controller: controller, useMph: wheelManager.useMph, useFahrenheit: wheelManager.useFahrenheit)
                         .padding(.top, 12)
                 }
@@ -549,6 +555,29 @@ struct TripDetailView: View {
         isLoading = false
     }
 
+}
+
+// MARK: - Replay → Selection Sync
+
+/// Invisible observer that propagates the replay controller's current sample
+/// into the parent's `selectedSample` binding so the chart marker and map
+/// cursor track playback. Lives only while replay is active; clears the
+/// binding when it disappears so exiting replay returns to a clean state
+/// (matching Android's LaunchedEffect, which nils the cursor when the
+/// controller is released).
+private struct ReplaySelectionSync: View {
+    @ObservedObject var controller: RideReplayController
+    @Binding var selectedSample: TelemetrySample?
+
+    var body: some View {
+        Color.clear
+            .frame(width: 0, height: 0)
+            .onAppear { selectedSample = controller.currentSample }
+            .onChange(of: controller.currentIndex) { _ in
+                selectedSample = controller.currentSample
+            }
+            .onDisappear { selectedSample = nil }
+    }
 }
 
 // MARK: - Replay Stats Panel

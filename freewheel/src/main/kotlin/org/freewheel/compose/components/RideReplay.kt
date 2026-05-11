@@ -37,6 +37,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import org.freewheel.core.domain.RidesLabels
+import org.freewheel.core.logging.RoutePoint
+import org.freewheel.core.telemetry.ChartDataPrep
 import org.freewheel.core.telemetry.ReplayPlaybackReducer
 import org.freewheel.core.telemetry.ReplayPlaybackState
 import org.freewheel.core.telemetry.TelemetrySample
@@ -61,6 +63,9 @@ class CsvReplayController(
 
     val currentSample: TelemetrySample?
         get() = ReplayPlaybackReducer.currentSample(state, samples)
+
+    fun currentRoutePoint(routePoints: List<RoutePoint>): RoutePoint? =
+        ChartDataPrep.routePointForReplay(state, samples, routePoints)
 
     val progress: Float
         get() = ReplayPlaybackReducer.progress(state, samples)

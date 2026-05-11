@@ -31,6 +31,7 @@ import com.patrykandpatrick.vico.compose.cartesian.rememberCartesianChart
 import com.patrykandpatrick.vico.compose.cartesian.rememberVicoScrollState
 import com.patrykandpatrick.vico.compose.cartesian.rememberVicoZoomState
 import com.patrykandpatrick.vico.compose.common.fill
+import com.patrykandpatrick.vico.core.cartesian.CartesianChart
 import com.patrykandpatrick.vico.core.cartesian.Zoom
 import com.patrykandpatrick.vico.core.cartesian.axis.HorizontalAxis
 import com.patrykandpatrick.vico.core.cartesian.axis.VerticalAxis
@@ -40,6 +41,7 @@ import com.patrykandpatrick.vico.core.cartesian.data.lineSeries
 import com.patrykandpatrick.vico.core.cartesian.layer.LineCartesianLayer
 import com.patrykandpatrick.vico.core.cartesian.marker.CartesianMarker
 import com.patrykandpatrick.vico.core.cartesian.marker.CartesianMarkerVisibilityListener
+import com.patrykandpatrick.vico.core.common.data.ExtraStore
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -76,6 +78,10 @@ fun VicoLineChart(
     zoomEnabled: Boolean = true,
     yAxisUnit: String? = null,
     onSelectedIndexChanged: ((Int?) -> Unit)? = null,
+    // When non-null, [marker] is pinned at this x-index via Vico's persistentMarkers
+    // API. Used to make the chart marker follow replay playback (the built-in marker
+    // is touch-only). Requires [marker] to be set for the line to appear.
+    persistentMarkerIndex: Int? = null,
 ) {
     if (samples.isEmpty() || seriesList.isEmpty()) return
 
@@ -133,6 +139,14 @@ fun VicoLineChart(
                 isZoomed = scrollState.maxValue > 0f
             }
 
+            val pinnedMarkerX: Double? = if (marker != null && persistentMarkerIndex != null) {
+                persistentMarkerIndex.coerceIn(0, samples.lastIndex).toDouble()
+            } else null
+            val pinnedMarkers: (CartesianChart.PersistentMarkerScope.(ExtraStore) -> Unit)? =
+                if (marker != null && pinnedMarkerX != null) {
+                    { marker at pinnedMarkerX }
+                } else null
+
             CartesianChartHost(
                 chart = rememberCartesianChart(
                     rememberLineCartesianLayer(
@@ -149,6 +163,7 @@ fun VicoLineChart(
                     bottomAxis = HorizontalAxis.rememberBottom(valueFormatter = bottomAxisFormatter),
                     marker = marker,
                     markerVisibilityListener = markerVisibilityListener,
+                    persistentMarkers = pinnedMarkers,
                 ),
                 modelProducer = modelProducer,
                 scrollState = scrollState,

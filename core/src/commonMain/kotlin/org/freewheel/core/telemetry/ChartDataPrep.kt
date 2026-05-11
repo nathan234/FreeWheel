@@ -89,6 +89,25 @@ object ChartDataPrep {
     }
 
     /**
+     * Route point corresponding to the current replay position. Combines
+     * [ReplayPlaybackReducer.currentSample] (replay state → telemetry sample)
+     * with [nearestRoutePoint] (sample timestamp → nearest GPS point), since
+     * GPS points and telemetry samples are recorded at different cadences
+     * (GPS ~1 Hz, telemetry ~10 Hz) — indexing `points[state.currentIndex]`
+     * would be wrong.
+     *
+     * Returns null when there is no current sample or [points] is empty.
+     */
+    fun routePointForReplay(
+        state: ReplayPlaybackState,
+        samples: List<TelemetrySample>,
+        points: List<RoutePoint>
+    ): RoutePoint? {
+        val sample = ReplayPlaybackReducer.currentSample(state, samples) ?: return null
+        return nearestRoutePoint(points, sample.timestampMs)
+    }
+
+    /**
      * Normalize [speedKmh] to a 0.0–1.0 fraction relative to the min/max
      * speeds in [points]. Used by both platforms to map speed values to a
      * color gradient for the route polyline.

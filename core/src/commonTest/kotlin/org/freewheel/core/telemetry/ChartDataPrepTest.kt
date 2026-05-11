@@ -249,4 +249,122 @@ class ChartDataPrepTest {
     fun `speedColorFraction returns 0 for empty list`() {
         assertEquals(0.0, ChartDataPrep.speedColorFraction(25.0, emptyList()), 0.001)
     }
+
+    // ==================== routePointForReplay ====================
+    //
+    // GPS points and telemetry samples are recorded at different cadences
+    // (GPS ~1 Hz, telemetry ~10 Hz), so the route point at replay index N is
+    // NOT routePoints[N] — it's the point whose timestamp is nearest the
+    // current sample's timestamp. These tests pin that behavior so the
+    // replay-cursor → map-marker wiring can rely on it.
+
+    @Test
+    fun `routePointForReplay returns null when samples is empty`() {
+        val state = ReplayPlaybackState()
+        val points = listOf(routePoint(1000L, speedKmh = 10.0))
+        assertNull(ChartDataPrep.routePointForReplay(state, emptyList(), points))
+    }
+
+    @Test
+    fun `routePointForReplay returns null when routePoints is empty`() {
+        val samples = listOf(sample(0L), sample(1000L))
+        val state = ReplayPlaybackState(currentIndex = 0)
+        assertNull(ChartDataPrep.routePointForReplay(state, samples, emptyList()))
+    }
+
+    @Test
+    fun `routePointForReplay at index 0 returns point nearest first sample timestamp`() {
+        val samples = listOf(sample(0L), sample(500L), sample(1000L))
+        val points = listOf(
+            routePoint(0L, speedKmh = 10.0),
+            routePoint(1000L, speedKmh = 20.0)
+        )
+        val state = ReplayPlaybackState(currentIndex = 0)
+        assertEquals(10.0, ChartDataPrep.routePointForReplay(state, samples, points)?.speedKmh)
+    }
+
+    @Test
+    fun `routePointForReplay after seekTo(0_5) tracks the middle sample`() {
+        // 5 samples evenly spaced 0..4000ms — seek(0.5) lands on index 2 (timestamp 2000ms).
+        val samples = (0..4).map { sample((it * 1000L)) }
+        val points = listOf(
+            routePoint(0L, speedKmh = 10.0),
+            routePoint(2000L, speedKmh = 25.0),
+            routePoint(4000L, speedKmh = 40.0)
+        )
+        val state = ReplayPlaybackReducer.seekTo(ReplayPlaybackState(), 0.5f, samples)
+        assertEquals(25.0, ChartDataPrep.routePointForReplay(state, samples, points)?.speedKmh)
+    }
+
+    @Test
+    fun `routePointForReplay after seekTo(1_0) returns last route point`() {
+        val samples = (0..4).map { sample((it * 1000L)) }
+        val points = listOf(
+            routePoint(0L, speedKmh = 10.0),
+            routePoint(2000L, speedKmh = 25.0),
+            routePoint(4000L, speedKmh = 40.0)
+        )
+        val state = ReplayPlaybackReducer.seekTo(ReplayPlaybackState(), 1.0f, samples)
+        assertEquals(40.0, ChartDataPrep.routePointForReplay(state, samples, points)?.speedKmh)
+    }
+
+    @Test
+    fun `routePointForReplay tracks advanceOne progression`() {
+        val samples = listOf(sample(0L), sample(1000L), sample(2000L), sample(3000L))
+        val points = listOf(
+            routePoint(0L, speedKmh = 10.0),
+            routePoint(1000L, speedKmh = 20.0),
+            routePoint(2000L, speedKmh = 30.0),
+            routePoint(3000L, speedKmh = 40.0)
+        )
+        var state = ReplayPlaybackReducer.play(ReplayPlaybackState())
+        assertEquals(10.0, ChartDataPrep.routePointForReplay(state, samples, points)?.speedKmh)
+        state = ReplayPlaybackReducer.advanceOne(state, samples).state
+        assertEquals(20.0, ChartDataPrep.routePointForReplay(state, samples, points)?.speedKmh)
+        state = ReplayPlaybackReducer.advanceOne(state, samples).state
+        assertEquals(30.0, ChartDataPrep.routePointForReplay(state, samples, points)?.speedKmh)
+        state = ReplayPlaybackReducer.advanceOne(state, samples).state
+        assertEquals(40.0, ChartDataPrep.routePointForReplay(state, samples, points)?.speedKmh)
+    }
+
+    @Test
+    fun `routePointForReplay uses timestamp not index when GPS is sparser than telemetry`() {
+        // 10 telemetry samples at 100ms cadence (0..900ms),
+        // 2 route points at 1Hz-ish cadence (0, 900ms) — typical real-world ratio.
+        // Indexing naively (routePoints[currentIndex]) would either out-of-bounds or
+        // pick the wrong point. The helper must pick by nearest timestamp.
+        val samples = (0..9).map { sample((it * 100L)) }
+        val points = listOf(
+            routePoint(0L, speedKmh = 5.0),
+            routePoint(900L, speedKmh = 45.0)
+        )
+        // Sample 0 (ts=0): closer to point at 0ms → speed 5
+        val s0 = ReplayPlaybackState(currentIndex = 0)
+        assertEquals(5.0, ChartDataPrep.routePointForReplay(s0, samples, points)?.speedKmh)
+        // Sample 4 (ts=400): closer to 0ms (|400-0|=400) than 900ms (|400-900|=500) → speed 5
+        val s4 = ReplayPlaybackState(currentIndex = 4)
+        assertEquals(5.0, ChartDataPrep.routePointForReplay(s4, samples, points)?.speedKmh)
+        // Sample 5 (ts=500): closer to 900ms (|500-900|=400) than 0ms (|500-0|=500) → speed 45
+        val s5 = ReplayPlaybackState(currentIndex = 5)
+        assertEquals(45.0, ChartDataPrep.routePointForReplay(s5, samples, points)?.speedKmh)
+        // Sample 9 (ts=900): exact match on point at 900ms → speed 45
+        val s9 = ReplayPlaybackState(currentIndex = 9)
+        assertEquals(45.0, ChartDataPrep.routePointForReplay(s9, samples, points)?.speedKmh)
+    }
+
+    @Test
+    fun `routePointForReplay returns last route point when state is finished`() {
+        // advanceOne flips isFinished=true on the final index. currentSample still points
+        // at the last sample, so the helper should still return the corresponding route point
+        // (not null) — otherwise the map marker would jump away when playback ends.
+        val samples = listOf(sample(0L), sample(1000L))
+        val points = listOf(
+            routePoint(0L, speedKmh = 10.0),
+            routePoint(1000L, speedKmh = 30.0)
+        )
+        var state = ReplayPlaybackReducer.play(ReplayPlaybackState())
+        state = ReplayPlaybackReducer.advanceOne(state, samples).state
+        assertEquals(true, state.isFinished)
+        assertEquals(30.0, ChartDataPrep.routePointForReplay(state, samples, points)?.speedKmh)
+    }
 }
