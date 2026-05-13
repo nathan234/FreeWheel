@@ -246,7 +246,12 @@ class VeteranDecoder : WheelDecoder {
 
         return when (loopResult) {
             is DecodeResult.Success -> {
-                val extraCommands = if (!hasSyncedTime && mVer >= 3) {
+                // BtManager.bluetoothHeatBeatOnce() calls syncTime() on every
+                // received heartbeat regardless of firmware version. Inferred
+                // from the v1.4.8 app source — capture-pending against a real
+                // pre-mVer-3 wheel to confirm the 0x4C64...0x12 packet is
+                // ignored rather than misinterpreted.
+                val extraCommands = if (!hasSyncedTime) {
                     hasSyncedTime = true
                     buildTimeSyncCommands()
                 } else emptyList()
@@ -960,7 +965,11 @@ class VeteranDecoder : WheelDecoder {
                 if (ver < 3) {
                     listOf(WheelCommand.SendBytes("b".encodeToByteArray()))
                 } else {
-                    listOf(WheelCommand.SendBytes(buildVeteranCommand(0x0E, 9, 0x01)))
+                    // BtManager.sendBytesDataCombine(CMD_OLDCMDB, CMD_OLDCMDB_NEW)
+                    listOf(
+                        WheelCommand.SendBytes(buildVeteranCommand(0x0E, 9, 0x01)),
+                        WheelCommand.SendBytes(buildVeteranCommandNew(0x0E, 9, 0x01, byte5 = 0x00))
+                    )
                 }
             }
             is WheelCommand.SetLight -> {
@@ -970,9 +979,12 @@ class VeteranDecoder : WheelDecoder {
                         else "SetLightOFF".encodeToByteArray()
                     ))
                 } else {
-                    listOf(WheelCommand.SendBytes(
-                        buildVeteranCommand(0x0D, 8, if (command.enabled) 1 else 0, byte5 = 0x01)
-                    ))
+                    // BtManager.sendBytesDataCombine(CMD_SET_LIGHT_*, CMD_SET_LIGHT_*_NEW)
+                    val value = if (command.enabled) 1 else 0
+                    listOf(
+                        WheelCommand.SendBytes(buildVeteranCommand(0x0D, 8, value, byte5 = 0x01)),
+                        WheelCommand.SendBytes(buildVeteranCommandNew(0x0D, 8, value))
+                    )
                 }
             }
             is WheelCommand.SetPedalsMode -> {
@@ -987,7 +999,11 @@ class VeteranDecoder : WheelDecoder {
                         0 -> 3; 1 -> 2; 2 -> 1  // hard/medium/soft
                         else -> return emptyList()
                     }
-                    listOf(WheelCommand.SendBytes(buildVeteranCommand(0x0C, 7, value, byte5 = 0x01)))
+                    // BtManager.sendBytesDataCombine(CMD_SETx, CMD_SETx_NEW)
+                    listOf(
+                        WheelCommand.SendBytes(buildVeteranCommand(0x0C, 7, value, byte5 = 0x01)),
+                        WheelCommand.SendBytes(buildVeteranCommandNew(0x0C, 7, value))
+                    )
                 }
             }
             is WheelCommand.SetAlarmSpeed -> {
@@ -1008,28 +1024,28 @@ class VeteranDecoder : WheelDecoder {
             }
             is WheelCommand.SetTransportMode -> {
                 if (!isSupportedAt(SettingsCommandId.TRANSPORT_MODE, ver)) return emptyList()
-                val value = if (command.enabled) 1 else 0
-                listOf(
-                    WheelCommand.SendBytes(buildVeteranCommand(0x16, 17, value, byte5 = 0x01)),
-                    WheelCommand.SendBytes(buildVeteranCommandNew(0x16, 17, value, byte6 = 0x02))
-                )
+                // ControlActivity.java calls sendBytesData (single LdAp), not
+                // sendBytesDataCombine — so we mirror that. NOTE: SetLateralCutoffAngle
+                // shares cmd 0x16 and is dual-emit in the app, so collision is not the
+                // reason; the app simply ships transport-mode as LdAp-only.
+                listOf(WheelCommand.SendBytes(
+                    buildVeteranCommandNew(0x16, 17, if (command.enabled) 1 else 0, byte6 = 0x02)
+                ))
             }
             is WheelCommand.SetSpeakerVolume -> emptyList()
             is WheelCommand.SetHighSpeedMode -> {
                 if (!isSupportedAt(SettingsCommandId.HIGH_SPEED_MODE, ver)) return emptyList()
-                val value = if (command.enabled) 1 else 0
-                listOf(
-                    WheelCommand.SendBytes(buildVeteranCommand(0x1A, 21, value, byte5 = 0x01)),
-                    WheelCommand.SendBytes(buildVeteranCommandNew(0x1A, 21, value, byte6 = 0x02))
-                )
+                // ControlActivity.java sends LdAp only.
+                listOf(WheelCommand.SendBytes(
+                    buildVeteranCommandNew(0x1A, 21, if (command.enabled) 1 else 0, byte6 = 0x02)
+                ))
             }
             is WheelCommand.SetLowVoltageMode -> {
                 if (!isSupportedAt(SettingsCommandId.LOW_VOLTAGE_MODE, ver)) return emptyList()
-                val value = if (command.enabled) 1 else 0
-                listOf(
-                    WheelCommand.SendBytes(buildVeteranCommand(0x19, 20, value, byte5 = 0x01)),
-                    WheelCommand.SendBytes(buildVeteranCommandNew(0x19, 20, value, byte6 = 0x02))
-                )
+                // ControlActivity.java sends LdAp only.
+                listOf(WheelCommand.SendBytes(
+                    buildVeteranCommandNew(0x19, 20, if (command.enabled) 1 else 0, byte6 = 0x02)
+                ))
             }
             is WheelCommand.SetKeyTone -> {
                 if (!isSupportedAt(SettingsCommandId.KEY_TONE, ver)) return emptyList()
@@ -1037,16 +1053,40 @@ class VeteranDecoder : WheelDecoder {
             }
             is WheelCommand.PowerOff -> {
                 if (!isSupportedAt(SettingsCommandId.POWER_OFF, ver)) return emptyList()
-                val payload = byteArrayOf(
+                // BtManager.sendBytesDataCombine(CMD_SET_CLOSE_IN_10, CMD_SET_CLOSE_IN_10_NEW)
+                // Value is at byte 16 with trailing 0x80 at byte 17 — value is NOT
+                // the last byte, so we hand-roll both variants instead of using
+                // buildVeteranCommand*.
+                val lkap = byteArrayOf(
                     0x4C, 0x6B, 0x41, 0x70, 0x16, 0x01,
                     0x80.toByte(), 0x80.toByte(), 0x80.toByte(), 0x80.toByte(),
                     0x80.toByte(), 0x80.toByte(), 0x80.toByte(), 0x80.toByte(),
                     0x80.toByte(), 0x80.toByte(), 0x01, 0x80.toByte()
                 )
-                listOf(WheelCommand.SendBytes(appendCrc32(payload)))
+                val ldap = byteArrayOf(
+                    0x4C, 0x64, 0x41, 0x70, 0x16, 0x01, 0x00,
+                    0x80.toByte(), 0x80.toByte(), 0x80.toByte(), 0x80.toByte(),
+                    0x80.toByte(), 0x80.toByte(), 0x80.toByte(), 0x80.toByte(),
+                    0x80.toByte(), 0x01, 0x80.toByte()
+                )
+                listOf(
+                    WheelCommand.SendBytes(appendCrc32(lkap)),
+                    WheelCommand.SendBytes(appendCrc32(ldap))
+                )
             }
             is WheelCommand.ResetTrip -> {
-                listOf(WheelCommand.SendBytes("CLEARMETER".encodeToByteArray()))
+                if (ver < 3) {
+                    // Legacy strCmdMode wheels accept ASCII only.
+                    listOf(WheelCommand.SendBytes("CLEARMETER".encodeToByteArray()))
+                } else {
+                    // BtManager.sendBytesDataCombine(CMD_CLEAR_METER, CMD_CLEAR_METER_NEW)
+                    // LkAp: cmd 0x0D, byte5=0, value=1 @6 (7 bytes, no padding).
+                    // LdAp: cmd 0x0D, byte5=0, byte6=0x02, value=1 @8 (9 bytes).
+                    listOf(
+                        WheelCommand.SendBytes(buildVeteranCommand(0x0D, 6, 0x01)),
+                        WheelCommand.SendBytes(buildVeteranCommandNew(0x0D, 8, 0x01, byte5 = 0x00, byte6 = 0x02))
+                    )
+                }
             }
             is WheelCommand.SetVeteranLock -> {
                 listOf(WheelCommand.SendBytes(buildLockCommand(command.locked, command.password)))

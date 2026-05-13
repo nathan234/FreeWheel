@@ -894,15 +894,19 @@ class VeteranDecoderTest {
     fun `beep command for new firmware (mVer 3 or higher)`() {
         val freshDecoder = decoderWithVer(5000)
         val commands = freshDecoder.buildCommand(WheelCommand.Beep)
-        assertEquals(1, commands.size)
-        val sendBytes = commands[0] as WheelCommand.SendBytes
-        // New beep packet: 4C 6B 41 70 0E 00 80 80 80 01 CA 87 E6 6F
-        val expected = byteArrayOf(
+        // BtManager.sendBytesDataCombine(OLDCMDB, OLDCMDB_NEW) → 2 commands.
+        assertEquals(2, commands.size)
+        val lkap = (commands[0] as WheelCommand.SendBytes).data
+        // LkAp variant: 4C 6B 41 70 0E 00 80 80 80 01 CA 87 E6 6F
+        val expectedLkAp = byteArrayOf(
             0x4C, 0x6B, 0x41, 0x70, 0x0E, 0x00,
             0x80.toByte(), 0x80.toByte(), 0x80.toByte(), 0x01,
             0xCA.toByte(), 0x87.toByte(), 0xE6.toByte(), 0x6F
         )
-        assertTrue(expected.contentEquals(sendBytes.data))
+        assertTrue(expectedLkAp.contentEquals(lkap), "LkAp variant must match legacy bytes")
+        val ldap = (commands[1] as WheelCommand.SendBytes).data
+        assertEquals(0x64.toByte(), ldap[1], "second emit must be LdAp")
+        assertEquals(0x0E.toByte(), ldap[4], "LdAp cmd byte = 0x0E (beep)")
     }
 
     @Test
@@ -1542,24 +1546,22 @@ class VeteranDecoderTest {
     fun `set transport mode on command for new firmware`() {
         val freshDecoder = decoderWithVer(5000)
         val commands = freshDecoder.buildCommand(WheelCommand.SetTransportMode(enabled = true))
-        assertEquals(2, commands.size) // old "LkAp" + new "LdAp" format
-        val oldData = (commands[0] as WheelCommand.SendBytes).data
-        assertEquals(0x6B.toByte(), oldData[1]) // "LkAp"
-        assertEquals(0x16.toByte(), oldData[4])
-        assertEquals(1.toByte(), oldData[17])
-        val newData = (commands[1] as WheelCommand.SendBytes).data
-        assertEquals(0x64.toByte(), newData[1]) // "LdAp"
-        assertEquals(0x16.toByte(), newData[4])
-        assertEquals(0x02.toByte(), newData[6]) // byte6 = 0x02 for toggle
-        assertEquals(1.toByte(), newData[17])
+        // Official app sends LdAp only (ControlActivity.java sendBytesData).
+        assertEquals(1, commands.size)
+        val data = (commands[0] as WheelCommand.SendBytes).data
+        assertEquals(0x64.toByte(), data[1]) // "LdAp"
+        assertEquals(0x16.toByte(), data[4])
+        assertEquals(0x02.toByte(), data[6]) // byte6 = 0x02 for toggle
+        assertEquals(1.toByte(), data[17])
     }
 
     @Test
     fun `set transport mode off command for new firmware`() {
         val freshDecoder = decoderWithVer(5000)
         val commands = freshDecoder.buildCommand(WheelCommand.SetTransportMode(enabled = false))
-        assertEquals(2, commands.size)
+        assertEquals(1, commands.size)
         val data = (commands[0] as WheelCommand.SendBytes).data
+        assertEquals(0x64.toByte(), data[1]) // "LdAp"
         assertEquals(0x16.toByte(), data[4])
         assertEquals(0.toByte(), data[17])
     }
@@ -1580,9 +1582,12 @@ class VeteranDecoderTest {
     fun `set high speed mode on command for new firmware`() {
         val freshDecoder = decoderWithVer(5000)
         val commands = freshDecoder.buildCommand(WheelCommand.SetHighSpeedMode(enabled = true))
-        assertEquals(2, commands.size) // old + new format
+        // Official app sends LdAp only.
+        assertEquals(1, commands.size)
         val data = (commands[0] as WheelCommand.SendBytes).data
+        assertEquals(0x64.toByte(), data[1]) // "LdAp"
         assertEquals(0x1A.toByte(), data[4]) // cmd byte
+        assertEquals(0x02.toByte(), data[6]) // byte6 = 0x02 for toggle
         assertEquals(1.toByte(), data[21]) // value at byte 21
     }
 
@@ -1590,9 +1595,12 @@ class VeteranDecoderTest {
     fun `set low voltage mode on command for new firmware`() {
         val freshDecoder = decoderWithVer(5000)
         val commands = freshDecoder.buildCommand(WheelCommand.SetLowVoltageMode(enabled = true))
-        assertEquals(2, commands.size) // old + new format
+        // Official app sends LdAp only.
+        assertEquals(1, commands.size)
         val data = (commands[0] as WheelCommand.SendBytes).data
+        assertEquals(0x64.toByte(), data[1]) // "LdAp"
         assertEquals(0x19.toByte(), data[4]) // cmd byte
+        assertEquals(0x02.toByte(), data[6]) // byte6 = 0x02 for toggle
         assertEquals(1.toByte(), data[20]) // value at byte 20
     }
 
@@ -1813,25 +1821,32 @@ class VeteranDecoderTest {
     fun `power off command for new firmware`() {
         val freshDecoder = decoderWithVer(5000)
         val commands = freshDecoder.buildCommand(WheelCommand.PowerOff)
-        assertEquals(1, commands.size)
-        val data = (commands[0] as WheelCommand.SendBytes).data
-        // Header
-        assertEquals(0x4C.toByte(), data[0])
-        assertEquals(0x6B.toByte(), data[1])
-        assertEquals(0x41.toByte(), data[2])
-        assertEquals(0x70.toByte(), data[3])
-        // cmd byte 0x16
-        assertEquals(0x16.toByte(), data[4])
-        // Total = 18 payload + 4 CRC = 22
-        assertEquals(22, data.size)
-        // Verify the CRC is present (non-trivial last 4 bytes)
-        val payloadSize = data.size - 4
-        val crc = veteranCrc32(data, 0, payloadSize)
-        val providedCrc = ((data[payloadSize].toLong() and 0xFF) shl 24) or
-                ((data[payloadSize + 1].toLong() and 0xFF) shl 16) or
-                ((data[payloadSize + 2].toLong() and 0xFF) shl 8) or
-                (data[payloadSize + 3].toLong() and 0xFF)
-        assertEquals(crc, providedCrc, "PowerOff command should have valid CRC32")
+        // BtManager.sendBytesDataCombine(CMD_SET_CLOSE_IN_10, CMD_SET_CLOSE_IN_10_NEW).
+        assertEquals(2, commands.size)
+
+        val lkap = (commands[0] as WheelCommand.SendBytes).data
+        assertEquals(0x4C.toByte(), lkap[0])
+        assertEquals(0x6B.toByte(), lkap[1]) // "LkAp"
+        assertEquals(0x41.toByte(), lkap[2])
+        assertEquals(0x70.toByte(), lkap[3])
+        assertEquals(0x16.toByte(), lkap[4])
+        // 18 payload + 4 CRC.
+        assertEquals(22, lkap.size)
+
+        val ldap = (commands[1] as WheelCommand.SendBytes).data
+        assertEquals(0x64.toByte(), ldap[1]) // "LdAp"
+        assertEquals(0x16.toByte(), ldap[4])
+        assertEquals(22, ldap.size)
+
+        for ((label, data) in listOf("LkAp" to lkap, "LdAp" to ldap)) {
+            val payloadSize = data.size - 4
+            val crc = veteranCrc32(data, 0, payloadSize)
+            val providedCrc = ((data[payloadSize].toLong() and 0xFF) shl 24) or
+                    ((data[payloadSize + 1].toLong() and 0xFF) shl 16) or
+                    ((data[payloadSize + 2].toLong() and 0xFF) shl 8) or
+                    (data[payloadSize + 3].toLong() and 0xFF)
+            assertEquals(crc, providedCrc, "PowerOff $label should have valid CRC32")
+        }
     }
 
     // ==================== Lock Command ====================
@@ -1887,13 +1902,19 @@ class VeteranDecoderTest {
     fun `set light binary for new firmware`() {
         val freshDecoder = decoderWithVer(5000) // mVer=5
         val commands = freshDecoder.buildCommand(WheelCommand.SetLight(enabled = true))
-        assertEquals(1, commands.size)
-        val data = (commands[0] as WheelCommand.SendBytes).data
-        // Binary format, not string
-        assertEquals(0x4C.toByte(), data[0]) // binary header
-        assertEquals(0x6B.toByte(), data[1])
-        assertEquals(0x0D.toByte(), data[4]) // cmd byte for light
-        assertEquals(1.toByte(), data[8]) // value at byte 8
+        // BtManager.sendBytesDataCombine(SET_LIGHT_ON, SET_LIGHT_ON_NEW).
+        assertEquals(2, commands.size)
+
+        val lkap = (commands[0] as WheelCommand.SendBytes).data
+        assertEquals(0x4C.toByte(), lkap[0])
+        assertEquals(0x6B.toByte(), lkap[1]) // "LkAp"
+        assertEquals(0x0D.toByte(), lkap[4]) // cmd byte for light
+        assertEquals(1.toByte(), lkap[8])    // value at byte 8
+
+        val ldap = (commands[1] as WheelCommand.SendBytes).data
+        assertEquals(0x64.toByte(), ldap[1]) // "LdAp"
+        assertEquals(0x0D.toByte(), ldap[4])
+        assertEquals(1.toByte(), ldap[8])
     }
 
     @Test
@@ -1901,11 +1922,19 @@ class VeteranDecoderTest {
         val freshDecoder = decoderWithVer(5000) // mVer=5
         // mode 0 = hard -> inverted to 3
         val commands = freshDecoder.buildCommand(WheelCommand.SetPedalsMode(mode = 0))
-        assertEquals(1, commands.size)
-        val data = (commands[0] as WheelCommand.SendBytes).data
-        assertEquals(0x4C.toByte(), data[0]) // binary header
-        assertEquals(0x0C.toByte(), data[4]) // cmd byte for pedals mode
-        assertEquals(3.toByte(), data[7]) // value at byte 7 (0 -> 3 inverted)
+        // BtManager.sendBytesDataCombine(SETh, SETh_NEW).
+        assertEquals(2, commands.size)
+
+        val lkap = (commands[0] as WheelCommand.SendBytes).data
+        assertEquals(0x4C.toByte(), lkap[0])
+        assertEquals(0x6B.toByte(), lkap[1]) // "LkAp"
+        assertEquals(0x0C.toByte(), lkap[4]) // cmd byte for pedals mode
+        assertEquals(3.toByte(), lkap[7])    // value at byte 7 (0 -> 3 inverted)
+
+        val ldap = (commands[1] as WheelCommand.SendBytes).data
+        assertEquals(0x64.toByte(), ldap[1]) // "LdAp"
+        assertEquals(0x0C.toByte(), ldap[4])
+        assertEquals(3.toByte(), ldap[7])
     }
 
     @Test
@@ -1967,12 +1996,22 @@ class VeteranDecoderTest {
     }
 
     @Test
-    fun `mVer less than 3 does not emit time sync commands`() {
+    fun `mVer less than 3 also emits time sync commands`() {
+        // Match BtManager.bluetoothHeatBeatOnce in v1.4.8: syncTime() is called
+        // on every received heartbeat, with no firmware-version gate.
+        // (Capture-pending against real pre-mVer-3 hardware; see VeteranDecoder.decode.)
         val freshDecoder = VeteranDecoder()
         val frame = buildVeteranFrame(ver = 1000) // mVer=1
         val result = freshDecoder.decode(frame, DecoderState(), config)
         assertTrue(result is DecodeResult.Success)
-        assertTrue((result as DecodeResult.Success).data.commands.isEmpty(), "Old firmware should not get time sync commands")
+        val syncCmds = (result as DecodeResult.Success).data.commands.filter { cmd ->
+            when (cmd) {
+                is WheelCommand.SendBytes -> cmd.data.size >= 7 && cmd.data[4] == 0x12.toByte()
+                is WheelCommand.SendDelayed -> cmd.data.size >= 7 && cmd.data[4] == 0x12.toByte()
+                else -> false
+            }
+        }
+        assertEquals(2, syncCmds.size, "Old firmware should also receive time sync (app does not gate by mVer)")
     }
 
     @Test
@@ -1999,7 +2038,8 @@ class VeteranDecoderTest {
     fun `binary beep command matches hardcoded bytes`() {
         val freshDecoder = decoderWithVer(5000)
         val commands = freshDecoder.buildCommand(WheelCommand.Beep)
-        assertEquals(1, commands.size)
+        // BtManager.sendBytesDataCombine(OLDCMDB, OLDCMDB_NEW).
+        assertEquals(2, commands.size)
         val data = (commands[0] as WheelCommand.SendBytes).data
         val expected = byteArrayOf(
             0x4C, 0x6B, 0x41, 0x70, 0x0E, 0x00,
@@ -2007,7 +2047,7 @@ class VeteranDecoderTest {
             0xCA.toByte(), 0x87.toByte(), 0xE6.toByte(), 0x6F
         )
         assertTrue(expected.contentEquals(data),
-            "Beep command should match hardcoded bytes exactly")
+            "Beep LkAp command should match hardcoded bytes exactly")
     }
 
     @Test

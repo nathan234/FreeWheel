@@ -99,9 +99,16 @@ internal fun WheelDecoder.runFixture(fixture: DecoderFixture) {
 }
 
 private fun assertExpected(fixture: DecoderFixture, state: DecoderState, lastResult: DecodeResult?) {
-    val label = "fixture '${fixture.name}'"
+    assertDecoderFixtureExpectation("fixture '${fixture.name}'", fixture.expect, state, lastResult)
+}
 
-    fixture.expect.lastResult?.let { expectedKind ->
+internal fun assertDecoderFixtureExpectation(
+    label: String,
+    expected: DecoderFixture.Expected,
+    state: DecoderState,
+    lastResult: DecodeResult?,
+) {
+    expected.lastResult?.let { expectedKind ->
         val actualKind = when (lastResult) {
             is DecodeResult.Success -> DecoderFixture.ResultKind.SUCCESS
             is DecodeResult.Buffering -> DecoderFixture.ResultKind.BUFFERING
@@ -111,7 +118,7 @@ private fun assertExpected(fixture: DecoderFixture, state: DecoderState, lastRes
         assertEquals(expectedKind, actualKind, "$label: last decode result kind")
     }
 
-    fixture.expect.telemetry?.let { t ->
+    expected.telemetry?.let { t ->
         val a = state.telemetry
         t.speed?.let { assertEquals(it, a.speed, "$label: telemetry.speed") }
         t.voltage?.let { assertEquals(it, a.voltage, "$label: telemetry.voltage") }
@@ -128,7 +135,7 @@ private fun assertExpected(fixture: DecoderFixture, state: DecoderState, lastRes
         t.rideTime?.let { assertEquals(it, a.rideTime, "$label: telemetry.rideTime") }
     }
 
-    fixture.expect.identity?.let { i ->
+    expected.identity?.let { i ->
         val a = state.identity
         i.wheelType?.let { assertEquals(it, a.wheelType, "$label: identity.wheelType") }
         i.model?.let { assertEquals(it, a.model, "$label: identity.model") }
@@ -137,7 +144,7 @@ private fun assertExpected(fixture: DecoderFixture, state: DecoderState, lastRes
         i.version?.let { assertEquals(it, a.version, "$label: identity.version") }
     }
 
-    fixture.expect.settings?.let { expected ->
-        assertEquals(expected, state.settings, "$label: settings")
+    expected.settings?.let { settings ->
+        assertEquals(settings, state.settings, "$label: settings")
     }
 }
