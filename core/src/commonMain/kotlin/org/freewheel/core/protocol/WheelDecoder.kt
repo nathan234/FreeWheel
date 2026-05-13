@@ -487,6 +487,14 @@ sealed class WheelCommand {
     data class SetAccelerationLimit(val value: Int) : WheelCommand()
     data class SetWheelDisplayUnit(val miles: Boolean) : WheelCommand()
 
+    /**
+     * Continuous Veteran pedal-hardness slider (0..100). Distinct from the
+     * 3-step [SetPedalsMode] (Hard/Medium/Soft) and routed through cmd 0x0F to
+     * mirror the official app's PedalSoftnessSettingActivity. Wire byte equals
+     * the user-facing percentage with no offset.
+     */
+    data class SetPedalHardness(val value: Int) : WheelCommand()
+
     /** Veteran lock/unlock with numeric password (e.g. "000000"). */
     data class SetVeteranLock(val locked: Boolean, val password: String) : WheelCommand()
 

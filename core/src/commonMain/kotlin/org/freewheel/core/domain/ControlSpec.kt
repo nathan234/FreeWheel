@@ -45,6 +45,7 @@ enum class SettingsCommandId {
     SCREEN_BACKLIGHT, STOP_SPEED, VETERAN_PWM_LIMIT, VOLTAGE_CORRECTION,
     MAX_CHARGE_VOLTAGE, BRAKE_PRESSURE_ALARM, LATERAL_CUTOFF_ANGLE,
     DYNAMIC_ASSIST, ACCELERATION_LIMIT, WHEEL_DISPLAY_UNIT,
+    PEDAL_HARDNESS, // continuous Veteran pedal-softness slider (cmd 0x0F)
     // InMotion P6 settings
     SCREEN_AUTO_OFF,
     BALANCE_ANGLE,
@@ -65,7 +66,7 @@ enum class SettingsCommandId {
         ALARM_SPEED_1, PEDAL_TILT, TRANSPORT_MODE, HIGH_SPEED_MODE, LOW_VOLTAGE_MODE,
         KEY_TONE, SCREEN_BACKLIGHT, STOP_SPEED, VETERAN_PWM_LIMIT, VOLTAGE_CORRECTION,
         MAX_CHARGE_VOLTAGE, BRAKE_PRESSURE_ALARM, LATERAL_CUTOFF_ANGLE,
-        DYNAMIC_ASSIST, ACCELERATION_LIMIT, WHEEL_DISPLAY_UNIT,
+        DYNAMIC_ASSIST, ACCELERATION_LIMIT, WHEEL_DISPLAY_UNIT, PEDAL_HARDNESS,
         // InMotion V2: model/protoVer gated
         BERM_ANGLE_MODE, BERM_ANGLE, TURNING_SENSITIVITY, ONE_PEDAL_MODE,
         SPEEDING_BRAKING_MODE, SPEEDING_BRAKING_ANGLE, SOUND_WAVE, SOUND_WAVE_SENSITIVITY,
@@ -128,6 +129,7 @@ enum class SettingsCommandId {
         DYNAMIC_ASSIST -> settings.dynamicAssist.takeIf { it >= 0 }
         ACCELERATION_LIMIT -> settings.accelerationLimit.takeIf { it >= 0 }
         WHEEL_DISPLAY_UNIT -> settings.wheelDisplayUnit.takeIf { it >= 0 }
+        PEDAL_HARDNESS -> settings.pedalSensitivity.takeIf { it >= 0 }
         BALANCE_ANGLE -> settings.balanceAngle.takeIf { it != -1 }
         MIN_TIRE_PRESSURE -> settings.minTirePressure.takeIf { it >= 0 }
         CHARGING_CURRENT -> settings.chargingCurrentAC220V.takeIf { it >= 0 }
@@ -196,7 +198,7 @@ enum class SettingsCommandId {
         KEY_TONE, SCREEN_BACKLIGHT, STOP_SPEED, VETERAN_PWM_LIMIT,
         VOLTAGE_CORRECTION, MAX_CHARGE_VOLTAGE, BRAKE_PRESSURE_ALARM,
         LATERAL_CUTOFF_ANGLE, DYNAMIC_ASSIST, ACCELERATION_LIMIT,
-        WHEEL_DISPLAY_UNIT, BALANCE_ANGLE, CHARGING_CURRENT,
+        WHEEL_DISPLAY_UNIT, PEDAL_HARDNESS, BALANCE_ANGLE, CHARGING_CURRENT,
         MIN_TIRE_PRESSURE -> null
         SPEED_TILTBACK_ENABLE -> settings.speedTiltbackEnabled
     }

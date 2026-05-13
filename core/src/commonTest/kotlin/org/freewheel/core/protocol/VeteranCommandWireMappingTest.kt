@@ -111,4 +111,12 @@ class VeteranCommandWireMappingTest {
         assertEquals(60, valueAt(emit(WheelCommand.SetDynamicAssist(60)), 26))
         assertEquals(40, valueAt(emit(WheelCommand.SetAccelerationLimit(40)), 28))
     }
+
+    @Test
+    fun `SetPedalHardness passes wire byte through unchanged`() {
+        // PedalSoftnessSettingActivity.java: continuous 0..100, raw passthrough.
+        assertEquals(50, valueAt(emit(WheelCommand.SetPedalHardness(50)), 10))
+        assertEquals(0, valueAt(emit(WheelCommand.SetPedalHardness(0)), 10))
+        assertEquals(100, valueAt(emit(WheelCommand.SetPedalHardness(100)), 10))
+    }
 }

@@ -1145,6 +1145,12 @@ class VeteranDecoder : WheelDecoder {
                 if (!isSupportedAt(SettingsCommandId.WHEEL_DISPLAY_UNIT, ver)) return emptyList()
                 listOf(WheelCommand.SendBytes(buildVeteranCommandNew(0x17, 18, if (command.miles) 1 else 0, byte6 = 0x02)))
             }
+            is WheelCommand.SetPedalHardness -> {
+                if (!isSupportedAt(SettingsCommandId.PEDAL_HARDNESS, ver)) return emptyList()
+                // PedalSoftnessSettingActivity.java: single LdAp, cmd 0x0F,
+                // byte6=2, value @10. progressToCmdValue is raw passthrough.
+                listOf(WheelCommand.SendBytes(buildVeteranCommandNew(0x0F, 10, command.value, byte6 = 0x02)))
+            }
             else -> emptyList()
         }
     }
@@ -1179,6 +1185,7 @@ class VeteranDecoder : WheelDecoder {
             SettingsCommandId.DYNAMIC_ASSIST to 3,
             SettingsCommandId.ACCELERATION_LIMIT to 3,
             SettingsCommandId.WHEEL_DISPLAY_UNIT to 3,
+            SettingsCommandId.PEDAL_HARDNESS to 3,
             SettingsCommandId.CALIBRATE to 3,
             SettingsCommandId.POWER_OFF to 3,
         )

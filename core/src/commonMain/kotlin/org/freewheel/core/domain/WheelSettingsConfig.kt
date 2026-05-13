@@ -88,6 +88,7 @@ object WheelSettingsConfig {
         )),
         SettingsSection("Ride", listOf(
             ControlSpec.Segmented("Pedals Mode", listOf("Hard", "Medium", "Soft"), SettingsCommandId.PEDALS_MODE),
+            ControlSpec.Slider("Pedal Hardness", 0, 100, "%", 50, SettingsCommandId.PEDAL_HARDNESS),
             ControlSpec.Slider("Alarm Speed", 10, 80, "km/h", 50, SettingsCommandId.ALARM_SPEED_1, unitCategory = UnitCategory.SPEED),
             ControlSpec.Slider("Pedal Tilt", -8, 8, "\u00B0", 0, SettingsCommandId.PEDAL_TILT),
             ControlSpec.Slider("Stop Speed", 10, 120, "km/h", 60, SettingsCommandId.STOP_SPEED, unitCategory = UnitCategory.SPEED),

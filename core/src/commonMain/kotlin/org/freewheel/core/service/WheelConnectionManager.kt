@@ -511,6 +511,7 @@ class WheelConnectionManager(
             SettingsCommandId.DYNAMIC_ASSIST -> sendCommand(WheelCommand.SetDynamicAssist(intValue))
             SettingsCommandId.ACCELERATION_LIMIT -> sendCommand(WheelCommand.SetAccelerationLimit(intValue))
             SettingsCommandId.WHEEL_DISPLAY_UNIT -> sendCommand(WheelCommand.SetWheelDisplayUnit(intValue == 1))
+            SettingsCommandId.PEDAL_HARDNESS -> sendCommand(WheelCommand.SetPedalHardness(intValue))
             // InMotion V2 extended settings
             SettingsCommandId.BERM_ANGLE_MODE -> setBermAngleMode(boolValue)
             SettingsCommandId.BERM_ANGLE -> setBermAngle(intValue)

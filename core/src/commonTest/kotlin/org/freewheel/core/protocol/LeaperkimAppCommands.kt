@@ -313,6 +313,14 @@ internal object LeaperkimAppCommands {
     // via BtManager.sendBytesData(). progressToCmdValue() controls user-to-wire
     // encoding (raw passthrough for most; +80 offset for brake pressure).
 
+    /** SetPedalHardness(50): PedalSoftnessSettingActivity.java:37 — cmd 0x0F, byte6=2, value @10. */
+    val PEDAL_HARDNESS_50_LDAP = byteArrayOf(
+        0x4C, 0x64, 0x41, 0x70,
+        0x0F, 0x01, 0x02,
+        0x80.toByte(), 0x80.toByte(), 0x80.toByte(),
+        50.toByte()
+    )
+
     /** SetScreenBacklight(50): ScreenBacklightSettingActivity.java:30 — cmd 0x14, byte6=2, value @15. */
     val SCREEN_BACKLIGHT_50_LDAP = byteArrayOf(
         0x4C, 0x64, 0x41, 0x70,

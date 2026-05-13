@@ -256,6 +256,14 @@ class VeteranCommandVariantPolicyTest {
     }
 
     @Test
+    fun `SetPedalHardness matches PedalSoftnessSettingActivity bytes`() {
+        val decoder = VeteranDecoder()
+        val cmds = decoder.buildCommand(WheelCommand.SetPedalHardness(50), stateWith(mVer = 5))
+        assertEquals(1, cmds.size)
+        assertMatchesFixture(cmds[0], LeaperkimAppCommands.PEDAL_HARDNESS_50_LDAP, "SetPedalHardness")
+    }
+
+    @Test
     fun `SetBrakePressureAlarm matches BrakeSettingActivity bytes`() {
         // FreeWheel's SetBrakePressureAlarm carries the raw wire value; the
         // app's i+80 user-slider mapping is applied at the UI/ViewModel layer.
