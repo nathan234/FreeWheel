@@ -150,6 +150,27 @@ enum class SettingsCommandId {
         RIDE_CONNECT_LOW_BATTERY, SPEED_TILTBACK_ENABLE -> null
     }
 
+    /**
+     * Capability-driven visibility for a [ControlSpec] keyed on this command.
+     *
+     * Returns false when the current wheel reports the field as unsupported,
+     * so the settings UI can hide controls the wheel can't honor.
+     *
+     * Currently used for the Veteran pedal-feel mutual exclusion. The official
+     * Leaperkim app's `ControlActivity.initControlData` hides
+     * `layoutPedalHardnessSetting` when subtype 8 reports `pedalHardness == 0x80`
+     * (unsupported) and falls back to the 3-step ride mode in that case; we
+     * mirror that policy from the parsed `pedalSensitivity` readback.
+     */
+    fun isAvailable(settings: WheelSettings): Boolean = when (this) {
+        PEDAL_HARDNESS -> settings is WheelSettings.Veteran && settings.pedalSensitivity >= 0
+        PEDALS_MODE -> when (settings) {
+            is WheelSettings.Veteran -> settings.pedalSensitivity < 0
+            else -> true
+        }
+        else -> true
+    }
+
     /** Read current bool value from settings, or null if no readback. */
     fun readBool(settings: WheelSettings): Boolean? = when (this) {
         LED -> settings.ledMode.takeIf { it >= 0 }?.let { it > 0 }

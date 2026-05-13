@@ -56,7 +56,13 @@ struct WheelSettingsContent: View {
         ForEach(Array(sections.enumerated()), id: \.offset) { _, section in
             Section(section.title) {
                 ForEach(Array(section.controls.enumerated()), id: \.offset) { _, control in
-                    renderControl(control)
+                    // Capability gating: skip controls the wheel reports as
+                    // unsupported (e.g., Veteran 3-step Pedals Mode vs continuous
+                    // Pedal Hardness mutual exclusion). See KMP
+                    // SettingsCommandId.isAvailable KDoc.
+                    if control.commandId.isAvailable(settings: wheelManager.wheelSettings) {
+                        renderControl(control)
+                    }
                 }
             }
         }

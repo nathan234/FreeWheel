@@ -71,7 +71,13 @@ internal fun SectionCard(
             Spacer(Modifier.height(12.dp))
 
             section.controls.forEachIndexed { index, control ->
-                // Check visibility gating
+                // Capability gating: skip controls the wheel reports as unsupported.
+                // Currently used to mutually exclude Veteran 3-step Pedals Mode vs
+                // continuous Pedal Hardness based on subtype 8 readback. See
+                // [SettingsCommandId.isAvailable] KDoc.
+                if (!control.commandId.isAvailable(wheelSettings)) return@forEachIndexed
+
+                // Toggle-driven visibility gating
                 if (control is ControlSpec.Slider && control.visibleWhen != null) {
                     val gateValue = toggleStates[control.visibleWhen]
                         ?: control.visibleWhen?.let { SettingsCommandId.entries.find { e -> e == it } }
