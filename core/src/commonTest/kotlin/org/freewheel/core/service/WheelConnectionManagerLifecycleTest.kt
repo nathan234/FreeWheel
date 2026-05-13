@@ -13,6 +13,7 @@ import org.freewheel.core.ble.BleUuids
 import org.freewheel.core.ble.DiscoveredService
 import org.freewheel.core.ble.DiscoveredServices
 import org.freewheel.core.ble.ServiceTopology
+import org.freewheel.core.ble.WheelTopologies
 import org.freewheel.core.ble.WheelTopology
 import org.freewheel.core.ble.WheelTopologyMatcher
 import org.freewheel.core.ble.WheelTypeDetector
@@ -509,6 +510,59 @@ class WheelConnectionManagerLifecycleTest {
         assertNotNull(manager.getCurrentDecoder())
         assertEquals(WheelType.KINGSONG, fakeFactory.lastCreatedType)
         assertEquals(WheelType.KINGSONG, manager.identityState.value.wheelType)
+    }
+
+    @Test
+    fun `onServicesDiscovered stamps Nosfet brand for NF-prefixed Veteran wheel`() = runTest(timeout = 0.1.seconds) {
+        // Nosfet wheels advertise with an "NF" prefix and reuse the Veteran
+        // protocol on Gotway BLE UUIDs. The brand override must land before
+        // VeteranDecoder parses mVer so the devices-tab "Connecting…" state
+        // shows "Nosfet NF4557" instead of bare "NF4557".
+        val gotwayServices = DiscoveredServices(
+            listOf(
+                DiscoveredService(
+                    uuid = BleUuids.Gotway.SERVICE,
+                    characteristics = listOf(BleUuids.Gotway.READ_CHARACTERISTIC)
+                )
+            )
+        )
+        val manager = createManager()
+        manager.connect("AA:BB:CC:DD:EE:FF")
+        runCurrent()
+
+        manager.onServicesDiscovered(gotwayServices, "NF4557")
+        runCurrent()
+
+        val identity = manager.identityState.value
+        assertEquals(WheelType.VETERAN, identity.wheelType)
+        assertEquals("NF4557", identity.btName)
+        assertEquals("Nosfet", identity.brand)
+        assertEquals("Nosfet NF4557", identity.displayName)
+    }
+
+    @Test
+    fun `onServicesDiscovered does not stamp Nosfet brand when detected type is not VETERAN`() = runTest(timeout = 0.1.seconds) {
+        // Defensive gate: the brand override is conditional on the detected
+        // wheel type being VETERAN. If a non-Veteran wheel is renamed (or
+        // happens to advertise) with an NF prefix, definitive topology
+        // detection must still win, and we must NOT misbrand it as Nosfet.
+        val kingsongTopology = WheelTopologies.ALL.first { it.wheelType == WheelType.KINGSONG }
+        val kingsongFullServices = DiscoveredServices(
+            services = kingsongTopology.services.map { svc ->
+                DiscoveredService(uuid = svc.uuid, characteristics = svc.characteristics.toList())
+            }
+        )
+        val manager = createManager()
+        manager.connect("AA:BB:CC:DD:EE:FF")
+        runCurrent()
+
+        manager.onServicesDiscovered(kingsongFullServices, deviceName = "NF-IMPOSTOR")
+        runCurrent()
+
+        val identity = manager.identityState.value
+        assertEquals(WheelType.KINGSONG, identity.wheelType)
+        assertEquals("NF-IMPOSTOR", identity.btName)
+        assertEquals("", identity.brand)
     }
 
     @Test

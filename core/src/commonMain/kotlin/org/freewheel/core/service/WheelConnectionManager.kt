@@ -794,7 +794,7 @@ class WheelConnectionManager(
                     writeServiceUuid = result.writeServiceUuid,
                     writeCharacteristicUuid = result.writeCharacteristicUuid
                 )
-                reconnectOrSetup(newState, result.wheelType, info)
+                reconnectOrSetup(maybeStampNosfetBrand(newState, result.wheelType), result.wheelType, info)
             }
             is WheelTypeDetector.DetectionResult.Ambiguous -> {
                 // Pass 3a: with topology-first detection, Ambiguous now only
@@ -829,7 +829,7 @@ class WheelConnectionManager(
                     val wheelType = shortCircuit.suggestedProtocol.toWheelType()
                     Logger.i(TAG, "Unknown topology — short-circuiting via ${shortCircuit.source} hint to $wheelType")
                     val info = WheelConnectionInfo.forType(wheelType)
-                    return reconnectOrSetup(newState, wheelType, info)
+                    return reconnectOrSetup(maybeStampNosfetBrand(newState, wheelType), wheelType, info)
                 }
                 val address = getCurrentAddress(newState)
                 if (address == null) {
@@ -855,6 +855,22 @@ class WheelConnectionManager(
                 )
             }
         }
+    }
+
+    /**
+     * Nosfet wheels advertise with an "NF" prefix but reuse the Veteran
+     * protocol (and Gotway BLE UUIDs). Once detection has confirmed VETERAN,
+     * stamp the brand so the devices-tab "Connecting…" state shows
+     * "Nosfet …" before VeteranDecoder has parsed mVer. Gating on the
+     * detected wheel type avoids misbranding a non-Veteran wheel that
+     * happens to advertise (or get renamed) with an NF prefix.
+     */
+    private fun maybeStampNosfetBrand(state: WcmState, wheelType: WheelType): WcmState {
+        if (wheelType != WheelType.VETERAN) return state
+        val btName = state.identity.btName
+        if (state.identity.brand.isNotEmpty() || btName.isEmpty()) return state
+        if (!btName.uppercase().startsWith("NF")) return state
+        return state.copy(identity = state.identity.copy(brand = "Nosfet"))
     }
 
     /**
