@@ -4,11 +4,19 @@ import org.freewheel.core.ble.DiscoveredService
 import org.freewheel.core.ble.DiscoveredServices
 import org.freewheel.core.ble.WheelTypeDetector
 import org.freewheel.core.domain.ProtocolFamily
+import org.freewheel.core.domain.WheelSettings
 import org.freewheel.core.domain.WheelType
+import org.freewheel.core.protocol.DecodeResult
+import org.freewheel.core.protocol.DecoderState
+import org.freewheel.core.protocol.DefaultWheelDecoderFactory
+import org.freewheel.core.protocol.VeteranDecoder
+import org.freewheel.core.protocol.hexToByteArray
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotEquals
+import kotlin.test.assertNotNull
+import kotlin.test.assertTrue
 
 class LeaperkimCorrectnessHarnessTest {
 
@@ -128,16 +136,65 @@ class LeaperkimCorrectnessHarnessTest {
         val run = LeaperkimCorrectnessHarness.run(fixture)
         run.outcome(LeaperkimDecoderCandidate.VETERAN).assertMatchesGolden(fixture)
         run.outcome(LeaperkimDecoderCandidate.AUTO_DETECT).assertMatchesGolden(fixture, "AUTO_DETECT")
+
+        // The harness's structural Expected can't pin individual settings
+        // fields without locking the entire WheelSettings struct. Replay the
+        // same hex frame through a direct VeteranDecoder call so a byte-offset
+        // regression in parseControlSettings() shows up here.
+        val decoder = VeteranDecoder()
+        val frame = fixture.golden.frames.single().hexToByteArray()
+        val result = decoder.decode(frame, DecoderState(), fixture.golden.config)
+        assertTrue(result is DecodeResult.Success, "subtype 8 fixture must decode")
+        val settings = assertNotNull((result as DecodeResult.Success).data.settings, "expected settings update") as WheelSettings.Veteran
+
+        assertEquals(70, settings.pedalSensitivity, "byte 50 (pedal hardness)")
+        assertEquals(25, settings.stopSpeed, "byte 52 (stop speed)")
+        assertEquals(80, settings.pwmLimit, "byte 53 (PWM limit)")
+        assertEquals(90, settings.screenBacklight, "byte 55 (backlight)")
+        assertEquals(true, settings.transportMode, "byte 57 (transport)")
+        assertEquals(0, settings.wheelDisplayUnit, "byte 58 (display unit)")
+        assertEquals(5, settings.voltageCorrection, "byte 59 (voltage correction)")
+        assertEquals(true, settings.lowVoltageMode, "byte 60 (low voltage)")
+        assertEquals(false, settings.highSpeedMode, "byte 61 (high speed)")
+        assertEquals(50, settings.keyTone, "byte 63 (key tone)")
+        assertEquals(100, settings.maxChargeVoltage, "byte 64 (max charge)")
+        assertEquals(100, settings.chargeVoltageBase, "byte 65 (base voltage)")
+        assertEquals(40, settings.dynamicAssist, "byte 66 (dynamic assist)")
+        assertEquals(30, settings.accelerationLimit, "byte 68 (acceleration limit)")
+        assertEquals(110, settings.brakePressureAlarm, "byte 69 (brake pressure)")
     }
 
     @Test
-    fun `batch 1 BMS subtype 1 and 5 accept 15-cell payloads`() {
-        for (fixture in listOf(
-            LeaperkimBatch1Fixtures.bmsLeftCells1To15,
-            LeaperkimBatch1Fixtures.bmsRightCells1To15,
-        )) {
+    fun `batch 1 BMS subtype 1 and 5 map 15 cells into the correct pack`() {
+        // Subtype 1 → bms1 (left pack), subtype 5 → bms2 (right pack).
+        // Cell values are signed BE at bytes 53..82, scaled ÷1000.
+        val cases = listOf(
+            Triple(LeaperkimBatch1Fixtures.bmsLeftCells1To15, "bms1", 3.750),
+            Triple(LeaperkimBatch1Fixtures.bmsRightCells1To15, "bms2", 3.800),
+        )
+
+        for ((fixture, packLabel, expectedCellV) in cases) {
             val run = LeaperkimCorrectnessHarness.run(fixture)
             run.outcome(LeaperkimDecoderCandidate.VETERAN).assertMatchesGolden(fixture)
+
+            // Direct decoder pass to inspect parsed cell voltages.
+            val decoder = VeteranDecoder()
+            val frame = fixture.golden.frames.single().hexToByteArray()
+            val result = decoder.decode(frame, DecoderState(), fixture.golden.config)
+            assertTrue(result is DecodeResult.Success, "$packLabel fixture must decode")
+            val bms = assertNotNull((result as DecodeResult.Success).data.bms, "expected BMS update")
+            val pack = if (packLabel == "bms1") bms.bms1 else bms.bms2
+            assertNotNull(pack, "$packLabel must be populated for this subtype")
+            for (i in 0 until 15) {
+                assertEquals(expectedCellV, pack.cells[i], "$packLabel cell $i")
+            }
+            // The opposite pack must stay untouched (no cells written).
+            val otherPack = if (packLabel == "bms1") bms.bms2 else bms.bms1
+            if (otherPack != null) {
+                for (i in 0 until 15) {
+                    assertEquals(0.0, otherPack.cells[i], "opposite pack cell $i should be 0.0")
+                }
+            }
         }
     }
 
@@ -176,6 +233,9 @@ class LeaperkimCorrectnessHarnessTest {
 
     @Test
     fun `autodetect aaaa routes to can even under Leaperkim-family name`() {
+        // Scope: this protects [AutoDetectDecoder]'s internal invariant, which
+        // is not currently in the shipped session-picking path (see fixture
+        // doc). It locks the decoder contract for any future re-enable.
         val fixture = LeaperkimCorrectnessFixtures.autodetectAaaaRoutesToCan
 
         val run = LeaperkimCorrectnessHarness.run(fixture)
@@ -184,9 +244,6 @@ class LeaperkimCorrectnessHarnessTest {
         run.assertCandidateExpectations()
         run.outcome(LeaperkimDecoderCandidate.LEAPERKIM_CAN).assertMatchesGolden(fixture)
         run.outcome(LeaperkimDecoderCandidate.AUTO_DETECT).assertMatchesGolden(fixture, "AUTO_DETECT")
-        // Discovery-time routing landed on VETERAN (name-only), but the AA AA
-        // packet must promote the session to LEAPERKIM. Asserting both halves
-        // is the whole point of the fixture.
         assertEquals(
             WheelType.VETERAN,
             run.routingOutcome.wheelType,
@@ -195,7 +252,41 @@ class LeaperkimCorrectnessHarnessTest {
         assertEquals(
             WheelType.LEAPERKIM,
             run.outcome(LeaperkimDecoderCandidate.AUTO_DETECT).resolvedWheelType,
-            "AA AA packet evidence must promote the session to LEAPERKIM",
+            "AA AA packet evidence must promote AutoDetectDecoder to LEAPERKIM",
+        )
+    }
+
+    @Test
+    fun `production routing picks VeteranDecoder for Leaperkim-family devices`() {
+        // Mirror the shipped flow: WheelConnectionManager.reduceServicesDiscovered
+        // calls wheelTypeDetector.detect(...) and immediately picks a concrete
+        // decoder via DefaultWheelDecoderFactory — never AutoDetectDecoder.
+        //
+        // For an LK-family name on FFE0/FFE1 topology this locks the production
+        // decision: VETERAN, not LEAPERKIM. (A wheel that then sent AA AA frames
+        // would stay stuck on VeteranDecoder; that is by design — promotion is
+        // not the production contract.)
+        val detector = WheelTypeDetector()
+        val factory = DefaultWheelDecoderFactory()
+        val services = DiscoveredServices(
+            services = listOf(
+                DiscoveredService(
+                    uuid = "0000ffe0-0000-1000-8000-00805f9b34fb",
+                    characteristics = listOf("0000ffe1-0000-1000-8000-00805f9b34fb"),
+                ),
+            ),
+        )
+
+        val detection = detector.detect(services, "LK-SHERMAN")
+        val detected = detection as? WheelTypeDetector.DetectionResult.Detected
+            ?: error("detect must return Detected for LK-SHERMAN + FFE0/FFE1, got $detection")
+        assertEquals(WheelType.VETERAN, detected.wheelType)
+
+        val decoder = factory.createDecoder(detected.wheelType)
+        assertEquals(
+            "VeteranDecoder",
+            decoder?.let { it::class.simpleName },
+            "Production factory must pick VeteranDecoder for VETERAN detection",
         )
     }
 

@@ -161,17 +161,25 @@ internal object LeaperkimCorrectnessFixtures {
     )
 
     /**
-     * Batch 3 fixture: locks the rule that an `AA AA` framed packet still
-     * promotes the session to [WheelType.LEAPERKIM] under [AutoDetectDecoder],
-     * even when the device name belongs to the Leaperkim brand family (which
-     * by itself routes to VETERAN). Packet evidence overrides name evidence.
+     * Batch 3 fixture: locks the decoder-level invariant that [AutoDetectDecoder]
+     * promotes a session to [WheelType.LEAPERKIM] when it sees `AA AA` framed
+     * traffic, even if the device name is from the Leaperkim brand family
+     * (which on its own routes to VETERAN).
+     *
+     * NOTE on production scope: the shipped connection flow does not currently
+     * use [AutoDetectDecoder]. WheelConnectionManager.reduceServicesDiscovered
+     * picks a concrete decoder via the DefaultWheelDecoderFactory immediately
+     * after [WheelTypeDetector.detect] resolves; [AutoDetectDecoder] has no
+     * production callers. This fixture protects the decoder contract so the
+     * promotion path is still locked if a future change reintroduces an
+     * auto-detect step (or surfaces it for a wheel-picker fallback).
      *
      * Status remains DRAFT — the frame is synthesized via
      * [LeaperkimCanDecoder.buildCanFrame], not captured from real hardware.
      */
     val autodetectAaaaRoutesToCan = LeaperkimCorrectnessFixture(
         id = "autodetect_aaaa_routes_to_can",
-        description = "AA AA packet must promote to LEAPERKIM under AutoDetectDecoder regardless of brand-family name.",
+        description = "AutoDetectDecoder invariant: AA AA promotes to LEAPERKIM regardless of brand-family name.",
         model = "Leaperkim CAN (synthetic AA AA promotion)",
         evidenceClasses = setOf(LeaperkimEvidenceClass.HYPOTHESIS),
         status = LeaperkimFixtureStatus.DRAFT,
