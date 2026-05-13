@@ -197,6 +197,54 @@ class WheelCatalogTest {
         assertNull(matched)
     }
 
+    // -- Leaperkim correctness-plan invariant ------------------------------
+    // docs/leaperkim-correctness-plan.md: every Leaperkim-family model in the
+    // production catalog must route to VETERAN. CAN promotion is reserved for
+    // capture-backed evidence and is never the catalog default.
+
+    @Test
+    fun noLeaperkimFamilyEntryRoutesToCanByDefault() {
+        val leaperkimFamilyTokens = setOf(
+            "SHERMAN", "PATTON", "LYNX", "ABRAMS", "ORYX",
+            "AERO", "AEON", "APEX",
+        )
+
+        val offenders = WheelCatalog.entries.filter { entry ->
+            entry.wheelType == WheelType.LEAPERKIM &&
+                entry.nameTokens.any { token ->
+                    leaperkimFamilyTokens.any { family -> token.uppercase().contains(family) }
+                }
+        }
+
+        assertEquals(
+            emptyList(),
+            offenders.map { it.id },
+            "Catalog entries '${offenders.map { it.id }}' silently route to CAN — " +
+                "see docs/leaperkim-correctness-plan.md (no Leaperkim-family CAN default).",
+        )
+    }
+
+    @Test
+    fun officialAppBackedModelsResolveViaVeteranLane() {
+        // The four entries fixed in Phase 1 of leaperkim-app-parity-plan.md:
+        // each must match against its name when the runtime session is
+        // VETERAN (i.e., what VeteranDecoder actually reports).
+        val cases = listOf(
+            "veteran-patton-s" to "PATTON-S",
+            "veteran-sherman-l" to "SHERMAN-L",
+            "veteran-lynx-s" to "LYNX-S",
+            "veteran-oryx" to "ORYX",
+        )
+        for ((expectedId, btName) in cases) {
+            val matched = WheelCatalog.match(
+                wheelType = WheelType.VETERAN,
+                identity = WheelIdentity(btName = btName),
+            )
+            assertNotNull(matched, "VETERAN session named '$btName' must match the catalog")
+            assertEquals(expectedId, matched.id, "Expected catalog id for '$btName'")
+        }
+    }
+
     private fun entry(
         id: String,
         wheelType: WheelType,

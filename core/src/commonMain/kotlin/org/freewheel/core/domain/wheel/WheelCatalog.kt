@@ -53,16 +53,20 @@ object WheelCatalog {
         WheelCatalogEntry("extreme-bull-rocket", "Extreme Bull Rocket", WheelType.GOTWAY, listOf("ROCKET"), 55.0),
         WheelCatalogEntry("extreme-bull-x-men", "Extreme Bull X-Men", WheelType.GOTWAY, listOf("X-MEN", "XMEN"), 80.0),
 
-        // LeaperKim / Veteran
+        // LeaperKim / Veteran — all Leaperkim-family wheels currently speak the
+        // legacy DC5A5C Veteran protocol per docs/leaperkim-correctness-plan.md.
+        // WheelType.LEAPERKIM (CAN-over-BLE) is reserved for evidence-backed
+        // sessions only; promoting a model here would silently force the CAN
+        // lane and is gated by the plan's CAN admission criteria.
         WheelCatalogEntry("veteran-sherman", "Veteran Sherman", WheelType.VETERAN, listOf("SHERMAN", "VETERAN SHERMAN"), 72.0),
         WheelCatalogEntry("veteran-sherman-max", "Veteran Sherman Max", WheelType.VETERAN, listOf("SHERMAN MAX"), 72.0),
         WheelCatalogEntry("veteran-sherman-s", "Veteran Sherman-S", WheelType.VETERAN, listOf("SHERMAN S", "SHERMAN-S"), 72.0),
         WheelCatalogEntry("veteran-patton", "Veteran Patton", WheelType.VETERAN, listOf("PATTON"), 80.0),
-        WheelCatalogEntry("veteran-patton-s", "Veteran Patton-S", WheelType.LEAPERKIM, listOf("PATTON S", "PATTON-S"), 68.0),
+        WheelCatalogEntry("veteran-patton-s", "Veteran Patton-S", WheelType.VETERAN, listOf("PATTON S", "PATTON-S"), 68.0),
         WheelCatalogEntry("veteran-lynx", "Veteran Lynx", WheelType.VETERAN, listOf("LYNX"), 88.0),
-        WheelCatalogEntry("veteran-lynx-s", "Veteran Lynx-S", WheelType.LEAPERKIM, listOf("LYNX S", "LYNX-S"), 90.0),
-        WheelCatalogEntry("veteran-sherman-l", "Veteran Sherman-L", WheelType.LEAPERKIM, listOf("SHERMAN L", "SHERMAN-L"), 88.0),
-        WheelCatalogEntry("veteran-oryx", "Veteran Oryx", WheelType.LEAPERKIM, listOf("ORYX"), 97.0),
+        WheelCatalogEntry("veteran-lynx-s", "Veteran Lynx-S", WheelType.VETERAN, listOf("LYNX S", "LYNX-S"), 90.0),
+        WheelCatalogEntry("veteran-sherman-l", "Veteran Sherman-L", WheelType.VETERAN, listOf("SHERMAN L", "SHERMAN-L"), 88.0),
+        WheelCatalogEntry("veteran-oryx", "Veteran Oryx", WheelType.VETERAN, listOf("ORYX"), 97.0),
 
         // NOSFET
         WheelCatalogEntry("nosfet-aero", "NOSFET Aero", WheelType.VETERAN, listOf("AERO"), 55.0),
