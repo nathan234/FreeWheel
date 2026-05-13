@@ -231,6 +231,40 @@ class VeteranCommandVariantPolicyTest {
         assertMatchesFixture(cmds[0], LeaperkimAppCommands.CALIBRATE_LDAP, "Calibrate")
     }
 
+    @Test
+    fun `SetScreenBacklight matches ScreenBacklightSettingActivity bytes`() {
+        val decoder = VeteranDecoder()
+        val cmds = decoder.buildCommand(WheelCommand.SetScreenBacklight(50), stateWith(mVer = 5))
+        assertEquals(1, cmds.size)
+        assertMatchesFixture(cmds[0], LeaperkimAppCommands.SCREEN_BACKLIGHT_50_LDAP, "SetScreenBacklight")
+    }
+
+    @Test
+    fun `SetKeyTone matches KeyToneSettingActivity bytes`() {
+        val decoder = VeteranDecoder()
+        val cmds = decoder.buildCommand(WheelCommand.SetKeyTone(50), stateWith(mVer = 5))
+        assertEquals(1, cmds.size)
+        assertMatchesFixture(cmds[0], LeaperkimAppCommands.KEY_TONE_50_LDAP, "SetKeyTone")
+    }
+
+    @Test
+    fun `SetMaxChargeVoltage matches MaxChargePowerSettingActivity bytes`() {
+        val decoder = VeteranDecoder()
+        val cmds = decoder.buildCommand(WheelCommand.SetMaxChargeVoltage(100), stateWith(mVer = 5))
+        assertEquals(1, cmds.size)
+        assertMatchesFixture(cmds[0], LeaperkimAppCommands.MAX_CHARGE_VOLTAGE_100_LDAP, "SetMaxChargeVoltage")
+    }
+
+    @Test
+    fun `SetBrakePressureAlarm matches BrakeSettingActivity bytes`() {
+        // FreeWheel's SetBrakePressureAlarm carries the raw wire value; the
+        // app's i+80 user-slider mapping is applied at the UI/ViewModel layer.
+        val decoder = VeteranDecoder()
+        val cmds = decoder.buildCommand(WheelCommand.SetBrakePressureAlarm(110), stateWith(mVer = 5))
+        assertEquals(1, cmds.size)
+        assertMatchesFixture(cmds[0], LeaperkimAppCommands.BRAKE_PRESSURE_110_LDAP, "SetBrakePressureAlarm")
+    }
+
     // ==================== Time-sync shape parity (Codex H1 refinement) ====================
     // Util.getTimeBytes() returns {0x4C 0x64 0x41 0x70 0x12 0x00 0x05 <7 dynamic bytes>} + CRC.
     // The timestamp bytes are dynamic (current clock), so we assert shape, not

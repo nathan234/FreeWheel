@@ -448,6 +448,85 @@ internal object LeaperkimBatch1Fixtures {
         ),
     )
 
+    // ==================== Phase 2 follow-ups: fall protection + lock state ====================
+
+    /**
+     * Subtype 2 byte 47 carries the fall-protection (lateral-cutoff) angle in
+     * degrees. A 0 reading means "not set" and the decoder leaves the prior
+     * value alone; any non-zero raw byte writes directly to
+     * `WheelSettings.Veteran.lateralCutoffAngle`.
+     */
+    val fallProtectionAngleSubtype2 = LeaperkimCorrectnessFixture(
+        id = "leaperkim_fall_protection_angle_subtype_2",
+        description = "Subtype 2 byte 47 writes fall-protection angle into lateralCutoffAngle.",
+        model = "Leaperkim Lynx (fall protection)",
+        evidenceClasses = setOf(LeaperkimEvidenceClass.OFFICIAL_APP),
+        status = LeaperkimFixtureStatus.APPROVED,
+        sources = listOf(
+            "VeteranDecoder.parseSubTypeData pNum=2 branch (byte 47)",
+            "Leaperkim app v1.4.8 SetFallProtectionAngleActivity",
+        ),
+        protocolExpectation = ProtocolFamily.VETERAN,
+        deviceName = "LYNX-FALL",
+        advertisedServices = legacyFfeGatt,
+        golden = DecoderFixture(
+            name = "leaperkim_fall_protection_angle_subtype_2",
+            description = "Frame with byte 47 = 70 (degrees) → lateralCutoffAngle parses as 70.",
+            frames = listOf(
+                hexOf(
+                    buildExtendedFrame(ver = 5000, subType = 2, voltage = 13500) { f ->
+                        f[47] = 70.toByte()
+                        f[50] = 0x80.toByte()   // not-supported marker on battery override
+                    }
+                )
+            ),
+            expect = DecoderFixture.Expected(
+                lastResult = DecoderFixture.ResultKind.SUCCESS,
+            ),
+        ),
+    )
+
+    /**
+     * Subtype 5 byte 51 carries the lock state. Stored as a single unsigned byte
+     * into `WheelSettings.Veteran.lockState`.
+     */
+    val lockStateSubtype5 = LeaperkimCorrectnessFixture(
+        id = "leaperkim_lock_state_subtype_5",
+        description = "Subtype 5 byte 51 writes lock state into lockState.",
+        model = "Leaperkim Lynx (lock state)",
+        evidenceClasses = setOf(LeaperkimEvidenceClass.OFFICIAL_APP),
+        status = LeaperkimFixtureStatus.APPROVED,
+        sources = listOf(
+            "VeteranDecoder.parseSubTypeData pNum=5 branch (byte 51)",
+            "Leaperkim app v1.4.8 lock state readback",
+        ),
+        protocolExpectation = ProtocolFamily.VETERAN,
+        deviceName = "LYNX-LOCK",
+        advertisedServices = legacyFfeGatt,
+        golden = DecoderFixture(
+            name = "leaperkim_lock_state_subtype_5",
+            description = "Frame with byte 51 = 0x01 → lockState parses as 1 (locked).",
+            frames = listOf(
+                hexOf(
+                    buildExtendedFrame(ver = 5000, subType = 5, voltage = 13500) { f ->
+                        // Subtype 5 also writes 15 cell voltages into bms2 (bytes 53..82).
+                        // Set non-zero cells so the BMS readback is also valid, even
+                        // though we don't assert it here.
+                        for (i in 0 until 15) {
+                            val offset = 53 + i * 2
+                            f[offset] = 0x0E.toByte()
+                            f[offset + 1] = 0xA6.toByte() // 0x0EA6 = 3750 mV
+                        }
+                        f[51] = 0x01
+                    }
+                )
+            ),
+            expect = DecoderFixture.Expected(
+                lastResult = DecoderFixture.ResultKind.SUCCESS,
+            ),
+        ),
+    )
+
     val perModelMainFrames = listOf(
         shermanBaselineMainFrame,
         pattonBaselineMainFrame,
@@ -464,5 +543,10 @@ internal object LeaperkimBatch1Fixtures {
         socTableLookupByHardwareVersion,
     )
 
-    val all = perModelMainFrames + subtypeAndSocFixtures
+    val phase2Followups = listOf(
+        fallProtectionAngleSubtype2,
+        lockStateSubtype5,
+    )
+
+    val all = perModelMainFrames + subtypeAndSocFixtures + phase2Followups
 }

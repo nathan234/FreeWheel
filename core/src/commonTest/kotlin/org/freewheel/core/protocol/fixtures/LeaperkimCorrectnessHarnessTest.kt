@@ -212,6 +212,34 @@ class LeaperkimCorrectnessHarnessTest {
         run.outcome(LeaperkimDecoderCandidate.VETERAN).assertMatchesGolden(fixture)
     }
 
+    @Test
+    fun `phase 2 subtype 2 byte 47 writes fall protection angle`() {
+        val fixture = LeaperkimBatch1Fixtures.fallProtectionAngleSubtype2
+        val run = LeaperkimCorrectnessHarness.run(fixture)
+        run.outcome(LeaperkimDecoderCandidate.VETERAN).assertMatchesGolden(fixture)
+
+        val decoder = VeteranDecoder()
+        val frame = fixture.golden.frames.single().hexToByteArray()
+        val result = decoder.decode(frame, DecoderState(), fixture.golden.config)
+        assertTrue(result is DecodeResult.Success, "fall-protection fixture must decode")
+        val settings = assertNotNull((result as DecodeResult.Success).data.settings, "expected settings update") as WheelSettings.Veteran
+        assertEquals(70, settings.lateralCutoffAngle, "byte 47 → lateralCutoffAngle")
+    }
+
+    @Test
+    fun `phase 2 subtype 5 byte 51 writes lock state`() {
+        val fixture = LeaperkimBatch1Fixtures.lockStateSubtype5
+        val run = LeaperkimCorrectnessHarness.run(fixture)
+        run.outcome(LeaperkimDecoderCandidate.VETERAN).assertMatchesGolden(fixture)
+
+        val decoder = VeteranDecoder()
+        val frame = fixture.golden.frames.single().hexToByteArray()
+        val result = decoder.decode(frame, DecoderState(), fixture.golden.config)
+        assertTrue(result is DecodeResult.Success, "lock-state fixture must decode")
+        val settings = assertNotNull((result as DecodeResult.Success).data.settings, "expected settings update") as WheelSettings.Veteran
+        assertEquals(1, settings.lockState, "byte 51 → lockState (1 = locked)")
+    }
+
     // ==================== Batch 3: Auto-Detect Protection ====================
 
     @Test

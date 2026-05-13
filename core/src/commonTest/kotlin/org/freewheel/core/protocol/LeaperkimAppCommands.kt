@@ -308,6 +308,60 @@ internal object LeaperkimAppCommands {
         0x01
     )
 
+    // ==================== Per-slider LdAp-only control settings ====================
+    // Each setting/control/<Name>SettingActivity.java sends a single LdAp packet
+    // via BtManager.sendBytesData(). progressToCmdValue() controls user-to-wire
+    // encoding (raw passthrough for most; +80 offset for brake pressure).
+
+    /** SetScreenBacklight(50): ScreenBacklightSettingActivity.java:30 — cmd 0x14, byte6=2, value @15. */
+    val SCREEN_BACKLIGHT_50_LDAP = byteArrayOf(
+        0x4C, 0x64, 0x41, 0x70,
+        0x14, 0x01, 0x02,
+        0x80.toByte(), 0x80.toByte(), 0x80.toByte(), 0x80.toByte(),
+        0x80.toByte(), 0x80.toByte(), 0x80.toByte(), 0x80.toByte(),
+        50.toByte()
+    )
+
+    /** SetKeyTone(50): KeyToneSettingActivity.java:30 — cmd 0x1C, byte6=2, value @23. */
+    val KEY_TONE_50_LDAP = byteArrayOf(
+        0x4C, 0x64, 0x41, 0x70,
+        0x1C, 0x01, 0x02,
+        0x80.toByte(), 0x80.toByte(), 0x80.toByte(), 0x80.toByte(),
+        0x80.toByte(), 0x80.toByte(), 0x80.toByte(), 0x80.toByte(),
+        0x80.toByte(), 0x80.toByte(), 0x80.toByte(), 0x80.toByte(),
+        0x80.toByte(), 0x80.toByte(), 0x80.toByte(), 0x80.toByte(),
+        50.toByte()
+    )
+
+    /** SetMaxChargeVoltage(100): MaxChargePowerSettingActivity.java:31 — cmd 0x1D, byte6=2, value @24. */
+    val MAX_CHARGE_VOLTAGE_100_LDAP = byteArrayOf(
+        0x4C, 0x64, 0x41, 0x70,
+        0x1D, 0x01, 0x02,
+        0x80.toByte(), 0x80.toByte(), 0x80.toByte(), 0x80.toByte(),
+        0x80.toByte(), 0x80.toByte(), 0x80.toByte(), 0x80.toByte(),
+        0x80.toByte(), 0x80.toByte(), 0x80.toByte(), 0x80.toByte(),
+        0x80.toByte(), 0x80.toByte(), 0x80.toByte(), 0x80.toByte(),
+        0x80.toByte(),
+        100.toByte()
+    )
+
+    /**
+     * SetBrakePressureAlarm(110): BrakeSettingActivity.java:30 — cmd 0x22, byte6=2,
+     * value @29. App encodes user input as `i + 80`; raw wire 110 corresponds to
+     * user-slider 30.
+     */
+    val BRAKE_PRESSURE_110_LDAP = byteArrayOf(
+        0x4C, 0x64, 0x41, 0x70,
+        0x22, 0x01, 0x02,
+        0x80.toByte(), 0x80.toByte(), 0x80.toByte(), 0x80.toByte(),
+        0x80.toByte(), 0x80.toByte(), 0x80.toByte(), 0x80.toByte(),
+        0x80.toByte(), 0x80.toByte(), 0x80.toByte(), 0x80.toByte(),
+        0x80.toByte(), 0x80.toByte(), 0x80.toByte(), 0x80.toByte(),
+        0x80.toByte(), 0x80.toByte(), 0x80.toByte(), 0x80.toByte(),
+        0x80.toByte(), 0x80.toByte(),
+        110.toByte()
+    )
+
     // ==================== Helpers ====================
 
     /** Drop the trailing 4-byte CRC32 to obtain the un-CRC'd payload. */
