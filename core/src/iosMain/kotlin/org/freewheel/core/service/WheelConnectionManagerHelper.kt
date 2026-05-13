@@ -370,8 +370,13 @@ object WheelConnectionManagerHelper {
         manager.calibrate()
     }
 
-    fun sendPowerOff(manager: WheelConnectionManager) {
-        manager.powerOff()
+    /**
+     * Send PowerOff, returning the safety-gate outcome so Swift callers can
+     * react to a block reason (moving / charging) with a toast or alert.
+     * See [WheelConnectionManager.powerOff] and [PowerOffOutcome].
+     */
+    fun sendPowerOff(manager: WheelConnectionManager): PowerOffOutcome {
+        return manager.powerOff()
     }
 
     fun sendSetLock(manager: WheelConnectionManager, locked: Boolean) {

@@ -391,7 +391,23 @@ class WheelConnectionManager(
     fun setStrobeMode(mode: Int) { sendCommand(WheelCommand.SetStrobeMode(mode)) }
     fun setAlarmMode(mode: Int) { sendCommand(WheelCommand.SetAlarmMode(mode)) }
     fun calibrate() { sendCommand(WheelCommand.Calibrate) }
-    fun powerOff() { sendCommand(WheelCommand.PowerOff) }
+    /**
+     * Send the PowerOff command, gated by [powerOffBlockReason] to mirror the
+     * official Leaperkim app's HomepageFragment shutdown safety check.
+     * Returns the dispatch outcome so callers can surface the block reason
+     * (e.g., a toast). Caller-side toast UX is currently a follow-up gap on
+     * both Compose and SwiftUI.
+     */
+    fun powerOff(): PowerOffOutcome {
+        val telemetry = _wcmState.value.telemetry
+        val blockReason = powerOffBlockReason(telemetry)
+        if (blockReason != null) {
+            Logger.w(TAG, "PowerOff suppressed: $blockReason (speed=${telemetry?.speed}, chargingStatus=${telemetry?.chargingStatus})")
+            return PowerOffOutcome.Blocked(blockReason)
+        }
+        sendCommand(WheelCommand.PowerOff)
+        return PowerOffOutcome.Sent
+    }
     fun setLock(locked: Boolean) { sendCommand(WheelCommand.SetLock(locked)) }
     fun setVeteranLock(locked: Boolean, password: String) { sendCommand(WheelCommand.SetVeteranLock(locked, password)) }
     override fun requestEventLog() { sendCommand(WheelCommand.RequestEventLog) }
