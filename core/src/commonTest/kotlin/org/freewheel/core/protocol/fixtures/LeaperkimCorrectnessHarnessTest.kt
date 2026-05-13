@@ -90,8 +90,10 @@ class LeaperkimCorrectnessHarnessTest {
 
     @Test
     fun `parity catalog excludes smoke-only CAN fixture`() {
+        // Parity = the legacy-trace baseline plus every Batch 1 fixture.
         assertEquals(
-            listOf(LeaperkimCorrectnessFixtures.veteranOldBoardLegacyTrace),
+            listOf(LeaperkimCorrectnessFixtures.veteranOldBoardLegacyTrace) +
+                LeaperkimBatch1Fixtures.all,
             LeaperkimCorrectnessFixtures.parity,
         )
         assertEquals(
@@ -105,6 +107,52 @@ class LeaperkimCorrectnessHarnessTest {
             ),
             LeaperkimCorrectnessFixtures.routingProtection,
         )
+    }
+
+    // ==================== Batch 1: Official-app-backed parity ====================
+
+    @Test
+    fun `batch 1 per-model baseline main frames decode under Veteran lane`() {
+        for (fixture in LeaperkimBatch1Fixtures.perModelMainFrames) {
+            val run = LeaperkimCorrectnessHarness.run(fixture)
+            run.assertRoutingExpectation()
+            run.assertCandidateExpectations()
+            run.outcome(LeaperkimDecoderCandidate.VETERAN).assertMatchesGolden(fixture)
+            run.outcome(LeaperkimDecoderCandidate.AUTO_DETECT).assertMatchesGolden(fixture, "AUTO_DETECT")
+        }
+    }
+
+    @Test
+    fun `batch 1 subtype 8 control settings round-trips`() {
+        val fixture = LeaperkimBatch1Fixtures.controlSettingsBlock
+        val run = LeaperkimCorrectnessHarness.run(fixture)
+        run.outcome(LeaperkimDecoderCandidate.VETERAN).assertMatchesGolden(fixture)
+        run.outcome(LeaperkimDecoderCandidate.AUTO_DETECT).assertMatchesGolden(fixture, "AUTO_DETECT")
+    }
+
+    @Test
+    fun `batch 1 BMS subtype 1 and 5 accept 15-cell payloads`() {
+        for (fixture in listOf(
+            LeaperkimBatch1Fixtures.bmsLeftCells1To15,
+            LeaperkimBatch1Fixtures.bmsRightCells1To15,
+        )) {
+            val run = LeaperkimCorrectnessHarness.run(fixture)
+            run.outcome(LeaperkimDecoderCandidate.VETERAN).assertMatchesGolden(fixture)
+        }
+    }
+
+    @Test
+    fun `batch 1 battery percent from frame overrides voltage-derived SOC`() {
+        val fixture = LeaperkimBatch1Fixtures.batteryPercentFromFrame
+        val run = LeaperkimCorrectnessHarness.run(fixture)
+        run.outcome(LeaperkimDecoderCandidate.VETERAN).assertMatchesGolden(fixture)
+    }
+
+    @Test
+    fun `batch 1 SOC table lookup runs via useCustomPercents`() {
+        val fixture = LeaperkimBatch1Fixtures.socTableLookupByHardwareVersion
+        val run = LeaperkimCorrectnessHarness.run(fixture)
+        run.outcome(LeaperkimDecoderCandidate.VETERAN).assertMatchesGolden(fixture)
     }
 
     // ==================== Batch 3: Auto-Detect Protection ====================

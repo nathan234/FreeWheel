@@ -215,9 +215,7 @@ internal object LeaperkimCorrectnessFixtures {
         ),
     )
 
-    val parity = listOf(
-        veteranOldBoardLegacyTrace,
-    )
+    val parity = listOf(veteranOldBoardLegacyTrace) + LeaperkimBatch1Fixtures.all
 
     val routingProtection = listOf(
         autodetectDc5a5cRoutesToVeteran,
