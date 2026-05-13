@@ -50,6 +50,13 @@ class FlowObservation(private val scope: CoroutineScope) {
 object WheelConnectionManagerHelper {
     private val IOS_RECOVERY_BACKOFF_MS = listOf(15_000L, 5_000L, 10_000L, 15_000L, 30_000L)
 
+    // Scopes created on behalf of Swift callers. Swift can't cancel
+    // CoroutineScopes directly, so we keep the references here and release
+    // them in the matching shutdown helpers. Accessed only from the main
+    // thread (Swift @MainActor + Dispatchers.Main).
+    private val connectionManagerScopes = mutableMapOf<WheelConnectionManager, CoroutineScope>()
+    private val autoConnectScopes = mutableMapOf<AutoConnectManager, CoroutineScope>()
+
     /**
      * Cancel the shared demoScope.
      * It is lazily recreated on next use.
@@ -63,14 +70,41 @@ object WheelConnectionManagerHelper {
     /**
      * Create a WheelConnectionManager with default configuration.
      * The scope is created internally and tied to the main dispatcher.
+     *
+     * Call [shutdownConnectionManager] when the manager is no longer needed
+     * to release the internal scope and BLE GATT.
      */
     fun create(bleManager: BleManager): WheelConnectionManager {
         val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
-        return WheelConnectionManager(
+        val manager = WheelConnectionManager(
             bleManager = bleManager,
             decoderFactory = DefaultWheelDecoderFactory(),
             scope = scope
         )
+        connectionManagerScopes[manager] = scope
+        return manager
+    }
+
+    /**
+     * Shut down a [WheelConnectionManager] created via [create] and cancel
+     * its internal coroutine scope. Posts a disconnect, drains the event
+     * loop, then releases the scope.
+     *
+     * Fire-and-forget — the shutdown coroutine runs on an external
+     * supervisor so cancelling the manager's own scope doesn't kill it
+     * mid-flight.
+     */
+    fun shutdownConnectionManager(manager: WheelConnectionManager) {
+        val scope = connectionManagerScopes.remove(manager) ?: return
+        val shutdownScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+        shutdownScope.launch {
+            try {
+                manager.shutdown()
+            } finally {
+                scope.cancel()
+                shutdownScope.cancel()
+            }
+        }
     }
 
     /**
@@ -426,8 +460,8 @@ object WheelConnectionManagerHelper {
     /**
      * Format an error log footer comment for the given session.
      */
-    fun formatErrorLogFooter(disconnectTimeMs: Long, disconnectReason: String, totalFramesDecoded: Int): String {
-        return org.freewheel.core.logging.ConnectionErrorCsvFormatter.footerComment(disconnectTimeMs, disconnectReason, totalFramesDecoded, null)
+    fun formatErrorLogFooter(disconnectTimeMs: Long, disconnectReason: String, totalEventsLogged: Int): String {
+        return org.freewheel.core.logging.ConnectionErrorCsvFormatter.footerComment(disconnectTimeMs, disconnectReason, totalEventsLogged, null)
     }
 
     /**
@@ -488,12 +522,14 @@ object WheelConnectionManagerHelper {
      */
     fun createAutoConnectManager(manager: WheelConnectionManager): AutoConnectManager {
         val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
-        return AutoConnectManager(
+        val acm = AutoConnectManager(
             connectionState = manager.connectionState,
             connect = { address, hint -> manager.connect(address, hint) },
             scope = scope,
             dispatcher = Dispatchers.Main
         )
+        autoConnectScopes[acm] = scope
+        return acm
     }
 
     /**
@@ -539,10 +575,13 @@ object WheelConnectionManagerHelper {
     }
 
     /**
-     * Swift-friendly wrapper: destroy and clean up.
+     * Swift-friendly wrapper: destroy and clean up. Cancels both the
+     * manager's own jobs and the coroutine scope created by
+     * [createAutoConnectManager].
      */
     fun destroyAutoConnect(manager: AutoConnectManager) {
         manager.destroy()
+        autoConnectScopes.remove(manager)?.cancel()
     }
 
     fun getIsAutoConnecting(manager: AutoConnectManager): Boolean {

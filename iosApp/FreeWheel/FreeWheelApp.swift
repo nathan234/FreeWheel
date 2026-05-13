@@ -20,9 +20,7 @@ struct FreeWheelApp: App {
                     .environmentObject(wheelManager)
                     .environmentObject(chargerManager)
                     .onReceive(NotificationCenter.default.publisher(for: UIApplication.willTerminateNotification)) { _ in
-                        if wheelManager.isLogging {
-                            wheelManager.stopLogging()
-                        }
+                        wheelManager.shutdown()
                     }
 
                 if showSplash {

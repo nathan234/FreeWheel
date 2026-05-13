@@ -11,10 +11,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
@@ -219,7 +219,7 @@ internal fun PickerControl(
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
             modifier = Modifier
                 .fillMaxWidth()
-                .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
         )
         ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             control.options.forEachIndexed { index, option ->

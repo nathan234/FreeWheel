@@ -232,7 +232,7 @@ class WheelManager: ObservableObject {
     // Connection error log — always-on CSV per session
     private var errorLogFileHandle: FileHandle?
     private var errorLogSessionStartMs: Int64 = 0
-    private var errorLogFrameCount: Int = 0
+    private var errorLogEventCount: Int = 0
 
     // BLE Replay
     private let replayEngine: ReplayEngine = WheelConnectionManagerHelper.shared.createReplayEngine()
@@ -257,7 +257,7 @@ class WheelManager: ObservableObject {
     @Published var dashboardLayout: DashboardLayout = DashboardLayout.companion.default() {
         didSet {
             let serialized = DashboardLayoutSerializer.shared.serialize(layout: dashboardLayout)
-            UserDefaults.standard.set(serialized, forKey: PreferenceKeys.shared.DASHBOARD_LAYOUT)
+            UserDefaults.standard.set(serialized, forKey: dashboardLayoutKey)
         }
     }
 
@@ -269,13 +269,47 @@ class WheelManager: ObservableObject {
         }
     }
 
+    // Per-wheel dashboard layout key. Anchored on LAST_CONNECTED_MAC (the
+    // stable per-wheel scoping anchor that survives explicit disconnects)
+    // rather than LAST_MAC (the auto-reconnect target, cleared on
+    // disconnect) — see AppSettingsStore. Otherwise dashboard edits made
+    // while disconnected would fall back to the bare key instead of
+    // sticking to the last connected wheel. Falls back to the bare key
+    // when no wheel has ever been connected.
+    private var dashboardLayoutKey: String {
+        let mac = appSettingsStore.getLastConnectedMac()
+        let base = PreferenceKeys.shared.DASHBOARD_LAYOUT
+        return mac.isEmpty ? base : "\(mac)_\(base)"
+    }
+
     func loadDashboardLayout() {
-        if let raw = UserDefaults.standard.string(forKey: PreferenceKeys.shared.DASHBOARD_LAYOUT),
-           let layout = DashboardLayoutSerializer.shared.deserialize(input: raw) {
+        let canonical = dashboardLayoutKey
+        let raw = UserDefaults.standard.string(forKey: canonical)
+            ?? Self.migrateLegacyDashboardLayoutKey(canonical: canonical)
+        if let raw, let layout = DashboardLayoutSerializer.shared.deserialize(input: raw) {
             dashboardLayout = layout
         } else {
             dashboardLayout = DashboardLayout.companion.default()
         }
+    }
+
+    /// One-time migration of the legacy global "dashboard_layout" key.
+    /// Pre-fix iOS persisted the layout under the bare key for all
+    /// wheels; post-fix reads ${LAST_CONNECTED_MAC}_dashboard_layout, and
+    /// AppSettingsStore backfills LAST_CONNECTED_MAC from LAST_MAC on
+    /// upgrade — so existing users' customization is orphaned after the
+    /// first launch on the new build. Copy the legacy value onto the
+    /// canonical per-wheel slot and remove the bare entry so this runs
+    /// at most once per install. When the canonical *is* the bare key
+    /// (no wheel anchor yet), skip — that's the fresh-install write
+    /// target, not a legacy entry.
+    static func migrateLegacyDashboardLayoutKey(canonical: String) -> String? {
+        let legacyKey = PreferenceKeys.shared.DASHBOARD_LAYOUT
+        if legacyKey == canonical { return nil }
+        guard let legacy = UserDefaults.standard.string(forKey: legacyKey) else { return nil }
+        UserDefaults.standard.set(legacy, forKey: canonical)
+        UserDefaults.standard.removeObject(forKey: legacyKey)
+        return legacy
     }
 
     func loadNavigationConfig() {
@@ -507,6 +541,8 @@ class WheelManager: ObservableObject {
     }
 
     deinit {
+        // FlowObservation.close() just cancels a CoroutineScope and is safe
+        // to call from any thread.
         telemetryObserver?.close()
         identityObserver?.close()
         bmsObserver?.close()
@@ -517,6 +553,7 @@ class WheelManager: ObservableObject {
         reconnectStateObserver?.close()
         bluetoothStateObserver?.close()
         eventLogObserver?.close()
+        chargersObserver?.close()
         demoTelemetryObserver?.close()
         demoIdentityObserver?.close()
         demoBmsObserver?.close()
@@ -527,23 +564,95 @@ class WheelManager: ObservableObject {
         replayStateObserver?.close()
         replayPositionObserver?.close()
         replaySpeedObserver?.close()
-        WheelConnectionManagerHelper.shared.stopDemo(provider: demoProvider)
-        WheelConnectionManagerHelper.shared.stopReplay(engine: replayEngine)
-        bleManager?.destroy()
 
-        // Finalize ride recording if still active
-        if Thread.isMainThread {
-            MainActor.assumeIsolated {
-                if isCapturing { stopCapture() }
-                if isLogging {
-                    if let metadata = rideLogger.stopLogging(currentDistance: telemetry?.totalDistanceKm ?? 0) {
-                        rideStore.addRide(metadata)
-                    }
-                    isLogging = false
-                }
+        // KMP teardown: the helper's scope map is main-thread-only, so hop
+        // to MainActor. Capture references by value so the Task doesn't
+        // keep self alive past deinit.
+        //
+        // Capture/logging finalization is MainActor-isolated state that
+        // can't be read from nonisolated deinit; it runs in shutdown(),
+        // wired to willTerminateNotification. If shutdown() wasn't called
+        // before this deinit, those finalizers are skipped — preferable to
+        // racing on partially-destroyed state.
+        let demoProviderRef = demoProvider
+        let replayEngineRef = replayEngine
+        let connectionManagerRef = connectionManager
+        let autoConnectManagerRef = autoConnectManager
+        let bleManagerRef = bleManager
+        Task { @MainActor in
+            WheelConnectionManagerHelper.shared.stopDemo(provider: demoProviderRef)
+            WheelConnectionManagerHelper.shared.stopReplay(engine: replayEngineRef)
+            if let acm = autoConnectManagerRef {
+                WheelConnectionManagerHelper.shared.destroyAutoConnect(manager: acm)
             }
+            if let cm = connectionManagerRef {
+                WheelConnectionManagerHelper.shared.shutdownConnectionManager(manager: cm)
+            }
+            bleManagerRef?.destroy()
         }
     }
+
+    /// Synchronously finalize ride/capture state and tear down KMP
+    /// resources. Idempotent — safe to call from `willTerminateNotification`
+    /// or scenePhase transitions. After this returns, deinit's async hop
+    /// becomes a no-op.
+    @MainActor
+    func shutdown() {
+        guard !isShutdown else { return }
+        isShutdown = true
+
+        telemetryObserver?.close(); telemetryObserver = nil
+        identityObserver?.close(); identityObserver = nil
+        bmsObserver?.close(); bmsObserver = nil
+        settingsObserver?.close(); settingsObserver = nil
+        connectionStateObserver?.close(); connectionStateObserver = nil
+        capabilitiesObserver?.close(); capabilitiesObserver = nil
+        autoConnectingObserver?.close(); autoConnectingObserver = nil
+        reconnectStateObserver?.close(); reconnectStateObserver = nil
+        bluetoothStateObserver?.close(); bluetoothStateObserver = nil
+        eventLogObserver?.close(); eventLogObserver = nil
+        chargersObserver?.close(); chargersObserver = nil
+        demoTelemetryObserver?.close(); demoTelemetryObserver = nil
+        demoIdentityObserver?.close(); demoIdentityObserver = nil
+        demoBmsObserver?.close(); demoBmsObserver = nil
+        replayTelemetryObserver?.close(); replayTelemetryObserver = nil
+        replayIdentityObserver?.close(); replayIdentityObserver = nil
+        replayBmsObserver?.close(); replayBmsObserver = nil
+        replaySettingsObserver?.close(); replaySettingsObserver = nil
+        replayStateObserver?.close(); replayStateObserver = nil
+        replayPositionObserver?.close(); replayPositionObserver = nil
+        replaySpeedObserver?.close(); replaySpeedObserver = nil
+
+        if isCapturing { stopCapture() }
+        if isLogging {
+            if let metadata = rideLogger.stopLogging(currentDistance: telemetry?.totalDistanceKm ?? 0) {
+                rideStore.addRide(metadata)
+            }
+            isLogging = false
+        }
+        // Finalize the connection error CSV (writes the footer + closes the
+        // file handle) before tearing down connectionManager. The normal
+        // disconnect/failure path goes through handleConnectionStateChange,
+        // but shutdown() nils the connection-state observer above, so an
+        // app-termination shutdown would otherwise leave the file
+        // footerless.
+        endErrorLogSession(reason: "App terminating")
+        WheelConnectionManagerHelper.shared.stopDemo(provider: demoProvider)
+        WheelConnectionManagerHelper.shared.stopReplay(engine: replayEngine)
+
+        if let acm = autoConnectManager {
+            WheelConnectionManagerHelper.shared.destroyAutoConnect(manager: acm)
+            autoConnectManager = nil
+        }
+        if let cm = connectionManager {
+            WheelConnectionManagerHelper.shared.shutdownConnectionManager(manager: cm)
+            connectionManager = nil
+        }
+        bleManager?.destroy()
+        bleManager = nil
+    }
+
+    private var isShutdown = false
 
     private func setupKmpComponents() {
         // Initialize KMP BLE manager
@@ -776,10 +885,12 @@ class WheelManager: ObservableObject {
         settingsObserver = helper.observeSettingsState(manager: cm) { [weak self] settings in
             Task { @MainActor in
                 guard let self = self, !self.isMockMode else { return }
-                // Auto-set useMph based on wheel's reported miles setting
-                if settings.inMiles != self.wheelSettings.inMiles {
-                    self.useMph = settings.inMiles
-                }
+                // useMph is a global app preference owned by the user. The
+                // wheel-reported inMiles flag stays in wheelSettings for UI
+                // that wants to show what the wheel itself is displaying
+                // (e.g. Settings screen), but it must not silently rewrite
+                // the app-wide unit preference — connecting to one wheel
+                // would otherwise flip display units everywhere.
                 self.wheelSettings = settings
             }
         }
@@ -2006,7 +2117,7 @@ class WheelManager: ObservableObject {
         guard let handle = errorLogFileHandle else { return }
         if let data = (csvRow + "\n").data(using: .utf8) {
             handle.write(data)
-            errorLogFrameCount += 1
+            errorLogEventCount += 1
         }
     }
 
@@ -2051,7 +2162,7 @@ class WheelManager: ObservableObject {
         if let data = (header + "\n").data(using: .utf8) { handle.write(data) }
         errorLogFileHandle = handle
         errorLogSessionStartMs = nowMs
-        errorLogFrameCount = 0
+        errorLogEventCount = 0
 
         if let cm = connectionManager {
             WheelConnectionManagerHelper.shared.setErrorLogCallback(
@@ -2075,7 +2186,7 @@ class WheelManager: ObservableObject {
         let footer = WheelConnectionManagerHelper.shared.formatErrorLogFooter(
             disconnectTimeMs: nowMs,
             disconnectReason: reason ?? "Unknown",
-            totalFramesDecoded: Int32(errorLogFrameCount)
+            totalEventsLogged: Int32(errorLogEventCount)
         )
         if let data = (footer + "\n").data(using: .utf8) { handle.write(data) }
         handle.closeFile()

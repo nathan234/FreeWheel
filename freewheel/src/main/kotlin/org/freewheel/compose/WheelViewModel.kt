@@ -106,6 +106,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import androidx.core.content.edit
 import org.freewheel.compose.service.AlarmHandler
 import org.freewheel.compose.service.WheelServiceContract
@@ -131,6 +132,7 @@ class WheelViewModel(
 
     private companion object {
         const val RIDE_PAUSE_TIMEOUT_MS = 3_600_000L // 1 hour
+        const val STARTUP_SCAN_TIMEOUT_MS = 30_000L
     }
 
     /**
@@ -372,7 +374,7 @@ class WheelViewModel(
     // Connection error log — always-on CSV file per session
     private var errorLogWriter: java.io.BufferedWriter? = null
     private var errorLogSessionStartMs: Long = 0L
-    private var errorLogFrameCount: Int = 0
+    private var errorLogEventCount: Int = 0
 
     val isAutoConnecting: StateFlow<Boolean> get() = binding?.autoConnectManager?.isAutoConnecting ?: MutableStateFlow(false)
     val reconnectState: StateFlow<AutoConnectManager.ReconnectState>
@@ -756,6 +758,7 @@ class WheelViewModel(
 
     fun stopScan() {
         _isScanning.value = false
+        cancelStartupScanWatcher()
         viewModelScope.launch {
             binding?.bleManager?.stopScan()
         }
@@ -783,6 +786,7 @@ class WheelViewModel(
     fun connect(address: String) {
         val cm = binding?.connectionManager ?: return
         _isScanning.value = false
+        cancelStartupScanWatcher()
         appSettingsStore.setLastMac(address)
         // Clear unhandled frames from previous session
         unhandledCollector.clear()
@@ -885,6 +889,10 @@ class WheelViewModel(
         if (lastMac.isEmpty()) return
         val ble = binding?.bleManager ?: return
 
+        // Cancel any prior watcher so a second call doesn't leave two
+        // collectors racing on _discoveredDevices.
+        startupScanJob?.cancel()
+
         _isScanning.value = true
         _discoveredDevices.value = emptyList()
         viewModelScope.launch {
@@ -893,16 +901,26 @@ class WheelViewModel(
             }
         }
 
-        // Watch for the last-connected wheel to appear in scan results
+        // Watch for the last-connected wheel to appear in scan results.
+        // The collector is bounded by STARTUP_SCAN_TIMEOUT_MS so it can't
+        // sit forever and trigger an unexpected auto-connect during a
+        // later, unrelated scan.
         startupScanJob = viewModelScope.launch {
-            _discoveredDevices.collect { devices ->
-                if (devices.any { it.address == lastMac }) {
-                    startupScanJob?.cancel()
-                    startupScanJob = null
-                    connect(lastMac)
+            withTimeoutOrNull(STARTUP_SCAN_TIMEOUT_MS) {
+                _discoveredDevices.collect { devices ->
+                    if (devices.any { it.address == lastMac }) {
+                        connect(lastMac)
+                        // connect() cancels this job via cancelStartupScanWatcher().
+                    }
                 }
             }
+            startupScanJob = null
         }
+    }
+
+    private fun cancelStartupScanWatcher() {
+        startupScanJob?.cancel()
+        startupScanJob = null
     }
 
     // --- Saved wheel profiles ---
@@ -1120,12 +1138,24 @@ class WheelViewModel(
 
     // --- Dashboard & Navigation config ---
 
-    private val macPrefix: String
-        get() = prefs.getString("last_mac", "") ?: ""
+    // Per-wheel dashboard layout key. Anchored on LAST_CONNECTED_MAC (the
+    // stable per-wheel scoping anchor that survives explicit disconnects)
+    // rather than LAST_MAC (the auto-reconnect target, cleared on
+    // disconnect) — see AppSettingsStore. Otherwise dashboard edits made
+    // while disconnected would fall back to a global key instead of
+    // sticking to the last connected wheel. Falls back to the bare key
+    // when no wheel has ever been connected.
+    private val dashboardLayoutKey: String
+        get() {
+            val mac = appSettingsStore.getLastConnectedMac()
+            return if (mac.isEmpty()) PreferenceKeys.DASHBOARD_LAYOUT
+            else "${mac}_${PreferenceKeys.DASHBOARD_LAYOUT}"
+        }
 
     fun loadDashboardLayout() {
-        val key = "${macPrefix}_${PreferenceKeys.DASHBOARD_LAYOUT}"
-        val raw = prefs.getString(key, null)
+        val canonical = dashboardLayoutKey
+        val raw = prefs.getString(canonical, null)
+            ?: migrateLegacyDashboardLayoutKey(canonical)
         _dashboardLayout.value = if (raw != null) {
             DashboardLayoutSerializer.deserialize(raw) ?: DashboardLayout.default()
         } else {
@@ -1133,10 +1163,28 @@ class WheelViewModel(
         }
     }
 
+    /**
+     * One-time migration for the legacy "_dashboard_layout" key (leading
+     * underscore from the pre-LAST_CONNECTED_MAC "${macPrefix=""}_..."
+     * scheme). Older installs that customized the layout while no wheel
+     * was connected — or before ever connecting — parked their data
+     * there. Move it to the new canonical key once, then drop the legacy
+     * entry so this only runs once per install.
+     */
+    private fun migrateLegacyDashboardLayoutKey(canonical: String): String? {
+        val legacyKey = "_${PreferenceKeys.DASHBOARD_LAYOUT}"
+        if (legacyKey == canonical) return null
+        val legacy = prefs.getString(legacyKey, null) ?: return null
+        prefs.edit {
+            putString(canonical, legacy)
+            remove(legacyKey)
+        }
+        return legacy
+    }
+
     fun saveDashboardLayout(layout: DashboardLayout) {
         _dashboardLayout.value = layout
-        val key = "${macPrefix}_${PreferenceKeys.DASHBOARD_LAYOUT}"
-        prefs.edit { putString(key, DashboardLayoutSerializer.serialize(layout)) }
+        prefs.edit { putString(dashboardLayoutKey, DashboardLayoutSerializer.serialize(layout)) }
     }
 
     fun applyPreset(preset: DashboardPreset) {
@@ -1573,7 +1621,7 @@ class WheelViewModel(
                 writer.write(ConnectionErrorCsvFormatter.formatEvent(event, errorLogSessionStartMs))
                 writer.newLine()
                 writer.flush()
-                errorLogFrameCount++
+                errorLogEventCount++
             } catch (_: Exception) {
                 // Best effort — don't crash on write failure
             }
@@ -1604,7 +1652,7 @@ class WheelViewModel(
             writer.flush()
             errorLogWriter = writer
             errorLogSessionStartMs = now
-            errorLogFrameCount = 0
+            errorLogEventCount = 0
         } catch (_: Exception) {
             // Best effort
         }
@@ -1630,7 +1678,7 @@ class WheelViewModel(
             writer.write(ConnectionErrorCsvFormatter.footerComment(
                 disconnectTimeMs = System.currentTimeMillis(),
                 disconnectReason = reason,
-                totalFramesDecoded = errorLogFrameCount,
+                totalEventsLogged = errorLogEventCount,
                 unpackerStats = unpackerStats
             ))
             writer.newLine()

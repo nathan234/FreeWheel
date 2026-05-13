@@ -30,14 +30,14 @@ class ConnectionErrorCsvFormatterTest {
         val result = ConnectionErrorCsvFormatter.footerComment(
             disconnectTimeMs = 1710600060000L,
             disconnectReason = "Too many BLE errors",
-            totalFramesDecoded = 500,
+            totalEventsLogged = 500,
             unpackerStats = null
         )
         val lines = result.lines()
 
         assertTrue(lines[0].startsWith("# disconnect_time="))
         assertTrue(lines[1].contains("disconnect_reason=Too many BLE errors"))
-        assertTrue(lines[2].contains("total_frames=500"))
+        assertTrue(lines[2].contains("total_events=500"))
         // No unpacker stats when null
         assertFalse(lines[2].contains("unpacker_error_resets"))
     }
@@ -48,7 +48,7 @@ class ConnectionErrorCsvFormatterTest {
         val result = ConnectionErrorCsvFormatter.footerComment(
             disconnectTimeMs = 1710600060000L,
             disconnectReason = "No data received",
-            totalFramesDecoded = 1000,
+            totalEventsLogged = 1000,
             unpackerStats = stats
         )
 
@@ -167,7 +167,7 @@ class ConnectionErrorCsvFormatterTest {
         val result = ConnectionErrorCsvFormatter.footerComment(
             disconnectTimeMs = 1710600060000L,
             disconnectReason = "Error code 8, connection lost",
-            totalFramesDecoded = 100,
+            totalEventsLogged = 100,
             unpackerStats = null
         )
         assertTrue(result.contains("disconnect_reason=Error code 8; connection lost"))

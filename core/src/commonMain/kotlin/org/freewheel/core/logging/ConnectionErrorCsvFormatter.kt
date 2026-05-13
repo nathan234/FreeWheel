@@ -38,13 +38,13 @@ object ConnectionErrorCsvFormatter {
     fun footerComment(
         disconnectTimeMs: Long,
         disconnectReason: String,
-        totalFramesDecoded: Int,
+        totalEventsLogged: Int,
         unpackerStats: UnpackerStats?
     ): String = buildString {
         val safeReason = disconnectReason.replace(",", ";")
         appendLine("# disconnect_time=${PlatformDateFormatter.formatFriendlyDate(disconnectTimeMs)}")
         appendLine("# disconnect_reason=$safeReason")
-        append("# total_frames=$totalFramesDecoded")
+        append("# total_events=$totalEventsLogged")
         if (unpackerStats != null) {
             append(",unpacker_error_resets=${unpackerStats.errorResets}")
             append(",unpacker_bytes_discarded=${unpackerStats.bytesDiscarded}")

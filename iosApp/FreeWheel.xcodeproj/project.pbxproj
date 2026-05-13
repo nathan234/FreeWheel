@@ -53,7 +53,19 @@
 		V1000001221F000000002V /* DiagnosticsBootstrap.swift in Sources */ = {isa = PBXBuildFile; fileRef = V1000001221F000000001V /* DiagnosticsBootstrap.swift */; };
 		W1000001221F000000002W /* DiagnosticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = W1000001221F000000001W /* DiagnosticsView.swift */; };
 		X1000001221F000000002X /* WheelTypePickerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = X1000001221F000000001X /* WheelTypePickerSheet.swift */; };
+		T1000001221F0000000021 /* RideMetadataCodableTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T1000001221F0000000011 /* RideMetadataCodableTests.swift */; };
+		T1000001221F0000000022 /* DashboardLayoutMigrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T1000001221F0000000012 /* DashboardLayoutMigrationTests.swift */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		T1000001221F0000000A02 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A1000001221F0000000700 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A1000001221F0000000400;
+			remoteInfo = FreeWheel;
+		};
+/* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		A1000001221F0000000011 /* FreeWheelApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FreeWheelApp.swift; sourceTree = "<group>"; };
@@ -106,10 +118,20 @@
 		V1000001221F000000001V /* DiagnosticsBootstrap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticsBootstrap.swift; sourceTree = "<group>"; };
 		W1000001221F000000001W /* DiagnosticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticsView.swift; sourceTree = "<group>"; };
 		X1000001221F000000001X /* WheelTypePickerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WheelTypePickerSheet.swift; sourceTree = "<group>"; };
+		T1000001221F0000000011 /* RideMetadataCodableTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RideMetadataCodableTests.swift; sourceTree = "<group>"; };
+		T1000001221F0000000012 /* DashboardLayoutMigrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardLayoutMigrationTests.swift; sourceTree = "<group>"; };
+		T1000001221F0000000100 /* FreeWheelTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FreeWheelTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		A1000001221F0000000200 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		T1000001221F0000000200 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -123,6 +145,7 @@
 			isa = PBXGroup;
 			children = (
 				A1000001221F0000000301 /* FreeWheel */,
+				T1000001221F0000000301 /* FreeWheelTests */,
 				A1000001221F0000000302 /* Products */,
 				A1000001221F0000000303 /* Frameworks */,
 			);
@@ -148,6 +171,7 @@
 			isa = PBXGroup;
 			children = (
 				A1000001221F0000000100 /* FreeWheel.app */,
+				T1000001221F0000000100 /* FreeWheelTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -215,6 +239,15 @@
 			path = Views;
 			sourceTree = "<group>";
 		};
+		T1000001221F0000000301 /* FreeWheelTests */ = {
+			isa = PBXGroup;
+			children = (
+				T1000001221F0000000011 /* RideMetadataCodableTests.swift */,
+				T1000001221F0000000012 /* DashboardLayoutMigrationTests.swift */,
+			);
+			path = FreeWheelTests;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -236,6 +269,23 @@
 			productReference = A1000001221F0000000100 /* FreeWheel.app */;
 			productType = "com.apple.product-type.application";
 		};
+		T1000001221F0000000400 /* FreeWheelTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = T1000001221F0000000600 /* Build configuration list for PBXNativeTarget "FreeWheelTests" */;
+			buildPhases = (
+				T1000001221F0000000500 /* Sources */,
+				T1000001221F0000000200 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				T1000001221F0000000A01 /* PBXTargetDependency */,
+			);
+			name = FreeWheelTests;
+			productName = FreeWheelTests;
+			productReference = T1000001221F0000000100 /* FreeWheelTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -248,6 +298,10 @@
 				TargetAttributes = {
 					A1000001221F0000000400 = {
 						CreatedOnToolsVersion = 15.0;
+					};
+					T1000001221F0000000400 = {
+						CreatedOnToolsVersion = 15.0;
+						TestTargetID = A1000001221F0000000400;
 					};
 				};
 			};
@@ -265,6 +319,7 @@
 			projectRoot = "";
 			targets = (
 				A1000001221F0000000400 /* FreeWheel */,
+				T1000001221F0000000400 /* FreeWheelTests */,
 			);
 		};
 /* End PBXProject section */
@@ -355,7 +410,24 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		T1000001221F0000000500 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				T1000001221F0000000021 /* RideMetadataCodableTests.swift in Sources */,
+				T1000001221F0000000022 /* DashboardLayoutMigrationTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		T1000001221F0000000A01 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A1000001221F0000000400 /* FreeWheel */;
+			targetProxy = T1000001221F0000000A02 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		A1000001221F0000000901 /* Debug */ = {
@@ -571,6 +643,124 @@
 			};
 			name = Release;
 		};
+		T1000001221F0000000903 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = VUTS936LBT;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				"FRAMEWORK_SEARCH_PATHS[sdk=iphoneos*]" = (
+					"$(inherited)",
+					"$(SRCROOT)/../core/build/bin/iosArm64/releaseFramework",
+				);
+				"FRAMEWORK_SEARCH_PATHS[sdk=iphonesimulator*]" = (
+					"$(inherited)",
+					"$(SRCROOT)/../core/build/bin/iosSimulatorArm64/releaseFramework",
+					"$(SRCROOT)/../core/build/bin/iosX64/releaseFramework",
+				);
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-framework",
+					FreeWheelCore,
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = org.freewheel.ios.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/FreeWheel.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/FreeWheel";
+			};
+			name = Debug;
+		};
+		T1000001221F0000000904 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = VUTS936LBT;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				"FRAMEWORK_SEARCH_PATHS[sdk=iphoneos*]" = (
+					"$(inherited)",
+					"$(SRCROOT)/../core/build/bin/iosArm64/releaseFramework",
+				);
+				"FRAMEWORK_SEARCH_PATHS[sdk=iphonesimulator*]" = (
+					"$(inherited)",
+					"$(SRCROOT)/../core/build/bin/iosSimulatorArm64/releaseFramework",
+					"$(SRCROOT)/../core/build/bin/iosX64/releaseFramework",
+				);
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-framework",
+					FreeWheelCore,
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = org.freewheel.ios.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/FreeWheel.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/FreeWheel";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -588,6 +778,15 @@
 			buildConfigurations = (
 				A1000001221F0000000901 /* Debug */,
 				A1000001221F0000000902 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		T1000001221F0000000600 /* Build configuration list for PBXNativeTarget "FreeWheelTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				T1000001221F0000000903 /* Debug */,
+				T1000001221F0000000904 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
