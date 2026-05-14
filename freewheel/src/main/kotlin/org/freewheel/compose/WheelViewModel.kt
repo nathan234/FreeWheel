@@ -56,6 +56,8 @@ import org.freewheel.core.domain.AppSettingId
 import org.freewheel.core.domain.AppSettingsStore
 import org.freewheel.core.domain.DecoderConfigStore
 import org.freewheel.core.domain.LockPromptState
+import org.freewheel.core.domain.PasswordManagementInput
+import org.freewheel.core.domain.PasswordManagementState
 import org.freewheel.core.domain.PasswordStorageBacking
 import org.freewheel.core.domain.SettingsCommandId
 import org.freewheel.core.domain.WheelPasswordStore
@@ -101,11 +103,15 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -1101,6 +1107,145 @@ class WheelViewModel(
     /** Dismiss the prompt without sending. */
     fun dismissLockPrompt() {
         _lockPromptState.value = LockPromptState.Idle
+    }
+
+    // ==================== Veteran password-management flow ====================
+    //
+    // Set / modify / clear password and auto-lock on/off. The wheel acks each
+    // command out-of-band by updating lockState (subtype-5 byte 51) within
+    // ~1 second; the ViewModel owns the ack-listener coroutine here so the
+    // platform UI (Compose dialog, SwiftUI modifier in commit 3) only ever
+    // renders the current state. The lock prompt above is fire-and-forget;
+    // this flow is confirmation-based and deliberately asymmetric.
+
+    private val _passwordManagementState =
+        MutableStateFlow<PasswordManagementState>(PasswordManagementState.Idle)
+    /** Drives the Veteran password-management dialog; Idle when no UI is up. */
+    val passwordManagementState: StateFlow<PasswordManagementState> =
+        _passwordManagementState.asStateFlow()
+
+    /**
+     * Active ack-listener job for a PendingAck. Cancelled whenever the state
+     * leaves PendingAck (terminal transition or user dismiss) so we never have
+     * two listeners racing against each other.
+     */
+    private var passwordAckJob: Job? = null
+
+    /** Open the management dialog for [operation] against the connected wheel. */
+    fun requestPasswordManagement(operation: PasswordManagementState.Operation) {
+        val address = (_connectionState.value as? ConnectionState.Connected)?.address ?: return
+        cancelPasswordAckJob()
+        _passwordManagementState.value = PasswordManagementState.start(
+            operation = operation,
+            address = address,
+            store = passwordStore,
+            storeBacking = passwordStoreBacking,
+        )
+    }
+
+    /**
+     * Submit the form. Routes through [PasswordManagementState.submit] for
+     * validation, then dispatches the wire command and transitions to
+     * PendingAck. NOT_CONNECTED is a ViewModel-level concern checked after
+     * validation so the user gets the most actionable error.
+     */
+    fun submitPasswordManagement(input: PasswordManagementInput) {
+        val editing = _passwordManagementState.value as? PasswordManagementState.Editing ?: return
+        val next = PasswordManagementState.submit(editing, input)
+        if (next is PasswordManagementState.Failed) {
+            _passwordManagementState.value = next
+            return
+        }
+        val submitting = next as PasswordManagementState.Submitting
+        val cm = binding?.connectionManager
+        if (cm == null || _connectionState.value !is ConnectionState.Connected) {
+            _passwordManagementState.value = PasswordManagementState.Failed(
+                operation = submitting.operation,
+                address = submitting.address,
+                reason = PasswordManagementState.FailureReason.NOT_CONNECTED,
+            )
+            return
+        }
+        _passwordManagementState.value = submitting
+        cm.sendCommand(submitting.toWireCommand())
+        val deadline = System.currentTimeMillis() + PasswordManagementState.DEFAULT_ACK_TIMEOUT_MS
+        val pending = PasswordManagementState.dispatched(submitting, deadline)
+        _passwordManagementState.value = pending
+        startPasswordAckListener(pending)
+    }
+
+    /** Dismiss the dialog without further dispatch. */
+    fun dismissPasswordManagement() {
+        cancelPasswordAckJob()
+        _passwordManagementState.value = PasswordManagementState.Idle
+    }
+
+    private fun startPasswordAckListener(pending: PasswordManagementState.PendingAck) {
+        cancelPasswordAckJob()
+        // Snapshot the pre-dispatch lockState so we can distinguish a fresh
+        // post-dispatch readback (state changed) from the stale value the
+        // StateFlow would replay to a new subscriber.
+        val baseline = currentVeteranLockState()
+        passwordAckJob = viewModelScope.launch {
+            val timeBudget = (pending.deadlineEpochMs - System.currentTimeMillis()).coerceAtLeast(0L)
+            val resolved = withTimeoutOrNull(timeBudget) {
+                settingsState
+                    .mapNotNull { (it as? WheelSettings.Veteran)?.lockState }
+                    .filter { it >= 0 && it != baseline }
+                    .map { PasswordManagementState.observeLockState(pending, it) }
+                    .first { it !is PasswordManagementState.PendingAck }
+            }
+            val terminal = when {
+                resolved != null -> resolved
+                else -> {
+                    // No state-changing readback in time. Snapshot once more —
+                    // catches the case where the wheel re-affirms the same
+                    // lockState because our op didn't flip any bits of interest
+                    // (e.g. AUTO_LOCK_ON when auto-lock was already on).
+                    val snap = PasswordManagementState.observeLockState(pending, currentVeteranLockState())
+                    if (snap is PasswordManagementState.PendingAck) {
+                        PasswordManagementState.timeout(pending)
+                    } else {
+                        snap
+                    }
+                }
+            }
+            _passwordManagementState.value = terminal
+            if (terminal is PasswordManagementState.Confirmed) {
+                applyPasswordPersistence(terminal)
+            }
+        }
+    }
+
+    private fun cancelPasswordAckJob() {
+        passwordAckJob?.cancel()
+        passwordAckJob = null
+    }
+
+    private fun currentVeteranLockState(): Int =
+        (settingsState.value as? WheelSettings.Veteran)?.lockState ?: -1
+
+    private fun applyPasswordPersistence(confirmed: PasswordManagementState.Confirmed) {
+        when (val action = confirmed.persistence) {
+            is PasswordManagementState.PersistenceAction.NoOp -> Unit
+            is PasswordManagementState.PersistenceAction.Store ->
+                passwordStore.setPassword(confirmed.address, action.password)
+            is PasswordManagementState.PersistenceAction.Clear ->
+                passwordStore.clearPassword(confirmed.address)
+        }
+    }
+
+    private fun PasswordManagementState.Submitting.toWireCommand(): WheelCommand = when (operation) {
+        PasswordManagementState.Operation.SET ->
+            WheelCommand.SetVeteranPassword(newPassword = newPassword)
+        PasswordManagementState.Operation.MODIFY ->
+            WheelCommand.ModifyVeteranPassword(oldPassword = oldPassword, newPassword = newPassword)
+        PasswordManagementState.Operation.CLEAR ->
+            WheelCommand.ClearVeteranPassword(password = oldPassword)
+        PasswordManagementState.Operation.AUTO_LOCK_ON ->
+            WheelCommand.SetVeteranAutoLock(enabled = true, password = oldPassword)
+        PasswordManagementState.Operation.AUTO_LOCK_OFF ->
+            WheelCommand.SetVeteranAutoLock(enabled = false, password = oldPassword)
     }
 
     // --- Charger scanning ---

@@ -49,6 +49,8 @@ import org.freewheel.BuildConfig
 import org.freewheel.compose.WheelViewModel
 import org.freewheel.compose.components.StatRow
 import org.freewheel.compose.components.LockPromptDialog
+import org.freewheel.compose.components.PasswordManagementDialog
+import org.freewheel.compose.components.VeteranPasswordCard
 import org.freewheel.compose.components.WheelSettingsContent
 import org.freewheel.core.domain.AppSettingId
 import org.freewheel.core.domain.AppSettingSpec
@@ -164,6 +166,10 @@ fun SettingsScreen(
                         wheelSettings = wheelSettings,
                         useMph = useMph
                     )
+                    // Veteran-only entry point for lock-password management.
+                    // Renders nothing when the wheel isn't Veteran or hasn't
+                    // reported a lockState yet.
+                    VeteranPasswordCard(viewModel)
                 }
                 continue
             }
@@ -238,6 +244,9 @@ fun SettingsScreen(
     // Veteran lock/unlock prompt — shared with WheelSettingsScreen so the
     // dialog appears wherever the user toggles the lock control.
     LockPromptDialog(viewModel = viewModel)
+
+    // Veteran password-management dialog (set/modify/clear/auto-lock).
+    PasswordManagementDialog(viewModel = viewModel)
 }
 
 // ---------------------------------------------------------------------------

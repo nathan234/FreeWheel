@@ -36,6 +36,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.freewheel.compose.WheelViewModel
 import org.freewheel.compose.components.LockPromptDialog
+import org.freewheel.compose.components.PasswordManagementDialog
+import org.freewheel.compose.components.VeteranPasswordCard
 import org.freewheel.compose.components.WheelSettingsContent
 import org.freewheel.core.domain.AppSettingId
 import org.freewheel.core.domain.CommonLabels
@@ -85,6 +87,10 @@ fun WheelSettingsScreen(viewModel: WheelViewModel, onBack: () -> Unit) {
 
             ResetWheelTypeCard(viewModel)
 
+            // Renders nothing unless the connected wheel is Veteran AND we've
+            // read at least one subtype-5 frame (so we know which rows to show).
+            VeteranPasswordCard(viewModel)
+
             if (sections.isEmpty()) {
                 Text(
                     DashboardLabels.WHEEL_SETTINGS_EMPTY,
@@ -107,6 +113,10 @@ fun WheelSettingsScreen(viewModel: WheelViewModel, onBack: () -> Unit) {
     // Veteran lock/unlock prompt — driven entirely by viewModel.lockPromptState;
     // renders nothing when Idle.
     LockPromptDialog(viewModel = viewModel)
+
+    // Veteran password-management dialog (set/modify/clear/auto-lock).
+    // Driven by viewModel.passwordManagementState; renders nothing when Idle.
+    PasswordManagementDialog(viewModel = viewModel)
 }
 
 /**
