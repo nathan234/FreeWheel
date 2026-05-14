@@ -153,8 +153,12 @@ class DisplayUtilsTest {
     }
 
     @Test
-    fun `wheelDisplayName VETERAN with no model returns Veteran`() {
-        assertEquals("Veteran", DisplayUtils.wheelDisplayName(WheelType.VETERAN, "", ""))
+    fun `wheelDisplayName VETERAN with no model falls back to Dashboard`() {
+        // Veteran-family wheels are model-named (Sherman / Patton / Lynx / Nosfet)
+        // — WheelType.VETERAN intentionally has an empty displayName, so a bare
+        // VETERAN with no model or name resolves to the generic placeholder
+        // rather than a misleading "Veteran" brand label.
+        assertEquals("Dashboard", DisplayUtils.wheelDisplayName(WheelType.VETERAN, "", ""))
     }
 
     @Test
