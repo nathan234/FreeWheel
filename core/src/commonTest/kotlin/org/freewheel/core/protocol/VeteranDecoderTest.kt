@@ -1899,6 +1899,135 @@ class VeteranDecoderTest {
     }
 
     @Test
+    fun `SetVeteranLock leaves bytes 18-20 zero (regression for buildPwdCommand refactor)`() {
+        // The lock command historically zeroed bytes 18..20. After folding into
+        // buildPwdCommand(action, oldPwd, newPwd) with newPwd="", those bytes
+        // must stay zero so wheels parsing the legacy slot don't see junk.
+        val freshDecoder = decoderWithVer(5000)
+        val locked = freshDecoder.buildCommand(WheelCommand.SetVeteranLock(locked = true, password = "123456"))
+        val unlocked = freshDecoder.buildCommand(WheelCommand.SetVeteranLock(locked = false, password = "123456"))
+        for (cmd in listOf(locked[0], unlocked[0])) {
+            val data = (cmd as WheelCommand.SendBytes).data
+            assertEquals(0x00.toByte(), data[18])
+            assertEquals(0x00.toByte(), data[19])
+            assertEquals(0x00.toByte(), data[20])
+        }
+    }
+
+    // ==================== Password Management Commands ====================
+
+    @Test
+    fun `SetVeteranPassword emits action 11 with empty old password`() {
+        val freshDecoder = decoderWithVer(5000)
+        val commands = freshDecoder.buildCommand(WheelCommand.SetVeteranPassword(newPassword = "123456"))
+        assertEquals(1, commands.size)
+        val data = (commands[0] as WheelCommand.SendBytes).data
+        // LdAp + cmd 0x19
+        assertEquals(0x4C.toByte(), data[0])
+        assertEquals(0x64.toByte(), data[1])
+        assertEquals(0x19.toByte(), data[4])
+        // Old password zero (set-first)
+        assertEquals(0x00.toByte(), data[14])
+        assertEquals(0x00.toByte(), data[15])
+        assertEquals(0x00.toByte(), data[16])
+        // Action 11
+        assertEquals(11.toByte(), data[17])
+        // New password 123456 = 0x01E240
+        assertEquals(0x01.toByte(), data[18])
+        assertEquals(0xE2.toByte(), data[19])
+        assertEquals(0x40.toByte(), data[20])
+        assertEquals(25, data.size)
+    }
+
+    @Test
+    fun `ModifyVeteranPassword emits action 11 with both passwords`() {
+        val freshDecoder = decoderWithVer(5000)
+        val commands = freshDecoder.buildCommand(
+            WheelCommand.ModifyVeteranPassword(oldPassword = "111111", newPassword = "222222")
+        )
+        val data = (commands[0] as WheelCommand.SendBytes).data
+        // Old 111111 = 0x01B207
+        assertEquals(0x01.toByte(), data[14])
+        assertEquals(0xB2.toByte(), data[15])
+        assertEquals(0x07.toByte(), data[16])
+        // Action 11
+        assertEquals(11.toByte(), data[17])
+        // New 222222 = 0x03640E
+        assertEquals(0x03.toByte(), data[18])
+        assertEquals(0x64.toByte(), data[19])
+        assertEquals(0x0E.toByte(), data[20])
+    }
+
+    @Test
+    fun `ClearVeteranPassword emits action 11 with empty new password`() {
+        val freshDecoder = decoderWithVer(5000)
+        val commands = freshDecoder.buildCommand(WheelCommand.ClearVeteranPassword(password = "123456"))
+        val data = (commands[0] as WheelCommand.SendBytes).data
+        // Old password populated (proves authorization)
+        assertEquals(0x01.toByte(), data[14])
+        assertEquals(0xE2.toByte(), data[15])
+        assertEquals(0x40.toByte(), data[16])
+        // Action 11
+        assertEquals(11.toByte(), data[17])
+        // New password zero (clear)
+        assertEquals(0x00.toByte(), data[18])
+        assertEquals(0x00.toByte(), data[19])
+        assertEquals(0x00.toByte(), data[20])
+    }
+
+    @Test
+    fun `SetVeteranAutoLock enabled emits action 3`() {
+        val freshDecoder = decoderWithVer(5000)
+        val commands = freshDecoder.buildCommand(
+            WheelCommand.SetVeteranAutoLock(enabled = true, password = "123456")
+        )
+        val data = (commands[0] as WheelCommand.SendBytes).data
+        // Old (current) password
+        assertEquals(0x01.toByte(), data[14])
+        assertEquals(0xE2.toByte(), data[15])
+        assertEquals(0x40.toByte(), data[16])
+        // Action 3 = auto-lock ON
+        assertEquals(3.toByte(), data[17])
+        // No new password
+        assertEquals(0x00.toByte(), data[18])
+        assertEquals(0x00.toByte(), data[19])
+        assertEquals(0x00.toByte(), data[20])
+    }
+
+    @Test
+    fun `SetVeteranAutoLock disabled emits action 2`() {
+        val freshDecoder = decoderWithVer(5000)
+        val commands = freshDecoder.buildCommand(
+            WheelCommand.SetVeteranAutoLock(enabled = false, password = "123456")
+        )
+        val data = (commands[0] as WheelCommand.SendBytes).data
+        assertEquals(2.toByte(), data[17])
+    }
+
+    @Test
+    fun `password management commands carry valid CRC32`() {
+        val freshDecoder = decoderWithVer(5000)
+        val cases = listOf(
+            WheelCommand.SetVeteranPassword(newPassword = "123456"),
+            WheelCommand.ModifyVeteranPassword(oldPassword = "111111", newPassword = "222222"),
+            WheelCommand.ClearVeteranPassword(password = "123456"),
+            WheelCommand.SetVeteranAutoLock(enabled = true, password = "123456"),
+            WheelCommand.SetVeteranAutoLock(enabled = false, password = "123456"),
+        )
+        for (cmd in cases) {
+            val data = (freshDecoder.buildCommand(cmd)[0] as WheelCommand.SendBytes).data
+            assertEquals(25, data.size, "$cmd should be 21B payload + 4B CRC")
+            val payloadSize = data.size - 4
+            val crc = veteranCrc32(data, 0, payloadSize)
+            val providedCrc = ((data[payloadSize].toLong() and 0xFF) shl 24) or
+                    ((data[payloadSize + 1].toLong() and 0xFF) shl 16) or
+                    ((data[payloadSize + 2].toLong() and 0xFF) shl 8) or
+                    (data[payloadSize + 3].toLong() and 0xFF)
+            assertEquals(crc, providedCrc, "$cmd should have valid CRC32")
+        }
+    }
+
+    @Test
     fun `set light binary for new firmware`() {
         val freshDecoder = decoderWithVer(5000) // mVer=5
         val commands = freshDecoder.buildCommand(WheelCommand.SetLight(enabled = true))

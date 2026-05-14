@@ -250,6 +250,30 @@ val WheelSettings.lockState: Int get() = when (this) {
     is WheelSettings.None -> -1
 }
 
+// --- Veteran lockState bit accessors (subtype-5 byte 51) ---
+//
+// Bit semantics per Leaperkim app v1.4.8 LockSettingActivity:
+//   bit 0 — set when the wheel's last password command (action 11) succeeded
+//   bit 5 — auto-lock is currently enabled
+//   bit 6 — a password is currently set on the wheel
+//
+// All three return null when lockState is -1 (not yet read from a subtype-5 frame),
+// so callers can distinguish "unknown" from a confirmed false. They live on the
+// Veteran subtype because only Veteran reports these bits — promoting them to
+// dedicated WheelSettings.Veteran fields would duplicate the same byte.
+
+/** Bit 0: wheel acknowledged the last password command. Null until lockState is read. */
+val WheelSettings.Veteran.lastPasswordCommandSucceeded: Boolean?
+    get() = if (lockState < 0) null else (lockState and 0x01) != 0
+
+/** Bit 5: auto-lock is enabled on the wheel. Null until lockState is read. */
+val WheelSettings.Veteran.autoLockEnabled: Boolean?
+    get() = if (lockState < 0) null else (lockState and 0x20) != 0
+
+/** Bit 6: the wheel currently has a password set. Null until lockState is read. */
+val WheelSettings.Veteran.hasPassword: Boolean?
+    get() = if (lockState < 0) null else (lockState and 0x40) != 0
+
 val WheelSettings.ksAlarm1Speed: Int get() = (this as? WheelSettings.Kingsong)?.ksAlarm1Speed ?: -1
 val WheelSettings.ksAlarm2Speed: Int get() = (this as? WheelSettings.Kingsong)?.ksAlarm2Speed ?: -1
 val WheelSettings.ksAlarm3Speed: Int get() = (this as? WheelSettings.Kingsong)?.ksAlarm3Speed ?: -1

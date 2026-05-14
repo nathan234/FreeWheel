@@ -498,6 +498,25 @@ sealed class WheelCommand {
     /** Veteran lock/unlock with numeric password (e.g. "000000"). */
     data class SetVeteranLock(val locked: Boolean, val password: String) : WheelCommand()
 
+    /**
+     * Veteran first-time password set. Maps to action 11 with old-password empty.
+     * Wheel-side success is confirmed by lockState bit 0 on the next subtype-5 frame.
+     */
+    data class SetVeteranPassword(val newPassword: String) : WheelCommand()
+
+    /** Veteran password change. Maps to action 11 with both old and new passwords populated. */
+    data class ModifyVeteranPassword(val oldPassword: String, val newPassword: String) : WheelCommand()
+
+    /** Veteran password clear. Maps to action 11 with the new-password field empty. */
+    data class ClearVeteranPassword(val password: String) : WheelCommand()
+
+    /**
+     * Veteran auto-lock toggle. Maps to action 3 when [enabled] is true (auto-lock ON)
+     * or action 2 when false. Success is confirmed by lockState bit 5 transitioning
+     * to the expected post-state.
+     */
+    data class SetVeteranAutoLock(val enabled: Boolean, val password: String) : WheelCommand()
+
     /** Request event log download from the wheel (Veteran/Leaperkim). */
     data object RequestEventLog : WheelCommand()
 

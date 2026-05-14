@@ -711,21 +711,30 @@ class VeteranDecoder : WheelDecoder {
     }
 
     /**
-     * Build a lock/unlock command with time-based prefix and numeric password.
+     * Build a password-management command with time-based prefix.
      *
-     * Format: [LdAp header] [0x19] [0x00 0x05] [datetime 7B] [password 3B BE] [cmd] [0 0 0] + CRC32
+     * Format: [LdAp header] [0x19] [0x00 0x05] [datetime 7B] [oldPwd 3B BE] [action] [newPwd 3B BE] + CRC32
      * - Command byte 0x19 = time sync (0x12) + 7
-     * - Password is parsed as integer and encoded big-endian in 3 bytes
-     * - Lock command: 0 = lock, 1 = unlock
+     * - Both passwords are parsed as integers and encoded big-endian in 3 bytes
+     * - Action bytes (Leaperkim app v1.4.8 LockSettingActivity):
+     *     0  = lock           (oldPwd = current, newPwd = "")
+     *     1  = unlock         (oldPwd = current, newPwd = "")
+     *     2  = auto-lock off  (oldPwd = current, newPwd = "")
+     *     3  = auto-lock on   (oldPwd = current, newPwd = "")
+     *     11 = set/modify/clear password
+     *          set:    oldPwd = "",      newPwd = new
+     *          modify: oldPwd = current, newPwd = new
+     *          clear:  oldPwd = current, newPwd = ""
      *
      * Reverse-engineered from Leaperkim app v1.4.8 Util.genPwdCmd().
      */
-    private fun buildLockCommand(locked: Boolean, password: String): ByteArray {
+    private fun buildPwdCommand(action: Int, oldPassword: String, newPassword: String): ByteArray {
         val now = Clock.System.now()
         val tz = TimeZone.currentSystemDefault()
         val dt = now.toLocalDateTime(tz)
         val tzOffsetHours = tz.offsetAt(now).totalSeconds / 3600
-        val pwd = password.toIntOrNull() ?: 0
+        val oldPwd = oldPassword.toIntOrNull() ?: 0
+        val newPwd = newPassword.toIntOrNull() ?: 0
 
         val payload = ByteArray(21)
         // LdAp header
@@ -741,14 +750,16 @@ class VeteranDecoder : WheelDecoder {
         payload[11] = dt.minute.toByte()
         payload[12] = dt.second.toByte()
         payload[13] = tzOffsetHours.toByte()
-        // Password (3-byte big-endian)
-        payload[14] = ((pwd shr 16) and 0xFF).toByte()
-        payload[15] = ((pwd shr 8) and 0xFF).toByte()
-        payload[16] = (pwd and 0xFF).toByte()
-        // Lock command: 0 = lock, 1 = unlock
-        payload[17] = if (locked) 0 else 1
-        // Secondary parameter (zeros for lock/unlock)
-        // payload[18..20] already zero from ByteArray init
+        // Old password (3-byte big-endian)
+        payload[14] = ((oldPwd shr 16) and 0xFF).toByte()
+        payload[15] = ((oldPwd shr 8) and 0xFF).toByte()
+        payload[16] = (oldPwd and 0xFF).toByte()
+        // Action byte
+        payload[17] = action.toByte()
+        // New password (3-byte big-endian; zero for lock/unlock/auto-lock/clear)
+        payload[18] = ((newPwd shr 16) and 0xFF).toByte()
+        payload[19] = ((newPwd shr 8) and 0xFF).toByte()
+        payload[20] = (newPwd and 0xFF).toByte()
 
         return appendCrc32(payload)
     }
@@ -1089,7 +1100,25 @@ class VeteranDecoder : WheelDecoder {
                 }
             }
             is WheelCommand.SetVeteranLock -> {
-                listOf(WheelCommand.SendBytes(buildLockCommand(command.locked, command.password)))
+                // Action 0 = lock, 1 = unlock. No new password — pass "" through.
+                val action = if (command.locked) 0 else 1
+                listOf(WheelCommand.SendBytes(buildPwdCommand(action, command.password, "")))
+            }
+            is WheelCommand.SetVeteranPassword -> {
+                // First-time password set: oldPwd empty, newPwd is the user's choice.
+                listOf(WheelCommand.SendBytes(buildPwdCommand(11, "", command.newPassword)))
+            }
+            is WheelCommand.ModifyVeteranPassword -> {
+                listOf(WheelCommand.SendBytes(buildPwdCommand(11, command.oldPassword, command.newPassword)))
+            }
+            is WheelCommand.ClearVeteranPassword -> {
+                // Clear: action 11 with the current password as oldPwd and an empty newPwd.
+                listOf(WheelCommand.SendBytes(buildPwdCommand(11, command.password, "")))
+            }
+            is WheelCommand.SetVeteranAutoLock -> {
+                // Action 2 = auto-lock OFF, 3 = auto-lock ON. Password proves authorization.
+                val action = if (command.enabled) 3 else 2
+                listOf(WheelCommand.SendBytes(buildPwdCommand(action, command.password, "")))
             }
             is WheelCommand.RequestEventLog -> {
                 receivingLog = true
