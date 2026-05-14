@@ -1,6 +1,7 @@
 package org.freewheel.core.domain
 
 import android.content.SharedPreferences
+import android.os.Build
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
@@ -21,6 +22,11 @@ import javax.crypto.spec.GCMParameterSpec
  *
  * The IV length is fixed at 12 bytes (NIST-recommended for GCM). The auth
  * tag length is the JCA default of 128 bits.
+ *
+ * **API gate (SDK 23+):** Constructing this directly on API 21–22 will throw
+ * `NoClassDefFoundError` for `KeyGenParameterSpec`. Always go through
+ * [AndroidWheelPasswordStoreFactory] which falls back to a [NoOpWheelPasswordStore]
+ * (passwords disabled) below SDK 23.
  */
 class KeystoreWheelPasswordStore(
     private val prefs: SharedPreferences,
