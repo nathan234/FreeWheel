@@ -20,15 +20,32 @@ object AndroidWheelPasswordStoreFactory {
 
     /**
      * Returns the secure [KeystoreWheelPasswordStore] on API 23+, or a
-     * [NoOpWheelPasswordStore] on older devices.
+     * [NoOpWheelPasswordStore] on older devices. Use [createWithBacking]
+     * when the caller needs to render the "remember password" affordance
+     * conditionally.
      */
     fun create(prefs: SharedPreferences): WheelPasswordStore =
+        createWithBacking(prefs).store
+
+    /**
+     * Returns both the chosen [WheelPasswordStore] and the
+     * [PasswordStorageBacking] that picked it. The Phase 5 lock prompt uses
+     * the backing to decide whether the "remember password" toggle should
+     * appear at all (see [LockPromptState.start]).
+     */
+    fun createWithBacking(prefs: SharedPreferences): WheelPasswordStoreSelection =
         if (Build.VERSION.SDK_INT >= MIN_SECURE_STORAGE_SDK) {
-            KeystoreWheelPasswordStore(prefs)
+            WheelPasswordStoreSelection(KeystoreWheelPasswordStore(prefs), PasswordStorageBacking.SECURE)
         } else {
-            NoOpWheelPasswordStore
+            WheelPasswordStoreSelection(NoOpWheelPasswordStore, PasswordStorageBacking.NONE)
         }
 }
+
+/** Pairs a [WheelPasswordStore] with the [PasswordStorageBacking] that chose it. */
+data class WheelPasswordStoreSelection(
+    val store: WheelPasswordStore,
+    val backing: PasswordStorageBacking,
+)
 
 /**
  * [WheelPasswordStore] that refuses to persist anything. Used as the API <23
