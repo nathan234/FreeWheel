@@ -1197,17 +1197,28 @@ class WheelViewModel(
             }
             val terminal = when {
                 resolved != null -> resolved
-                else -> {
-                    // No state-changing readback in time. Snapshot once more —
-                    // catches the case where the wheel re-affirms the same
-                    // lockState because our op didn't flip any bits of interest
-                    // (e.g. AUTO_LOCK_ON when auto-lock was already on).
+                pending.operation == PasswordManagementState.Operation.AUTO_LOCK_ON ||
+                pending.operation == PasswordManagementState.Operation.AUTO_LOCK_OFF -> {
+                    // Auto-lock: bit 5 reflects the *current* enabled state, so a
+                    // re-affirmed lockState matching the operation's intent is a
+                    // genuine confirmation. Snapshot once more to catch the case
+                    // where the wheel re-emits the same value (e.g. AUTO_LOCK_ON
+                    // sent while auto-lock was already on).
                     val snap = PasswordManagementState.observeLockState(pending, currentVeteranLockState())
                     if (snap is PasswordManagementState.PendingAck) {
                         PasswordManagementState.timeout(pending)
                     } else {
                         snap
                     }
+                }
+                else -> {
+                    // SET / MODIFY / CLEAR: bit 0 is the wheel's ack for the *most
+                    // recent* command. If we never see a state-changing readback,
+                    // the bit might still be set from a *previous* successful
+                    // command — trusting that snapshot would falsely confirm an
+                    // op the wheel never acknowledged. Require an actually-
+                    // changed readback or time out.
+                    PasswordManagementState.timeout(pending)
                 }
             }
             _passwordManagementState.value = terminal

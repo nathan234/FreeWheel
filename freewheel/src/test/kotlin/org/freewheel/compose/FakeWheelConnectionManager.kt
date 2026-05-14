@@ -91,4 +91,5 @@ class FakeWheelConnectionManager : WheelConnectionManagerPort {
     fun setCapabilities(caps: CapabilitySet) { _capabilities.value = caps }
     fun setDiscoveredServices(services: DiscoveredServices?) { _discoveredServices.value = services }
     fun setIdentity(identity: WheelIdentity) { _identityState.value = identity }
+    fun setSettings(settings: WheelSettings) { _settingsState.value = settings }
 }
