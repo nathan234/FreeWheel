@@ -1,7 +1,7 @@
 package org.freewheel.core.logging
 
 import org.freewheel.core.diagnostics.Diagnostics
-import org.freewheel.core.domain.TelemetryState
+import org.freewheel.core.domain.telemetry.TelemetryState
 import org.freewheel.core.utils.Logger
 
 /**

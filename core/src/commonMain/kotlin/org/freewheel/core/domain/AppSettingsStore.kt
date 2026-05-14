@@ -1,5 +1,7 @@
 package org.freewheel.core.domain
 
+import org.freewheel.core.domain.telemetry.SpeedDisplayMode
+
 /**
  * Typed reader/writer for app-level settings keyed by [AppSettingId] (and remembered
  * slider values keyed by [SettingsCommandId]).

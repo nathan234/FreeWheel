@@ -1,6 +1,6 @@
 package org.freewheel.core.telemetry
 
-import org.freewheel.core.domain.TelemetryState
+import org.freewheel.core.domain.telemetry.TelemetryState
 
 /**
  * A single telemetry snapshot captured at a point in time.

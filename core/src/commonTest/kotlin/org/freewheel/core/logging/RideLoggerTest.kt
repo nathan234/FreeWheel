@@ -1,6 +1,6 @@
 package org.freewheel.core.logging
 
-import org.freewheel.core.domain.TelemetryState
+import org.freewheel.core.domain.telemetry.TelemetryState
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse

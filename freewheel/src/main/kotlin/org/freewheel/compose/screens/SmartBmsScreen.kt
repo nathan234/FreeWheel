@@ -17,7 +17,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.freewheel.compose.WheelViewModel
-import org.freewheel.core.domain.BmsSnapshot
+import org.freewheel.core.domain.telemetry.BmsSnapshot
 import org.freewheel.core.utils.DisplayUtils
 
 /**

@@ -4,7 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import org.freewheel.core.domain.TelemetryState
+import org.freewheel.core.domain.telemetry.TelemetryState
 import org.freewheel.core.domain.dashboard.ColorZone
 import org.freewheel.ui.theme.ZoneColors
 import org.freewheel.core.domain.dashboard.DashboardMetric

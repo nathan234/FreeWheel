@@ -1,9 +1,9 @@
 package org.freewheel.core.service
 
-import org.freewheel.core.domain.BmsSnapshot
-import org.freewheel.core.domain.BmsState
-import org.freewheel.core.domain.SmartBms
-import org.freewheel.core.domain.TelemetryState
+import org.freewheel.core.domain.telemetry.BmsSnapshot
+import org.freewheel.core.domain.telemetry.BmsState
+import org.freewheel.core.domain.telemetry.SmartBms
+import org.freewheel.core.domain.telemetry.TelemetryState
 import org.freewheel.core.domain.identity.WheelIdentity
 import org.freewheel.core.domain.WheelSettings
 import org.freewheel.core.domain.identity.WheelType

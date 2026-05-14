@@ -2,12 +2,12 @@ package org.freewheel.core.service
 
 import org.freewheel.core.ble.DiscoveredServices
 import org.freewheel.core.ble.WheelConnectionInfo
-import org.freewheel.core.domain.BmsState
+import org.freewheel.core.domain.telemetry.BmsState
 import org.freewheel.core.domain.identity.CapabilitySet
 import org.freewheel.core.domain.EventLogEntry
 import org.freewheel.core.domain.identity.ProtocolFamily
 import org.freewheel.core.domain.SettingsCommandId
-import org.freewheel.core.domain.TelemetryState
+import org.freewheel.core.domain.telemetry.TelemetryState
 import org.freewheel.core.domain.identity.WheelIdentity
 import org.freewheel.core.domain.WheelSettings
 import org.freewheel.core.domain.identity.WheelType

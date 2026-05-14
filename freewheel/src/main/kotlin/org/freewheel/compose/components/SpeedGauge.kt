@@ -27,7 +27,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import org.freewheel.core.domain.SpeedDisplayMode
+import org.freewheel.core.domain.telemetry.SpeedDisplayMode
 import org.freewheel.core.telemetry.MetricType
 import org.freewheel.ui.theme.ZoneColors
 import androidx.compose.ui.semantics.contentDescription

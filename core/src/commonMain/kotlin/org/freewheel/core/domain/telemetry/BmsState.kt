@@ -1,4 +1,4 @@
-package org.freewheel.core.domain
+package org.freewheel.core.domain.telemetry
 
 /**
  * BMS (Battery Management System) state containing snapshots from up to two battery packs.

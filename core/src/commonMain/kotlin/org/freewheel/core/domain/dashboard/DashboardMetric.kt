@@ -1,6 +1,6 @@
 package org.freewheel.core.domain.dashboard
 
-import org.freewheel.core.domain.TelemetryState
+import org.freewheel.core.domain.telemetry.TelemetryState
 import org.freewheel.core.domain.identity.WheelType
 import org.freewheel.core.telemetry.MetricType
 

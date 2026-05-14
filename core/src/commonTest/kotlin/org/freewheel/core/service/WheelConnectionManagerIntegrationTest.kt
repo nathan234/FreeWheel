@@ -9,7 +9,7 @@ import kotlinx.coroutines.test.runTest
 import org.freewheel.core.ble.BleUuids
 import org.freewheel.core.ble.DiscoveredService
 import org.freewheel.core.ble.DiscoveredServices
-import org.freewheel.core.domain.TelemetryState
+import org.freewheel.core.domain.telemetry.TelemetryState
 import org.freewheel.core.domain.identity.WheelIdentity
 import org.freewheel.core.domain.WheelSettings
 import org.freewheel.core.domain.identity.WheelType

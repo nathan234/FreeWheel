@@ -45,9 +45,9 @@ import org.freewheel.core.location.ChargingStation
 import org.freewheel.core.location.ChargingStationRepository
 import org.freewheel.core.charger.ChargerConnectionManagerPort
 import org.freewheel.core.charger.ChargerState
-import org.freewheel.core.domain.BmsState
+import org.freewheel.core.domain.telemetry.BmsState
 import org.freewheel.core.domain.identity.CapabilitySet
-import org.freewheel.core.domain.TelemetryState
+import org.freewheel.core.domain.telemetry.TelemetryState
 import org.freewheel.core.domain.identity.WheelIdentity
 import org.freewheel.core.domain.WheelSettings
 import org.freewheel.core.domain.AlarmAction

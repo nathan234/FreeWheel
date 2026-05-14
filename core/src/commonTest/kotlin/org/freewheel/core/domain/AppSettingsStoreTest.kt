@@ -1,5 +1,6 @@
 package org.freewheel.core.domain
 
+import org.freewheel.core.domain.telemetry.SpeedDisplayMode
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull

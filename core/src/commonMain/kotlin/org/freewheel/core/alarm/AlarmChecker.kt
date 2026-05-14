@@ -1,7 +1,7 @@
 package org.freewheel.core.alarm
 
 import org.freewheel.core.domain.AlarmType
-import org.freewheel.core.domain.TelemetryState
+import org.freewheel.core.domain.telemetry.TelemetryState
 import org.freewheel.core.utils.Lock
 import org.freewheel.core.utils.withLock
 import kotlin.math.abs

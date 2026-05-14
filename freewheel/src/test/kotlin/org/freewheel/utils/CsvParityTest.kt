@@ -1,6 +1,6 @@
 package org.freewheel.utils
 
-import org.freewheel.core.domain.TelemetryState
+import org.freewheel.core.domain.telemetry.TelemetryState
 import org.freewheel.core.logging.CsvFormatter
 import org.freewheel.core.logging.GpsLocation
 import com.google.common.truth.Truth.assertThat

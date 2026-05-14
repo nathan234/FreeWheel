@@ -1,6 +1,6 @@
 package org.freewheel.core.validation
 
-import org.freewheel.core.domain.TelemetryState
+import org.freewheel.core.domain.telemetry.TelemetryState
 
 /**
  * Validates telemetry values against bounds that are physically or representationally

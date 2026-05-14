@@ -1,4 +1,4 @@
-package org.freewheel.core.domain
+package org.freewheel.core.domain.telemetry
 
 object ChartLabels {
     const val TITLE = "Telemetry Chart"

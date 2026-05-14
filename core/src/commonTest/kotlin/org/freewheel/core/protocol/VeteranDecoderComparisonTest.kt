@@ -1,6 +1,6 @@
 package org.freewheel.core.protocol
 
-import org.freewheel.core.domain.TelemetryState
+import org.freewheel.core.domain.telemetry.TelemetryState
 import org.freewheel.core.utils.ByteUtils
 import kotlin.math.abs
 import kotlin.math.roundToInt

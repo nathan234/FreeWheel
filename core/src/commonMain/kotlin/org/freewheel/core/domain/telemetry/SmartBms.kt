@@ -1,4 +1,4 @@
-package org.freewheel.core.domain
+package org.freewheel.core.domain.telemetry
 
 /**
  * Battery Management System (BMS) data container.

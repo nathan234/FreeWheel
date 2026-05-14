@@ -35,7 +35,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import org.freewheel.compose.WheelViewModel
 import org.freewheel.core.domain.AppSettingId
-import org.freewheel.core.domain.ChartLabels
+import org.freewheel.core.domain.telemetry.ChartLabels
 import org.freewheel.core.domain.CommonLabels
 import org.freewheel.core.telemetry.ChartTimeRange
 import org.freewheel.core.telemetry.MetricType

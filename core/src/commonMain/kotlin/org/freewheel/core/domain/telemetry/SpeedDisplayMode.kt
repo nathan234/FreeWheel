@@ -1,4 +1,4 @@
-package org.freewheel.core.domain
+package org.freewheel.core.domain.telemetry
 
 /**
  * Which speed source to display in the speed gauge.

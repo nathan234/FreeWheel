@@ -6,9 +6,9 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import org.freewheel.compose.components.DashboardContent
-import org.freewheel.core.domain.BmsState
-import org.freewheel.core.domain.SpeedDisplayMode
-import org.freewheel.core.domain.TelemetryState
+import org.freewheel.core.domain.telemetry.BmsState
+import org.freewheel.core.domain.telemetry.SpeedDisplayMode
+import org.freewheel.core.domain.telemetry.TelemetryState
 import org.freewheel.core.domain.identity.WheelIdentity
 import org.freewheel.core.domain.WheelSettings
 import org.freewheel.core.domain.identity.WheelType

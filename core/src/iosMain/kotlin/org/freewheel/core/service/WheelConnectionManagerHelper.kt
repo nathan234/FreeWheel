@@ -8,10 +8,10 @@ import org.freewheel.core.logging.BlePacketDirection
 import org.freewheel.core.replay.BleCaptureReader
 import org.freewheel.core.replay.ReplayEngine
 import org.freewheel.core.replay.ReplayState
-import org.freewheel.core.domain.BmsState
+import org.freewheel.core.domain.telemetry.BmsState
 import org.freewheel.core.domain.identity.CapabilitySet
 import org.freewheel.core.domain.identity.ProtocolFamily
-import org.freewheel.core.domain.TelemetryState
+import org.freewheel.core.domain.telemetry.TelemetryState
 import org.freewheel.core.domain.identity.WheelIdentity
 import org.freewheel.core.domain.WheelSettings
 import org.freewheel.core.domain.identity.WheelType

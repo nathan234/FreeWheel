@@ -1,8 +1,8 @@
 package org.freewheel.core.protocol
 
-import org.freewheel.core.domain.BmsState
+import org.freewheel.core.domain.telemetry.BmsState
 import org.freewheel.core.domain.EventLogEntry
-import org.freewheel.core.domain.TelemetryState
+import org.freewheel.core.domain.telemetry.TelemetryState
 import org.freewheel.core.domain.identity.WheelIdentity
 import org.freewheel.core.domain.WheelSettings
 import org.freewheel.core.utils.ByteUtils

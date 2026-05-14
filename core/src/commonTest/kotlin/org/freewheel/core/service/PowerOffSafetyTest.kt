@@ -1,6 +1,6 @@
 package org.freewheel.core.service
 
-import org.freewheel.core.domain.TelemetryState
+import org.freewheel.core.domain.telemetry.TelemetryState
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull

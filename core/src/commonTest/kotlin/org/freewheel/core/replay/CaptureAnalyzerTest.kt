@@ -373,8 +373,8 @@ class CaptureAnalyzerTest {
 
     @Test
     fun diffStatesDetectsSpeedChange() {
-        val old = DecoderState(telemetry = org.freewheel.core.domain.TelemetryState(speed = 100))
-        val new = DecoderState(telemetry = org.freewheel.core.domain.TelemetryState(speed = 200))
+        val old = DecoderState(telemetry = org.freewheel.core.domain.telemetry.TelemetryState(speed = 100))
+        val new = DecoderState(telemetry = org.freewheel.core.domain.telemetry.TelemetryState(speed = 200))
 
         val changes = diffStates(old, new)
 
@@ -386,8 +386,8 @@ class CaptureAnalyzerTest {
 
     @Test
     fun diffStatesDetectsMultipleChanges() {
-        val old = DecoderState(telemetry = org.freewheel.core.domain.TelemetryState(speed = 100, voltage = 8400, temperature = 3500))
-        val new = DecoderState(telemetry = org.freewheel.core.domain.TelemetryState(speed = 200, voltage = 8300, temperature = 3500))
+        val old = DecoderState(telemetry = org.freewheel.core.domain.telemetry.TelemetryState(speed = 100, voltage = 8400, temperature = 3500))
+        val new = DecoderState(telemetry = org.freewheel.core.domain.telemetry.TelemetryState(speed = 200, voltage = 8300, temperature = 3500))
 
         val changes = diffStates(old, new)
 
@@ -399,7 +399,7 @@ class CaptureAnalyzerTest {
 
     @Test
     fun diffStatesNoChanges() {
-        val state = DecoderState(telemetry = org.freewheel.core.domain.TelemetryState(speed = 100, voltage = 8400))
+        val state = DecoderState(telemetry = org.freewheel.core.domain.telemetry.TelemetryState(speed = 100, voltage = 8400))
         val changes = diffStates(state, state)
         assertTrue(changes.isEmpty())
     }

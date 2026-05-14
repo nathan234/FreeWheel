@@ -1,6 +1,6 @@
 package org.freewheel.core.logging
 
-import org.freewheel.core.domain.TelemetryState
+import org.freewheel.core.domain.telemetry.TelemetryState
 
 /**
  * Formats ride data as CSV rows matching the legacy WheelLog format.

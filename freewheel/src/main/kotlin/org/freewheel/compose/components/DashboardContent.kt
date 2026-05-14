@@ -40,11 +40,11 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.freewheel.core.domain.AlarmType
-import org.freewheel.core.domain.BmsState
+import org.freewheel.core.domain.telemetry.BmsState
 import org.freewheel.core.domain.DashboardLabels
 import org.freewheel.core.domain.SettingsLabels
-import org.freewheel.core.domain.SpeedDisplayMode
-import org.freewheel.core.domain.TelemetryState
+import org.freewheel.core.domain.telemetry.SpeedDisplayMode
+import org.freewheel.core.domain.telemetry.TelemetryState
 import org.freewheel.core.domain.identity.WheelIdentity
 import org.freewheel.core.domain.WheelSettings
 import org.freewheel.core.domain.identity.WheelType
