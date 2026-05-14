@@ -78,7 +78,9 @@ class FakeWheelConnectionManager : WheelConnectionManagerPort {
 
     override fun getConnectionInfo(): WheelConnectionInfo? = null
 
-    override fun sendCommand(command: WheelCommand) {}
+    val sentCommands = mutableListOf<WheelCommand>()
+
+    override fun sendCommand(command: WheelCommand) { sentCommands += command }
     override fun wheelBeep() {}
     override fun toggleLight(enabled: Boolean) {}
     override fun setPedalsMode(mode: Int) {}
@@ -88,4 +90,5 @@ class FakeWheelConnectionManager : WheelConnectionManagerPort {
     fun setConnectionState(state: ConnectionState) { _connectionState.value = state }
     fun setCapabilities(caps: CapabilitySet) { _capabilities.value = caps }
     fun setDiscoveredServices(services: DiscoveredServices?) { _discoveredServices.value = services }
+    fun setIdentity(identity: WheelIdentity) { _identityState.value = identity }
 }

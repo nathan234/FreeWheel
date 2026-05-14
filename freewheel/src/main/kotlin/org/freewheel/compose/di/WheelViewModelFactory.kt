@@ -26,7 +26,9 @@ class WheelViewModelFactory(
             demoDataProvider = AppModule.demoDataProvider,
             alarmChecker = AppModule.alarmChecker,
             telemetryBuffer = AppModule.telemetryBuffer,
-            chargingStationRepository = AppModule.chargingStationRepository
+            chargingStationRepository = AppModule.chargingStationRepository,
+            passwordStore = AppModule.wheelPasswordStoreSelection.store,
+            passwordStoreBacking = AppModule.wheelPasswordStoreSelection.backing,
         ) as T
     }
 }

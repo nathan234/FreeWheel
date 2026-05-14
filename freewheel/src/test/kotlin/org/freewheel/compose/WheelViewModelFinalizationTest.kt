@@ -14,6 +14,8 @@ import kotlinx.coroutines.test.setMain
 import org.freewheel.core.domain.AppSettingsStore
 import org.freewheel.core.domain.ChargerProfileStore
 import org.freewheel.core.domain.DecoderConfigStore
+import org.freewheel.core.domain.InMemoryWheelPasswordStore
+import org.freewheel.core.domain.PasswordStorageBacking
 import org.freewheel.core.domain.SharedPreferencesKeyValueStore
 import org.freewheel.core.domain.WheelProfileStore
 import org.freewheel.core.location.ChargingStation
@@ -75,7 +77,9 @@ class WheelViewModelFinalizationTest {
             appSettingsStore = AppSettingsStore(kvs),
             decoderConfigStore = DecoderConfigStore(kvs),
             demoDataProvider = DemoDataProvider(),
-            chargingStationRepository = ChargingStationRepository(NoopChargingStationSource)
+            chargingStationRepository = ChargingStationRepository(NoopChargingStationSource),
+            passwordStore = InMemoryWheelPasswordStore(),
+            passwordStoreBacking = PasswordStorageBacking.NONE,
         )
 
         fakeCm = FakeWheelConnectionManager()

@@ -35,6 +35,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.freewheel.compose.WheelViewModel
+import org.freewheel.compose.components.LockPromptDialog
 import org.freewheel.compose.components.WheelSettingsContent
 import org.freewheel.core.domain.AppSettingId
 import org.freewheel.core.domain.CommonLabels
@@ -102,6 +103,10 @@ fun WheelSettingsScreen(viewModel: WheelViewModel, onBack: () -> Unit) {
             Spacer(Modifier.height(16.dp))
         }
     }
+
+    // Veteran lock/unlock prompt — driven entirely by viewModel.lockPromptState;
+    // renders nothing when Idle.
+    LockPromptDialog(viewModel = viewModel)
 }
 
 /**

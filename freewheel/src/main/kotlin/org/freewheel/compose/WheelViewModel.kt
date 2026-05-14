@@ -55,7 +55,12 @@ import org.freewheel.core.domain.AlarmType
 import org.freewheel.core.domain.AppSettingId
 import org.freewheel.core.domain.AppSettingsStore
 import org.freewheel.core.domain.DecoderConfigStore
+import org.freewheel.core.domain.LockPromptState
+import org.freewheel.core.domain.PasswordStorageBacking
 import org.freewheel.core.domain.SettingsCommandId
+import org.freewheel.core.domain.WheelPasswordStore
+import org.freewheel.core.domain.WheelType
+import org.freewheel.core.protocol.WheelCommand
 import org.freewheel.core.domain.ChargerProfile
 import org.freewheel.core.domain.ChargerProfileStore
 import org.freewheel.core.domain.WheelProfile
@@ -127,7 +132,9 @@ class WheelViewModel(
     private val demoDataProvider: DemoDataProvider,
     private val alarmChecker: AlarmChecker = AlarmChecker(),
     val telemetryBuffer: TelemetryBuffer = TelemetryBuffer(),
-    private val chargingStationRepository: ChargingStationRepository
+    private val chargingStationRepository: ChargingStationRepository,
+    private val passwordStore: WheelPasswordStore,
+    private val passwordStoreBacking: PasswordStorageBacking,
 ) : AndroidViewModel(application) {
 
     private companion object {
@@ -1020,7 +1027,74 @@ class WheelViewModel(
     }
 
     fun executeWheelCommand(commandId: SettingsCommandId, intValue: Int = 0, boolValue: Boolean = false) {
+        // Veteran wheels gate lock/unlock behind a numeric password the user
+        // (or their saved password store) supplies via the lock prompt. Route
+        // the LOCK toggle through that flow instead of dispatching a generic
+        // SetLock the Veteran decoder would drop on the floor.
+        // Read _realIdentity directly so the interception works in tests
+        // without a UI subscriber to start the WhileSubscribed identityState
+        // pipeline (and so we never trigger on demo/replay sessions where
+        // there's no Bluetooth peer to receive SetVeteranLock anyway).
+        if (commandId == SettingsCommandId.LOCK && _realIdentity.value.wheelType == WheelType.VETERAN) {
+            requestLock(if (boolValue) LockPromptState.LockAction.LOCK else LockPromptState.LockAction.UNLOCK)
+            return
+        }
         binding?.connectionManager?.executeCommand(commandId, intValue, boolValue)
+    }
+
+    // ==================== Veteran lock prompt flow ====================
+
+    private val _lockPromptState = MutableStateFlow<LockPromptState>(LockPromptState.Idle)
+    /** Drives the Veteran lock/unlock password prompt; Idle when no prompt is up. */
+    val lockPromptState: StateFlow<LockPromptState> = _lockPromptState.asStateFlow()
+
+    /** Open the lock prompt for the currently-connected wheel. */
+    fun requestLock(action: LockPromptState.LockAction) {
+        val address = (_connectionState.value as? ConnectionState.Connected)?.address ?: return
+        _lockPromptState.value = LockPromptState.start(
+            action = action,
+            address = address,
+            store = passwordStore,
+            storeBacking = passwordStoreBacking,
+        )
+    }
+
+    /** Submit the password from the prompt. Validates, dispatches, persists if opted in. */
+    fun submitLockPassword(password: String, rememberPassword: Boolean) {
+        val current = _lockPromptState.value as? LockPromptState.AwaitingPassword ?: return
+        val validationError = LockPromptState.validate(password)
+        if (validationError != null) {
+            _lockPromptState.value = LockPromptState.Error(
+                reason = validationError,
+                action = current.action,
+                address = current.address,
+            )
+            return
+        }
+        if (_connectionState.value !is ConnectionState.Connected) {
+            _lockPromptState.value = LockPromptState.Error(
+                reason = LockPromptState.ErrorReason.NOT_CONNECTED,
+                action = current.action,
+                address = current.address,
+            )
+            return
+        }
+
+        _lockPromptState.value = LockPromptState.Sending(action = current.action, address = current.address)
+
+        val locked = current.action == LockPromptState.LockAction.LOCK
+        binding?.connectionManager?.sendCommand(WheelCommand.SetVeteranLock(locked = locked, password = password))
+
+        if (rememberPassword) {
+            passwordStore.setPassword(current.address, password)
+        }
+
+        _lockPromptState.value = LockPromptState.Sent
+    }
+
+    /** Dismiss the prompt without sending. */
+    fun dismissLockPrompt() {
+        _lockPromptState.value = LockPromptState.Idle
     }
 
     // --- Charger scanning ---

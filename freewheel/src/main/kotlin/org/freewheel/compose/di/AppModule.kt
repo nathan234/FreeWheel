@@ -8,10 +8,12 @@ import android.location.LocationManager
 import android.os.Vibrator
 import androidx.core.content.ContextCompat.getSystemService
 import androidx.preference.PreferenceManager
+import org.freewheel.core.domain.AndroidWheelPasswordStoreFactory
 import org.freewheel.core.domain.AppSettingsStore
 import org.freewheel.core.domain.ChargerProfileStore
 import org.freewheel.core.domain.DecoderConfigStore
 import org.freewheel.core.domain.SharedPreferencesKeyValueStore
+import org.freewheel.core.domain.WheelPasswordStoreSelection
 import org.freewheel.core.domain.WheelProfileStore
 import org.freewheel.core.alarm.AlarmChecker
 import org.freewheel.core.location.ChargingStationRepository
@@ -71,6 +73,19 @@ object AppModule {
     val chargerProfileStore: ChargerProfileStore by lazy { ChargerProfileStore(keyValueStore) }
     val appSettingsStore: AppSettingsStore by lazy { AppSettingsStore(keyValueStore) }
     val decoderConfigStore: DecoderConfigStore by lazy { DecoderConfigStore(keyValueStore) }
+
+    /**
+     * Per-MAC Veteran lock-password storage. Factory selects the secure
+     * Keystore-backed impl on API 23+; falls back to the no-op store on
+     * 21–22 so the lock prompt knows persistence is unavailable.
+     */
+    val wheelPasswordStoreSelection: WheelPasswordStoreSelection by lazy {
+        // Use a dedicated SharedPreferences file so the password ciphertext blobs
+        // don't collide with regular app settings (and a future password-only
+        // wipe can target one prefs file).
+        val passwordPrefs = appContext.getSharedPreferences("freewheel_passwords", Context.MODE_PRIVATE)
+        AndroidWheelPasswordStoreFactory.createWithBacking(passwordPrefs)
+    }
     val demoDataProvider: DemoDataProvider by lazy { DemoDataProvider() }
     val alarmChecker: AlarmChecker by lazy { AlarmChecker() }
     val telemetryBuffer: TelemetryBuffer by lazy { TelemetryBuffer() }

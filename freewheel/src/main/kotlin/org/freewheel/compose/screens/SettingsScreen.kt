@@ -48,6 +48,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.freewheel.BuildConfig
 import org.freewheel.compose.WheelViewModel
 import org.freewheel.compose.components.StatRow
+import org.freewheel.compose.components.LockPromptDialog
 import org.freewheel.compose.components.WheelSettingsContent
 import org.freewheel.core.domain.AppSettingId
 import org.freewheel.core.domain.AppSettingSpec
@@ -233,6 +234,10 @@ fun SettingsScreen(
 
         Spacer(Modifier.height(16.dp))
     }
+
+    // Veteran lock/unlock prompt — shared with WheelSettingsScreen so the
+    // dialog appears wherever the user toggles the lock control.
+    LockPromptDialog(viewModel = viewModel)
 }
 
 // ---------------------------------------------------------------------------
