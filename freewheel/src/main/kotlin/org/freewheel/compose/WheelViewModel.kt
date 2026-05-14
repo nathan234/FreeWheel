@@ -1085,8 +1085,14 @@ class WheelViewModel(
         val locked = current.action == LockPromptState.LockAction.LOCK
         binding?.connectionManager?.sendCommand(WheelCommand.SetVeteranLock(locked = locked, password = password))
 
+        // "Remember password" is a two-way switch, not a write-only opt-in.
+        // Submitting with the toggle OFF must clear any previously-saved entry,
+        // otherwise unchecking it after a prior save would silently leave the
+        // password stored against the user's explicit opt-out.
         if (rememberPassword) {
             passwordStore.setPassword(current.address, password)
+        } else {
+            passwordStore.clearPassword(current.address)
         }
 
         _lockPromptState.value = LockPromptState.Sent

@@ -202,6 +202,27 @@ class WheelViewModelLockPromptTest {
     }
 
     @Test
+    fun `submitLockPassword with rememberPassword=false clears a previously-saved password`() = runTest {
+        // The dialog defaults the "remember" toggle to ON when a saved password
+        // exists. If the user then explicitly turns it OFF and submits, the
+        // stored entry must be wiped — otherwise we'd silently keep the
+        // password against the user's opt-out.
+        connectVeteran()
+        passwordStore.setPassword(testMac, "555555")
+        advanceUntilIdle()
+        viewModel.requestLock(LockPromptState.LockAction.LOCK)
+        advanceUntilIdle()
+        // Sanity check: the prompt prefilled from the store.
+        assertThat((viewModel.lockPromptState.value as LockPromptState.AwaitingPassword).prefilledPassword)
+            .isEqualTo("555555")
+
+        viewModel.submitLockPassword("555555", rememberPassword = false)
+        advanceUntilIdle()
+
+        assertThat(passwordStore.getPassword(testMac)).isNull()
+    }
+
+    @Test
     fun `submit with empty password emits Error EMPTY_PASSWORD without dispatching`() = runTest {
         connectVeteran()
         advanceUntilIdle()
