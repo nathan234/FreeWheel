@@ -387,6 +387,22 @@ object WheelConnectionManagerHelper {
         manager.setVeteranLock(locked, password)
     }
 
+    fun sendSetVeteranPassword(manager: WheelConnectionManager, newPassword: String) {
+        manager.sendCommand(org.freewheel.core.protocol.WheelCommand.SetVeteranPassword(newPassword))
+    }
+
+    fun sendModifyVeteranPassword(manager: WheelConnectionManager, oldPassword: String, newPassword: String) {
+        manager.sendCommand(org.freewheel.core.protocol.WheelCommand.ModifyVeteranPassword(oldPassword, newPassword))
+    }
+
+    fun sendClearVeteranPassword(manager: WheelConnectionManager, password: String) {
+        manager.sendCommand(org.freewheel.core.protocol.WheelCommand.ClearVeteranPassword(password))
+    }
+
+    fun sendSetVeteranAutoLock(manager: WheelConnectionManager, enabled: Boolean, password: String) {
+        manager.sendCommand(org.freewheel.core.protocol.WheelCommand.SetVeteranAutoLock(enabled, password))
+    }
+
     fun sendResetTrip(manager: WheelConnectionManager) {
         manager.resetTrip()
     }

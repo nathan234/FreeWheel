@@ -51,6 +51,10 @@ struct WheelSettingsContent: View {
             // Veteran lock/unlock prompt — driven entirely by
             // wheelManager.lockPromptState; renders nothing when .idle.
             .lockPrompt(wheelManager)
+            // Veteran password-management dialog (set/modify/clear/auto-lock).
+            // Driven by wheelManager.passwordManagementState; renders nothing
+            // when .idle. Mirror of the Compose PasswordManagementDialog.
+            .passwordManagement(wheelManager)
     }
 
     @ViewBuilder
@@ -69,6 +73,10 @@ struct WheelSettingsContent: View {
                 }
             }
         }
+        // Veteran-only password-management entry. Mirrors the Compose
+        // VeteranPasswordCard; renders nothing for non-Veteran wheels or
+        // before the first subtype-5 readback (when bit 6 is unknown).
+        VeteranPasswordSection(wheelManager: wheelManager)
     }
 
     // MARK: - Control Rendering
@@ -540,6 +548,355 @@ extension View {
     /// prompt is in `.idle`.
     func lockPrompt(_ wheelManager: WheelManager) -> some View {
         modifier(LockPromptModifier(wheelManager: wheelManager))
+    }
+
+    /// Attach the Veteran password-management dialog to this view. Renders
+    /// nothing when the state is `.idle`.
+    func passwordManagement(_ wheelManager: WheelManager) -> some View {
+        modifier(PasswordManagementModifier(wheelManager: wheelManager))
+    }
+}
+
+// MARK: - Veteran password-management entry section
+//
+// Mirrors the Compose VeteranPasswordCard. Visibility is driven by
+// WheelSettings.Veteran.lockState bit 6:
+//   - lockState < 0 (unknown) → renders nothing
+//   - bit 6 clear (no password) → only "Set lock password" row
+//   - bit 6 set  (has password) → "Change password", "Clear password",
+//                                  and the Auto-lock toggle
+
+private struct VeteranPasswordSection: View {
+    @ObservedObject var wheelManager: WheelManager
+
+    var body: some View {
+        if let veteran = wheelManager.wheelSettings as? WheelSettings.Veteran,
+           veteran.lockState >= 0 {
+            let lockState = Int(veteran.lockState)
+            let hasPassword = (lockState & 0x40) != 0
+            let autoLockOn = (lockState & 0x20) != 0
+            Section("Lock password") {
+                if !hasPassword {
+                    Button("Set lock password") {
+                        wheelManager.requestPasswordManagement(PasswordManagementState.Operation.set)
+                    }
+                } else {
+                    Button("Change password") {
+                        wheelManager.requestPasswordManagement(PasswordManagementState.Operation.modify)
+                    }
+                    Button("Clear password", role: .destructive) {
+                        wheelManager.requestPasswordManagement(PasswordManagementState.Operation.clear)
+                    }
+                    Toggle("Auto-lock", isOn: Binding(
+                        get: { autoLockOn },
+                        // Trigger the management flow on toggle; the dialog
+                        // collects the current password and the wheel ack
+                        // applies the visual change.
+                        set: { newValue in
+                            let op = newValue
+                                ? PasswordManagementState.Operation.autoLockOn
+                                : PasswordManagementState.Operation.autoLockOff
+                            wheelManager.requestPasswordManagement(op)
+                        }
+                    ))
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Password-management modifier
+//
+// Inlined in this file (rather than a separate Views/PasswordManagementView.swift)
+// because the Xcode project uses explicit file references — adding a new
+// .swift file requires a pbxproj edit. The Compose equivalent lives in
+// freewheel/.../components/PasswordManagementDialog.kt.
+
+/// View modifier that mounts the Veteran password-management dialog driven
+/// by `WheelManager.passwordManagementState`. Mirrors the Compose
+/// `PasswordManagementDialog`:
+///   .idle        → no UI
+///   .editing     → input alert with operation-specific fields
+///   .submitting  → progress alert
+///   .pendingAck  → progress alert (waiting for wheel confirmation)
+///   .confirmed   → success alert that auto-dismisses
+///   .failed      → error alert with retry/close
+struct PasswordManagementModifier: ViewModifier {
+    @ObservedObject var wheelManager: WheelManager
+
+    @State private var oldPassword: String = ""
+    @State private var newPassword: String = ""
+    @State private var confirmPassword: String = ""
+    @State private var rememberPassword: Bool = false
+
+    func body(content: Content) -> some View {
+        content
+            .alert(
+                editingTitle,
+                isPresented: editingBinding,
+                presenting: wheelManager.passwordManagementState as? PasswordManagementState.Editing
+            ) { state in
+                editingFields(for: state)
+                Button(confirmLabel(for: state.operation)) {
+                    let input = PasswordManagementInput(
+                        oldPassword: oldPassword,
+                        newPassword: newPassword,
+                        confirmationPassword: confirmPassword,
+                        rememberNewPassword: rememberPassword
+                    )
+                    wheelManager.submitPasswordManagement(input: input)
+                }
+                .disabled(!isSubmitEnabled(for: state))
+                Button("Cancel", role: .cancel) {
+                    wheelManager.dismissPasswordManagement()
+                }
+            } message: { state in
+                Text(descriptionMessage(for: state.operation))
+            }
+            .alert(
+                waitingTitle,
+                isPresented: waitingBinding,
+                presenting: waitingOperation
+            ) { _ in
+                // Progress alert. The state advances to .confirmed or
+                // .failed via the WheelManager ack listener; the binding
+                // flips false automatically.
+            } message: { _ in
+                Text("Waiting for wheel confirmation.")
+            }
+            .alert(
+                confirmedTitle,
+                isPresented: confirmedBinding,
+                presenting: wheelManager.passwordManagementState as? PasswordManagementState.Confirmed
+            ) { _ in
+                Button("Done") { wheelManager.dismissPasswordManagement() }
+            } message: { state in
+                Text(successMessage(for: state.operation))
+            }
+            .alert(
+                failedTitle,
+                isPresented: failedBinding,
+                presenting: wheelManager.passwordManagementState as? PasswordManagementState.Failed
+            ) { state in
+                if state.reason != PasswordManagementState.FailureReason.notConnected {
+                    Button("Try again") {
+                        wheelManager.requestPasswordManagement(state.operation)
+                    }
+                }
+                Button("Close", role: .cancel) { wheelManager.dismissPasswordManagement() }
+            } message: { state in
+                Text(failureMessage(for: state.reason))
+            }
+            .onReceive(wheelManager.$passwordManagementState) { newValue in
+                if let editing = newValue as? PasswordManagementState.Editing {
+                    // Prefill current/old password from the store; reset the
+                    // remember toggle default per the same rule as the lock
+                    // prompt (default-on iff a saved password already exists).
+                    let needsOld =
+                        editing.operation != PasswordManagementState.Operation.set
+                    oldPassword = needsOld ? (editing.priorStoredPassword ?? "") : ""
+                    newPassword = ""
+                    confirmPassword = ""
+                    rememberPassword = editing.canPersistPassword && editing.priorStoredPassword != nil
+                } else if newValue is PasswordManagementState.Idle {
+                    oldPassword = ""
+                    newPassword = ""
+                    confirmPassword = ""
+                    rememberPassword = false
+                }
+            }
+    }
+
+    // MARK: - Field rendering
+
+    @ViewBuilder
+    private func editingFields(for state: PasswordManagementState.Editing) -> some View {
+        let needsOld = state.operation != PasswordManagementState.Operation.set
+        let needsNew = state.operation == PasswordManagementState.Operation.set
+            || state.operation == PasswordManagementState.Operation.modify
+        if needsOld {
+            SecureField(needsNew ? "Current password" : "Password", text: $oldPassword)
+                .keyboardType(.numberPad)
+        }
+        if needsNew {
+            SecureField("New password", text: $newPassword)
+                .keyboardType(.numberPad)
+            SecureField("Confirm new password", text: $confirmPassword)
+                .keyboardType(.numberPad)
+            if state.canPersistPassword {
+                Toggle("Remember new password", isOn: $rememberPassword)
+            }
+        }
+    }
+
+    // MARK: - Binding helpers
+
+    private var editingBinding: Binding<Bool> {
+        Binding(
+            get: { wheelManager.passwordManagementState is PasswordManagementState.Editing },
+            set: { isShowing in if !isShowing { wheelManager.dismissPasswordManagement() } }
+        )
+    }
+
+    private var waitingBinding: Binding<Bool> {
+        Binding(
+            get: {
+                wheelManager.passwordManagementState is PasswordManagementState.Submitting
+                    || wheelManager.passwordManagementState is PasswordManagementState.PendingAck
+            },
+            set: { _ in /* not user-dismissable */ }
+        )
+    }
+
+    private var confirmedBinding: Binding<Bool> {
+        Binding(
+            get: { wheelManager.passwordManagementState is PasswordManagementState.Confirmed },
+            set: { isShowing in if !isShowing { wheelManager.dismissPasswordManagement() } }
+        )
+    }
+
+    private var failedBinding: Binding<Bool> {
+        Binding(
+            get: { wheelManager.passwordManagementState is PasswordManagementState.Failed },
+            set: { isShowing in if !isShowing { wheelManager.dismissPasswordManagement() } }
+        )
+    }
+
+    private var waitingOperation: PasswordManagementState.Operation? {
+        if let submitting = wheelManager.passwordManagementState as? PasswordManagementState.Submitting {
+            return submitting.operation
+        }
+        if let pending = wheelManager.passwordManagementState as? PasswordManagementState.PendingAck {
+            return pending.operation
+        }
+        return nil
+    }
+
+    // MARK: - Submit gate
+
+    private func isSubmitEnabled(for state: PasswordManagementState.Editing) -> Bool {
+        let needsOld = state.operation != PasswordManagementState.Operation.set
+        let needsNew = state.operation == PasswordManagementState.Operation.set
+            || state.operation == PasswordManagementState.Operation.modify
+        if needsOld && oldPassword.trimmingCharacters(in: .whitespaces).isEmpty { return false }
+        if needsNew && (newPassword.isEmpty || confirmPassword.isEmpty) { return false }
+        return true
+    }
+
+    // MARK: - Localized strings
+
+    private var editingTitle: String {
+        guard let state = wheelManager.passwordManagementState as? PasswordManagementState.Editing else { return "" }
+        return title(for: state.operation)
+    }
+
+    private var waitingTitle: String {
+        guard let op = waitingOperation else { return "" }
+        return "\(title(for: op))…"
+    }
+
+    private var confirmedTitle: String {
+        guard let state = wheelManager.passwordManagementState as? PasswordManagementState.Confirmed else { return "" }
+        return successTitle(for: state.operation)
+    }
+
+    private var failedTitle: String {
+        guard let state = wheelManager.passwordManagementState as? PasswordManagementState.Failed else { return "" }
+        return failureTitle(for: state.operation)
+    }
+
+    private func title(for operation: PasswordManagementState.Operation) -> String {
+        switch operation {
+        case PasswordManagementState.Operation.set: return "Set lock password"
+        case PasswordManagementState.Operation.modify: return "Change lock password"
+        case PasswordManagementState.Operation.clear: return "Clear lock password"
+        case PasswordManagementState.Operation.autoLockOn: return "Enable auto-lock"
+        case PasswordManagementState.Operation.autoLockOff: return "Disable auto-lock"
+        default: return ""
+        }
+    }
+
+    private func confirmLabel(for operation: PasswordManagementState.Operation) -> String {
+        switch operation {
+        case PasswordManagementState.Operation.set: return "Set"
+        case PasswordManagementState.Operation.modify: return "Change"
+        case PasswordManagementState.Operation.clear: return "Clear"
+        case PasswordManagementState.Operation.autoLockOn: return "Enable"
+        case PasswordManagementState.Operation.autoLockOff: return "Disable"
+        default: return "OK"
+        }
+    }
+
+    private func descriptionMessage(for operation: PasswordManagementState.Operation) -> String {
+        switch operation {
+        case PasswordManagementState.Operation.set:
+            return "Choose a numeric password the wheel will require for lock/unlock."
+        case PasswordManagementState.Operation.modify:
+            return "Enter your current password, then a new one."
+        case PasswordManagementState.Operation.clear:
+            return "Enter your current password to remove it from the wheel."
+        case PasswordManagementState.Operation.autoLockOn:
+            return "Enter your current password to enable auto-lock."
+        case PasswordManagementState.Operation.autoLockOff:
+            return "Enter your current password to disable auto-lock."
+        default: return ""
+        }
+    }
+
+    private func successTitle(for operation: PasswordManagementState.Operation) -> String {
+        switch operation {
+        case PasswordManagementState.Operation.set: return "Password set"
+        case PasswordManagementState.Operation.modify: return "Password changed"
+        case PasswordManagementState.Operation.clear: return "Password cleared"
+        case PasswordManagementState.Operation.autoLockOn: return "Auto-lock enabled"
+        case PasswordManagementState.Operation.autoLockOff: return "Auto-lock disabled"
+        default: return ""
+        }
+    }
+
+    private func successMessage(for operation: PasswordManagementState.Operation) -> String {
+        switch operation {
+        case PasswordManagementState.Operation.set:
+            return "The wheel will now require this password to lock or unlock."
+        case PasswordManagementState.Operation.modify:
+            return "Use the new password from now on."
+        case PasswordManagementState.Operation.clear:
+            return "The wheel no longer requires a password to lock or unlock."
+        case PasswordManagementState.Operation.autoLockOn:
+            return "The wheel will lock itself automatically."
+        case PasswordManagementState.Operation.autoLockOff:
+            return "The wheel won't lock itself automatically anymore."
+        default: return ""
+        }
+    }
+
+    private func failureTitle(for operation: PasswordManagementState.Operation) -> String {
+        switch operation {
+        case PasswordManagementState.Operation.set: return "Couldn't set password"
+        case PasswordManagementState.Operation.modify: return "Couldn't change password"
+        case PasswordManagementState.Operation.clear: return "Couldn't clear password"
+        case PasswordManagementState.Operation.autoLockOn: return "Couldn't enable auto-lock"
+        case PasswordManagementState.Operation.autoLockOff: return "Couldn't disable auto-lock"
+        default: return ""
+        }
+    }
+
+    private func failureMessage(for reason: PasswordManagementState.FailureReason) -> String {
+        switch reason {
+        case PasswordManagementState.FailureReason.emptyPassword:
+            return "Password can't be empty."
+        case PasswordManagementState.FailureReason.invalidFormat:
+            return "Password must be a number up to 16777215."
+        case PasswordManagementState.FailureReason.passwordsDoNotMatch:
+            return "The confirmation doesn't match the new password."
+        case PasswordManagementState.FailureReason.notConnected:
+            return "The wheel disconnected. Reconnect and try again."
+        case PasswordManagementState.FailureReason.wrongPassword:
+            return "The wheel rejected the command — check the current password."
+        case PasswordManagementState.FailureReason.timeout:
+            return "The wheel didn't confirm in time. Try again."
+        default: return "An unknown error occurred."
+        }
     }
 }
 

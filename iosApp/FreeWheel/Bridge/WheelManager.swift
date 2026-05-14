@@ -385,6 +385,16 @@ class WheelManager: ObservableObject {
     /// is up. Mirror of the Compose viewModel.lockPromptState.
     @Published private(set) var lockPromptState: LockPromptState = LockPromptState.Idle.shared
 
+    /// Drives the Veteran password-management dialog (set / modify / clear /
+    /// auto-lock). .idle when no dialog is up. Mirror of the Compose
+    /// viewModel.passwordManagementState.
+    @Published private(set) var passwordManagementState: PasswordManagementState =
+        PasswordManagementState.Idle.shared
+
+    /// In-flight ack-listener Task for the password-management flow.
+    /// Cancelled whenever state leaves PendingAck so two listeners never race.
+    private var passwordAckTask: Task<Void, Never>?
+
     // MARK: - Saved Wheel Profiles (KMP-backed)
 
     private let wheelProfileStore = WheelProfileStore(store: UserDefaultsKeyValueStore(defaults: .standard))
@@ -1751,6 +1761,186 @@ class WheelManager: ObservableObject {
     /// Dismiss the prompt without sending.
     func dismissLockPrompt() {
         lockPromptState = LockPromptState.Idle.shared
+    }
+
+    // MARK: - Veteran password-management flow
+    //
+    // Mirrors the Android ViewModel ack-listener (commit 320c87db). The
+    // wheel acks each command out-of-band via lockState; the listener owns
+    // the deadline and state-change tracking centrally so SwiftUI views stay
+    // dumb. Same same-state-fallback policy: SET / MODIFY / CLEAR require an
+    // actually-changed readback or time out; AUTO_LOCK_ON / OFF accept the
+    // same-state snapshot because bit 5 reflects current state rather than
+    // last-command ack.
+
+    /// Open the password-management dialog for `operation` against the
+    /// currently-connected wheel.
+    func requestPasswordManagement(_ operation: PasswordManagementState.Operation) {
+        guard case .connected(let address, _) = connectionState else { return }
+        cancelPasswordAckTask()
+        passwordManagementState = PasswordManagementState.companion.start(
+            operation: operation,
+            address: address,
+            store: passwordStore,
+            storeBacking: passwordStoreBacking
+        )
+    }
+
+    /// Submit the form. Validates via the shared state machine, dispatches
+    /// the wire command, then waits up to the deadline for an ack.
+    func submitPasswordManagement(input: PasswordManagementInput) {
+        guard let editing = passwordManagementState as? PasswordManagementState.Editing else { return }
+        let next = PasswordManagementState.companion.submit(editing: editing, input: input)
+        if let failed = next as? PasswordManagementState.Failed {
+            passwordManagementState = failed
+            return
+        }
+        guard let submitting = next as? PasswordManagementState.Submitting else { return }
+        guard case .connected = connectionState, let cm = connectionManager else {
+            passwordManagementState = PasswordManagementState.Failed(
+                operation: submitting.operation,
+                address: submitting.address,
+                reason: PasswordManagementState.FailureReason.notConnected
+            )
+            return
+        }
+        passwordManagementState = submitting
+        dispatchPasswordCommand(submitting: submitting, cm: cm)
+        let deadlineEpochMs = Int64(Date().timeIntervalSince1970 * 1000) +
+            PasswordManagementState.companion.DEFAULT_ACK_TIMEOUT_MS
+        let pending = PasswordManagementState.companion.dispatched(
+            submitting: submitting,
+            deadlineEpochMs: deadlineEpochMs
+        )
+        passwordManagementState = pending
+        startPasswordAckListener(pending: pending)
+    }
+
+    /// Dismiss the dialog and cancel any in-flight ack listener.
+    func dismissPasswordManagement() {
+        cancelPasswordAckTask()
+        passwordManagementState = PasswordManagementState.Idle.shared
+    }
+
+    private func dispatchPasswordCommand(submitting: PasswordManagementState.Submitting,
+                                         cm: WheelConnectionManager) {
+        let helper = WheelConnectionManagerHelper.shared
+        switch submitting.operation {
+        case PasswordManagementState.Operation.set:
+            helper.sendSetVeteranPassword(manager: cm, newPassword: submitting.newPassword)
+        case PasswordManagementState.Operation.modify:
+            helper.sendModifyVeteranPassword(
+                manager: cm,
+                oldPassword: submitting.oldPassword,
+                newPassword: submitting.newPassword
+            )
+        case PasswordManagementState.Operation.clear:
+            helper.sendClearVeteranPassword(manager: cm, password: submitting.oldPassword)
+        case PasswordManagementState.Operation.autoLockOn:
+            helper.sendSetVeteranAutoLock(manager: cm, enabled: true, password: submitting.oldPassword)
+        case PasswordManagementState.Operation.autoLockOff:
+            helper.sendSetVeteranAutoLock(manager: cm, enabled: false, password: submitting.oldPassword)
+        default:
+            break // KMP enum is exhaustive but Swift requires a default for safety.
+        }
+    }
+
+    private func startPasswordAckListener(pending: PasswordManagementState.PendingAck) {
+        cancelPasswordAckTask()
+        let baseline = currentVeteranLockState()
+        passwordAckTask = Task { @MainActor [weak self] in
+            guard let self = self else { return }
+            let nowMs = Int64(Date().timeIntervalSince1970 * 1000)
+            let timeBudgetMs = max(pending.deadlineEpochMs - nowMs, 0)
+            let timeBudgetNanos = UInt64(timeBudgetMs) * 1_000_000
+
+            // Race state-changing readbacks against the deadline using a
+            // structured group: one child observes $wheelSettings, the other
+            // sleeps the deadline. Whichever finishes first wins.
+            let resolved: PasswordManagementState? = await withTaskGroup(of: PasswordManagementState?.self) { group in
+                group.addTask { @MainActor [weak self] in
+                    guard let self = self else { return nil }
+                    for await settings in self.$wheelSettings.values {
+                        if Task.isCancelled { return nil }
+                        guard let veteran = settings as? WheelSettings.Veteran else { continue }
+                        let lockState = Int(veteran.lockState)
+                        if lockState < 0 || lockState == baseline { continue }
+                        let candidate = PasswordManagementState.companion.observeLockState(
+                            pending: pending,
+                            newLockState: Int32(lockState)
+                        )
+                        if !(candidate is PasswordManagementState.PendingAck) {
+                            return candidate
+                        }
+                    }
+                    return nil
+                }
+                group.addTask {
+                    try? await Task.sleep(nanoseconds: timeBudgetNanos)
+                    return nil
+                }
+                let first = await group.next() ?? nil
+                group.cancelAll()
+                return first
+            }
+
+            if Task.isCancelled { return }
+
+            let terminal: PasswordManagementState
+            if let resolved = resolved {
+                terminal = resolved
+            } else {
+                switch pending.operation {
+                case PasswordManagementState.Operation.autoLockOn,
+                     PasswordManagementState.Operation.autoLockOff:
+                    // Auto-lock: bit 5 reflects current state, so a re-emitted
+                    // same lockState matching the intent is a genuine
+                    // confirmation. Snapshot once before declaring timeout.
+                    let snap = PasswordManagementState.companion.observeLockState(
+                        pending: pending,
+                        newLockState: Int32(self.currentVeteranLockState())
+                    )
+                    if snap is PasswordManagementState.PendingAck {
+                        terminal = PasswordManagementState.companion.timeout(pending: pending)
+                    } else {
+                        terminal = snap
+                    }
+                default:
+                    // SET / MODIFY / CLEAR: bit 0 might be stale from a prior
+                    // successful command. Require an actually-changed readback
+                    // within the deadline; otherwise time out rather than
+                    // trust the snapshot.
+                    terminal = PasswordManagementState.companion.timeout(pending: pending)
+                }
+            }
+            self.passwordManagementState = terminal
+            if let confirmed = terminal as? PasswordManagementState.Confirmed {
+                self.applyPasswordPersistence(confirmed: confirmed)
+            }
+        }
+    }
+
+    private func cancelPasswordAckTask() {
+        passwordAckTask?.cancel()
+        passwordAckTask = nil
+    }
+
+    private func currentVeteranLockState() -> Int {
+        guard let veteran = wheelSettings as? WheelSettings.Veteran else { return -1 }
+        return Int(veteran.lockState)
+    }
+
+    private func applyPasswordPersistence(confirmed: PasswordManagementState.Confirmed) {
+        switch confirmed.persistence {
+        case let store as PasswordManagementState.PersistenceActionStore:
+            passwordStore.setPassword(address: confirmed.address, password: store.password)
+        case is PasswordManagementState.PersistenceActionClear:
+            passwordStore.clearPassword(address: confirmed.address)
+        case is PasswordManagementState.PersistenceActionNoOp:
+            break
+        default:
+            break
+        }
     }
 
     func setMilesMode(_ enabled: Bool) {
