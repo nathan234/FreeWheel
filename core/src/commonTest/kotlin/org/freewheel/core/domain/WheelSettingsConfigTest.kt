@@ -1,5 +1,8 @@
 package org.freewheel.core.domain
 
+import org.freewheel.core.domain.identity.CapabilitySet
+import org.freewheel.core.domain.identity.WheelType
+import org.freewheel.core.domain.identity.resolveAt
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull

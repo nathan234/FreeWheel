@@ -1,7 +1,7 @@
 package org.freewheel.core.logging
 
-import org.freewheel.core.domain.CapabilitySet
-import org.freewheel.core.domain.WheelType
+import org.freewheel.core.domain.identity.CapabilitySet
+import org.freewheel.core.domain.identity.WheelType
 
 /**
  * Privacy-safe snapshot of wheel identity, capabilities, BLE config, and decoder config.

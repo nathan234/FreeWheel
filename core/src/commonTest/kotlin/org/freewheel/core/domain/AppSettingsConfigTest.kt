@@ -1,5 +1,6 @@
 package org.freewheel.core.domain
 
+import org.freewheel.core.domain.identity.WheelType
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse

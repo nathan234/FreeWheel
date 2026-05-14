@@ -1,7 +1,7 @@
 package org.freewheel.core.replay
 
 import org.freewheel.core.domain.TelemetryState
-import org.freewheel.core.domain.WheelType
+import org.freewheel.core.domain.identity.WheelType
 import org.freewheel.core.protocol.DecoderState
 import org.freewheel.core.logging.BlePacketDirection
 import org.freewheel.core.protocol.DecoderConfig
@@ -10,7 +10,7 @@ import org.freewheel.core.protocol.DecodeResult
 import org.freewheel.core.protocol.WheelCommand
 import org.freewheel.core.protocol.WheelDecoder
 import org.freewheel.core.protocol.WheelDecoderFactory
-import org.freewheel.core.domain.CapabilitySet
+import org.freewheel.core.domain.identity.CapabilitySet
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle

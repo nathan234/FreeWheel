@@ -1,4 +1,4 @@
-package org.freewheel.core.domain
+package org.freewheel.core.domain.identity
 
 /**
  * Protocol family used as a connection-time hint.

@@ -22,10 +22,10 @@ import org.freewheel.core.domain.PasswordManagementInput
 import org.freewheel.core.domain.PasswordManagementState
 import org.freewheel.core.domain.PasswordStorageBacking
 import org.freewheel.core.domain.SharedPreferencesKeyValueStore
-import org.freewheel.core.domain.WheelIdentity
+import org.freewheel.core.domain.identity.WheelIdentity
 import org.freewheel.core.domain.WheelProfileStore
 import org.freewheel.core.domain.WheelSettings
-import org.freewheel.core.domain.WheelType
+import org.freewheel.core.domain.identity.WheelType
 import org.freewheel.core.location.ChargingStation
 import org.freewheel.core.location.ChargingStationRepository
 import org.freewheel.core.location.ChargingStationSource

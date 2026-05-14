@@ -22,7 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import org.freewheel.core.ble.WheelTypeDetector
-import org.freewheel.core.domain.WheelType
+import org.freewheel.core.domain.identity.WheelType
 
 /**
  * Bottom sheet shown when [org.freewheel.core.service.ConnectionState.WheelTypeRequired]

@@ -1,6 +1,6 @@
 package org.freewheel.core.protocol
 
-import org.freewheel.core.domain.WheelType
+import org.freewheel.core.domain.identity.WheelType
 
 /**
  * Default factory for creating wheel protocol decoders.

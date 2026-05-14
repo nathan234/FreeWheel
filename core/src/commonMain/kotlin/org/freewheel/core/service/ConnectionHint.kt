@@ -1,8 +1,8 @@
 package org.freewheel.core.service
 
-import org.freewheel.core.domain.ProtocolFamily
+import org.freewheel.core.domain.identity.ProtocolFamily
 import org.freewheel.core.domain.WheelProfile
-import org.freewheel.core.domain.WheelType
+import org.freewheel.core.domain.identity.WheelType
 
 /**
  * Speculative hint passed to [WheelConnectionManager.connect] about which

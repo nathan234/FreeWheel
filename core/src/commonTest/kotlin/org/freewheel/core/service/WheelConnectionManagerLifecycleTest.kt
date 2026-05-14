@@ -19,12 +19,12 @@ import org.freewheel.core.ble.WheelTopologyMatcher
 import org.freewheel.core.ble.WheelTypeDetector
 import org.freewheel.core.domain.BmsSnapshot
 import org.freewheel.core.domain.BmsState
-import org.freewheel.core.domain.ProtocolFamily
+import org.freewheel.core.domain.identity.ProtocolFamily
 import org.freewheel.core.domain.TelemetryState
-import org.freewheel.core.domain.WheelIdentity
+import org.freewheel.core.domain.identity.WheelIdentity
 import org.freewheel.core.domain.WheelSettings
 import org.freewheel.core.protocol.DecoderState
-import org.freewheel.core.domain.WheelType
+import org.freewheel.core.domain.identity.WheelType
 import org.freewheel.core.protocol.DecodedData
 import org.freewheel.core.protocol.DecodeResult
 import org.freewheel.core.protocol.DecoderConfig

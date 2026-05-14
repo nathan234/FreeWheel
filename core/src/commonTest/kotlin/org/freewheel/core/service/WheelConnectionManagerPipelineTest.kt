@@ -1,7 +1,7 @@
 package org.freewheel.core.service
 
 import org.freewheel.core.protocol.DecoderState
-import org.freewheel.core.domain.WheelType
+import org.freewheel.core.domain.identity.WheelType
 import org.freewheel.core.protocol.DecodeResult
 import org.freewheel.core.protocol.DefaultWheelDecoderFactory
 import org.freewheel.core.protocol.DecoderConfig

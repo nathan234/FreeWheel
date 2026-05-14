@@ -1,7 +1,7 @@
-package org.freewheel.core.domain.wheel
+package org.freewheel.core.domain.identity.wheel
 
-import org.freewheel.core.domain.WheelIdentity
-import org.freewheel.core.domain.WheelType
+import org.freewheel.core.domain.identity.WheelIdentity
+import org.freewheel.core.domain.identity.WheelType
 
 /**
  * Static catalog of known wheels with their stock top speeds, used to scale the

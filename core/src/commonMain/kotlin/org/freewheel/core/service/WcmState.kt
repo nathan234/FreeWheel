@@ -4,10 +4,10 @@ import org.freewheel.core.ble.BleAdvertisement
 import org.freewheel.core.ble.DiscoveredServices
 import org.freewheel.core.ble.WheelConnectionInfo
 import org.freewheel.core.domain.BmsState
-import org.freewheel.core.domain.CapabilitySet
+import org.freewheel.core.domain.identity.CapabilitySet
 import org.freewheel.core.domain.EventLogEntry
 import org.freewheel.core.domain.TelemetryState
-import org.freewheel.core.domain.WheelIdentity
+import org.freewheel.core.domain.identity.WheelIdentity
 import org.freewheel.core.domain.WheelSettings
 import org.freewheel.core.logging.BlePacketDirection
 import org.freewheel.core.logging.ConnectionErrorEvent

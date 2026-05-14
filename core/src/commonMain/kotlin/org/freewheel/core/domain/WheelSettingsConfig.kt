@@ -1,6 +1,8 @@
 package org.freewheel.core.domain
 
 import org.freewheel.core.domain.dashboard.UnitCategory
+import org.freewheel.core.domain.identity.CapabilitySet
+import org.freewheel.core.domain.identity.WheelType
 
 /**
  * Shared configuration defining which settings controls appear for each wheel type.

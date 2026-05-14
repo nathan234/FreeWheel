@@ -1,6 +1,6 @@
 package org.freewheel.core.ble
 
-import org.freewheel.core.domain.WheelType
+import org.freewheel.core.domain.identity.WheelType
 
 /**
  * BLE service topology for a single GATT service: a service UUID plus the

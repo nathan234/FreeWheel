@@ -1,11 +1,11 @@
 package org.freewheel.core.protocol
 
 import org.freewheel.core.domain.BmsState
-import org.freewheel.core.domain.CapabilitySet
+import org.freewheel.core.domain.identity.CapabilitySet
 import org.freewheel.core.domain.TelemetryState
-import org.freewheel.core.domain.WheelIdentity
+import org.freewheel.core.domain.identity.WheelIdentity
 import org.freewheel.core.domain.WheelSettings
-import org.freewheel.core.domain.WheelType
+import org.freewheel.core.domain.identity.WheelType
 
 /**
  * Lightweight decoder input holding the four domain sub-states.

@@ -1,6 +1,6 @@
 package org.freewheel.core.replay
 
-import org.freewheel.core.domain.WheelType
+import org.freewheel.core.domain.identity.WheelType
 import org.freewheel.core.logging.BlePacketDirection
 import org.freewheel.core.utils.ByteUtils
 

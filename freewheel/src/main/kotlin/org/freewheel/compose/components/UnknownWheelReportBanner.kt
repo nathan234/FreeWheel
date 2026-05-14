@@ -28,9 +28,9 @@ import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import org.freewheel.core.ble.DiscoveredServices
 import org.freewheel.core.ble.ServiceTopology
-import org.freewheel.core.domain.WheelIdentity
-import org.freewheel.core.domain.wheel.WheelCatalog
-import org.freewheel.core.domain.wheel.WheelReport
+import org.freewheel.core.domain.identity.WheelIdentity
+import org.freewheel.core.domain.identity.wheel.WheelCatalog
+import org.freewheel.core.domain.identity.wheel.WheelReport
 
 /**
  * Surfaces when the live connected wheel does not match any [WheelCatalog] entry.

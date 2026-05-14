@@ -1,7 +1,7 @@
 package org.freewheel.core.replay
 
-import org.freewheel.core.domain.CapabilitySet
-import org.freewheel.core.domain.WheelType
+import org.freewheel.core.domain.identity.CapabilitySet
+import org.freewheel.core.domain.identity.WheelType
 import org.freewheel.core.protocol.DecoderState
 import org.freewheel.core.logging.BlePacketDirection
 import org.freewheel.core.protocol.DecodedData
@@ -407,7 +407,7 @@ class CaptureAnalyzerTest {
     @Test
     fun diffStatesDetectsIdentityChanges() {
         val old = DecoderState()
-        val new = DecoderState(identity = org.freewheel.core.domain.WheelIdentity(model = "V14", version = "2.3.7", wheelType = WheelType.INMOTION_V2))
+        val new = DecoderState(identity = org.freewheel.core.domain.identity.WheelIdentity(model = "V14", version = "2.3.7", wheelType = WheelType.INMOTION_V2))
 
         val changes = diffStates(old, new)
         val fields = changes.map { it.field }.toSet()

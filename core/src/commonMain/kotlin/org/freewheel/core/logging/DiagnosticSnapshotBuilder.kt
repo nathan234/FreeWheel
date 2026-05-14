@@ -1,8 +1,8 @@
 package org.freewheel.core.logging
 
 import org.freewheel.core.ble.WheelConnectionInfo
-import org.freewheel.core.domain.CapabilitySet
-import org.freewheel.core.domain.WheelIdentity
+import org.freewheel.core.domain.identity.CapabilitySet
+import org.freewheel.core.domain.identity.WheelIdentity
 import org.freewheel.core.protocol.DecoderConfig
 
 /**

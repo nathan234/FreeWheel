@@ -4,9 +4,9 @@ import org.freewheel.core.domain.BmsSnapshot
 import org.freewheel.core.domain.BmsState
 import org.freewheel.core.domain.SmartBms
 import org.freewheel.core.domain.TelemetryState
-import org.freewheel.core.domain.WheelIdentity
+import org.freewheel.core.domain.identity.WheelIdentity
 import org.freewheel.core.domain.WheelSettings
-import org.freewheel.core.domain.WheelType
+import org.freewheel.core.domain.identity.WheelType
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay

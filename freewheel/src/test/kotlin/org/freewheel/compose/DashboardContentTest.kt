@@ -9,9 +9,9 @@ import org.freewheel.compose.components.DashboardContent
 import org.freewheel.core.domain.BmsState
 import org.freewheel.core.domain.SpeedDisplayMode
 import org.freewheel.core.domain.TelemetryState
-import org.freewheel.core.domain.WheelIdentity
+import org.freewheel.core.domain.identity.WheelIdentity
 import org.freewheel.core.domain.WheelSettings
-import org.freewheel.core.domain.WheelType
+import org.freewheel.core.domain.identity.WheelType
 import org.freewheel.core.domain.dashboard.DashboardLayout
 import org.freewheel.core.domain.dashboard.DashboardMetric
 import org.freewheel.core.domain.dashboard.DashboardPresets

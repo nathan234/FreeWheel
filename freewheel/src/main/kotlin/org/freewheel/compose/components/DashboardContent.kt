@@ -45,13 +45,13 @@ import org.freewheel.core.domain.DashboardLabels
 import org.freewheel.core.domain.SettingsLabels
 import org.freewheel.core.domain.SpeedDisplayMode
 import org.freewheel.core.domain.TelemetryState
-import org.freewheel.core.domain.WheelIdentity
+import org.freewheel.core.domain.identity.WheelIdentity
 import org.freewheel.core.domain.WheelSettings
-import org.freewheel.core.domain.WheelType
+import org.freewheel.core.domain.identity.WheelType
 import org.freewheel.core.domain.dashboard.DashboardLayout
 import org.freewheel.core.domain.dashboard.DashboardMetric
 import org.freewheel.core.domain.dashboard.DashboardPresets
-import org.freewheel.core.domain.wheel.WheelCatalog
+import org.freewheel.core.domain.identity.wheel.WheelCatalog
 import org.freewheel.core.service.ConnectionState
 import org.freewheel.core.telemetry.TelemetryBuffer
 import org.freewheel.core.telemetry.TelemetrySample

@@ -1,6 +1,6 @@
 package org.freewheel.core.ble
 
-import org.freewheel.core.domain.WheelType
+import org.freewheel.core.domain.identity.WheelType
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -796,7 +796,7 @@ class WheelTypeDetectorTest {
 
     @Test
     fun `every Kingsong catalog token derives to KINGSONG`() {
-        val tokens = org.freewheel.core.domain.wheel.WheelCatalog.entries
+        val tokens = org.freewheel.core.domain.identity.wheel.WheelCatalog.entries
             .filter { it.wheelType == WheelType.KINGSONG }
             .flatMap { it.nameTokens }
         assertTrue(tokens.isNotEmpty(), "WheelCatalog has no KINGSONG entries — test data invariant broken")

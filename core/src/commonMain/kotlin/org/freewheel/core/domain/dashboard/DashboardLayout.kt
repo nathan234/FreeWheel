@@ -1,6 +1,6 @@
 package org.freewheel.core.domain.dashboard
 
-import org.freewheel.core.domain.WheelType
+import org.freewheel.core.domain.identity.WheelType
 
 /**
  * Configuration for the dashboard layout.

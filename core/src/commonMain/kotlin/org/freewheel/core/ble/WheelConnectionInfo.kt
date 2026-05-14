@@ -1,6 +1,6 @@
 package org.freewheel.core.ble
 
-import org.freewheel.core.domain.WheelType
+import org.freewheel.core.domain.identity.WheelType
 
 /**
  * Contains the BLE service and characteristic UUIDs needed to communicate with a wheel.

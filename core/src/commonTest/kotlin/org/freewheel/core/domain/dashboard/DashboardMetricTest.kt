@@ -1,7 +1,7 @@
 package org.freewheel.core.domain.dashboard
 
 import org.freewheel.core.domain.TelemetryState
-import org.freewheel.core.domain.WheelType
+import org.freewheel.core.domain.identity.WheelType
 import org.freewheel.core.telemetry.MetricType
 import kotlin.test.Test
 import kotlin.test.assertEquals

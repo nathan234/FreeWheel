@@ -2,7 +2,7 @@ package org.freewheel.core.replay
 
 import org.freewheel.core.domain.BmsState
 import org.freewheel.core.domain.TelemetryState
-import org.freewheel.core.domain.WheelIdentity
+import org.freewheel.core.domain.identity.WheelIdentity
 import org.freewheel.core.domain.WheelSettings
 import org.freewheel.core.logging.BlePacketDirection
 import org.freewheel.core.protocol.DecodeResult

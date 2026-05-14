@@ -1,7 +1,7 @@
 package org.freewheel.core.ble
 
-import org.freewheel.core.domain.WheelType
-import org.freewheel.core.domain.wheel.WheelCatalog
+import org.freewheel.core.domain.identity.WheelType
+import org.freewheel.core.domain.identity.wheel.WheelCatalog
 import org.freewheel.core.utils.Logger
 
 /**

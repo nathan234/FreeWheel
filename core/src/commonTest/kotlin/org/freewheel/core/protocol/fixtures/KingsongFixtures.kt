@@ -1,6 +1,6 @@
 package org.freewheel.core.protocol.fixtures
 
-import org.freewheel.core.domain.WheelType
+import org.freewheel.core.domain.identity.WheelType
 
 /**
  * Golden fixtures for [org.freewheel.core.protocol.KingsongDecoder].

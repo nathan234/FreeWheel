@@ -1,6 +1,6 @@
 package org.freewheel.core.protocol
 
-import org.freewheel.core.domain.WheelIdentity
+import org.freewheel.core.domain.identity.WheelIdentity
 import org.freewheel.core.domain.beeperVolume
 import org.freewheel.core.domain.cutoutAngle
 import org.freewheel.core.domain.rollAngle

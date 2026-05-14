@@ -1,6 +1,6 @@
 package org.freewheel.core.ble
 
-import org.freewheel.core.domain.WheelType
+import org.freewheel.core.domain.identity.WheelType
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue

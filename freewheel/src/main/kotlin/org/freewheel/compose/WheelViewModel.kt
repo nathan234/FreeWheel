@@ -46,9 +46,9 @@ import org.freewheel.core.location.ChargingStationRepository
 import org.freewheel.core.charger.ChargerConnectionManagerPort
 import org.freewheel.core.charger.ChargerState
 import org.freewheel.core.domain.BmsState
-import org.freewheel.core.domain.CapabilitySet
+import org.freewheel.core.domain.identity.CapabilitySet
 import org.freewheel.core.domain.TelemetryState
-import org.freewheel.core.domain.WheelIdentity
+import org.freewheel.core.domain.identity.WheelIdentity
 import org.freewheel.core.domain.WheelSettings
 import org.freewheel.core.domain.AlarmAction
 import org.freewheel.core.domain.AlarmType
@@ -61,7 +61,7 @@ import org.freewheel.core.domain.PasswordManagementState
 import org.freewheel.core.domain.PasswordStorageBacking
 import org.freewheel.core.domain.SettingsCommandId
 import org.freewheel.core.domain.WheelPasswordStore
-import org.freewheel.core.domain.WheelType
+import org.freewheel.core.domain.identity.WheelType
 import org.freewheel.core.protocol.WheelCommand
 import org.freewheel.core.domain.ChargerProfile
 import org.freewheel.core.domain.ChargerProfileStore
@@ -820,7 +820,7 @@ class WheelViewModel(
      * Forwards to the connection manager, which transitions the live
      * BLE session to Connected via [WcmEffect.ConfigureBle] — no reconnect.
      */
-    fun confirmWheelType(wheelType: org.freewheel.core.domain.WheelType) {
+    fun confirmWheelType(wheelType: org.freewheel.core.domain.identity.WheelType) {
         binding?.connectionManager?.confirmWheelType(wheelType)
     }
 

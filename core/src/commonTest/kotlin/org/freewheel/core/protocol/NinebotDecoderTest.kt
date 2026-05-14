@@ -1,6 +1,6 @@
 package org.freewheel.core.protocol
 
-import org.freewheel.core.domain.WheelType
+import org.freewheel.core.domain.identity.WheelType
 import org.freewheel.core.protocol.DecodeResult
 import kotlin.math.roundToInt
 import kotlin.test.Test

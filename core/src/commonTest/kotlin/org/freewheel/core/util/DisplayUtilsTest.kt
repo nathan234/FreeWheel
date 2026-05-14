@@ -1,8 +1,8 @@
 package org.freewheel.core.util
 
 import org.freewheel.core.domain.AlarmType
-import org.freewheel.core.domain.WheelIdentity
-import org.freewheel.core.domain.WheelType
+import org.freewheel.core.domain.identity.WheelIdentity
+import org.freewheel.core.domain.identity.WheelType
 import org.freewheel.core.utils.currentTimeMillis
 import org.freewheel.core.telemetry.MetricType
 import org.freewheel.core.utils.DisplayUtils

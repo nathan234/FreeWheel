@@ -9,12 +9,12 @@ import org.freewheel.core.replay.BleCaptureReader
 import org.freewheel.core.replay.ReplayEngine
 import org.freewheel.core.replay.ReplayState
 import org.freewheel.core.domain.BmsState
-import org.freewheel.core.domain.CapabilitySet
-import org.freewheel.core.domain.ProtocolFamily
+import org.freewheel.core.domain.identity.CapabilitySet
+import org.freewheel.core.domain.identity.ProtocolFamily
 import org.freewheel.core.domain.TelemetryState
-import org.freewheel.core.domain.WheelIdentity
+import org.freewheel.core.domain.identity.WheelIdentity
 import org.freewheel.core.domain.WheelSettings
-import org.freewheel.core.domain.WheelType
+import org.freewheel.core.domain.identity.WheelType
 import org.freewheel.core.protocol.DecoderConfig
 import org.freewheel.core.protocol.DefaultWheelDecoderFactory
 import org.freewheel.core.domain.SettingsCommandId
@@ -147,7 +147,7 @@ object WheelConnectionManagerHelper {
      * connection manager. The reducer ignores it unless the manager is
      * currently in [ConnectionState.WheelTypeRequired].
      */
-    fun confirmWheelType(manager: WheelConnectionManager, wheelType: org.freewheel.core.domain.WheelType) {
+    fun confirmWheelType(manager: WheelConnectionManager, wheelType: org.freewheel.core.domain.identity.WheelType) {
         manager.confirmWheelType(wheelType)
     }
 

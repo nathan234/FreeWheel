@@ -1,8 +1,8 @@
 package org.freewheel.core.protocol
 
-import org.freewheel.core.domain.WheelIdentity
+import org.freewheel.core.domain.identity.WheelIdentity
 import org.freewheel.core.domain.WheelSettings
-import org.freewheel.core.domain.WheelType
+import org.freewheel.core.domain.identity.WheelType
 import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertEquals

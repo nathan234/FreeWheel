@@ -3,9 +3,9 @@ package org.freewheel.core.protocol.fixtures
 import org.freewheel.core.ble.DiscoveredService
 import org.freewheel.core.ble.DiscoveredServices
 import org.freewheel.core.ble.WheelTypeDetector
-import org.freewheel.core.domain.ProtocolFamily
+import org.freewheel.core.domain.identity.ProtocolFamily
 import org.freewheel.core.domain.WheelSettings
-import org.freewheel.core.domain.WheelType
+import org.freewheel.core.domain.identity.WheelType
 import org.freewheel.core.protocol.DecodeResult
 import org.freewheel.core.protocol.DecoderState
 import org.freewheel.core.protocol.DefaultWheelDecoderFactory

@@ -1,6 +1,6 @@
 package org.freewheel.core.utils
 
-import org.freewheel.core.domain.WheelType
+import org.freewheel.core.domain.identity.WheelType
 import org.freewheel.core.domain.dashboard.DashboardMetric
 import org.freewheel.core.domain.dashboard.UnitCategory
 import org.freewheel.core.telemetry.MetricType

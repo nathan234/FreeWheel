@@ -1,7 +1,7 @@
 package org.freewheel.core.protocol.fixtures
 
 import org.freewheel.core.ble.ServiceTopology
-import org.freewheel.core.domain.ProtocolFamily
+import org.freewheel.core.domain.identity.ProtocolFamily
 import org.freewheel.core.protocol.DecoderConfig
 import org.freewheel.core.protocol.veteranCrc32
 import org.freewheel.core.utils.ByteUtils
@@ -185,14 +185,14 @@ internal object LeaperkimBatch1Fixtures {
             ),
             routingExpectation = LeaperkimRoutingExpectation(
                 result = LeaperkimRoutingResultKind.DETECTED,
-                wheelType = org.freewheel.core.domain.WheelType.VETERAN,
+                wheelType = org.freewheel.core.domain.identity.WheelType.VETERAN,
             ),
             candidateExpectations = mapOf(
                 LeaperkimDecoderCandidate.VETERAN to CandidateExpectation(
                     accepted = true,
                     lastResult = DecoderFixture.ResultKind.SUCCESS,
                     protocolFamily = ProtocolFamily.VETERAN,
-                    resolvedWheelType = org.freewheel.core.domain.WheelType.VETERAN,
+                    resolvedWheelType = org.freewheel.core.domain.identity.WheelType.VETERAN,
                 ),
                 LeaperkimDecoderCandidate.LEAPERKIM_CAN to CandidateExpectation(
                     accepted = false,
@@ -200,7 +200,7 @@ internal object LeaperkimBatch1Fixtures {
                 LeaperkimDecoderCandidate.AUTO_DETECT to CandidateExpectation(
                     accepted = true,
                     lastResult = DecoderFixture.ResultKind.SUCCESS,
-                    resolvedWheelType = org.freewheel.core.domain.WheelType.VETERAN,
+                    resolvedWheelType = org.freewheel.core.domain.identity.WheelType.VETERAN,
                 ),
             ),
         )

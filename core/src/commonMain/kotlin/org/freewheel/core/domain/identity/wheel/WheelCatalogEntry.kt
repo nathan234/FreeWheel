@@ -1,6 +1,6 @@
-package org.freewheel.core.domain.wheel
+package org.freewheel.core.domain.identity.wheel
 
-import org.freewheel.core.domain.WheelType
+import org.freewheel.core.domain.identity.WheelType
 
 /**
  * One entry in [WheelCatalog]: a known wheel with the gauge top speed used to scale

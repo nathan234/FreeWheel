@@ -1,5 +1,7 @@
 package org.freewheel.core.domain
 
+import org.freewheel.core.domain.identity.WheelType
+
 /**
  * Represents a saved/known wheel for the "My Wheels" garage.
  * Pure value class — persistence is handled by platform-specific stores.

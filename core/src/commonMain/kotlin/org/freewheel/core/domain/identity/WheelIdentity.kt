@@ -1,4 +1,4 @@
-package org.freewheel.core.domain
+package org.freewheel.core.domain.identity
 
 /**
  * Wheel identity information that is set once per connection.

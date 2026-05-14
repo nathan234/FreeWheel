@@ -1,9 +1,9 @@
 package org.freewheel.core.protocol
 
-import org.freewheel.core.domain.CapabilitySet
+import org.freewheel.core.domain.identity.CapabilitySet
 import org.freewheel.core.domain.SettingsCommandId
 import org.freewheel.core.domain.WheelSettings
-import org.freewheel.core.domain.WheelType
+import org.freewheel.core.domain.identity.WheelType
 import org.freewheel.core.utils.ByteUtils
 import kotlin.math.abs
 import kotlin.math.roundToInt

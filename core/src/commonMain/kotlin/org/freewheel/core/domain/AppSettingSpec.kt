@@ -1,6 +1,7 @@
 package org.freewheel.core.domain
 
 import org.freewheel.core.domain.dashboard.UnitCategory
+import org.freewheel.core.domain.identity.WheelType
 import org.freewheel.core.utils.DisplayUtils
 
 // ---------------------------------------------------------------------------

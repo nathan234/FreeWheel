@@ -2,7 +2,7 @@ package org.freewheel.core.service
 
 import org.freewheel.core.ble.BleAdvertisement
 import org.freewheel.core.ble.DiscoveredServices
-import org.freewheel.core.domain.WheelType
+import org.freewheel.core.domain.identity.WheelType
 import org.freewheel.core.protocol.DecoderConfig
 import org.freewheel.core.protocol.WheelCommand
 

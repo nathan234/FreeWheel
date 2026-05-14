@@ -1,8 +1,8 @@
 package org.freewheel.core.protocol.fixtures
 
 import org.freewheel.core.ble.ServiceTopology
-import org.freewheel.core.domain.ProtocolFamily
-import org.freewheel.core.domain.WheelType
+import org.freewheel.core.domain.identity.ProtocolFamily
+import org.freewheel.core.domain.identity.WheelType
 import org.freewheel.core.protocol.LeaperkimCanDecoder
 import org.freewheel.core.utils.ByteUtils
 

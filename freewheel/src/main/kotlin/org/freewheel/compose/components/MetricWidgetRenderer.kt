@@ -24,7 +24,7 @@ import kotlin.math.abs
  * - Providing sparkline data via sparklineKey mapping
  *
  * [effectiveMaxOverrideKmh] lets callers inject a wheel-aware max (e.g.
- * [org.freewheel.core.domain.wheel.WheelCatalog.resolveTopSpeedKmh] for SPEED).
+ * [org.freewheel.core.domain.identity.wheel.WheelCatalog.resolveTopSpeedKmh] for SPEED).
  * When null, the per-metric [DashboardMetric.effectiveMax] fallback is used.
  */
 @Composable

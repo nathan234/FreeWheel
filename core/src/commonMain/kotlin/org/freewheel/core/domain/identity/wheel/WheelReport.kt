@@ -1,7 +1,7 @@
-package org.freewheel.core.domain.wheel
+package org.freewheel.core.domain.identity.wheel
 
 import org.freewheel.core.ble.ServiceTopology
-import org.freewheel.core.domain.WheelIdentity
+import org.freewheel.core.domain.identity.WheelIdentity
 
 /**
  * Pure helpers that turn a live [WheelIdentity] into a shareable wheel report —

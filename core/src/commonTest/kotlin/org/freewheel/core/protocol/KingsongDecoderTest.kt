@@ -1,7 +1,7 @@
 package org.freewheel.core.protocol
 
 import org.freewheel.core.domain.WheelSettings
-import org.freewheel.core.domain.WheelType
+import org.freewheel.core.domain.identity.WheelType
 import org.freewheel.core.domain.handleButton
 import org.freewheel.core.domain.ksAlarm1Speed
 import org.freewheel.core.domain.ksAlarm2Speed

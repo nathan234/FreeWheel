@@ -1,4 +1,6 @@
-package org.freewheel.core.domain
+package org.freewheel.core.domain.identity
+
+import org.freewheel.core.domain.SettingsCommandId
 
 /**
  * Immutable set of capabilities for the connected wheel.

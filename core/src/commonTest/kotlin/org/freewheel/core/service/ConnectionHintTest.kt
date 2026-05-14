@@ -1,6 +1,6 @@
 package org.freewheel.core.service
 
-import org.freewheel.core.domain.ProtocolFamily
+import org.freewheel.core.domain.identity.ProtocolFamily
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
