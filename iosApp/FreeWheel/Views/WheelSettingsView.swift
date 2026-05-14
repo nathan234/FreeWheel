@@ -48,6 +48,9 @@ struct WheelSettingsContent: View {
             } message: { action in
                 Text(confirmationMessage(for: action))
             }
+            // Veteran lock/unlock prompt — driven entirely by
+            // wheelManager.lockPromptState; renders nothing when .idle.
+            .lockPrompt(wheelManager)
     }
 
     @ViewBuilder
@@ -391,6 +394,152 @@ private struct SliderRow: View {
                 onEditingChanged?(editing)
             }
         }
+    }
+}
+
+// MARK: - Veteran lock prompt
+//
+// Inlined here (rather than a separate Views/LockPromptView.swift) because
+// the Xcode project uses explicit file references — adding a new .swift
+// file requires a pbxproj edit. The Compose equivalent lives in
+// freewheel/.../components/LockPromptDialog.kt.
+
+/// View modifier that mounts the Veteran lock-prompt dialog driven by
+/// `WheelManager.lockPromptState`. Mirrors the Compose `LockPromptDialog`:
+///   .idle  → no UI
+///   .awaitingPassword → input alert with optional "remember password" toggle
+///   .sending → progress alert (auto-clears when state moves to .sent)
+///   .sent → auto-dismisses; the next subtype-5 readback reconciles the toggle
+///   .error → error alert with retry/close
+struct LockPromptModifier: ViewModifier {
+    @ObservedObject var wheelManager: WheelManager
+
+    @State private var passwordInput: String = ""
+    @State private var rememberPassword: Bool = false
+
+    func body(content: Content) -> some View {
+        content
+            .alert(
+                awaitingTitle,
+                isPresented: awaitingBinding,
+                presenting: wheelManager.lockPromptState as? LockPromptState.AwaitingPassword
+            ) { state in
+                SecureField("Password", text: $passwordInput)
+                    .keyboardType(.numberPad)
+                if state.canPersistPassword {
+                    Toggle("Remember password", isOn: $rememberPassword)
+                }
+                Button(state.action == LockPromptState.LockAction.lock ? "Lock" : "Unlock") {
+                    wheelManager.submitLockPassword(passwordInput, rememberPassword: rememberPassword)
+                }
+                .disabled(passwordInput.trimmingCharacters(in: .whitespaces).isEmpty)
+                Button("Cancel", role: .cancel) {
+                    wheelManager.dismissLockPrompt()
+                }
+            } message: { state in
+                Text(state.action == LockPromptState.LockAction.lock
+                     ? "Enter your wheel password to lock the motor."
+                     : "Enter your wheel password to unlock the motor.")
+            }
+            .alert(
+                sendingTitle,
+                isPresented: sendingBinding,
+                presenting: wheelManager.lockPromptState as? LockPromptState.Sending
+            ) { _ in
+                // SwiftUI alerts can't render a spinner; the ViewModel
+                // transitions to Sent or Error within the same call so the
+                // binding flips to false immediately after.
+            } message: { _ in
+                Text("Sending command to the wheel.")
+            }
+            .alert(
+                errorTitle,
+                isPresented: errorBinding,
+                presenting: wheelManager.lockPromptState as? LockPromptState.Error
+            ) { state in
+                if state.reason != LockPromptState.ErrorReason.notConnected {
+                    Button("Try again") { wheelManager.requestLock(action: state.action) }
+                }
+                Button("Close", role: .cancel) { wheelManager.dismissLockPrompt() }
+            } message: { state in
+                Text(errorMessage(for: state.reason))
+            }
+            .onReceive(wheelManager.$lockPromptState) { newValue in
+                // Auto-dismiss on Sent so the prompt clears cleanly; subtype-5
+                // readback reconciles the toggle visual.
+                if newValue is LockPromptState.Sent {
+                    wheelManager.dismissLockPrompt()
+                }
+                // Reset scratch input on close; prefill from AwaitingPassword
+                // on open so the saved password (if any) appears.
+                if let awaiting = newValue as? LockPromptState.AwaitingPassword {
+                    passwordInput = awaiting.prefilledPassword ?? ""
+                    // Default the "remember" toggle on when persistence is
+                    // available AND a password is already saved (mirrors the
+                    // Compose dialog's default-true rule).
+                    rememberPassword = awaiting.canPersistPassword && awaiting.prefilledPassword != nil
+                } else if newValue is LockPromptState.Idle {
+                    passwordInput = ""
+                    rememberPassword = false
+                }
+            }
+    }
+
+    private var awaitingBinding: Binding<Bool> {
+        Binding(
+            get: { wheelManager.lockPromptState is LockPromptState.AwaitingPassword },
+            set: { isShowing in if !isShowing { wheelManager.dismissLockPrompt() } }
+        )
+    }
+
+    private var sendingBinding: Binding<Bool> {
+        Binding(
+            get: { wheelManager.lockPromptState is LockPromptState.Sending },
+            set: { _ in /* not user-dismissable */ }
+        )
+    }
+
+    private var errorBinding: Binding<Bool> {
+        Binding(
+            get: { wheelManager.lockPromptState is LockPromptState.Error },
+            set: { isShowing in if !isShowing { wheelManager.dismissLockPrompt() } }
+        )
+    }
+
+    private var awaitingTitle: String {
+        guard let state = wheelManager.lockPromptState as? LockPromptState.AwaitingPassword else { return "" }
+        return state.action == LockPromptState.LockAction.lock ? "Lock wheel" : "Unlock wheel"
+    }
+
+    private var sendingTitle: String {
+        guard let state = wheelManager.lockPromptState as? LockPromptState.Sending else { return "" }
+        return state.action == LockPromptState.LockAction.lock ? "Locking…" : "Unlocking…"
+    }
+
+    private var errorTitle: String {
+        guard let state = wheelManager.lockPromptState as? LockPromptState.Error else { return "" }
+        return state.action == LockPromptState.LockAction.lock ? "Couldn't lock" : "Couldn't unlock"
+    }
+
+    private func errorMessage(for reason: LockPromptState.ErrorReason) -> String {
+        switch reason {
+        case LockPromptState.ErrorReason.emptyPassword:
+            return "Password can't be empty."
+        case LockPromptState.ErrorReason.invalidFormat:
+            return "Password must be a number up to 16777215."
+        case LockPromptState.ErrorReason.notConnected:
+            return "The wheel disconnected. Reconnect and try again."
+        default:
+            return "An unknown error occurred."
+        }
+    }
+}
+
+extension View {
+    /// Attach the Veteran lock prompt to this view. Renders nothing when the
+    /// prompt is in `.idle`.
+    func lockPrompt(_ wheelManager: WheelManager) -> some View {
+        modifier(LockPromptModifier(wheelManager: wheelManager))
     }
 }
 

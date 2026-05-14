@@ -41,12 +41,6 @@ object AndroidWheelPasswordStoreFactory {
         }
 }
 
-/** Pairs a [WheelPasswordStore] with the [PasswordStorageBacking] that chose it. */
-data class WheelPasswordStoreSelection(
-    val store: WheelPasswordStore,
-    val backing: PasswordStorageBacking,
-)
-
 /**
  * [WheelPasswordStore] that refuses to persist anything. Used as the API <23
  * fallback because no secure on-device storage is available there.

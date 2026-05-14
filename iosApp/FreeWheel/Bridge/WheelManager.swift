@@ -367,6 +367,24 @@ class WheelManager: ObservableObject {
     // singleton — they are functionally interchangeable for read/write.
     private static let initSettingsStore = AppSettingsStore(store: UserDefaultsKeyValueStore(defaults: .standard))
 
+    // MARK: - Veteran Lock Password Storage (Keychain-backed)
+
+    /// Per-MAC Veteran lock password store, paired with its backing label so
+    /// the lock prompt can decide whether to render the "remember password"
+    /// toggle without inspecting the store's identity. iOS always lands on
+    /// SECURE because Keychain Services is available on every supported iOS
+    /// version (mirrors AndroidWheelPasswordStoreFactory.createWithBacking).
+    private let passwordStoreSelection: WheelPasswordStoreSelection =
+        IosWheelPasswordStoreFactory.shared.createWithBacking(
+            serviceName: KeychainWheelPasswordStore.companion.DEFAULT_SERVICE
+        )
+    private var passwordStore: WheelPasswordStore { passwordStoreSelection.store }
+    private var passwordStoreBacking: PasswordStorageBacking { passwordStoreSelection.backing }
+
+    /// Drives the Veteran lock/unlock password prompt; .idle when no prompt
+    /// is up. Mirror of the Compose viewModel.lockPromptState.
+    @Published private(set) var lockPromptState: LockPromptState = LockPromptState.Idle.shared
+
     // MARK: - Saved Wheel Profiles (KMP-backed)
 
     private let wheelProfileStore = WheelProfileStore(store: UserDefaultsKeyValueStore(defaults: .standard))
@@ -1663,12 +1681,76 @@ class WheelManager: ObservableObject {
 
     func executeCommand(_ commandId: SettingsCommandId, intValue: Int32 = 0, boolValue: Bool = false) {
         guard let cm = connectionManager else { return }
+        // Veteran wheels gate lock/unlock behind a numeric password. Route the
+        // LOCK toggle through the prompt instead of dispatching the generic
+        // SetLock the Veteran decoder would drop on the floor. Mirrors the
+        // identical interception in WheelViewModel.executeWheelCommand.
+        if commandId == SettingsCommandId.lock && identity.wheelType == WheelType.veteran {
+            requestLock(action: boolValue ? LockPromptState.LockAction.lock : LockPromptState.LockAction.unlock)
+            return
+        }
         WheelConnectionManagerHelper.shared.executeCommand(
             manager: cm,
             commandId: commandId,
             intValue: intValue,
             boolValue: boolValue
         )
+    }
+
+    // MARK: - Veteran lock prompt flow
+
+    /// Open the lock prompt for the currently-connected wheel.
+    func requestLock(action: LockPromptState.LockAction) {
+        guard case .connected(let address, _) = connectionState else { return }
+        lockPromptState = LockPromptState.companion.start(
+            action: action,
+            address: address,
+            store: passwordStore,
+            storeBacking: passwordStoreBacking
+        )
+    }
+
+    /// Submit the password from the prompt. Validates, dispatches, and
+    /// persists according to the rememberPassword opt-in.
+    func submitLockPassword(_ password: String, rememberPassword: Bool) {
+        guard let current = lockPromptState as? LockPromptState.AwaitingPassword else { return }
+        if let validationError = LockPromptState.companion.validate(password: password) {
+            lockPromptState = LockPromptState.Error(
+                reason: validationError,
+                action: current.action,
+                address: current.address
+            )
+            return
+        }
+        guard case .connected = connectionState else {
+            lockPromptState = LockPromptState.Error(
+                reason: LockPromptState.ErrorReason.notConnected,
+                action: current.action,
+                address: current.address
+            )
+            return
+        }
+        guard let cm = connectionManager else { return }
+
+        lockPromptState = LockPromptState.Sending(action: current.action, address: current.address)
+
+        let locked = current.action == LockPromptState.LockAction.lock
+        WheelConnectionManagerHelper.shared.sendSetVeteranLock(manager: cm, locked: locked, password: password)
+
+        // Two-way switch: opting out clears any previously-saved entry so the
+        // app never silently retains the password against the user's choice.
+        if rememberPassword {
+            passwordStore.setPassword(address: current.address, password: password)
+        } else {
+            passwordStore.clearPassword(address: current.address)
+        }
+
+        lockPromptState = LockPromptState.Sent.shared
+    }
+
+    /// Dismiss the prompt without sending.
+    func dismissLockPrompt() {
+        lockPromptState = LockPromptState.Idle.shared
     }
 
     func setMilesMode(_ enabled: Bool) {

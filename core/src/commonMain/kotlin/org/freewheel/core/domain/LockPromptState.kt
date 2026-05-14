@@ -116,3 +116,9 @@ sealed class LockPromptState {
  * on Android 23+ and the iOS Keychain.
  */
 enum class PasswordStorageBacking { SECURE, NONE }
+
+/** Pairs a [WheelPasswordStore] with the [PasswordStorageBacking] that chose it. */
+data class WheelPasswordStoreSelection(
+    val store: WheelPasswordStore,
+    val backing: PasswordStorageBacking,
+)
