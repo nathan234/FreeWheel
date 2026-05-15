@@ -700,7 +700,7 @@ object WheelConnectionManagerHelper {
         return FlowObservation(scope)
     }
 
-    fun observeEventLogEntries(manager: WheelConnectionManager, onChange: (List<org.freewheel.core.domain.EventLogEntry>) -> Unit): FlowObservation {
+    fun observeEventLogEntries(manager: WheelConnectionManager, onChange: (List<org.freewheel.core.domain.events.EventLogEntry>) -> Unit): FlowObservation {
         val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
         scope.launch { manager.eventLogEntries.collect { onChange(it) } }
         return FlowObservation(scope)

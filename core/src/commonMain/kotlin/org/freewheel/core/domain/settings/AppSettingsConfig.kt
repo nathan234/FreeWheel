@@ -1,7 +1,7 @@
 package org.freewheel.core.domain.settings
 
-import org.freewheel.core.domain.AlarmAction
-import org.freewheel.core.domain.AppConstants
+import org.freewheel.core.domain.common.AlarmAction
+import org.freewheel.core.domain.common.AppConstants
 import org.freewheel.core.domain.dashboard.UnitCategory
 import org.freewheel.core.domain.identity.WheelType
 

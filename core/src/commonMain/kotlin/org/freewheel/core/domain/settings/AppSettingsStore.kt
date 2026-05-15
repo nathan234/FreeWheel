@@ -1,6 +1,6 @@
 package org.freewheel.core.domain.settings
 
-import org.freewheel.core.domain.AlarmAction
+import org.freewheel.core.domain.common.AlarmAction
 import org.freewheel.core.domain.KeyValueStore
 import org.freewheel.core.domain.telemetry.SpeedDisplayMode
 

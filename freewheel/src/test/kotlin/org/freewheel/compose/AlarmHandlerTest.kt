@@ -6,8 +6,8 @@ import org.freewheel.core.alarm.PreWarning
 import org.freewheel.core.alarm.PreWarningType
 import org.freewheel.core.alarm.TriggeredAlarm
 import org.freewheel.core.alarm.VibrationPatterns
-import org.freewheel.core.domain.AlarmAction
-import org.freewheel.core.domain.AlarmType
+import org.freewheel.core.domain.common.AlarmAction
+import org.freewheel.core.domain.common.AlarmType
 import com.google.common.truth.Truth.assertThat
 import org.junit.Test
 import org.junit.runner.RunWith

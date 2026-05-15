@@ -1,4 +1,4 @@
-package org.freewheel.core.domain
+package org.freewheel.core.domain.common
 
 object AppConstants {
     const val GITHUB_REPO_URL = "https://github.com/nathan234/FreeWheel"

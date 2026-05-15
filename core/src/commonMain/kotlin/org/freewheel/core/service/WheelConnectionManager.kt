@@ -186,7 +186,7 @@ class WheelConnectionManager(
         .stateIn(derivedScope, SharingStarted.Eagerly, CapabilitySet())
 
     /** Accumulated event log entries from the wheel (Veteran/Leaperkim). Sorted by index, deduplicated. */
-    override val eventLogEntries: StateFlow<List<org.freewheel.core.domain.EventLogEntry>> = _wcmState
+    override val eventLogEntries: StateFlow<List<org.freewheel.core.domain.events.EventLogEntry>> = _wcmState
         .map { it.eventLogEntries }
         .distinctUntilChanged()
         .stateIn(derivedScope, SharingStarted.Eagerly, emptyList())

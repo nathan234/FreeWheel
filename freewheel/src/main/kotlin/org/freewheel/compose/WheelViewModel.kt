@@ -50,8 +50,8 @@ import org.freewheel.core.domain.identity.CapabilitySet
 import org.freewheel.core.domain.telemetry.TelemetryState
 import org.freewheel.core.domain.identity.WheelIdentity
 import org.freewheel.core.domain.settings.WheelSettings
-import org.freewheel.core.domain.AlarmAction
-import org.freewheel.core.domain.AlarmType
+import org.freewheel.core.domain.common.AlarmAction
+import org.freewheel.core.domain.common.AlarmType
 import org.freewheel.core.domain.settings.AppSettingId
 import org.freewheel.core.domain.settings.AppSettingsStore
 import org.freewheel.core.domain.profile.DecoderConfigStore
@@ -1005,8 +1005,8 @@ class WheelViewModel(
 
     // --- Event log (Veteran/Leaperkim) ---
 
-    private val _eventLogEntries = MutableStateFlow<List<org.freewheel.core.domain.EventLogEntry>>(emptyList())
-    val eventLogEntries: StateFlow<List<org.freewheel.core.domain.EventLogEntry>> = _eventLogEntries.asStateFlow()
+    private val _eventLogEntries = MutableStateFlow<List<org.freewheel.core.domain.events.EventLogEntry>>(emptyList())
+    val eventLogEntries: StateFlow<List<org.freewheel.core.domain.events.EventLogEntry>> = _eventLogEntries.asStateFlow()
 
     // --- Discovered services (Pass 3b: full GATT topology for unrecognized-wheel report) ---
 

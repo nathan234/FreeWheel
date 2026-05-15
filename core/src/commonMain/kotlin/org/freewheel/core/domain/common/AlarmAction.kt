@@ -1,4 +1,4 @@
-package org.freewheel.core.domain
+package org.freewheel.core.domain.common
 
 enum class AlarmAction(val value: Int) {
     PHONE_ONLY(0),

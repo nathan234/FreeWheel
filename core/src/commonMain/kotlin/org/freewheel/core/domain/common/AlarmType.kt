@@ -1,4 +1,4 @@
-package org.freewheel.core.domain
+package org.freewheel.core.domain.common
 
 /**
  * Alarm types that can be triggered by the wheel or app.

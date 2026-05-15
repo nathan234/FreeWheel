@@ -3,7 +3,7 @@ package org.freewheel.compose.service
 import org.freewheel.core.alarm.AlarmNotificationThrottler
 import org.freewheel.core.alarm.AlarmResult
 import org.freewheel.core.alarm.VibrationPatterns
-import org.freewheel.core.domain.AlarmAction
+import org.freewheel.core.domain.common.AlarmAction
 
 class AlarmHandler(
     private val vibrate: (pattern: LongArray) -> Unit,

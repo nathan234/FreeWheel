@@ -39,7 +39,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import org.freewheel.core.domain.AlarmType
+import org.freewheel.core.domain.common.AlarmType
 import org.freewheel.core.domain.telemetry.BmsState
 import org.freewheel.core.domain.DashboardLabels
 import org.freewheel.core.domain.settings.SettingsLabels

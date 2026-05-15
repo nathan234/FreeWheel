@@ -1,4 +1,4 @@
-package org.freewheel.core.domain
+package org.freewheel.core.domain.events
 
 /**
  * A single event log entry from the wheel's internal error/event history.

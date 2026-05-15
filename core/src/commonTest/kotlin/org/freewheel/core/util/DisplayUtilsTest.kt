@@ -1,6 +1,6 @@
 package org.freewheel.core.util
 
-import org.freewheel.core.domain.AlarmType
+import org.freewheel.core.domain.common.AlarmType
 import org.freewheel.core.domain.identity.WheelIdentity
 import org.freewheel.core.domain.identity.WheelType
 import org.freewheel.core.utils.currentTimeMillis

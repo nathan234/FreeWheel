@@ -13,7 +13,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
-import org.freewheel.core.domain.AlarmType
+import org.freewheel.core.domain.common.AlarmType
 import org.freewheel.core.domain.settings.AppSettingId
 import org.freewheel.core.domain.settings.AppSettingsStore
 import org.freewheel.core.domain.telemetry.TelemetryState

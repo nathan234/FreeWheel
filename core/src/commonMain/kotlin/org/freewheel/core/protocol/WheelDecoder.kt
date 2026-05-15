@@ -204,7 +204,7 @@ data class DecodedData(
      * Event log entries decoded from this frame (Veteran/Leaperkim).
      * Populated during event log download; empty during normal telemetry.
      */
-    val logEntries: List<org.freewheel.core.domain.EventLogEntry> = emptyList()
+    val logEntries: List<org.freewheel.core.domain.events.EventLogEntry> = emptyList()
 )
 
 /**

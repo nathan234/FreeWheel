@@ -1,6 +1,6 @@
 package org.freewheel.core.alarm
 
-import org.freewheel.core.domain.AlarmType
+import org.freewheel.core.domain.common.AlarmType
 
 /**
  * Throttles alarm notification firing to prevent rapid-fire vibration/sound.

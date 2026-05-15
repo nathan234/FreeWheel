@@ -2,7 +2,7 @@ package org.freewheel.core.protocol
 
 import org.freewheel.core.domain.telemetry.BmsState
 import org.freewheel.core.domain.identity.CapabilityMap
-import org.freewheel.core.domain.EventLogEntry
+import org.freewheel.core.domain.events.EventLogEntry
 import org.freewheel.core.domain.identity.CapabilitySet
 import org.freewheel.core.domain.settings.SettingsCommandId
 import org.freewheel.core.domain.telemetry.SmartBms

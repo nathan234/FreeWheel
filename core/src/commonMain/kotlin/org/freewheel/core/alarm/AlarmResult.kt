@@ -1,6 +1,6 @@
 package org.freewheel.core.alarm
 
-import org.freewheel.core.domain.AlarmType
+import org.freewheel.core.domain.common.AlarmType
 
 /**
  * Result of an alarm check.
