@@ -1,4 +1,4 @@
-package org.freewheel.core.domain
+package org.freewheel.core.domain.settings
 
 import org.freewheel.core.domain.dashboard.UnitCategory
 import org.freewheel.core.utils.DisplayUtils

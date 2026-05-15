@@ -12,10 +12,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.freewheel.compose.WheelViewModel
-import org.freewheel.core.domain.ControlSpec
-import org.freewheel.core.domain.SettingsCommandId
-import org.freewheel.core.domain.SettingsSection
-import org.freewheel.core.domain.WheelSettings
+import org.freewheel.core.domain.settings.ControlSpec
+import org.freewheel.core.domain.settings.SettingsCommandId
+import org.freewheel.core.domain.settings.SettingsSection
+import org.freewheel.core.domain.settings.WheelSettings
 import org.freewheel.core.service.ConnectionState
 
 /**

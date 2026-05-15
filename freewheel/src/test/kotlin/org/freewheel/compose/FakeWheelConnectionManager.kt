@@ -7,10 +7,10 @@ import org.freewheel.core.ble.DiscoveredServices
 import org.freewheel.core.ble.WheelConnectionInfo
 import org.freewheel.core.domain.telemetry.BmsState
 import org.freewheel.core.domain.identity.CapabilitySet
-import org.freewheel.core.domain.SettingsCommandId
+import org.freewheel.core.domain.settings.SettingsCommandId
 import org.freewheel.core.domain.telemetry.TelemetryState
 import org.freewheel.core.domain.identity.WheelIdentity
-import org.freewheel.core.domain.WheelSettings
+import org.freewheel.core.domain.settings.WheelSettings
 import org.freewheel.core.domain.identity.WheelType
 import org.freewheel.core.logging.BlePacketDirection
 import org.freewheel.core.protocol.DecoderConfig

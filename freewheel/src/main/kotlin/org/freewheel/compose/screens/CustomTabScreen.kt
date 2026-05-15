@@ -19,7 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.freewheel.compose.WheelViewModel
 import org.freewheel.compose.components.DashboardContent
-import org.freewheel.core.domain.AppSettingId
+import org.freewheel.core.domain.settings.AppSettingId
 import org.freewheel.core.domain.telemetry.SpeedDisplayMode
 import org.freewheel.core.domain.dashboard.DashboardLayout
 import org.freewheel.core.domain.dashboard.NavigationTab

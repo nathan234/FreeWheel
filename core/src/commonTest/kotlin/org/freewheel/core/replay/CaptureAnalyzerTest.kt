@@ -419,7 +419,7 @@ class CaptureAnalyzerTest {
     @Test
     fun diffStatesDetectsSettingsChanges() {
         val old = DecoderState()
-        val new = DecoderState(settings = org.freewheel.core.domain.WheelSettings.Kingsong(pedalsMode = 1, lightMode = 2))
+        val new = DecoderState(settings = org.freewheel.core.domain.settings.WheelSettings.Kingsong(pedalsMode = 1, lightMode = 2))
 
         val changes = diffStates(old, new)
         val fields = changes.map { it.field }.toSet()

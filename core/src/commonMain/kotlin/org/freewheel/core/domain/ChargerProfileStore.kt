@@ -1,5 +1,7 @@
 package org.freewheel.core.domain
 
+import org.freewheel.core.domain.settings.PreferenceKeys
+
 /**
  * Manages saved charger profiles using a [KeyValueStore].
  *

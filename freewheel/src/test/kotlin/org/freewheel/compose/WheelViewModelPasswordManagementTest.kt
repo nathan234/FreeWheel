@@ -14,7 +14,7 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.freewheel.compose.di.AppModule
-import org.freewheel.core.domain.AppSettingsStore
+import org.freewheel.core.domain.settings.AppSettingsStore
 import org.freewheel.core.domain.ChargerProfileStore
 import org.freewheel.core.domain.DecoderConfigStore
 import org.freewheel.core.domain.InMemoryWheelPasswordStore
@@ -24,7 +24,7 @@ import org.freewheel.core.domain.PasswordStorageBacking
 import org.freewheel.core.domain.SharedPreferencesKeyValueStore
 import org.freewheel.core.domain.identity.WheelIdentity
 import org.freewheel.core.domain.WheelProfileStore
-import org.freewheel.core.domain.WheelSettings
+import org.freewheel.core.domain.settings.WheelSettings
 import org.freewheel.core.domain.identity.WheelType
 import org.freewheel.core.location.ChargingStation
 import org.freewheel.core.location.ChargingStationRepository

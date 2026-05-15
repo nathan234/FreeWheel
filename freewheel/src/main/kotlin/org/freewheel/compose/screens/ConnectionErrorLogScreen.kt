@@ -44,7 +44,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import org.freewheel.compose.WheelViewModel
-import org.freewheel.core.domain.SettingsLabels
+import org.freewheel.core.domain.settings.SettingsLabels
 import org.freewheel.core.utils.PlatformDateFormatter
 import java.io.File
 

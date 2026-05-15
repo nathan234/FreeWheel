@@ -1,7 +1,7 @@
 package org.freewheel.core.protocol
 
 import org.freewheel.core.domain.identity.CapabilitySet
-import org.freewheel.core.domain.SettingsCommandId
+import org.freewheel.core.domain.settings.SettingsCommandId
 import org.freewheel.core.domain.identity.WheelIdentity
 import org.freewheel.core.domain.identity.WheelType
 import org.freewheel.core.utils.ByteUtils

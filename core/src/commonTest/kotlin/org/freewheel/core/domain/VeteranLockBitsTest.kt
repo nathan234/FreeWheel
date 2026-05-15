@@ -1,5 +1,10 @@
 package org.freewheel.core.domain
 
+import org.freewheel.core.domain.settings.SettingsCommandId
+import org.freewheel.core.domain.settings.WheelSettings
+import org.freewheel.core.domain.settings.autoLockEnabled
+import org.freewheel.core.domain.settings.hasPassword
+import org.freewheel.core.domain.settings.lastPasswordCommandSucceeded
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull

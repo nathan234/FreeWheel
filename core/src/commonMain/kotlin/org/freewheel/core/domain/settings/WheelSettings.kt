@@ -1,4 +1,4 @@
-package org.freewheel.core.domain
+package org.freewheel.core.domain.settings
 
 /**
  * Type-safe, per-wheel-type settings state.

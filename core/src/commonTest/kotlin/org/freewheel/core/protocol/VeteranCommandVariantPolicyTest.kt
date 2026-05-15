@@ -1,6 +1,6 @@
 package org.freewheel.core.protocol
 
-import org.freewheel.core.domain.WheelSettings
+import org.freewheel.core.domain.settings.WheelSettings
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals

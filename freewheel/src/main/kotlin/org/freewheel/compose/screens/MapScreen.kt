@@ -42,7 +42,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.google.android.gms.maps.model.LatLng
 import org.freewheel.compose.WheelViewModel
 import org.freewheel.compose.components.LiveRideMapView
-import org.freewheel.core.domain.AppSettingId
+import org.freewheel.core.domain.settings.AppSettingId
 import org.freewheel.core.location.ChargingStation
 import org.freewheel.core.utils.ByteUtils
 import org.freewheel.core.utils.DisplayUtils

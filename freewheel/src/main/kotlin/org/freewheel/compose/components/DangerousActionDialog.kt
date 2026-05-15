@@ -7,8 +7,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import org.freewheel.core.domain.CommonLabels
-import org.freewheel.core.domain.ControlSpec
-import org.freewheel.core.domain.SettingsCommandId
+import org.freewheel.core.domain.settings.ControlSpec
+import org.freewheel.core.domain.settings.SettingsCommandId
 
 /**
  * Confirmation dialog for dangerous wheel settings actions (calibrate, power off, lock, etc.).

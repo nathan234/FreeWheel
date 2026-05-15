@@ -1,4 +1,4 @@
-package org.freewheel.core.domain
+package org.freewheel.core.domain.settings
 
 import kotlin.test.Test
 import kotlin.test.assertFalse

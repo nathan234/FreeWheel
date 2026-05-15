@@ -1,4 +1,4 @@
-package org.freewheel.core.domain
+package org.freewheel.core.domain.settings
 
 /**
  * Storage scope for an app-level setting.

@@ -1,5 +1,6 @@
 package org.freewheel.core.domain
 
+import org.freewheel.core.domain.settings.PreferenceKeys
 import org.freewheel.core.service.toSavedHint
 import kotlin.test.Test
 import kotlin.test.assertEquals

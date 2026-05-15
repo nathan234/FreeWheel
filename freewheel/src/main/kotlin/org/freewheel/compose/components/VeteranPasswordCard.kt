@@ -18,9 +18,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.freewheel.compose.WheelViewModel
 import org.freewheel.core.domain.PasswordManagementState
-import org.freewheel.core.domain.WheelSettings
-import org.freewheel.core.domain.autoLockEnabled
-import org.freewheel.core.domain.hasPassword
+import org.freewheel.core.domain.settings.WheelSettings
+import org.freewheel.core.domain.settings.autoLockEnabled
+import org.freewheel.core.domain.settings.hasPassword
 
 /**
  * Veteran lock-password entry card. Mirrors the four rows in the official

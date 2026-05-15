@@ -1,16 +1,16 @@
 package org.freewheel.core.protocol
 
-import org.freewheel.core.domain.WheelSettings
+import org.freewheel.core.domain.settings.WheelSettings
 import org.freewheel.core.domain.identity.WheelType
-import org.freewheel.core.domain.handleButton
-import org.freewheel.core.domain.ksAlarm1Speed
-import org.freewheel.core.domain.ksAlarm2Speed
-import org.freewheel.core.domain.ksAlarm3Speed
-import org.freewheel.core.domain.ksTiltbackSpeed
-import org.freewheel.core.domain.lockState
-import org.freewheel.core.domain.mute
+import org.freewheel.core.domain.settings.handleButton
+import org.freewheel.core.domain.settings.ksAlarm1Speed
+import org.freewheel.core.domain.settings.ksAlarm2Speed
+import org.freewheel.core.domain.settings.ksAlarm3Speed
+import org.freewheel.core.domain.settings.ksTiltbackSpeed
+import org.freewheel.core.domain.settings.lockState
+import org.freewheel.core.domain.settings.mute
 import kotlin.math.roundToInt
-import org.freewheel.core.domain.SettingsCommandId
+import org.freewheel.core.domain.settings.SettingsCommandId
 import org.freewheel.core.protocol.DecodeResult
 import kotlin.test.Test
 import kotlin.test.assertEquals

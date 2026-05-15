@@ -1,5 +1,7 @@
 package org.freewheel.core.domain
 
+import org.freewheel.core.domain.settings.PreferenceDefaults
+import org.freewheel.core.domain.settings.PreferenceKeys
 import kotlin.test.Test
 import kotlin.test.assertEquals
 

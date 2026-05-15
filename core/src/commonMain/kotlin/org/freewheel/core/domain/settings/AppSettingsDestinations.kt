@@ -1,4 +1,4 @@
-package org.freewheel.core.domain
+package org.freewheel.core.domain.settings
 
 /**
  * Well-known destination identifiers for [AppSettingSpec.NavLink].

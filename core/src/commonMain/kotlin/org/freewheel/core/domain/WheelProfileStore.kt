@@ -1,5 +1,7 @@
 package org.freewheel.core.domain
 
+import org.freewheel.core.domain.settings.PreferenceKeys
+
 /**
  * Manages saved wheel profiles ("My Wheels" garage) using a [KeyValueStore].
  *

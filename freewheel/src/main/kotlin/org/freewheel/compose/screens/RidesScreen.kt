@@ -60,7 +60,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.freewheel.compose.WheelViewModel
-import org.freewheel.core.domain.AppSettingId
+import org.freewheel.core.domain.settings.AppSettingId
 import org.freewheel.core.domain.CommonLabels
 import org.freewheel.core.domain.RidesLabels
 import org.freewheel.data.TripDataDbEntry

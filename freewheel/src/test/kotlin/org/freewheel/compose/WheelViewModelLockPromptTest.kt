@@ -12,7 +12,7 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.freewheel.compose.di.AppModule
-import org.freewheel.core.domain.AppSettingsStore
+import org.freewheel.core.domain.settings.AppSettingsStore
 import org.freewheel.core.domain.ChargerProfileStore
 import org.freewheel.core.domain.DecoderConfigStore
 import org.freewheel.core.domain.InMemoryWheelPasswordStore
@@ -143,7 +143,7 @@ class WheelViewModelLockPromptTest {
         advanceUntilIdle()
 
         viewModel.executeWheelCommand(
-            commandId = org.freewheel.core.domain.SettingsCommandId.LOCK,
+            commandId = org.freewheel.core.domain.settings.SettingsCommandId.LOCK,
             boolValue = true,
         )
         advanceUntilIdle()

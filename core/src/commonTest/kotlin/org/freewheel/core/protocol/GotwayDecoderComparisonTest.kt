@@ -1,7 +1,7 @@
 package org.freewheel.core.protocol
 
-import org.freewheel.core.domain.rollAngle
-import org.freewheel.core.domain.speedAlarms
+import org.freewheel.core.domain.settings.rollAngle
+import org.freewheel.core.domain.settings.speedAlarms
 import org.freewheel.core.utils.ByteUtils
 import kotlin.math.abs
 import kotlin.math.roundToInt

@@ -3,9 +3,9 @@ package org.freewheel.core.protocol
 import org.freewheel.core.domain.telemetry.BmsState
 import org.freewheel.core.domain.identity.CapabilityMap
 import org.freewheel.core.domain.identity.CapabilitySet
-import org.freewheel.core.domain.SettingsCommandId
+import org.freewheel.core.domain.settings.SettingsCommandId
 import org.freewheel.core.domain.telemetry.SmartBms
-import org.freewheel.core.domain.WheelSettings
+import org.freewheel.core.domain.settings.WheelSettings
 import org.freewheel.core.domain.identity.WheelType
 import org.freewheel.core.domain.identity.resolveAt
 import org.freewheel.core.utils.ByteUtils

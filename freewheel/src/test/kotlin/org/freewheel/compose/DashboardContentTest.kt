@@ -10,7 +10,7 @@ import org.freewheel.core.domain.telemetry.BmsState
 import org.freewheel.core.domain.telemetry.SpeedDisplayMode
 import org.freewheel.core.domain.telemetry.TelemetryState
 import org.freewheel.core.domain.identity.WheelIdentity
-import org.freewheel.core.domain.WheelSettings
+import org.freewheel.core.domain.settings.WheelSettings
 import org.freewheel.core.domain.identity.WheelType
 import org.freewheel.core.domain.dashboard.DashboardLayout
 import org.freewheel.core.domain.dashboard.DashboardMetric

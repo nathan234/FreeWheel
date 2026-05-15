@@ -52,19 +52,19 @@ import org.freewheel.compose.components.LockPromptDialog
 import org.freewheel.compose.components.PasswordManagementDialog
 import org.freewheel.compose.components.VeteranPasswordCard
 import org.freewheel.compose.components.WheelSettingsContent
-import org.freewheel.core.domain.AppSettingId
-import org.freewheel.core.domain.AppSettingSpec
-import org.freewheel.core.domain.AppSettingVisibilityEvaluator
-import org.freewheel.core.domain.AppSettingsConfig
-import org.freewheel.core.domain.AppSettingsDestinations
-import org.freewheel.core.domain.AppSettingsActions
-import org.freewheel.core.domain.AppSettingsSection
-import org.freewheel.core.domain.AppSettingsState
-import org.freewheel.core.domain.AppSettingsValueIds
-import org.freewheel.core.domain.SettingsLabels
-import org.freewheel.core.domain.WheelSettingsConfig
-import org.freewheel.core.domain.displayUnit
-import org.freewheel.core.domain.displayValue
+import org.freewheel.core.domain.settings.AppSettingId
+import org.freewheel.core.domain.settings.AppSettingSpec
+import org.freewheel.core.domain.settings.AppSettingVisibilityEvaluator
+import org.freewheel.core.domain.settings.AppSettingsConfig
+import org.freewheel.core.domain.settings.AppSettingsDestinations
+import org.freewheel.core.domain.settings.AppSettingsActions
+import org.freewheel.core.domain.settings.AppSettingsSection
+import org.freewheel.core.domain.settings.AppSettingsState
+import org.freewheel.core.domain.settings.AppSettingsValueIds
+import org.freewheel.core.domain.settings.SettingsLabels
+import org.freewheel.core.domain.settings.WheelSettingsConfig
+import org.freewheel.core.domain.settings.displayUnit
+import org.freewheel.core.domain.settings.displayValue
 import org.freewheel.core.service.ConnectionState
 
 // Settings screen structure is driven by AppSettingsConfig (KMP shared).

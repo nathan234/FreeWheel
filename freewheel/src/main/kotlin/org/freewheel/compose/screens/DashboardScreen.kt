@@ -33,7 +33,7 @@ import org.freewheel.compose.components.DashboardContent
 import org.freewheel.compose.components.ReplayControls
 import org.freewheel.compose.components.RideStatsHeader
 import org.freewheel.compose.components.WheelTypePickerSheet
-import org.freewheel.core.domain.AppSettingId
+import org.freewheel.core.domain.settings.AppSettingId
 import org.freewheel.core.domain.telemetry.SpeedDisplayMode
 import org.freewheel.core.replay.ReplayState
 import org.freewheel.core.service.ConnectionState

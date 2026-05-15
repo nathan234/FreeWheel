@@ -1,6 +1,7 @@
 package org.freewheel.core.domain
 
 import org.freewheel.core.domain.identity.resolveAt
+import org.freewheel.core.domain.settings.SettingsCommandId
 import org.freewheel.core.protocol.VeteranDecoder
 import kotlin.test.Test
 import kotlin.test.assertEquals

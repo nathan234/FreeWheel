@@ -1,10 +1,10 @@
 package org.freewheel.core.protocol
 
 import org.freewheel.core.domain.identity.WheelIdentity
-import org.freewheel.core.domain.beeperVolume
-import org.freewheel.core.domain.cutoutAngle
-import org.freewheel.core.domain.rollAngle
-import org.freewheel.core.domain.speedAlarms
+import org.freewheel.core.domain.settings.beeperVolume
+import org.freewheel.core.domain.settings.cutoutAngle
+import org.freewheel.core.domain.settings.rollAngle
+import org.freewheel.core.domain.settings.speedAlarms
 import org.freewheel.core.protocol.DecodeResult
 import org.freewheel.core.utils.ByteUtils
 import kotlin.math.abs

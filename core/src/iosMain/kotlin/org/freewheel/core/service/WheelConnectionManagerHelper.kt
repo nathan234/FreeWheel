@@ -13,11 +13,11 @@ import org.freewheel.core.domain.identity.CapabilitySet
 import org.freewheel.core.domain.identity.ProtocolFamily
 import org.freewheel.core.domain.telemetry.TelemetryState
 import org.freewheel.core.domain.identity.WheelIdentity
-import org.freewheel.core.domain.WheelSettings
+import org.freewheel.core.domain.settings.WheelSettings
 import org.freewheel.core.domain.identity.WheelType
 import org.freewheel.core.protocol.DecoderConfig
 import org.freewheel.core.protocol.DefaultWheelDecoderFactory
-import org.freewheel.core.domain.SettingsCommandId
+import org.freewheel.core.domain.settings.SettingsCommandId
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob

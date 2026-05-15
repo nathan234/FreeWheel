@@ -1,5 +1,6 @@
-package org.freewheel.core.domain
+package org.freewheel.core.domain.settings
 
+import org.freewheel.core.domain.FakeKeyValueStore
 import org.freewheel.core.domain.telemetry.SpeedDisplayMode
 import kotlin.test.Test
 import kotlin.test.assertEquals

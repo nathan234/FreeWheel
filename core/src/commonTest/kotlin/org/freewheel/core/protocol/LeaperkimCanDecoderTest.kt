@@ -1,8 +1,8 @@
 package org.freewheel.core.protocol
 
 import org.freewheel.core.domain.identity.WheelType
-import org.freewheel.core.domain.handleButton
-import org.freewheel.core.domain.transportMode
+import org.freewheel.core.domain.settings.handleButton
+import org.freewheel.core.domain.settings.transportMode
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.test.Test

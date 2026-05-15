@@ -35,10 +35,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import org.freewheel.core.domain.ControlSpec
-import org.freewheel.core.domain.SettingsCommandId
-import org.freewheel.core.domain.SettingsSection
-import org.freewheel.core.domain.WheelSettings
+import org.freewheel.core.domain.settings.ControlSpec
+import org.freewheel.core.domain.settings.SettingsCommandId
+import org.freewheel.core.domain.settings.SettingsSection
+import org.freewheel.core.domain.settings.WheelSettings
 
 @Composable
 internal fun SectionCard(

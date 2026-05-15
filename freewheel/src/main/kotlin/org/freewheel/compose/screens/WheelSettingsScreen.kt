@@ -39,10 +39,10 @@ import org.freewheel.compose.components.LockPromptDialog
 import org.freewheel.compose.components.PasswordManagementDialog
 import org.freewheel.compose.components.VeteranPasswordCard
 import org.freewheel.compose.components.WheelSettingsContent
-import org.freewheel.core.domain.AppSettingId
+import org.freewheel.core.domain.settings.AppSettingId
 import org.freewheel.core.domain.CommonLabels
 import org.freewheel.core.domain.DashboardLabels
-import org.freewheel.core.domain.WheelSettingsConfig
+import org.freewheel.core.domain.settings.WheelSettingsConfig
 import org.freewheel.core.service.ConnectionState
 
 // CROSS-PLATFORM SYNC: This screen mirrors iosApp/FreeWheel/Views/WheelSettingsView.swift.

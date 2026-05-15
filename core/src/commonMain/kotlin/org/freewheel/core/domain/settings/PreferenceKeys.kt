@@ -1,4 +1,4 @@
-package org.freewheel.core.domain
+package org.freewheel.core.domain.settings
 
 /**
  * Single source of truth for preference key strings shared across Android and iOS.

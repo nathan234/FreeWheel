@@ -1,5 +1,8 @@
 package org.freewheel.core.domain
 
+import org.freewheel.core.domain.settings.PreferenceDefaults
+import org.freewheel.core.domain.settings.PreferenceKeys
+
 /**
  * Reads decoder-protocol tuning values from a [KeyValueStore]. These are not
  * user-facing settings (they don't appear in the settings screen) — they're

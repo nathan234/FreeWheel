@@ -1,6 +1,6 @@
 package org.freewheel.core.domain.identity
 
-import org.freewheel.core.domain.SettingsCommandId
+import org.freewheel.core.domain.settings.SettingsCommandId
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse

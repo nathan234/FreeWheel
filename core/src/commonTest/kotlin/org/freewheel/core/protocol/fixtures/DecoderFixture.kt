@@ -1,6 +1,6 @@
 package org.freewheel.core.protocol.fixtures
 
-import org.freewheel.core.domain.WheelSettings
+import org.freewheel.core.domain.settings.WheelSettings
 import org.freewheel.core.domain.identity.WheelType
 import org.freewheel.core.protocol.DecodeResult
 import org.freewheel.core.protocol.DecoderConfig

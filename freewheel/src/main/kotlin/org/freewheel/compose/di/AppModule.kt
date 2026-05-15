@@ -9,7 +9,7 @@ import android.os.Vibrator
 import androidx.core.content.ContextCompat.getSystemService
 import androidx.preference.PreferenceManager
 import org.freewheel.core.domain.AndroidWheelPasswordStoreFactory
-import org.freewheel.core.domain.AppSettingsStore
+import org.freewheel.core.domain.settings.AppSettingsStore
 import org.freewheel.core.domain.ChargerProfileStore
 import org.freewheel.core.domain.DecoderConfigStore
 import org.freewheel.core.domain.SharedPreferencesKeyValueStore
