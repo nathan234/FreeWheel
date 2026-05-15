@@ -117,6 +117,12 @@ class WheelService : Service(), WheelServiceContract {
         bleManager.setBleDisconnectedCallback { address, issue, attemptId ->
             connectionManager.onBleDisconnected(address, issue.message, issue, attemptId)
         }
+        bleManager.setBleReadyCallback { address, attemptId ->
+            connectionManager.onBleReady(address, attemptId)
+        }
+        bleManager.setBleWriteAckCallback { ack ->
+            connectionManager.onBleWriteAck(ack)
+        }
 
         // Wire charger BLE data to charger connection manager. Charger flow
         // doesn't track attemptId — it has its own connection manager.

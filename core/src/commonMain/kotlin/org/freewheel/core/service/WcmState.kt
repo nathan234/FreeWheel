@@ -74,6 +74,13 @@ data class WcmState(
     // ServicesDiscovered / BleDisconnected / DataReceived from the previous
     // session well after disconnect → reconnect) from corrupting the new state.
     val currentAttemptId: Long? = null,
+    // Whether the platform BLE layer has confirmed that notifications are
+    // active on the configured read characteristic. Reset to false on any
+    // transition out of an active session (disconnect, failed, connection
+    // lost). Commit 1 of the Kingsong BLE parity plan — later commits gate
+    // transport warmups and heartbeats on this flag flipping true so
+    // post-connect traffic cannot race the OS BLE stack.
+    val isBleReady: Boolean = false,
     // Internal — not exposed as public flows
     val decoder: WheelDecoder? = null,
     val decoderConfig: DecoderConfig = DecoderConfig(),
@@ -140,6 +147,13 @@ sealed class WcmEffect {
             return result
         }
     }
+
+    /**
+     * Republish a BLE write-completion ack to the observation callback.
+     * Commit 1 of the Kingsong BLE parity plan — purely informational; later
+     * commits build the command-execution state machine on top.
+     */
+    data class NotifyWriteAck(val ack: BleWriteAck) : WcmEffect()
 
     data class NotifyUnhandled(
         val reason: String,

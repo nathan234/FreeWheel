@@ -122,6 +122,10 @@ actual class BleManager : BleManagerPort {
     private var onBleErrorCallback: (() -> Unit)? = null
     private var onBleDisconnectedCallback: ((String, ConnectionIssue, Long) -> Unit)? = null
     private var onServicesDiscoveredCallback: ((DiscoveredServices, String?, Long) -> Unit)? = null
+    // Commit 1 of the Kingsong BLE parity plan: signal notify-state success
+    // and write-completion acks up to the WCM event loop.
+    private var onBleReadyCallback: ((String, Long) -> Unit)? = null
+    private var onBleWriteAckCallback: ((BleWriteAck) -> Unit)? = null
 
     // Connection continuation for suspend function (cross-thread lifecycle)
     private var connectionContinuation: CancellableContinuation<Boolean>? = null
@@ -331,6 +335,30 @@ actual class BleManager : BleManagerPort {
      */
     fun setServicesDiscoveredCallback(callback: (DiscoveredServices, String?, Long) -> Unit) {
         onServicesDiscoveredCallback = callback
+    }
+
+    /**
+     * Set callback for when notifications are confirmed active on the read
+     * characteristic. Called with `(address, attemptId)`. Commit 1 of the
+     * Kingsong BLE parity plan — later commits gate transport warmups and
+     * heartbeats on this signal.
+     */
+    fun setBleReadyCallback(callback: (String, Long) -> Unit) {
+        onBleReadyCallback = callback
+    }
+
+    /**
+     * Set callback for when the platform delivers a
+     * `didWriteValueForCharacteristic` completion. CoreBluetooth only fires
+     * this delegate for `WITH_RESPONSE` writes — the current
+     * `WITHOUT_RESPONSE` path still uses
+     * `peripheralIsReadyToSendWriteWithoutResponse` for backpressure and emits
+     * no ack. Commit 1 of the Kingsong BLE parity plan plumbs this path so a
+     * later commit can opt specific commands into `WITH_RESPONSE` without
+     * revisiting the manager.
+     */
+    fun setBleWriteAckCallback(callback: (BleWriteAck) -> Unit) {
+        onBleWriteAckCallback = callback
     }
 
     /**
@@ -559,6 +587,8 @@ actual class BleManager : BleManagerPort {
         onBleErrorCallback = null
         onBleDisconnectedCallback = null
         onServicesDiscoveredCallback = null
+        onBleReadyCallback = null
+        onBleWriteAckCallback = null
         centralManager = null
         centralDelegate = null
         peripheralDelegate = null
@@ -1223,6 +1253,74 @@ actual class BleManager : BleManagerPort {
         return readCharacteristic != null
     }
 
+    /**
+     * Delegate fan-in for `peripheral:didUpdateNotificationStateForCharacteristic:error:`.
+     * Treats only the configured read characteristic flipping into the
+     * notifying state as "BLE ready". Stale callbacks for an abandoned
+     * session or for the write characteristic are dropped silently.
+     */
+    internal fun onNotificationStateUpdated(
+        characteristic: CBCharacteristic,
+        error: NSError?,
+    ) {
+        if (error != null) {
+            Logger.w(
+                "BleManager",
+                "Notify state update failed: ${error.localizedDescription}",
+            )
+            return
+        }
+        // Match by characteristic instance, not by UUID alone — a peripheral
+        // could legitimately expose the same characteristic UUID under more
+        // than one service. CBCharacteristic does not override isEqual:, so
+        // Kotlin `!=` resolves to reference identity here (CoreBluetooth
+        // caches the instances per peripheral).
+        val s = session
+        val sessionPeripheral = s.peripheral ?: return
+        val target = readCharacteristic ?: return
+        val charPeripheral = characteristic.service?.peripheral
+        if (charPeripheral == null || charPeripheral != sessionPeripheral) return
+        if (characteristic != target) return
+        if (!characteristic.isNotifying) return
+        Logger.d(
+            "BleManager",
+            "Notifications active on ${characteristic.UUID.UUIDString}",
+        )
+        onBleReadyCallback?.invoke(sessionPeripheral.identifier.UUIDString, s.attemptId)
+    }
+
+    /**
+     * Delegate fan-in for `peripheral:didWriteValueForCharacteristic:error:`.
+     * Fires only for `WITH_RESPONSE` writes; the current `WITHOUT_RESPONSE`
+     * path remains untouched and produces no ack. Data bytes are not
+     * delivered by CoreBluetooth on this delegate — a later commit that
+     * actually issues `WITH_RESPONSE` writes will pair this hook with a
+     * pending-bytes queue keyed off `writeMutex` so the ack carries the
+     * payload. Commit 1 plumbs the path with an empty `data` field; tests
+     * exercise the manager-side route via `onBleWriteAck` directly.
+     */
+    internal fun onCharacteristicWritten(
+        characteristic: CBCharacteristic,
+        error: NSError?,
+    ) {
+        // Match by characteristic instance, not by UUID alone — see the
+        // matching guard in [onNotificationStateUpdated] for the rationale.
+        val s = session
+        val sessionPeripheral = s.peripheral ?: return
+        val target = writeCharacteristic ?: return
+        val charPeripheral = characteristic.service?.peripheral
+        if (charPeripheral == null || charPeripheral != sessionPeripheral) return
+        if (characteristic != target) return
+        onBleWriteAckCallback?.invoke(
+            BleWriteAck(
+                attemptId = s.attemptId,
+                success = error == null,
+                data = ByteArray(0),
+                error = error?.localizedDescription,
+            )
+        )
+    }
+
     internal fun onCharacteristicValueUpdated(characteristic: CBCharacteristic, error: NSError?) {
         if (error != null) {
             Logger.w("BleManager", "Characteristic update error: ${error.localizedDescription}")
@@ -1328,12 +1426,40 @@ private class CBPeripheralDelegateImpl(
         manager.onCharacteristicsDiscovered(peripheral, didDiscoverCharacteristicsForService, error)
     }
 
+    // These three delegate methods share the Kotlin signature
+    // `peripheral(CBPeripheral, CBCharacteristic, NSError?)` — the Objective-C
+    // selector disambiguates them but Kotlin/Native sees an overload collision.
+    // @ObjCSignatureOverride tells the compiler the colliding signatures are
+    // distinct ObjC selectors, not Kotlin overload mistakes.
+
+    @kotlinx.cinterop.ObjCSignatureOverride
     override fun peripheral(
         peripheral: CBPeripheral,
         didUpdateValueForCharacteristic: CBCharacteristic,
         error: NSError?
     ) {
         manager.onCharacteristicValueUpdated(didUpdateValueForCharacteristic, error)
+    }
+
+    @kotlinx.cinterop.ObjCSignatureOverride
+    override fun peripheral(
+        peripheral: CBPeripheral,
+        didUpdateNotificationStateForCharacteristic: CBCharacteristic,
+        error: NSError?
+    ) {
+        manager.onNotificationStateUpdated(didUpdateNotificationStateForCharacteristic, error)
+    }
+
+    @kotlinx.cinterop.ObjCSignatureOverride
+    override fun peripheral(
+        peripheral: CBPeripheral,
+        didWriteValueForCharacteristic: CBCharacteristic,
+        error: NSError?
+    ) {
+        // CoreBluetooth only fires this delegate for WITH_RESPONSE writes;
+        // WITHOUT_RESPONSE writes (the current path everywhere) flow through
+        // peripheralIsReadyToSendWriteWithoutResponse for buffer backpressure.
+        manager.onCharacteristicWritten(didWriteValueForCharacteristic, error)
     }
 
     override fun peripheralIsReadyToSendWriteWithoutResponse(peripheral: CBPeripheral) {

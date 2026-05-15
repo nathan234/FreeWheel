@@ -98,6 +98,13 @@ class WheelConnectionManager(
      */
     override var errorLogCallback: ((ConnectionErrorEvent) -> Unit)? = null
 
+    /**
+     * Optional callback fired for every BLE write-completion ack delivered by
+     * the platform. Commit 1 of the Kingsong BLE parity plan — surfaced for
+     * tests and as the foundation for a later command-execution UX layer.
+     */
+    override var writeAckCallback: ((BleWriteAck) -> Unit)? = null
+
     // ==================== Unified state + scan pipeline ====================
 
     private val _wcmState = MutableStateFlow(WcmState())
@@ -207,6 +214,19 @@ class WheelConnectionManager(
 
     /** Whether the keep-alive timer is running. */
     val isKeepAliveRunning: StateFlow<Boolean> = keepAliveTimer.isRunning
+
+    /**
+     * Whether the platform BLE layer has confirmed that notifications are
+     * active on the configured read characteristic for the current session.
+     * Resets to false on any transition out of an active session (disconnect,
+     * failed, connection lost, or active-fallback reconnect). Commit 1 of the
+     * Kingsong BLE parity plan — later commits gate transport warmups and
+     * heartbeats on this flag flipping true.
+     */
+    val isBleReady: StateFlow<Boolean> = _wcmState
+        .map { it.isBleReady }
+        .distinctUntilChanged()
+        .stateIn(derivedScope, SharingStarted.Eagerly, false)
 
     // ==================== Public methods (emit events) ====================
 
@@ -347,6 +367,29 @@ class WheelConnectionManager(
      */
     fun onWheelTypeDetected(wheelType: WheelType) {
         events.trySend(WheelEvent.WheelTypeDetected(wheelType))
+    }
+
+    /**
+     * Report that the platform BLE layer has successfully enabled notifications
+     * on the configured read characteristic. Commit 1 of the Kingsong BLE
+     * parity plan — later commits gate transport warmups and heartbeats on
+     * the resulting [WcmState.isBleReady] flag.
+     */
+    fun onBleReady(
+        address: String,
+        attemptId: Long = _wcmState.value.currentAttemptId ?: 1L,
+    ) {
+        events.trySend(WheelEvent.BleReady(address, attemptId))
+    }
+
+    /**
+     * Report a BLE write-completion ack delivered by the platform layer.
+     * Commit 1 — purely an observation hook; consumers wire in via
+     * [writeAckCallback]. The reducer routes the event but does not mutate
+     * state.
+     */
+    fun onBleWriteAck(ack: BleWriteAck) {
+        events.trySend(WheelEvent.BleWriteAck(ack))
     }
 
     /**
@@ -587,6 +630,8 @@ class WheelConnectionManager(
             is WheelEvent.WheelTypeConfirmed -> reduceWheelTypeConfirmed(state, event)
             is WheelEvent.DataReceived -> reduceDataReceived(state, event)
             is WheelEvent.BleError -> reduceBleError(state)
+            is WheelEvent.BleReady -> reduceBleReady(state, event)
+            is WheelEvent.BleWriteAck -> reduceBleWriteAck(state, event)
             is WheelEvent.BleDisconnected -> reduceBleDisconnected(state, event)
             is WheelEvent.KeepAliveTick -> reduceKeepAliveTick(state)
             is WheelEvent.DataTimeout -> reduceDataTimeout(state, event)
@@ -632,12 +677,17 @@ class WheelConnectionManager(
             state.decoder != null
 
         val newState = if (isResume) {
+            // Reset isBleReady — the OS BLE link will tear down during the
+            // gap, so notifications must be re-confirmed by the platform on
+            // the fresh connect. Later commits gate transport warmups on
+            // this flipping back to true.
             state.copy(
                 connectionState = ConnectionState.Connecting(event.address),
                 connectionHint = event.hint,
                 lastAdvertisement = event.advertisement,
                 attemptCounter = nextAttemptId,
                 currentAttemptId = nextAttemptId,
+                isBleReady = false,
             )
         } else {
             WcmState(
@@ -1205,8 +1255,13 @@ class WheelConnectionManager(
         // Keep-alive commands will silently fail (write returns false) during
         // the gap, and resume working when the OS reconnects. Preserving the
         // decoder means we skip re-initialization on reconnect.
+        //
+        // Reset isBleReady — notifications must be re-confirmed by the
+        // platform after the OS finishes its auto-reconnect, since the BLE
+        // link going down also drops the subscription. Later commits gate
+        // transport warmups on this flag flipping back to true.
         return WcmTransition(
-            state.copy(connectionState = lostState),
+            state.copy(connectionState = lostState, isBleReady = false),
             listOf(WcmEffect.LogConnectionError(ConnectionErrorEvent.StateTransition(
                 timestampMs = now,
                 from = state.connectionState.statusText,
@@ -1214,6 +1269,21 @@ class WheelConnectionManager(
                 reason = event.reason
             )))
         )
+    }
+
+    private fun reduceBleReady(state: WcmState, event: WheelEvent.BleReady): WcmTransition {
+        if (isStaleAttempt(state, event.attemptId, "BleReady")) return WcmTransition(state)
+        if (state.isBleReady) return WcmTransition(state)
+        Logger.d(TAG, "BLE ready (notifications active) for ${event.address}")
+        return WcmTransition(state.copy(isBleReady = true))
+    }
+
+    private fun reduceBleWriteAck(state: WcmState, event: WheelEvent.BleWriteAck): WcmTransition {
+        // Pure observation hook — no state mutation. Stale-attempt acks are
+        // forwarded as-is; downstream consumers can inspect ack.attemptId.
+        // Commit 1: tests use this via [writeAckCallback]. Future commits will
+        // build the command-execution state machine on top.
+        return WcmTransition(state, listOf(WcmEffect.NotifyWriteAck(event.ack)))
     }
 
     private fun reduceKeepAliveTick(state: WcmState): WcmTransition {
@@ -1387,6 +1457,9 @@ class WheelConnectionManager(
                 }
                 is WcmEffect.NotifyUnhandled -> {
                     unhandledCallback?.invoke(effect.reason, effect.frameData)
+                }
+                is WcmEffect.NotifyWriteAck -> {
+                    writeAckCallback?.invoke(effect.ack)
                 }
                 is WcmEffect.ResetDecoder -> {
                     effect.decoder.reset()

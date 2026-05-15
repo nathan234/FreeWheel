@@ -106,6 +106,30 @@ sealed class WheelEvent {
     data object BleError : WheelEvent()
 
     /**
+     * The platform BLE layer reported that notifications are now active on the
+     * configured read characteristic. Commit 1 of the Kingsong parity plan —
+     * later commits hang transport warmups and heartbeats off this signal so
+     * post-connect traffic does not race the OS BLE stack.
+     *
+     * [attemptId] is stamped at emission so the reducer can drop late
+     * notify-state callbacks belonging to a prior session.
+     */
+    class BleReady(
+        val address: String,
+        val attemptId: Long,
+    ) : WheelEvent()
+
+    /**
+     * The platform BLE layer delivered a write-completion callback for a
+     * preceding outbound write (Android `onCharacteristicWrite`, iOS
+     * `didWriteValueForCharacteristic`). Information-only in Commit 1; later
+     * commits build the user-facing command-execution state off this signal.
+     */
+    class BleWriteAck(
+        val ack: org.freewheel.core.service.BleWriteAck,
+    ) : WheelEvent()
+
+    /**
      * The OS BLE stack reported an unexpected disconnection.
      * This is the ONLY path (besides user-initiated [DisconnectRequested]) that
      * transitions to [ConnectionState.ConnectionLost]. The OS will auto-reconnect;

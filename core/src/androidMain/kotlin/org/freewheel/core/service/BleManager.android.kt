@@ -154,6 +154,12 @@ actual class BleManager : BleManagerPort {
     private var onBleErrorCallback: (() -> Unit)? = null
     private var onBleDisconnectedCallback: ((String, ConnectionIssue, Long) -> Unit)? = null
     private var onServicesDiscoveredCallback: ((DiscoveredServices, String?, Long) -> Unit)? = null
+    // Commit 1 of the Kingsong BLE parity plan: signal notify-state success
+    // and write-completion acks up to the WCM event loop. Both callbacks
+    // forward the active session's attemptId so the reducer can drop late
+    // platform callbacks belonging to a torn-down session.
+    private var onBleReadyCallback: ((String, Long) -> Unit)? = null
+    private var onBleWriteAckCallback: ((BleWriteAck) -> Unit)? = null
 
     // Dedicated BLE thread — stored for cleanup in destroy()
     private var bleThread: HandlerThread? = null
@@ -430,6 +436,25 @@ actual class BleManager : BleManagerPort {
     }
 
     /**
+     * Set callback for when notifications are confirmed active on the read
+     * characteristic. Called with `(address, attemptId)`. Commit 1 of the
+     * Kingsong BLE parity plan — later commits gate transport warmups and
+     * heartbeats on this signal.
+     */
+    fun setBleReadyCallback(callback: (String, Long) -> Unit) {
+        onBleReadyCallback = callback
+    }
+
+    /**
+     * Set callback for when the platform delivers an `onCharacteristicWrite`
+     * completion for the active write characteristic. Commit 1 plumbing —
+     * later commits build the command-execution UX on top.
+     */
+    fun setBleWriteAckCallback(callback: (BleWriteAck) -> Unit) {
+        onBleWriteAckCallback = callback
+    }
+
+    /**
      * Get the current peripheral.
      */
     fun getPeripheral(): BluetoothPeripheral? = session.peripheral
@@ -506,7 +531,53 @@ actual class BleManager : BleManagerPort {
             characteristic: BluetoothGattCharacteristic,
             status: GattStatus
         ) {
-            // Write completed
+            // Filter strictly to the current session's peripheral and the
+            // exact bound write characteristic instance. UUID-only matching
+            // would be ambiguous if a peripheral exposed the same
+            // characteristic UUID under more than one service or instance.
+            // BluetoothGattCharacteristic does not override equals(), so
+            // Kotlin `!=` is reference identity here — exactly what we want.
+            val s = session
+            if (s.peripheral != peripheral) return
+            val target = writeCharacteristic ?: return
+            if (characteristic != target) return
+
+            val callback = onBleWriteAckCallback ?: return
+            callback(
+                BleWriteAck(
+                    attemptId = s.attemptId,
+                    success = status == GattStatus.SUCCESS,
+                    data = value,
+                    error = if (status == GattStatus.SUCCESS) null else status.name,
+                )
+            )
+        }
+
+        override fun onNotificationStateUpdate(
+            peripheral: BluetoothPeripheral,
+            characteristic: BluetoothGattCharacteristic,
+            status: GattStatus
+        ) {
+            // Commit 1 of the Kingsong BLE parity plan. We only treat the
+            // exact bound read characteristic instance flipping into the
+            // notifying state as "BLE ready" — UUID-only matching would be
+            // ambiguous if a peripheral exposed the same characteristic UUID
+            // under more than one service. BluetoothGattCharacteristic does
+            // not override equals(), so Kotlin `!=` is reference identity.
+            val s = session
+            if (s.peripheral != peripheral) return
+            val target = readCharacteristic ?: return
+            if (characteristic != target) return
+            if (status != GattStatus.SUCCESS) {
+                Logger.w(
+                    "BleManager",
+                    "Notify state update failed for ${characteristic.uuid}: $status"
+                )
+                return
+            }
+            if (!peripheral.isNotifying(characteristic)) return
+            Logger.d("BleManager", "Notifications active on ${characteristic.uuid}")
+            onBleReadyCallback?.invoke(peripheral.address, s.attemptId)
         }
 
         override fun onMtuChanged(

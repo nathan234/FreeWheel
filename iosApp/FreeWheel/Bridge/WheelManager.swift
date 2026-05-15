@@ -733,6 +733,20 @@ class WheelManager: ObservableObject {
                 attemptId: attemptId.int64Value
             )
         }
+
+        // Wire BLE-ready (notifications enabled on the read characteristic).
+        // Commit 1 of the Kingsong BLE parity plan; later commits gate
+        // transport warmups and heartbeats on this signal flipping true.
+        bleManager?.setBleReadyCallback { [weak self] address, attemptId in
+            self?.connectionManager?.onBleReady(address: address, attemptId: attemptId.int64Value)
+        }
+
+        // Wire write-completion acks. CoreBluetooth only fires this delegate
+        // for WITH_RESPONSE writes; the current WITHOUT_RESPONSE path produces
+        // no ack and is unchanged.
+        bleManager?.setBleWriteAckCallback { [weak self] ack in
+            self?.connectionManager?.onBleWriteAck(ack: ack)
+        }
     }
 
     private func setupAlarmCallbacks() {

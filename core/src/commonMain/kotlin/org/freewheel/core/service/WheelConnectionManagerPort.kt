@@ -33,6 +33,15 @@ interface WheelConnectionManagerPort {
     var errorLogCallback: ((ConnectionErrorEvent) -> Unit)?
 
     /**
+     * Optional callback invoked when the platform BLE layer reports a
+     * write-completion ack. Commit 1 plumbing only — surfaced for tests and
+     * for the future command-execution UX layer that lands in a later commit.
+     */
+    var writeAckCallback: ((BleWriteAck) -> Unit)?
+        get() = null
+        set(_) { /* no-op default */ }
+
+    /**
      * Connect to [address] with an optional [ConnectionHint].
      * Implementations are fire-and-forget; observe [connectionState] for the result.
      */
