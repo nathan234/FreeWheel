@@ -26,10 +26,10 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.delay
 import org.freewheel.compose.WheelViewModel
-import org.freewheel.core.domain.PasswordManagementInput
-import org.freewheel.core.domain.PasswordManagementState
-import org.freewheel.core.domain.requiresNewPassword
-import org.freewheel.core.domain.requiresOldPassword
+import org.freewheel.core.domain.profile.PasswordManagementInput
+import org.freewheel.core.domain.profile.PasswordManagementState
+import org.freewheel.core.domain.profile.requiresNewPassword
+import org.freewheel.core.domain.profile.requiresOldPassword
 
 /**
  * Dialog driven by [WheelViewModel.passwordManagementState]. Renders one of

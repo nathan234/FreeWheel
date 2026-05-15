@@ -10,11 +10,11 @@ import androidx.core.content.ContextCompat.getSystemService
 import androidx.preference.PreferenceManager
 import org.freewheel.core.domain.AndroidWheelPasswordStoreFactory
 import org.freewheel.core.domain.settings.AppSettingsStore
-import org.freewheel.core.domain.ChargerProfileStore
-import org.freewheel.core.domain.DecoderConfigStore
+import org.freewheel.core.domain.profile.ChargerProfileStore
+import org.freewheel.core.domain.profile.DecoderConfigStore
 import org.freewheel.core.domain.SharedPreferencesKeyValueStore
-import org.freewheel.core.domain.WheelPasswordStoreSelection
-import org.freewheel.core.domain.WheelProfileStore
+import org.freewheel.core.domain.profile.WheelPasswordStoreSelection
+import org.freewheel.core.domain.profile.WheelProfileStore
 import org.freewheel.core.alarm.AlarmChecker
 import org.freewheel.core.location.ChargingStationRepository
 import org.freewheel.core.location.OpenChargeMapClient

@@ -1,5 +1,6 @@
-package org.freewheel.core.domain
+package org.freewheel.core.domain.profile
 
+import org.freewheel.core.domain.FakeKeyValueStore
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull

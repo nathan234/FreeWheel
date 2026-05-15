@@ -2,6 +2,7 @@ package org.freewheel.core.domain
 
 import android.content.SharedPreferences
 import android.os.Build
+import org.freewheel.core.domain.profile.WheelPasswordStore
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64

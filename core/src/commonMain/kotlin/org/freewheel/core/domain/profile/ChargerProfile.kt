@@ -1,4 +1,4 @@
-package org.freewheel.core.domain
+package org.freewheel.core.domain.profile
 
 /**
  * Represents a saved HW charger for the charger profile list.

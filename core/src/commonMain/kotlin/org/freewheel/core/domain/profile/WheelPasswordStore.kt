@@ -1,4 +1,4 @@
-package org.freewheel.core.domain
+package org.freewheel.core.domain.profile
 
 /**
  * Per-wheel password storage for Veteran lock/unlock.

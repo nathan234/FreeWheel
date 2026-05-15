@@ -25,7 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.freewheel.compose.WheelViewModel
-import org.freewheel.core.domain.LockPromptState
+import org.freewheel.core.domain.profile.LockPromptState
 
 /**
  * Dialog driven by [WheelViewModel.lockPromptState]. Renders the four

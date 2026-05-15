@@ -2,6 +2,9 @@ package org.freewheel.core.domain
 
 import android.content.SharedPreferences
 import android.os.Build
+import org.freewheel.core.domain.profile.PasswordStorageBacking
+import org.freewheel.core.domain.profile.WheelPasswordStore
+import org.freewheel.core.domain.profile.WheelPasswordStoreSelection
 
 /**
  * Pick the right [WheelPasswordStore] for the runtime Android version.

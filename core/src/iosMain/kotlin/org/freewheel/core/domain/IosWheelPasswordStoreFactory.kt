@@ -1,5 +1,9 @@
 package org.freewheel.core.domain
 
+import org.freewheel.core.domain.profile.PasswordStorageBacking
+import org.freewheel.core.domain.profile.WheelPasswordStore
+import org.freewheel.core.domain.profile.WheelPasswordStoreSelection
+
 /**
  * Pick the [WheelPasswordStore] for iOS. Keychain Services is available on
  * every iOS version this project deploys to, so the backing is always

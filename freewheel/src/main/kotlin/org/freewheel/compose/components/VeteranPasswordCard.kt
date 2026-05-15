@@ -17,7 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.freewheel.compose.WheelViewModel
-import org.freewheel.core.domain.PasswordManagementState
+import org.freewheel.core.domain.profile.PasswordManagementState
 import org.freewheel.core.domain.settings.WheelSettings
 import org.freewheel.core.domain.settings.autoLockEnabled
 import org.freewheel.core.domain.settings.hasPassword

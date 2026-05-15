@@ -1,4 +1,4 @@
-package org.freewheel.core.domain
+package org.freewheel.core.domain.profile
 
 import org.freewheel.core.domain.identity.WheelType
 

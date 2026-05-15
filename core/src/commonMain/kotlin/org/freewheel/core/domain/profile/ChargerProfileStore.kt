@@ -1,5 +1,6 @@
-package org.freewheel.core.domain
+package org.freewheel.core.domain.profile
 
+import org.freewheel.core.domain.KeyValueStore
 import org.freewheel.core.domain.settings.PreferenceKeys
 
 /**

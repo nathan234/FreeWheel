@@ -136,7 +136,7 @@ object WheelConnectionManagerHelper {
      * heuristic guess.
      */
     fun savedProfileHint(
-        store: org.freewheel.core.domain.WheelProfileStore,
+        store: org.freewheel.core.domain.profile.WheelProfileStore,
         address: String,
     ): ConnectionHint? {
         return store.getProfile(address)?.toSavedHint()

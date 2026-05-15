@@ -1,4 +1,4 @@
-package org.freewheel.core.domain
+package org.freewheel.core.domain.profile
 
 /**
  * Shared state machine for the Veteran password-management UX (set / modify /

@@ -2,6 +2,7 @@
 
 package org.freewheel.core.domain
 
+import org.freewheel.core.domain.profile.WheelPasswordStore
 import kotlinx.cinterop.COpaquePointerVar
 import kotlinx.cinterop.alloc
 import kotlinx.cinterop.convert

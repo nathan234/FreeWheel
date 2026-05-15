@@ -1,7 +1,7 @@
 package org.freewheel.core.service
 
 import org.freewheel.core.domain.identity.ProtocolFamily
-import org.freewheel.core.domain.WheelProfile
+import org.freewheel.core.domain.profile.WheelProfile
 import org.freewheel.core.domain.identity.WheelType
 
 /**

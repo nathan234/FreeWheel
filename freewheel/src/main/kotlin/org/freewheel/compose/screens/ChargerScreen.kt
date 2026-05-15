@@ -35,7 +35,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import org.freewheel.core.domain.ChargerProfile
+import org.freewheel.core.domain.profile.ChargerProfile
 import org.freewheel.compose.WheelViewModel
 import org.freewheel.core.charger.ChargerState
 import org.freewheel.core.service.ConnectionState
