@@ -178,6 +178,23 @@ class WheelTypeDetector(
             val name = deviceName?.uppercase() ?: return null
             if (name.isEmpty()) return null
 
+            // Commit 3 stopgap: classic Kingsong now carries
+            // [WheelTransportProfile.KingsongClassic] (FFE0/FFE1 service,
+            // 0x5E warmup, 1Hz blank heartbeat). KSE wheels (KS-E1/KS-E3/KSE)
+            // expose the AD00 service instead and need a distinct profile,
+            // which lands in Commit 4. Until then, fail closed for KSE names
+            // here so they surface Unknown → wheel-type picker instead of
+            // being mis-protocolled onto the classic transport. The matcher
+            // is intentionally narrow (specific KSE prefixes, not a generic
+            // "any KS" carve-out) so it does not collide with classic
+            // model names like "KS-S18" / "KS-S22".
+            if (name.startsWith("KS-E1") ||
+                name.startsWith("KS-E3") ||
+                name.startsWith("KSE")
+            ) {
+                return null
+            }
+
             return when {
                 // Veteran/Leaperkim patterns (legacy DC 5A 5C protocol).
                 // Official Leaperkim app filters by "LK" prefix; all known LK wheels

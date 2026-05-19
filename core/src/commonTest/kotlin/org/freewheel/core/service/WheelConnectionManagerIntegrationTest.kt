@@ -132,8 +132,11 @@ class WheelConnectionManagerIntegrationTest {
     fun `A2 kingsong init commands written to BLE`() = runTest(timeout = 5.seconds) {
         val manager = connectKingsong()
 
-        // Advance past all SendDelayed commands (cumulative delays: 100+200+300+400 = 1000ms)
-        advanceTimeBy(1100)
+        // Advance past all SendDelayed commands (cumulative delays:
+        // 100+200+300+400 = 1000ms) PLUS Commit 3's KingsongClassic
+        // interWriteSpacingMs (50ms) which adds another ~200ms across the
+        // four pacing gaps between five init writes.
+        advanceTimeBy(1500)
         runCurrent()
 
         // KS init commands: 0x9B (REQUEST_NAME), 0x63 (REQUEST_SERIAL),
@@ -196,8 +199,9 @@ class WheelConnectionManagerIntegrationTest {
         runCurrent()
         assertTrue(manager.connectionState.value is ConnectionState.Connected)
 
-        // Let init commands finish (serial queue: delays of 100+200+300+400ms)
-        advanceTimeBy(1100)
+        // Let init commands finish (serial queue: delays of 100+200+300+400ms
+        // plus Commit 3 KingsongClassic 50ms spacing per pacing gap).
+        advanceTimeBy(1500)
         runCurrent()
 
         // Clear writes from init commands
@@ -210,6 +214,9 @@ class WheelConnectionManagerIntegrationTest {
             alarm3Speed = 4000,
             maxSpeed = 5000
         ))
+        runCurrent()
+        // Drain Commit 3 spacing on the response write itself.
+        advanceTimeBy(100)
         runCurrent()
 
         // Should have written a 0x98 response

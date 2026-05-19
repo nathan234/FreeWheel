@@ -6,11 +6,12 @@ package org.freewheel.core.service
  * MTU, warmup, heartbeat) travel together through service discovery and into
  * the write path.
  *
- * Commit 2 of the Kingsong BLE parity plan only introduces the type and pipes
- * it through the manager + platform layers. Every wheel still uses
- * [WheelTransportProfile.Default], whose semantics are deliberately
- * byte-equivalent to pre-Commit-2 behavior. Non-default profiles are introduced
- * in later commits (classic Kingsong pacing in Commit 3, KSE in Commit 4).
+ * Commit 2 of the Kingsong BLE parity plan introduces the type and pipes it
+ * through the manager + platform layers. Every wheel used
+ * [WheelTransportProfile.Default] up through Commit 2. Commit 3 lands
+ * [KingsongClassic], the first non-default profile, by wiring
+ * [org.freewheel.core.ble.WheelConnectionInfo.forKingsong] to it; every other
+ * factory still uses [Default]. KSE is deferred to Commit 4.
  *
  * @property writeType Which BLE write mode the [WriteCoordinator] should
  *   request when emitting a packet. Defaults to WITHOUT_RESPONSE — the only
@@ -18,7 +19,8 @@ package org.freewheel.core.service
  * @property requestMaxMtu Whether the platform layer should request the
  *   maximum negotiated MTU on connect. Defaults to true to match today's
  *   unconditional behavior. Wired through the manager in Commit 2; the
- *   first behaviorally meaningful non-default value lands with KSE.
+ *   first behaviorally meaningful non-default value lands with KSE in
+ *   Commit 4.
  * @property interWriteSpacingMs Minimum delay between consecutive writes the
  *   coordinator should enforce. 0 disables spacing. Default (0) matches the
  *   pre-Commit-2 fire-and-forget cadence.
@@ -26,11 +28,12 @@ package org.freewheel.core.service
  *   writes for this profile. Default is no retries — same as today.
  * @property keepAlivePolicy Whether keepalive comes from the decoder, the
  *   transport (a fixed frame), or is disabled. Default delegates to the
- *   decoder (current behavior for every wheel). Reserved field — Commit 2
- *   only stores it; Commit 3 will be the first commit that consumes it.
+ *   decoder (current behavior for every wheel). [KingsongClassic] uses
+ *   [TransportKeepAlivePolicy.FixedFrame] to replace the decoder-driven path
+ *   entirely.
  * @property postConnectWarmups Transport-driven traffic to emit shortly after
- *   the BLE-ready signal. Reserved field — Commit 2 only stores it; Commit 3
- *   wires the classic Kingsong `0x5E` warmup off this field.
+ *   the BLE-ready signal. [KingsongClassic] populates this with the one-shot
+ *   `0x5E` warmup; every other profile leaves it empty.
  */
 data class WheelTransportProfile(
     val writeType: BleWriteType = BleWriteType.WITHOUT_RESPONSE,
@@ -43,10 +46,75 @@ data class WheelTransportProfile(
     companion object {
         /**
          * Default transport profile — byte-equivalent to pre-Commit-2
-         * behavior. Every existing wheel still uses this; later commits
-         * introduce specialized profiles for classic Kingsong and KSE.
+         * behavior. Every non-Kingsong wheel still uses this; Commit 3 only
+         * promotes classic Kingsong onto [KingsongClassic].
          */
         val Default: WheelTransportProfile = WheelTransportProfile()
+
+        /**
+         * Transport profile for classic Kingsong wheels (KS-S16 / S18 /
+         * S20 / S22 family — every wheel that uses the `FFE0` service).
+         * KSE (KS-E1/E3 with `AD00` service) gets a distinct profile in
+         * Commit 4.
+         *
+         * Pinned values reflect what the official Kingsong DLC Android app
+         * does after notify-ready:
+         * - WITHOUT_RESPONSE writes (classic firmware does not require peer ack)
+         * - request max MTU on connect
+         * - 50ms inter-write spacing so closely-spaced settings writes
+         *   don't outrun the wheel's notification cadence
+         * - one retry with a 50ms backoff (mirrors the official app's
+         *   forgiving send loop)
+         * - replace the decoder keepalive with the transport-driven blank
+         *   heartbeat every 1000ms
+         * - one-shot `0x5E` warmup 2500ms after BLE-ready
+         *
+         * Provenance for the exact frame bytes lives on
+         * [postConnectWarmups] and the [TransportKeepAlivePolicy.FixedFrame]
+         * literal below.
+         */
+        val KingsongClassic: WheelTransportProfile = WheelTransportProfile(
+            writeType = BleWriteType.WITHOUT_RESPONSE,
+            requestMaxMtu = true,
+            interWriteSpacingMs = 50,
+            retryPolicy = RetryPolicy(maxRetries = 1, retryBackoffMs = 50),
+            keepAlivePolicy = TransportKeepAlivePolicy.FixedFrame(
+                intervalMs = 1000,
+                // Recurring blank Kingsong heartbeat sent every second once
+                // notifications are active. Provenance:
+                //   freewheel-data/euc-reference-apps/kingsong/jadx_out/
+                //   sources/com/kingsong/dlc/service/BleService.java:797
+                //   sources/p000/C6720gh.java:512
+                frame = byteArrayOf(
+                    0xAA.toByte(), 0x55.toByte(),
+                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                    0x00, 0x00, 0x00,
+                    0x14, 0x5A, 0x5A,
+                ),
+                annotation = "ks-heartbeat",
+            ),
+            postConnectWarmups = listOf(
+                PostConnectWarmup(
+                    delayMs = 2500,
+                    // One-shot 0x5E warmup posted 2.5s after notify success.
+                    // Byte 16 = 0x5E. Provenance:
+                    //   freewheel-data/euc-reference-apps/kingsong/jadx_out/
+                    //   sources/com/kingsong/dlc/service/BleService.java:347
+                    //   sources/com/kingsong/dlc/service/BleService.java:400
+                    //   sources/com/kingsong/dlc/service/BleService.java:404
+                    frame = byteArrayOf(
+                        0xAA.toByte(), 0x55.toByte(),
+                        0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                        0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                        0x00, 0x00,
+                        0x5E,
+                        0x14, 0x5A, 0x5A,
+                    ),
+                    annotation = "ks-0x5e-warmup",
+                ),
+            ),
+        )
     }
 }
 
@@ -58,7 +126,8 @@ data class WheelTransportProfile(
  *   not that the peer characteristic delivered them.
  * - [WITH_RESPONSE] — peer must ack the write. The platform layer suspends
  *   until the Commit-1 write-completion callback fires and surfaces it as
- *   [BleWriteResult.Completed]. No wheel opts in yet; the path exists so a
+ *   [BleWriteResult.Completed]. No wheel opts in yet (Commit 3 keeps Kingsong
+ *   on WITHOUT_RESPONSE to match the official app); the path exists so a
  *   future commit can request peer-acknowledged writes for specific commands
  *   without further platform changes.
  */
@@ -83,34 +152,47 @@ data class RetryPolicy(
 /**
  * Where keepalive traffic comes from for this transport profile.
  *
- * Commit 2 reserves the type; execution wiring stays in the decoder path
- * exactly as before. Commit 3 will be the first commit to act on the
- * non-[UseDecoder] variants.
+ * Commit 2 reserved the type; Commit 3 wires the WCM effect executor to act
+ * on [None] and [FixedFrame] (the classic Kingsong heartbeat is the first
+ * non-[UseDecoder] consumer).
  */
 sealed class TransportKeepAlivePolicy {
-    /** Keepalive is decoder-driven (every existing wheel). */
+    /** Keepalive is decoder-driven (every non-Kingsong wheel). */
     data object UseDecoder : TransportKeepAlivePolicy()
 
-    /** No keepalive should run for this transport. */
+    /**
+     * No keepalive should run for this transport. The decoder-driven path
+     * is suppressed by [WheelConnectionManager.setupDecoderTransition].
+     */
     data object None : TransportKeepAlivePolicy()
 
     /**
      * Transport-driven keepalive: emit [frame] every [intervalMs] starting
-     * once the BLE-ready signal fires.
+     * once the BLE-ready signal fires. When this policy is in effect, the
+     * decoder-driven keepalive is suppressed entirely so the two paths can
+     * never run in parallel.
+     *
+     * @property annotation Tag forwarded to BLE-capture tooling and
+     *   [BleWriteRequest.annotation] so transport-driven heartbeats can be
+     *   filtered apart from semantic command writes (e.g. `"ks-heartbeat"`).
      */
     data class FixedFrame(
         val intervalMs: Long,
         val frame: ByteArray,
+        val annotation: String = "",
     ) : TransportKeepAlivePolicy() {
         override fun equals(other: Any?): Boolean {
             if (this === other) return true
             if (other !is FixedFrame) return false
-            return intervalMs == other.intervalMs && frame.contentEquals(other.frame)
+            return intervalMs == other.intervalMs &&
+                frame.contentEquals(other.frame) &&
+                annotation == other.annotation
         }
 
         override fun hashCode(): Int {
             var result = intervalMs.hashCode()
             result = 31 * result + frame.contentHashCode()
+            result = 31 * result + annotation.hashCode()
             return result
         }
     }

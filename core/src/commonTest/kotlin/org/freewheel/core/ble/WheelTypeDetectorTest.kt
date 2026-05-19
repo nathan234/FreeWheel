@@ -883,6 +883,38 @@ class WheelTypeDetectorTest {
         assertEquals(WheelType.GOTWAY, WheelTypeDetector.deriveTypeFromName("MASTER-F22"))
     }
 
+    @Test
+    fun `deriveTypeFromName fails closed for KSE name patterns until Commit 4`() {
+        // Commit 3 stopgap: classic Kingsong now carries
+        // [WheelTransportProfile.KingsongClassic] (FFE0/FFE1 + 0x5E warmup +
+        // 1Hz blank heartbeat). KSE (KS-E1/KS-E3) exposes the AD00 service
+        // instead and needs its own transport profile (Commit 4). Until that
+        // lands, KSE name patterns must return null here so the manager
+        // surfaces Unknown and falls back to the wheel-type picker instead
+        // of mis-protocolling KSE hardware onto the classic transport.
+        assertNull(WheelTypeDetector.deriveTypeFromName("KS-E1"))
+        assertNull(WheelTypeDetector.deriveTypeFromName("KS-E1-something"))
+        assertNull(WheelTypeDetector.deriveTypeFromName("KS-E3"))
+        assertNull(WheelTypeDetector.deriveTypeFromName("KS-E3-something"))
+        assertNull(WheelTypeDetector.deriveTypeFromName("KSE"))
+        assertNull(WheelTypeDetector.deriveTypeFromName("KSE-1234"))
+        // Case-insensitive — `deriveTypeFromName` uppercases first.
+        assertNull(WheelTypeDetector.deriveTypeFromName("ks-e1-foo"))
+        assertNull(WheelTypeDetector.deriveTypeFromName("kse-foo"))
+    }
+
+    @Test
+    fun `deriveTypeFromName still resolves classic Kingsong S-series despite the KSE carve-out`() {
+        // Guard against an over-broad KSE filter: KS-S* / KS-F* / KS-14*
+        // classic-model names must still resolve to KINGSONG. The Commit 3
+        // stopgap targets only "KS-E1" / "KS-E3" / "KSE" prefixes.
+        assertEquals(WheelType.KINGSONG, WheelTypeDetector.deriveTypeFromName("KS-S18"))
+        assertEquals(WheelType.KINGSONG, WheelTypeDetector.deriveTypeFromName("KS-S22"))
+        assertEquals(WheelType.KINGSONG, WheelTypeDetector.deriveTypeFromName("KS-F22"))
+        assertEquals(WheelType.KINGSONG, WheelTypeDetector.deriveTypeFromName("KS-14S"))
+        assertEquals(WheelType.KINGSONG, WheelTypeDetector.deriveTypeFromName("Kingsong-S20"))
+    }
+
     // ==================== Pass 3a: topology-first precedence ====================
     //
     // Pass 3a inverts the legacy name-first detection: the topology

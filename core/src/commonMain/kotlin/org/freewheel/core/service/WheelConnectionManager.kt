@@ -136,6 +136,24 @@ class WheelConnectionManager(
      */
     private var staleDataDropCount: Long = 0L
 
+    /**
+     * Recurring transport-driven keepalive job (Kingsong classic blank
+     * heartbeat for Commit 3). Owned exclusively by the WCM effect executor;
+     * mutated only while running on [dispatcher] (single-threaded via the
+     * event-loop scan). Started by [WcmEffect.StartTransportMaintenance] and
+     * cancelled by [WcmEffect.StopTransportMaintenance] / [WcmEffect.StopTimers].
+     */
+    private var transportKeepAliveJob: Job? = null
+
+    /**
+     * One-shot transport warmup jobs (Kingsong classic `0x5E` warmup for
+     * Commit 3). Owned exclusively by the WCM effect executor; mutated only
+     * while running on [dispatcher]. Started by [WcmEffect.StartTransportMaintenance]
+     * (one job per [WheelTransportProfile.postConnectWarmups] entry) and
+     * cancelled by [WcmEffect.StopTransportMaintenance] / [WcmEffect.StopTimers].
+     */
+    private val transportWarmupJobs: MutableList<Job> = mutableListOf()
+
     // ==================== Derived public flows ====================
 
     // Uses scope + dispatcher so stateIn collectors run on the same dispatcher
@@ -855,12 +873,21 @@ class WheelConnectionManager(
         return when (result) {
             is WheelTypeDetector.DetectionResult.Detected -> {
                 Logger.d(TAG, "Detected: ${result.wheelType}, read=${result.readServiceUuid}/${result.readCharacteristicUuid}")
+                // Carry the wheel-family transport profile forward — topology
+                // detection only surfaces UUIDs, so without this lookup a
+                // freshly-detected Kingsong wheel would fall back to
+                // [WheelTransportProfile.Default] instead of
+                // [WheelTransportProfile.KingsongClassic] (Commit 3).
+                val transportProfile = WheelConnectionInfo.forType(result.wheelType)
+                    ?.transportProfile
+                    ?: WheelTransportProfile.Default
                 val info = WheelConnectionInfo(
                     wheelType = result.wheelType,
                     readServiceUuid = result.readServiceUuid,
                     readCharacteristicUuid = result.readCharacteristicUuid,
                     writeServiceUuid = result.writeServiceUuid,
-                    writeCharacteristicUuid = result.writeCharacteristicUuid
+                    writeCharacteristicUuid = result.writeCharacteristicUuid,
+                    transportProfile = transportProfile,
                 )
                 reconnectOrSetup(maybeStampNosfetBrand(newState, result.wheelType), result.wheelType, info)
             }
@@ -1264,16 +1291,25 @@ class WheelConnectionManager(
         //
         // Reset isBleReady — notifications must be re-confirmed by the
         // platform after the OS finishes its auto-reconnect, since the BLE
-        // link going down also drops the subscription. Later commits gate
-        // transport warmups on this flag flipping back to true.
+        // link going down also drops the subscription. The next BleReady
+        // re-emits StartTransportMaintenance.
+        //
+        // Commit 3: stop transport maintenance now, even though StopTimers is
+        // NOT emitted on this path. Transport maintenance is BLE-ready-scoped
+        // (heartbeats can't travel during the link gap and one-shot warmups
+        // already fired or won't fire until the next BleReady), so the jobs
+        // would otherwise leak into the BLE-down window.
         return WcmTransition(
             state.copy(connectionState = lostState, isBleReady = false),
-            listOf(WcmEffect.LogConnectionError(ConnectionErrorEvent.StateTransition(
-                timestampMs = now,
-                from = state.connectionState.statusText,
-                to = lostState.statusText,
-                reason = event.reason
-            )))
+            listOf(
+                WcmEffect.StopTransportMaintenance,
+                WcmEffect.LogConnectionError(ConnectionErrorEvent.StateTransition(
+                    timestampMs = now,
+                    from = state.connectionState.statusText,
+                    to = lostState.statusText,
+                    reason = event.reason
+                ))
+            )
         )
     }
 
@@ -1281,7 +1317,18 @@ class WheelConnectionManager(
         if (isStaleAttempt(state, event.attemptId, "BleReady")) return WcmTransition(state)
         if (state.isBleReady) return WcmTransition(state)
         Logger.d(TAG, "BLE ready (notifications active) for ${event.address}")
-        return WcmTransition(state.copy(isBleReady = true))
+        // Commit 3 of the Kingsong BLE parity plan: hand the freshly-ready
+        // transport profile to the executor so it can schedule warmups and
+        // (for FixedFrame profiles) the heartbeat loop. The effect runs
+        // exactly once per readiness transition — the idempotency check
+        // above ensures a duplicate BleReady cannot re-emit the effect, and
+        // the executor cancels any prior maintenance jobs defensively in
+        // case state ever races us.
+        val newState = state.copy(isBleReady = true)
+        return WcmTransition(
+            newState,
+            listOf(WcmEffect.StartTransportMaintenance(newState.activeTransportProfile)),
+        )
     }
 
     private fun reduceBleWriteAck(state: WcmState, event: WheelEvent.BleWriteAck): WcmTransition {
@@ -1356,12 +1403,24 @@ class WheelConnectionManager(
         )
 
         decoder?.getInitCommands()?.let { cmds ->
-            if (cmds.isNotEmpty()) effects.add(WcmEffect.DispatchCommands(cmds, transportProfile = profileForInit))
+            if (cmds.isNotEmpty()) {
+                effects.add(WcmEffect.DispatchCommands(cmds, transportProfile = profileForInit))
+            }
         }
 
-        val intervalMs = decoder?.keepAliveIntervalMs ?: 0L
-        if (intervalMs > 0) {
-            effects.add(WcmEffect.StartKeepAlive(intervalMs))
+        // Commit 3: only emit decoder-driven StartKeepAlive when the
+        // transport profile explicitly delegates keepalive to the decoder.
+        // [TransportKeepAlivePolicy.FixedFrame] replaces the decoder path
+        // entirely (Kingsong classic blank heartbeat fires from
+        // [WcmEffect.StartTransportMaintenance] instead) and
+        // [TransportKeepAlivePolicy.None] disables keepalive outright. Letting
+        // both paths run in parallel would double the heartbeat traffic on a
+        // FixedFrame profile.
+        if (profileForInit.keepAlivePolicy is TransportKeepAlivePolicy.UseDecoder) {
+            val intervalMs = decoder?.keepAliveIntervalMs ?: 0L
+            if (intervalMs > 0) {
+                effects.add(WcmEffect.StartKeepAlive(intervalMs))
+            }
         }
 
         return newState to effects
@@ -1468,6 +1527,18 @@ class WheelConnectionManager(
                     // we'd configure, so [lastWriteAt] is already stale by
                     // the time writes resume.
                     writeCoordinator.reset()
+                    // Commit 3: transport-driven warmups/heartbeats are
+                    // BLE-ready-scoped, not session-scoped, but a session
+                    // teardown still ends every BLE-ready window with it. The
+                    // dedicated [StopTransportMaintenance] effect handles the
+                    // resume case where StopTimers is intentionally skipped.
+                    cancelTransportMaintenance()
+                }
+                is WcmEffect.StartTransportMaintenance -> {
+                    startTransportMaintenance(effect.transportProfile)
+                }
+                is WcmEffect.StopTransportMaintenance -> {
+                    cancelTransportMaintenance()
                 }
                 is WcmEffect.CancelBleConnect -> {
                     // Only emitted when state is Connecting, so there should
@@ -1613,11 +1684,67 @@ class WheelConnectionManager(
         data: ByteArray,
         profile: WheelTransportProfile,
         delayMs: Long = 0,
+        annotation: String = "",
     ) {
         if (delayMs > 0) delay(delayMs)
-        captureCallback?.invoke(data, BlePacketDirection.TX, "")
-        writeCoordinator.write(profile, data) { request ->
+        captureCallback?.invoke(data, BlePacketDirection.TX, annotation)
+        writeCoordinator.write(profile, data, annotation = annotation) { request ->
             bleManager.write(request)
+        }
+    }
+
+    /**
+     * Cancel any in-flight transport-maintenance jobs (one-shot warmups +
+     * recurring keepalive). Mutates [transportKeepAliveJob] and
+     * [transportWarmupJobs]; both are owned exclusively by the WCM event
+     * loop, so it is safe to mutate without synchronization as long as this
+     * is only ever called from the executor.
+     */
+    private fun cancelTransportMaintenance() {
+        transportKeepAliveJob?.cancel()
+        transportKeepAliveJob = null
+        for (job in transportWarmupJobs) job.cancel()
+        transportWarmupJobs.clear()
+    }
+
+    /**
+     * Schedule [WheelTransportProfile.postConnectWarmups] and (when policy is
+     * [TransportKeepAlivePolicy.FixedFrame]) the recurring transport-driven
+     * heartbeat. Cancels any pre-existing maintenance jobs first so a
+     * spurious double [WcmEffect.StartTransportMaintenance] cannot stack
+     * timers. Each scheduled job writes through [sendBleData] with the
+     * frame-supplied annotation so capture tooling and
+     * [BleWriteRequest.annotation] can distinguish transport-generated
+     * traffic from semantic command writes.
+     */
+    private fun startTransportMaintenance(profile: WheelTransportProfile) {
+        cancelTransportMaintenance()
+
+        for (warmup in profile.postConnectWarmups) {
+            val job = scope.launch(dispatcher) {
+                if (warmup.delayMs > 0) delay(warmup.delayMs)
+                sendBleData(warmup.frame, profile, annotation = warmup.annotation)
+            }
+            transportWarmupJobs.add(job)
+        }
+
+        when (val policy = profile.keepAlivePolicy) {
+            is TransportKeepAlivePolicy.UseDecoder -> { /* decoder keepalive runs via StartKeepAlive */ }
+            is TransportKeepAlivePolicy.None -> { /* nothing to do */ }
+            is TransportKeepAlivePolicy.FixedFrame -> {
+                transportKeepAliveJob = scope.launch(dispatcher) {
+                    // Initial delay matches the interval so the first
+                    // heartbeat fires one interval after BLE-ready, not
+                    // immediately — this mirrors the official Kingsong app's
+                    // post-notify cadence.
+                    if (policy.intervalMs > 0) delay(policy.intervalMs)
+                    while (true) {
+                        sendBleData(policy.frame, profile, annotation = policy.annotation)
+                        if (policy.intervalMs <= 0) break
+                        delay(policy.intervalMs)
+                    }
+                }
+            }
         }
     }
 

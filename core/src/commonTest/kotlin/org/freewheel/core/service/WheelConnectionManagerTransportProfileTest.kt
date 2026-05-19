@@ -17,13 +17,14 @@ import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.seconds
 
 /**
- * Commit 2 of `KINGSONG_BLE_PARITY_PLAN.md`: proves that the
- * [WheelTransportProfile] plumbing through [WheelConnectionManager] and the
- * platform port is byte-equivalent to pre-Commit-2 behavior when every wheel
- * still uses [WheelTransportProfile.Default].
+ * Commit 2 / Commit 3 of `KINGSONG_BLE_PARITY_PLAN.md`: proves the
+ * [WheelTransportProfile] plumbing through [WheelConnectionManager] still
+ * routes default-profile wheels byte-equivalently to pre-Commit-2 behavior,
+ * and that Kingsong now carries [WheelTransportProfile.KingsongClassic] from
+ * the factory through every dispatch path. Kingsong-specific heartbeat /
+ * warmup execution is covered in `WheelConnectionManagerKingsongTransportTest`.
  *
- * Out of scope: any Kingsong-specific transport behavior (heartbeat, 0x5E,
- * KSE) — those land in later commits.
+ * Out of scope: KSE (Commit 4), command-execution UX (Commit 5).
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class WheelConnectionManagerTransportProfileTest {
@@ -48,21 +49,22 @@ class WheelConnectionManagerTransportProfileTest {
         )
     }
 
-    // ==================== Default profile equivalence ====================
+    // ==================== Profile assignment ====================
 
     @Test
-    fun `forKingsong() carries the default transport profile`() {
+    fun `forKingsong() carries the KingsongClassic transport profile`() {
+        // Commit 3: classic Kingsong is the first wheel to opt out of
+        // Default. KSE will get its own factory + profile in Commit 4.
         val info = WheelConnectionInfo.forKingsong()
-        assertEquals(WheelTransportProfile.Default, info.transportProfile)
+        assertEquals(WheelTransportProfile.KingsongClassic, info.transportProfile)
     }
 
     @Test
-    fun `every existing factory returns the default profile`() {
-        // Tightens the equivalence claim — no factory secretly opts a wheel
-        // into a non-default profile in Commit 2. Later commits introduce
-        // KingsongClassic / KingsongKse.
+    fun `every non-Kingsong factory still returns the default profile`() {
+        // Tightens the equivalence claim — Commit 3 only touches the
+        // classic Kingsong factory. Every other wheel must stay on Default
+        // so non-Kingsong behavior is byte-equivalent to pre-Commit-3.
         val infos = listOf(
-            WheelConnectionInfo.forKingsong(),
             WheelConnectionInfo.forGotway(),
             WheelConnectionInfo.forVeteran(),
             WheelConnectionInfo.forInMotion(),
@@ -75,16 +77,20 @@ class WheelConnectionManagerTransportProfileTest {
             assertEquals(
                 WheelTransportProfile.Default,
                 info.transportProfile,
-                "Wheel ${info.wheelType} should use the default transport profile in Commit 2",
+                "Wheel ${info.wheelType} should still use the default transport profile in Commit 3",
             )
         }
     }
 
     @Test
     fun `default profile dispatches WITHOUT_RESPONSE exactly once per command byte`() = runTest(timeout = 0.5.seconds) {
+        // Uses GOTWAY to keep the wheel on [WheelTransportProfile.Default]
+        // (Commit 3 promoted Kingsong onto KingsongClassic, which adds
+        // inter-write spacing and would not pass under runCurrent without
+        // explicit virtual-time advance).
         val manager = createManager()
         manager.connect("AA:BB:CC:DD:EE:FF")
-        manager.onWheelTypeDetected(WheelType.KINGSONG)
+        manager.onWheelTypeDetected(WheelType.GOTWAY)
         runCurrent()
 
         // Send a single SendBytes command and confirm the dispatch hits the
@@ -100,9 +106,11 @@ class WheelConnectionManagerTransportProfileTest {
 
     @Test
     fun `dispatch preserves byte order under the default profile`() = runTest(timeout = 0.5.seconds) {
+        // GOTWAY for the same reason as above — keeps the wheel on Default
+        // so no spacing delay sits between consecutive writes.
         val manager = createManager()
         manager.connect("AA:BB:CC:DD:EE:FF")
-        manager.onWheelTypeDetected(WheelType.KINGSONG)
+        manager.onWheelTypeDetected(WheelType.GOTWAY)
         runCurrent()
 
         // The decoder is wired to translate a command into three raw byte
@@ -125,9 +133,10 @@ class WheelConnectionManagerTransportProfileTest {
 
     @Test
     fun `configureForWheel receives the wheel connection info`() = runTest(timeout = 0.5.seconds) {
-        // Tightens the new plumbing path — Commit 2 expects the platform
-        // layer to receive the full info (UUIDs + transport profile) in one
-        // call rather than positional UUID args.
+        // Commit 3 carries [WheelTransportProfile.KingsongClassic] all the
+        // way into the platform-layer configureForWheel call so future
+        // transport-aware platform behavior (Commit 4 MTU divergence) can
+        // read the profile without a second plumbing pass.
         val manager = createManager()
         manager.connect("AA:BB:CC:DD:EE:FF")
         manager.onWheelTypeDetected(WheelType.KINGSONG)
@@ -136,7 +145,7 @@ class WheelConnectionManagerTransportProfileTest {
         val info = fakeBle.lastConfigureConnectionInfo
         assertNotNull(info, "configureForWheel must run after wheel-type detection")
         assertEquals(WheelType.KINGSONG, info.wheelType)
-        assertEquals(WheelTransportProfile.Default, info.transportProfile)
+        assertEquals(WheelTransportProfile.KingsongClassic, info.transportProfile)
     }
 
     @Test

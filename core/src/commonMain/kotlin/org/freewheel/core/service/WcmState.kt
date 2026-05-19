@@ -131,6 +131,42 @@ sealed class WcmEffect {
 
     data class StartKeepAlive(val intervalMs: Long) : WcmEffect()
 
+    /**
+     * Begin transport-driven post-connect traffic for [transportProfile].
+     *
+     * Commit 3 of the Kingsong BLE parity plan. Emitted by [reduceBleReady] once
+     * the platform notify callback has flipped [WcmState.isBleReady] to true.
+     * The executor schedules:
+     *
+     * - one job per [WheelTransportProfile.postConnectWarmups] entry (delayed
+     *   by [PostConnectWarmup.delayMs] from BLE-ready), and
+     * - if [WheelTransportProfile.keepAlivePolicy] is
+     *   [TransportKeepAlivePolicy.FixedFrame], a recurring job firing every
+     *   [TransportKeepAlivePolicy.FixedFrame.intervalMs] starting after the
+     *   initial interval.
+     *
+     * Both run on the WCM scope/dispatcher and call `sendBleData` directly,
+     * with the [PostConnectWarmup.annotation] /
+     * [TransportKeepAlivePolicy.FixedFrame.annotation] forwarded to BLE
+     * capture and [BleWriteRequest.annotation]. The executor cancels any
+     * pre-existing transport-maintenance jobs first, defensively, so
+     * re-entry (e.g. a spurious double BLE-ready) cannot stack timers.
+     */
+    data class StartTransportMaintenance(
+        val transportProfile: WheelTransportProfile,
+    ) : WcmEffect()
+
+    /**
+     * Cancel all transport-driven post-connect jobs without touching the
+     * decoder-driven keepalive or data-timeout watchdog. Emitted by
+     * [reduceBleDisconnected] (the BLE-ready scope ends with the link, not
+     * with the session — see [StopTimers]) and by [reduceConnect] on the
+     * resume path. The next [BleReady] re-emits
+     * [StartTransportMaintenance] so heartbeat/warmup replay after every
+     * reconnect.
+     */
+    data object StopTransportMaintenance : WcmEffect()
+
     data class StartDataTimeout(val address: String, val timeoutMs: Long) : WcmEffect()
 
     /**

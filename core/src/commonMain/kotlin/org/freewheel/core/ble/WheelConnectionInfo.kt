@@ -10,9 +10,10 @@ import org.freewheel.core.service.WheelTransportProfile
  * Also carries the wheel-family [transportProfile] — write mode, pacing, MTU,
  * warmup, and keepalive choices. Commit 2 of the Kingsong BLE parity plan
  * routes the profile through [WheelConnectionManager.configureForWheel] into
- * the platform layer; every existing wheel uses
+ * the platform layer. Commit 3 promotes classic Kingsong onto
+ * [WheelTransportProfile.KingsongClassic]; every other wheel still uses
  * [WheelTransportProfile.Default], which is byte-equivalent to pre-Commit-2
- * behavior. Non-default profiles are introduced in later commits.
+ * behavior.
  */
 data class WheelConnectionInfo(
     val wheelType: WheelType,
@@ -25,14 +26,19 @@ data class WheelConnectionInfo(
 ) {
     companion object {
         /**
-         * Create connection info for a Kingsong wheel.
+         * Create connection info for a classic Kingsong wheel (KS-S16 / S18 /
+         * S20 / S22 — every wheel that uses the `FFE0` service). Carries
+         * [WheelTransportProfile.KingsongClassic] so post-connect traffic
+         * follows the official app's pacing/warmup/heartbeat behavior. KSE
+         * (KS-E1/E3) gets a distinct factory + profile in Commit 4.
          */
         fun forKingsong(): WheelConnectionInfo = WheelConnectionInfo(
             wheelType = WheelType.KINGSONG,
             readServiceUuid = BleUuids.Kingsong.SERVICE,
             readCharacteristicUuid = BleUuids.Kingsong.READ_CHARACTERISTIC,
             writeServiceUuid = BleUuids.Kingsong.SERVICE,
-            writeCharacteristicUuid = BleUuids.Kingsong.WRITE_CHARACTERISTIC
+            writeCharacteristicUuid = BleUuids.Kingsong.WRITE_CHARACTERISTIC,
+            transportProfile = WheelTransportProfile.KingsongClassic,
         )
 
         /**

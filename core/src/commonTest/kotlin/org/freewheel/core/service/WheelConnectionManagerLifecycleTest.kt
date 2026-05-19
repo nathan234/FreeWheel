@@ -739,7 +739,7 @@ class WheelConnectionManagerLifecycleTest {
     }
 
     @Test
-    fun `multiple init commands sent in order`() = runTest(timeout = 0.1.seconds) {
+    fun `multiple init commands sent in order`() = runTest(timeout = 0.5.seconds) {
         val cmd1 = byteArrayOf(0x01)
         val cmd2 = byteArrayOf(0x02)
         val cmd3 = byteArrayOf(0x03)
@@ -752,6 +752,12 @@ class WheelConnectionManagerLifecycleTest {
         val manager = createManager()
         manager.connect("AA:BB:CC:DD:EE:FF")
         manager.onServicesDiscovered(kingsongServices, "KS-S18")
+        runCurrent()
+        // Commit 3: classic Kingsong uses
+        // [WheelTransportProfile.KingsongClassic] which paces writes 50ms
+        // apart. Three queued init writes need at least ~100ms of virtual
+        // time to all drain through the [WriteCoordinator].
+        advanceTimeBy(300)
         runCurrent()
 
         assertTrue(fakeBle.writtenData.size >= 3, "Should have written at least 3 commands")
@@ -981,7 +987,7 @@ class WheelConnectionManagerLifecycleTest {
     }
 
     @Test
-    fun `multiple response commands dispatched in order`() = runTest(timeout = 0.1.seconds) {
+    fun `multiple response commands dispatched in order`() = runTest(timeout = 0.5.seconds) {
         val resp1 = byteArrayOf(0x01)
         val resp2 = byteArrayOf(0x02)
         val manager = createManager()
@@ -999,6 +1005,11 @@ class WheelConnectionManagerLifecycleTest {
         ))
 
         manager.onDataReceived(byteArrayOf(0x01))
+        runCurrent()
+        // Commit 3 paces classic Kingsong writes 50ms apart; let the second
+        // response command drain through the WriteCoordinator before
+        // asserting on the cumulative write list.
+        advanceTimeBy(200)
         runCurrent()
 
         val respWrites = fakeBle.writtenData.filter {
