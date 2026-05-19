@@ -1,6 +1,10 @@
 package org.freewheel.core.charger
 
+import org.freewheel.core.ble.WheelConnectionInfo
+import org.freewheel.core.domain.identity.WheelType
 import org.freewheel.core.service.BleManagerPort
+import org.freewheel.core.service.BleWriteRequest
+import org.freewheel.core.service.BleWriteType
 import org.freewheel.core.service.ConnectionState
 import org.freewheel.core.utils.Logger
 import org.freewheel.core.utils.md5
@@ -264,10 +268,13 @@ class ChargerConnectionManager(
                 is CcmEffect.BleDisconnect -> bleManager.disconnect()
                 is CcmEffect.ConfigureBle -> {
                     bleManager.configureForWheel(
-                        HwChargerProtocol.SERVICE_UUID,
-                        HwChargerProtocol.CHARACTERISTIC_UUID,
-                        HwChargerProtocol.SERVICE_UUID,
-                        HwChargerProtocol.CHARACTERISTIC_UUID
+                        WheelConnectionInfo(
+                            wheelType = WheelType.Unknown,
+                            readServiceUuid = HwChargerProtocol.SERVICE_UUID,
+                            readCharacteristicUuid = HwChargerProtocol.CHARACTERISTIC_UUID,
+                            writeServiceUuid = HwChargerProtocol.SERVICE_UUID,
+                            writeCharacteristicUuid = HwChargerProtocol.CHARACTERISTIC_UUID,
+                        )
                     )
                 }
                 is CcmEffect.SendAuth -> launchWrite { sendAuth(effect.password) }
@@ -320,7 +327,11 @@ class ChargerConnectionManager(
         val chunks = HwChargerProtocol.chunkForMtu(data)
         for ((index, chunk) in chunks.withIndex()) {
             if (index > 0) delay(CHUNK_DELAY_MS)
-            bleManager.write(chunk)
+            // Charger writes match the pre-Commit-2 default: WITHOUT_RESPONSE,
+            // no spacing / retry. Submission result isn't inspected because
+            // the protocol relies on the device's notify channel for state,
+            // which mirrors today's behavior.
+            bleManager.write(BleWriteRequest(chunk, BleWriteType.WITHOUT_RESPONSE))
         }
     }
 

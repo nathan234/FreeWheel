@@ -72,7 +72,8 @@ class WheelConnectionManager(
     private val wheelTypeDetector: WheelTypeDetector = WheelTypeDetector(),
     private val keepAliveTimer: KeepAliveTimer = KeepAliveTimer(scope, dispatcher),
     private val dataTimeoutTracker: DataTimeoutTracker = DataTimeoutTracker(scope, dispatcher),
-    private val commandScheduler: CommandScheduler = CommandScheduler(scope, dispatcher)
+    private val commandScheduler: CommandScheduler = CommandScheduler(scope, dispatcher),
+    private val writeCoordinator: WriteCoordinator = WriteCoordinator(),
 ) : WheelConnectionManagerPort {
 
     // ==================== BLE Capture Hook ====================
@@ -1010,7 +1011,8 @@ class WheelConnectionManager(
         // writeCharacteristic and silently return false, dropping init forever.
         // Putting configEffects before decoderEffects guarantees the for-loop in
         // executeEffects has bound the characteristic before any init write fires.
-        val (decoderState, decoderEffects) = setupDecoderTransition(state, wheelType)
+        val profile = info?.transportProfile ?: state.activeTransportProfile
+        val (decoderState, decoderEffects) = setupDecoderTransition(state, wheelType, profile)
         val configEffects = if (info != null) {
             listOf(info.toConfigureBleEffect())
         } else {
@@ -1032,7 +1034,7 @@ class WheelConnectionManager(
             ?: return WcmTransition(state)
         val info = WheelConnectionInfo.forType(event.wheelType)
             ?: return WcmTransition(state)
-        val (decoderState, decoderEffects) = setupDecoderTransition(state, event.wheelType)
+        val (decoderState, decoderEffects) = setupDecoderTransition(state, event.wheelType, info.transportProfile)
         // Same Fix C ordering as reconnectOrSetup: ConfigureBle precedes init
         // dispatch so the write characteristic is bound before the
         // CommandScheduler consumer can pick up an init block.
@@ -1054,7 +1056,8 @@ class WheelConnectionManager(
 
     private fun reduceWheelTypeDetected(state: WcmState, event: WheelEvent.WheelTypeDetected): WcmTransition {
         val info = WheelConnectionInfo.forType(event.wheelType)
-        val (decoderState, decoderEffects) = setupDecoderTransition(state, event.wheelType)
+        val profile = info?.transportProfile ?: state.activeTransportProfile
+        val (decoderState, decoderEffects) = setupDecoderTransition(state, event.wheelType, profile)
         val newState = decoderState.copy(connectionInfo = info ?: state.connectionInfo)
         // Same ordering invariant as reconnectOrSetup (Fix C): ConfigureBle before
         // init dispatch so the characteristic is bound by the time write fires.
@@ -1173,7 +1176,10 @@ class WheelConnectionManager(
             add(noteEffect)
             add(captureEffect)
             if (decoded.commands.isNotEmpty()) {
-                add(WcmEffect.DispatchCommands(decoded.commands))
+                add(WcmEffect.DispatchCommands(
+                    decoded.commands,
+                    transportProfile = state.activeTransportProfile,
+                ))
             }
             if (validation != null) {
                 for (v in validation.violations) {
@@ -1289,7 +1295,10 @@ class WheelConnectionManager(
     private fun reduceKeepAliveTick(state: WcmState): WcmTransition {
         val command = state.decoder?.getKeepAliveCommand()
             ?: return WcmTransition(state)
-        return WcmTransition(state, listOf(WcmEffect.DispatchCommands(listOf(command))))
+        return WcmTransition(state, listOf(WcmEffect.DispatchCommands(
+            listOf(command),
+            transportProfile = state.activeTransportProfile,
+        )))
     }
 
     private fun reduceDataTimeout(state: WcmState, event: WheelEvent.DataTimeout): WcmTransition {
@@ -1310,7 +1319,8 @@ class WheelConnectionManager(
             WcmEffect.DispatchCommands(
                 listOf(event.command),
                 decoder = state.decoder,
-                decoderState = state.decoderState
+                decoderState = state.decoderState,
+                transportProfile = state.activeTransportProfile,
             )
         ))
     }
@@ -1324,8 +1334,18 @@ class WheelConnectionManager(
     /**
      * Compute new state + effects for setting up a decoder.
      * Shared by connect, services discovered, and wheel type detected reducers.
+     *
+     * [profileForInit] is the transport profile to bake into the init
+     * [WcmEffect.DispatchCommands]. Callers pass the freshly-detected
+     * connection info's profile so init writes use the wheel-family policy
+     * even though [WcmState.connectionInfo] hasn't been written yet at this
+     * point in the reducer.
      */
-    private fun setupDecoderTransition(state: WcmState, wheelType: WheelType): Pair<WcmState, List<WcmEffect>> {
+    private fun setupDecoderTransition(
+        state: WcmState,
+        wheelType: WheelType,
+        profileForInit: WheelTransportProfile = state.activeTransportProfile,
+    ): Pair<WcmState, List<WcmEffect>> {
         val effects = mutableListOf<WcmEffect>()
         state.decoder?.let { effects.add(WcmEffect.ResetDecoder(it)) }
 
@@ -1336,7 +1356,7 @@ class WheelConnectionManager(
         )
 
         decoder?.getInitCommands()?.let { cmds ->
-            if (cmds.isNotEmpty()) effects.add(WcmEffect.DispatchCommands(cmds))
+            if (cmds.isNotEmpty()) effects.add(WcmEffect.DispatchCommands(cmds, transportProfile = profileForInit))
         }
 
         val intervalMs = decoder?.keepAliveIntervalMs ?: 0L
@@ -1347,12 +1367,7 @@ class WheelConnectionManager(
         return newState to effects
     }
 
-    private fun WheelConnectionInfo.toConfigureBleEffect() = WcmEffect.ConfigureBle(
-        readServiceUuid = readServiceUuid,
-        readCharUuid = readCharacteristicUuid,
-        writeServiceUuid = writeServiceUuid,
-        writeCharUuid = writeCharacteristicUuid
-    )
+    private fun WheelConnectionInfo.toConfigureBleEffect() = WcmEffect.ConfigureBle(this)
 
     /**
      * Transition to Failed state with full cleanup.
@@ -1416,9 +1431,10 @@ class WheelConnectionManager(
                 is WcmEffect.DispatchCommands -> {
                     val decoder = effect.decoder
                     val decoderState = effect.decoderState
+                    val profile = effect.transportProfile
                     commandScheduler.scheduleSequence {
                         effect.commands.forEach { cmd ->
-                            dispatchCommand(cmd, decoder, decoderState)
+                            dispatchCommand(cmd, decoder, decoderState, profile)
                         }
                     }
                 }
@@ -1441,6 +1457,17 @@ class WheelConnectionManager(
                 is WcmEffect.StopTimers -> {
                     keepAliveTimer.stop()
                     dataTimeoutTracker.stop()
+                    // Reset the transport-policy timing state alongside the
+                    // session timers — both belong to the now-torn-down
+                    // session. Without this, a non-default
+                    // [WheelTransportProfile.interWriteSpacingMs] (Commit 3+)
+                    // would let the first write of the next session inherit
+                    // the prior session's cadence. The resume path
+                    // deliberately skips StopTimers, and that's fine: the
+                    // OS-level reconnect gap is far longer than any spacing
+                    // we'd configure, so [lastWriteAt] is already stale by
+                    // the time writes resume.
+                    writeCoordinator.reset()
                 }
                 is WcmEffect.CancelBleConnect -> {
                     // Only emitted when state is Connecting, so there should
@@ -1465,10 +1492,7 @@ class WheelConnectionManager(
                     effect.decoder.reset()
                 }
                 is WcmEffect.ConfigureBle -> {
-                    val ok = bleManager.configureForWheel(
-                        effect.readServiceUuid, effect.readCharUuid,
-                        effect.writeServiceUuid, effect.writeCharUuid
-                    )
+                    val ok = bleManager.configureForWheel(effect.connectionInfo)
                     if (!ok) {
                         // Fail-fast (Fix D): the BLE layer couldn't bind the read
                         // characteristic, so notifications will never fire. Surface
@@ -1555,22 +1579,29 @@ class WheelConnectionManager(
     /**
      * Dispatch a command to the BLE layer.
      *
-     * The [decoder] and [state] are captured by the reducer at effect creation
-     * time, so buildCommand() uses an immutable state snapshot from when the
-     * command was dispatched — not whatever mutable decoder state exists at
-     * execution time. This eliminates the need for locks in decoders whose
-     * buildCommand() only reads from [state].
+     * The [decoder], [state], and [profile] are captured by the reducer at
+     * effect creation time, so buildCommand() and the transport choice both
+     * see an immutable snapshot from dispatch time — not whatever mutable
+     * decoder state or live connection info exists at execution time. This
+     * eliminates the need for locks in decoders whose buildCommand() only
+     * reads from [state], and prevents a mid-flight profile swap from
+     * splitting one command sequence across two transport policies.
      */
-    private suspend fun dispatchCommand(command: WheelCommand, decoder: WheelDecoder?, state: DecoderState?) {
+    private suspend fun dispatchCommand(
+        command: WheelCommand,
+        decoder: WheelDecoder?,
+        state: DecoderState?,
+        profile: WheelTransportProfile,
+    ) {
         when (command) {
-            is WheelCommand.SendBytes -> sendBleData(command.data)
-            is WheelCommand.SendDelayed -> sendBleData(command.data, command.delayMs)
+            is WheelCommand.SendBytes -> sendBleData(command.data, profile)
+            is WheelCommand.SendDelayed -> sendBleData(command.data, profile, command.delayMs)
             else -> {
                 val rawCommands = decoder?.buildCommand(command, state) ?: return
                 for (cmd in rawCommands) {
                     when (cmd) {
-                        is WheelCommand.SendBytes -> sendBleData(cmd.data)
-                        is WheelCommand.SendDelayed -> sendBleData(cmd.data, cmd.delayMs)
+                        is WheelCommand.SendBytes -> sendBleData(cmd.data, profile)
+                        is WheelCommand.SendDelayed -> sendBleData(cmd.data, profile, cmd.delayMs)
                         else -> {} // prevent recursion
                     }
                 }
@@ -1578,10 +1609,16 @@ class WheelConnectionManager(
         }
     }
 
-    private suspend fun sendBleData(data: ByteArray, delayMs: Long = 0) {
+    private suspend fun sendBleData(
+        data: ByteArray,
+        profile: WheelTransportProfile,
+        delayMs: Long = 0,
+    ) {
         if (delayMs > 0) delay(delayMs)
         captureCallback?.invoke(data, BlePacketDirection.TX, "")
-        bleManager.write(data)
+        writeCoordinator.write(profile, data) { request ->
+            bleManager.write(request)
+        }
     }
 
     companion object {
@@ -1607,7 +1644,7 @@ expect class BleManager : BleManagerPort {
 
     override suspend fun connect(address: String, attemptId: Long): Boolean
     override suspend fun disconnect()
-    override suspend fun write(data: ByteArray): Boolean
+    override suspend fun write(request: BleWriteRequest): BleWriteResult
     override suspend fun startScan(onDeviceFound: (BleDevice) -> Unit)
     override suspend fun stopScan()
 }

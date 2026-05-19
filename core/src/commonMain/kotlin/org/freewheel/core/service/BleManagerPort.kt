@@ -1,6 +1,7 @@
 package org.freewheel.core.service
 
 import org.freewheel.core.ble.BleAdvertisement
+import org.freewheel.core.ble.WheelConnectionInfo
 import kotlinx.coroutines.flow.StateFlow
 
 /**
@@ -37,10 +38,24 @@ interface BleManagerPort {
     suspend fun disconnect()
 
     /**
-     * Write data to the connected device.
-     * @return true if the write was successful
+     * Write a single packet to the connected device using the BLE write mode
+     * carried by [request].
+     *
+     * Commit 2 of the Kingsong BLE parity plan: the bare-boolean contract is
+     * replaced with the typed request/result pair so [WriteCoordinator] (and
+     * future per-command UX) can distinguish OS-accepted submissions from
+     * peer-acknowledged completions and surface failure reasons without
+     * platform-specific log scraping.
+     *
+     * For [BleWriteType.WITHOUT_RESPONSE] (today's behavior) the result is
+     * [BleWriteResult.Submitted] on successful OS submission, or
+     * [BleWriteResult.Failed] otherwise. For [BleWriteType.WITH_RESPONSE] the
+     * call suspends until the platform delivers a write-completion callback
+     * and returns [BleWriteResult.Completed] / [BleWriteResult.Failed]
+     * accordingly. No wheel issues WITH_RESPONSE writes in Commit 2; the path
+     * exists so a later commit can opt in without further platform changes.
      */
-    suspend fun write(data: ByteArray): Boolean
+    suspend fun write(request: BleWriteRequest): BleWriteResult
 
     /**
      * Start scanning for BLE devices.
@@ -53,21 +68,23 @@ interface BleManagerPort {
     suspend fun stopScan()
 
     /**
-     * Configure which BLE service/characteristic UUIDs to use for read and write.
-     * Called after wheel type detection to set up the correct characteristics
-     * and enable notifications.
+     * Configure characteristics and transport policy for the detected wheel.
+     *
+     * Called after wheel type detection to bind the read/write characteristics
+     * (enabling notifications on the read side) and to surface the wheel-family
+     * [WheelConnectionInfo.transportProfile] to the platform layer. The whole
+     * [WheelConnectionInfo] is passed so a future commit can act on
+     * [WheelTransportProfile.requestMaxMtu] (or other profile fields) without a
+     * second plumbing pass. In Commit 2 every profile is
+     * [WheelTransportProfile.Default], so the platform layer keeps its current
+     * unconditional MTU behavior to preserve byte-equivalence.
      *
      * @return true if the read characteristic was bound (notifications enabled).
      *         false if the underlying service or characteristic was missing —
      *         the caller should treat the connection as Failed rather than wait
      *         indefinitely for data that will never arrive.
      */
-    fun configureForWheel(
-        readServiceUuid: String,
-        readCharUuid: String,
-        writeServiceUuid: String,
-        writeCharUuid: String
-    ): Boolean = true
+    fun configureForWheel(connectionInfo: WheelConnectionInfo): Boolean = true
 
     /**
      * Start scanning for BLE devices advertising a specific service UUID.

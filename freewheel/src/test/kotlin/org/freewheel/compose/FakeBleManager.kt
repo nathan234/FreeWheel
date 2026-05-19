@@ -5,6 +5,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import org.freewheel.core.service.BleDevice
 import org.freewheel.core.service.BleManagerPort
+import org.freewheel.core.service.BleWriteRequest
+import org.freewheel.core.service.BleWriteResult
+import org.freewheel.core.service.BleWriteType
+import org.freewheel.core.service.BleWriteAck
 import org.freewheel.core.service.BluetoothAdapterState
 import org.freewheel.core.service.ConnectionState
 
@@ -45,7 +49,17 @@ class FakeBleManager : BleManagerPort {
         _connectionState.value = ConnectionState.Disconnected
     }
 
-    override suspend fun write(data: ByteArray): Boolean = true
+    override suspend fun write(request: BleWriteRequest): BleWriteResult = when (request.writeType) {
+        BleWriteType.WITHOUT_RESPONSE -> BleWriteResult.Submitted(latencyMs = 0)
+        BleWriteType.WITH_RESPONSE -> BleWriteResult.Completed(
+            ack = BleWriteAck(
+                attemptId = lastConnectAttemptId,
+                success = true,
+                data = request.data.copyOf(),
+            ),
+            latencyMs = 0,
+        )
+    }
 
     override suspend fun startScan(onDeviceFound: (BleDevice) -> Unit) {
         startScanCallCount++

@@ -1,10 +1,18 @@
 package org.freewheel.core.ble
 
 import org.freewheel.core.domain.identity.WheelType
+import org.freewheel.core.service.WheelTransportProfile
 
 /**
  * Contains the BLE service and characteristic UUIDs needed to communicate with a wheel.
  * This information is determined during service discovery and wheel type detection.
+ *
+ * Also carries the wheel-family [transportProfile] — write mode, pacing, MTU,
+ * warmup, and keepalive choices. Commit 2 of the Kingsong BLE parity plan
+ * routes the profile through [WheelConnectionManager.configureForWheel] into
+ * the platform layer; every existing wheel uses
+ * [WheelTransportProfile.Default], which is byte-equivalent to pre-Commit-2
+ * behavior. Non-default profiles are introduced in later commits.
  */
 data class WheelConnectionInfo(
     val wheelType: WheelType,
@@ -12,7 +20,8 @@ data class WheelConnectionInfo(
     val readCharacteristicUuid: String,
     val writeServiceUuid: String,
     val writeCharacteristicUuid: String,
-    val descriptorUuid: String = BleUuids.CLIENT_CHARACTERISTIC_CONFIG
+    val descriptorUuid: String = BleUuids.CLIENT_CHARACTERISTIC_CONFIG,
+    val transportProfile: WheelTransportProfile = WheelTransportProfile.Default,
 ) {
     companion object {
         /**

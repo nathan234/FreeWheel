@@ -88,6 +88,18 @@ data class WcmState(
     /** Lightweight decoder input — avoids full state composition per frame. */
     val decoderState: DecoderState
         get() = DecoderState(telemetry ?: TelemetryState(), identity, bms, settings)
+
+    /**
+     * Wheel-family transport profile currently in effect.
+     *
+     * Sourced from [connectionInfo] when one is bound (post service
+     * discovery); falls back to [WheelTransportProfile.Default] before then.
+     * The reducer captures this into [WcmEffect.DispatchCommands] so each
+     * dispatched sequence runs against a stable transport policy, even if
+     * the connection info changes mid-sequence.
+     */
+    val activeTransportProfile: WheelTransportProfile
+        get() = connectionInfo?.transportProfile ?: WheelTransportProfile.Default
 }
 
 /**
@@ -106,6 +118,15 @@ sealed class WcmEffect {
         val commands: List<WheelCommand>,
         val decoder: WheelDecoder? = null,
         val decoderState: DecoderState? = null,
+        /**
+         * Snapshot of the wheel-family transport profile in effect when this
+         * effect was reduced. Captured here (alongside the decoder snapshot)
+         * so the dispatch coroutine works against a stable choice even if the
+         * connection info changes before execution. Defaults to
+         * [WheelTransportProfile.Default] — used by tests and by reducers that
+         * dispatch before service discovery has bound a connection info.
+         */
+        val transportProfile: WheelTransportProfile = WheelTransportProfile.Default,
     ) : WcmEffect()
 
     data class StartKeepAlive(val intervalMs: Long) : WcmEffect()
@@ -173,11 +194,16 @@ sealed class WcmEffect {
 
     data class ResetDecoder(val decoder: WheelDecoder) : WcmEffect()
 
+    /**
+     * Carries the whole [WheelConnectionInfo] (UUIDs + transport profile) into
+     * the platform layer. Commit 2 of the Kingsong BLE parity plan: the
+     * platform layer can now react to transport-profile fields (e.g.
+     * [WheelTransportProfile.requestMaxMtu]) without a second plumbing pass.
+     * In Commit 2 every profile is still [WheelTransportProfile.Default], so
+     * the platform layer keeps its current unconditional behavior.
+     */
     data class ConfigureBle(
-        val readServiceUuid: String,
-        val readCharUuid: String,
-        val writeServiceUuid: String,
-        val writeCharUuid: String,
+        val connectionInfo: WheelConnectionInfo,
     ) : WcmEffect()
 
     data class LogConnectionError(val event: ConnectionErrorEvent) : WcmEffect()

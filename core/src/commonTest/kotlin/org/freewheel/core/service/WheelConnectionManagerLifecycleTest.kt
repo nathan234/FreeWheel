@@ -207,7 +207,8 @@ class WheelConnectionManagerLifecycleTest {
             override suspend fun connect(address: String, attemptId: Long): Boolean =
                 throw IllegalStateException("BLE not initialized")
             override suspend fun disconnect() {}
-            override suspend fun write(data: ByteArray) = false
+            override suspend fun write(request: BleWriteRequest): BleWriteResult =
+                BleWriteResult.Failed("not connected", latencyMs = 0)
             override suspend fun startScan(onDeviceFound: (BleDevice) -> Unit) {}
             override suspend fun stopScan() {}
         }

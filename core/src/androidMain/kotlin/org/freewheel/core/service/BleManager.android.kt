@@ -23,6 +23,8 @@ import com.welie.blessed.BluetoothPeripheralCallback
 import com.welie.blessed.GattStatus
 import com.welie.blessed.HciStatus
 import com.welie.blessed.WriteType
+import org.freewheel.core.ble.WheelConnectionInfo
+import org.freewheel.core.utils.currentTimeMillis
 import android.bluetooth.le.ScanResult
 import com.welie.blessed.ConnectionState as BlessedConnectionState
 import kotlinx.coroutines.CancellableContinuation
@@ -221,9 +223,37 @@ actual class BleManager : BleManagerPort {
             }
         }
         resumeContinuation(false)
+        failPendingWriteWithResponse("Session torn down")
         writeCharacteristic = null
         readCharacteristic = null
         session = BleSessionState.Idle
+    }
+
+    /**
+     * Resume any [BleWriteType.WITH_RESPONSE] write awaiting completion with
+     * a synthetic failure ack, so the suspended caller can return and the
+     * [writeRespMutex] releases. Without this, a disconnect mid-write
+     * permanently parks the coroutine *and* leaves the mutex held — every
+     * subsequent WITH_RESPONSE write deadlocks. Called from every session
+     * teardown path on this manager. Cheap on the happy path (the slot is
+     * usually null).
+     *
+     * The synthetic ack carries the original [BleWriteRequest.data] so any
+     * observer of [setBleWriteAckCallback] can correlate a disconnect-mid-
+     * write failure with the bytes that were submitted — honoring the
+     * payload-correlation guarantee in [BleWriteContract].
+     */
+    private fun failPendingWriteWithResponse(reason: String) {
+        val pending = pendingWriteWithResponse ?: return
+        pendingWriteWithResponse = null
+        pending.continuation.resume(
+            BleWriteAck(
+                attemptId = session.attemptId,
+                success = false,
+                data = pending.requestData,
+                error = reason,
+            )
+        ) {}
     }
 
     private fun transitionToIdle() {
@@ -303,6 +333,7 @@ actual class BleManager : BleManagerPort {
             }
 
             val issue = hciStatusToIssue(status)
+            failPendingWriteWithResponse(issue.message)
             session = BleSessionState.Idle
             writeCharacteristic = null
             readCharacteristic = null
@@ -344,6 +375,14 @@ actual class BleManager : BleManagerPort {
             // THIS session. Now safe to call because we've proven the callback
             // belongs to the current session.
             resumeContinuation(false)
+            // OS-level link dropped — any WITH_RESPONSE write parked on this
+            // session will never see its completion callback. Resume with a
+            // synthetic failure ack so the suspended caller returns and the
+            // [writeRespMutex] releases. We do this even on the active-OS-
+            // auto-reconnect branch below: a parked write straddling the gap
+            // would have an unbounded latency, which violates the Commit-2
+            // typed-write contract.
+            failPendingWriteWithResponse(hciStatusToIssue(status).message)
 
             writeCharacteristic = null
             readCharacteristic = null
@@ -542,15 +581,24 @@ actual class BleManager : BleManagerPort {
             val target = writeCharacteristic ?: return
             if (characteristic != target) return
 
-            val callback = onBleWriteAckCallback ?: return
-            callback(
-                BleWriteAck(
-                    attemptId = s.attemptId,
-                    success = status == GattStatus.SUCCESS,
-                    data = value,
-                    error = if (status == GattStatus.SUCCESS) null else status.name,
-                )
+            val ack = BleWriteAck(
+                attemptId = s.attemptId,
+                success = status == GattStatus.SUCCESS,
+                data = value,
+                error = if (status == GattStatus.SUCCESS) null else status.name,
             )
+
+            // Resume any pending WITH_RESPONSE write awaiting completion.
+            // Independent from the observation callback below — Commit 2 of the
+            // Kingsong BLE parity plan keeps the ack callback firing for every
+            // completion (so tests and future UX layers see them all) while
+            // routing only the suspending typed-write API through this slot.
+            pendingWriteWithResponse?.let { pending ->
+                pendingWriteWithResponse = null
+                pending.continuation.resume(ack) {}
+            }
+
+            onBleWriteAckCallback?.invoke(ack)
         }
 
         override fun onNotificationStateUpdate(
@@ -716,19 +764,77 @@ actual class BleManager : BleManagerPort {
 
     // ==================== Write ====================
 
-    actual override suspend fun write(data: ByteArray): Boolean {
-        val peripheral = session.peripheral ?: return false
-        val characteristic = writeCharacteristic ?: return false
+    /**
+     * Pending [BleWriteType.WITH_RESPONSE] write awaiting the
+     * `onCharacteristicWrite` completion. Scoped strictly to the typed
+     * write API — the [setBleWriteAckCallback] observation path still fires
+     * for every completion, but only this slot drives the suspending
+     * [BleWriteResult.Completed] return. Guarded by [writeRespMutex] so two
+     * concurrent WITH_RESPONSE writes can't share the slot. Commit 2 of the
+     * Kingsong BLE parity plan — no wheel uses WITH_RESPONSE yet; this exists
+     * so a later commit can opt in without revisiting the platform layer.
+     *
+     * Stores [requestData] alongside the continuation so the synthetic
+     * failure ack emitted on a disconnect-mid-write can surface the bytes
+     * the caller submitted. The real completion path still uses
+     * platform-delivered `value` from `onCharacteristicWrite`, which is also
+     * the bytes that went out on the wire — these match for happy-path acks.
+     */
+    private class PendingWriteWithResponse(
+        val requestData: ByteArray,
+        val continuation: CancellableContinuation<BleWriteAck>,
+    )
+
+    private var pendingWriteWithResponse: PendingWriteWithResponse? = null
+    private val writeRespMutex = kotlinx.coroutines.sync.Mutex()
+
+    actual override suspend fun write(request: BleWriteRequest): BleWriteResult {
+        val startMs = currentTimeMillis()
+        val peripheral = session.peripheral
+            ?: return BleWriteResult.Failed("Not connected", currentTimeMillis() - startMs)
+        val characteristic = writeCharacteristic
+            ?: return BleWriteResult.Failed("Write characteristic not bound", currentTimeMillis() - startMs)
 
         if (peripheral.state != BlessedConnectionState.CONNECTED) {
-            return false
+            return BleWriteResult.Failed("Peripheral not connected", currentTimeMillis() - startMs)
         }
 
-        return peripheral.writeCharacteristic(
-            characteristic,
-            data,
-            WriteType.WITHOUT_RESPONSE
-        )
+        val writeType = when (request.writeType) {
+            BleWriteType.WITHOUT_RESPONSE -> WriteType.WITHOUT_RESPONSE
+            BleWriteType.WITH_RESPONSE -> WriteType.WITH_RESPONSE
+        }
+
+        return when (request.writeType) {
+            BleWriteType.WITHOUT_RESPONSE -> {
+                val ok = peripheral.writeCharacteristic(characteristic, request.data, writeType)
+                if (ok) {
+                    BleWriteResult.Submitted(currentTimeMillis() - startMs)
+                } else {
+                    BleWriteResult.Failed("Blessed rejected write submission", currentTimeMillis() - startMs)
+                }
+            }
+            BleWriteType.WITH_RESPONSE -> {
+                writeRespMutex.lock()
+                try {
+                    val ack = suspendCancellableCoroutine<BleWriteAck> { cont ->
+                        pendingWriteWithResponse = PendingWriteWithResponse(request.data, cont)
+                        cont.invokeOnCancellation { pendingWriteWithResponse = null }
+                        val ok = peripheral.writeCharacteristic(characteristic, request.data, writeType)
+                        if (!ok) {
+                            pendingWriteWithResponse = null
+                            cont.resumeWith(Result.failure(IllegalStateException("Blessed rejected write submission")))
+                        }
+                    }
+                    val latency = currentTimeMillis() - startMs
+                    if (ack.success) BleWriteResult.Completed(ack, latency)
+                    else BleWriteResult.Failed(ack.error ?: "Write failed", latency)
+                } catch (e: IllegalStateException) {
+                    BleWriteResult.Failed(e.message ?: "Write submission failed", currentTimeMillis() - startMs)
+                } finally {
+                    writeRespMutex.unlock()
+                }
+            }
+        }
     }
 
     /**
@@ -789,17 +895,28 @@ actual class BleManager : BleManagerPort {
      * Returns true if the read characteristic was bound (notifications enabled).
      * Returns false when the read service or characteristic is missing — the
      * caller surfaces this as a connection failure. Write is best-effort.
+     *
+     * Commit 2 of the Kingsong BLE parity plan: the [WheelConnectionInfo]
+     * carries the wheel-family transport profile alongside the UUIDs. The
+     * profile field is stored so a later commit can act on
+     * [WheelTransportProfile.requestMaxMtu] etc., but Commit 2 keeps the
+     * existing unconditional MTU request behavior intact because every wheel
+     * still uses [WheelTransportProfile.Default].
      */
-    override fun configureForWheel(
-        readServiceUuid: String,
-        readCharUuid: String,
-        writeServiceUuid: String,
-        writeCharUuid: String
-    ): Boolean {
-        val readOk = setReadCharacteristic(readServiceUuid, readCharUuid)
-        setWriteCharacteristic(writeServiceUuid, writeCharUuid)
+    override fun configureForWheel(connectionInfo: WheelConnectionInfo): Boolean {
+        activeTransportProfile = connectionInfo.transportProfile
+        val readOk = setReadCharacteristic(connectionInfo.readServiceUuid, connectionInfo.readCharacteristicUuid)
+        setWriteCharacteristic(connectionInfo.writeServiceUuid, connectionInfo.writeCharacteristicUuid)
         return readOk
     }
+
+    /**
+     * Wheel-family transport profile bound by the last successful
+     * [configureForWheel]. Defaults to [WheelTransportProfile.Default] so
+     * pre-discovery callers see today's behavior. Used by Commit 2 internals
+     * (and reserved for Commit 3's MTU/warmup work).
+     */
+    private var activeTransportProfile: WheelTransportProfile = WheelTransportProfile.Default
 
     // ==================== Lifecycle ====================
 
@@ -811,6 +928,7 @@ actual class BleManager : BleManagerPort {
             is BleSessionState.Connected -> central?.cancelConnection(s.peripheral)
             is BleSessionState.AwaitingReconnect -> central?.cancelConnection(s.peripheral)
         }
+        failPendingWriteWithResponse("Manager destroyed")
         session = BleSessionState.Idle
         writeCharacteristic = null
         readCharacteristic = null

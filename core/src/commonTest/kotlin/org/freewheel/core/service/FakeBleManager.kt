@@ -1,6 +1,7 @@
 package org.freewheel.core.service
 
 import org.freewheel.core.ble.BleAdvertisement
+import org.freewheel.core.ble.WheelConnectionInfo
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -90,15 +91,42 @@ class FakeBleManager : BleManagerPort {
     var writesDroppedBeforeConfigure: Int = 0
         private set
 
-    override suspend fun write(data: ByteArray): Boolean {
-        if (!isConnected) return false
+    /** All [BleWriteRequest]s seen by [write] — preserves [BleWriteType] for assertions. */
+    val writeRequests = mutableListOf<BleWriteRequest>()
+
+    /**
+     * Optional override hook. Tests opt in to control the [BleWriteResult]
+     * returned by each call (e.g., to inject [BleWriteResult.Failed] for
+     * retry assertions). When null, the fake returns
+     * [BleWriteResult.Submitted] for WITHOUT_RESPONSE and
+     * [BleWriteResult.Completed] for WITH_RESPONSE — matching today's
+     * happy-path behavior.
+     */
+    var writeBehavior: ((BleWriteRequest) -> BleWriteResult)? = null
+
+    override suspend fun write(request: BleWriteRequest): BleWriteResult {
+        writeRequests.add(request)
+        if (!isConnected) {
+            return BleWriteResult.Failed("Not connected", latencyMs = 0)
+        }
         if (requireConfigureBeforeWrite &&
             (lastConfigureForWheel == null || !configureForWheelResult)) {
             writesDroppedBeforeConfigure += 1
-            return false
+            return BleWriteResult.Failed("Not configured", latencyMs = 0)
         }
-        writtenData.add(data.copyOf())
-        return true
+        writtenData.add(request.data.copyOf())
+        writeBehavior?.let { return it(request) }
+        return when (request.writeType) {
+            BleWriteType.WITHOUT_RESPONSE -> BleWriteResult.Submitted(latencyMs = 0)
+            BleWriteType.WITH_RESPONSE -> BleWriteResult.Completed(
+                ack = BleWriteAck(
+                    attemptId = lastConnectAttemptId,
+                    success = true,
+                    data = request.data.copyOf(),
+                ),
+                latencyMs = 0,
+            )
+        }
     }
 
     /** Number of times [startScan] was called. */
@@ -116,20 +144,25 @@ class FakeBleManager : BleManagerPort {
         }
     }
 
-    /** Last configureForWheel call arguments, for test verification. */
+    /** Last configureForWheel call arguments (UUIDs), for test verification. */
     var lastConfigureForWheel: List<String>? = null
+        private set
+
+    /** Last full [WheelConnectionInfo] passed to [configureForWheel]. */
+    var lastConfigureConnectionInfo: WheelConnectionInfo? = null
         private set
 
     /** Return value for configureForWheel. Default true (happy path). */
     var configureForWheelResult: Boolean = true
 
-    override fun configureForWheel(
-        readServiceUuid: String,
-        readCharUuid: String,
-        writeServiceUuid: String,
-        writeCharUuid: String
-    ): Boolean {
-        lastConfigureForWheel = listOf(readServiceUuid, readCharUuid, writeServiceUuid, writeCharUuid)
+    override fun configureForWheel(connectionInfo: WheelConnectionInfo): Boolean {
+        lastConfigureConnectionInfo = connectionInfo
+        lastConfigureForWheel = listOf(
+            connectionInfo.readServiceUuid,
+            connectionInfo.readCharacteristicUuid,
+            connectionInfo.writeServiceUuid,
+            connectionInfo.writeCharacteristicUuid,
+        )
         return configureForWheelResult
     }
 
