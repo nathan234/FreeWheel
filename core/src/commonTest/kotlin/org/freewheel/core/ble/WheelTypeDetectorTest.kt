@@ -1,8 +1,10 @@
 package org.freewheel.core.ble
 
 import org.freewheel.core.domain.identity.WheelType
+import org.freewheel.core.service.WheelTransportProfile
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
@@ -884,35 +886,55 @@ class WheelTypeDetectorTest {
     }
 
     @Test
-    fun `deriveTypeFromName fails closed for KSE name patterns until Commit 4`() {
-        // Commit 3 stopgap: classic Kingsong now carries
-        // [WheelTransportProfile.KingsongClassic] (FFE0/FFE1 + 0x5E warmup +
-        // 1Hz blank heartbeat). KSE (KS-E1/KS-E3) exposes the AD00 service
-        // instead and needs its own transport profile (Commit 4). Until that
-        // lands, KSE name patterns must return null here so the manager
-        // surfaces Unknown and falls back to the wheel-type picker instead
-        // of mis-protocolling KSE hardware onto the classic transport.
-        assertNull(WheelTypeDetector.deriveTypeFromName("KS-E1"))
-        assertNull(WheelTypeDetector.deriveTypeFromName("KS-E1-something"))
-        assertNull(WheelTypeDetector.deriveTypeFromName("KS-E3"))
-        assertNull(WheelTypeDetector.deriveTypeFromName("KS-E3-something"))
-        assertNull(WheelTypeDetector.deriveTypeFromName("KSE"))
-        assertNull(WheelTypeDetector.deriveTypeFromName("KSE-1234"))
+    fun `deriveTypeFromName returns KINGSONG family for KSE names`() {
+        // Commit 4: KSE names now resolve to [WheelType.KINGSONG] — the
+        // classic-vs-KSE split lives at the [WheelConnectionInfo] layer.
+        // Returning KINGSONG keeps the iOS scan-time `deriveTypeFromName ->
+        // ProtocolFamily.fromWheelType` hint contract intact (replacing the
+        // Commit 3 fail-closed stopgap, which surfaced null).
+        assertEquals(WheelType.KINGSONG, WheelTypeDetector.deriveTypeFromName("KS-E1"))
+        assertEquals(WheelType.KINGSONG, WheelTypeDetector.deriveTypeFromName("KS-E1-something"))
+        assertEquals(WheelType.KINGSONG, WheelTypeDetector.deriveTypeFromName("KS-E3"))
+        assertEquals(WheelType.KINGSONG, WheelTypeDetector.deriveTypeFromName("KS-E3-something"))
+        assertEquals(WheelType.KINGSONG, WheelTypeDetector.deriveTypeFromName("KSE"))
+        assertEquals(WheelType.KINGSONG, WheelTypeDetector.deriveTypeFromName("KSE-1234"))
         // Case-insensitive — `deriveTypeFromName` uppercases first.
-        assertNull(WheelTypeDetector.deriveTypeFromName("ks-e1-foo"))
-        assertNull(WheelTypeDetector.deriveTypeFromName("kse-foo"))
+        assertEquals(WheelType.KINGSONG, WheelTypeDetector.deriveTypeFromName("ks-e1-foo"))
+        assertEquals(WheelType.KINGSONG, WheelTypeDetector.deriveTypeFromName("kse-foo"))
     }
 
     @Test
-    fun `deriveTypeFromName still resolves classic Kingsong S-series despite the KSE carve-out`() {
-        // Guard against an over-broad KSE filter: KS-S* / KS-F* / KS-14*
-        // classic-model names must still resolve to KINGSONG. The Commit 3
-        // stopgap targets only "KS-E1" / "KS-E3" / "KSE" prefixes.
+    fun `deriveTypeFromName resolves classic Kingsong S-series alongside KSE names`() {
+        // Guard against KSE-branch regressions: KS-S* / KS-F* / KS-14*
+        // classic-model names must keep resolving to KINGSONG family. The
+        // classic-vs-KSE distinction is made at the connection-info layer
+        // (see `isKingsongKseName` / `detectFromName`), not here.
         assertEquals(WheelType.KINGSONG, WheelTypeDetector.deriveTypeFromName("KS-S18"))
         assertEquals(WheelType.KINGSONG, WheelTypeDetector.deriveTypeFromName("KS-S22"))
         assertEquals(WheelType.KINGSONG, WheelTypeDetector.deriveTypeFromName("KS-F22"))
         assertEquals(WheelType.KINGSONG, WheelTypeDetector.deriveTypeFromName("KS-14S"))
         assertEquals(WheelType.KINGSONG, WheelTypeDetector.deriveTypeFromName("Kingsong-S20"))
+    }
+
+    @Test
+    fun `isKingsongKseName matches KSE prefixes only`() {
+        // Positive: every KSE-family prefix the connection-info-layer
+        // branch in `detectFromName` reacts to.
+        assertTrue(WheelTypeDetector.isKingsongKseName("KS-E1"))
+        assertTrue(WheelTypeDetector.isKingsongKseName("KS-E1-foo"))
+        assertTrue(WheelTypeDetector.isKingsongKseName("KS-E3"))
+        assertTrue(WheelTypeDetector.isKingsongKseName("KS-E3-foo"))
+        assertTrue(WheelTypeDetector.isKingsongKseName("KSE"))
+        assertTrue(WheelTypeDetector.isKingsongKseName("KSE-1234"))
+        assertTrue(WheelTypeDetector.isKingsongKseName("ks-e1-foo"))
+        // Negative: classic Kingsong names must not be misclassified.
+        assertFalse(WheelTypeDetector.isKingsongKseName("KS-S18"))
+        assertFalse(WheelTypeDetector.isKingsongKseName("KS-S22"))
+        assertFalse(WheelTypeDetector.isKingsongKseName("KS-F22"))
+        assertFalse(WheelTypeDetector.isKingsongKseName("KS-14S"))
+        assertFalse(WheelTypeDetector.isKingsongKseName("Kingsong-S20"))
+        assertFalse(WheelTypeDetector.isKingsongKseName(null))
+        assertFalse(WheelTypeDetector.isKingsongKseName(""))
     }
 
     // ==================== Pass 3a: topology-first precedence ====================
@@ -1153,6 +1175,151 @@ class WheelTypeDetectorTest {
             result is WheelTypeDetector.DetectionResult.Unknown,
             "No topology match + unrecognized name should still return Unknown; got $result"
         )
+    }
+
+    // ==================== Commit 4: Kingsong KSE detection ====================
+    //
+    // KSE wheels share `WheelType.KINGSONG` with classic Kingsong but live
+    // on the AD00 transport surface (AD01 write, AD02 notify/read) and
+    // carry `WheelTransportProfile.KingsongKse`. Detection must resolve the
+    // KSE connection info — UUIDs *and* profile — so WCM can hand it to
+    // the platform layer without re-deriving from `forType(KINGSONG)`
+    // (which would collapse KSE back onto classic).
+
+    @Test
+    fun `detect KSE via AD00 service fast path returns KSE connection info`() {
+        val services = DiscoveredServices(
+            services = listOf(
+                DiscoveredService(
+                    uuid = BleUuids.KingsongKse.SERVICE,
+                    characteristics = listOf(
+                        BleUuids.KingsongKse.WRITE_CHARACTERISTIC,
+                        BleUuids.KingsongKse.READ_CHARACTERISTIC,
+                    )
+                )
+            )
+        )
+
+        // Deliberately no deviceName — the service fast path must fire
+        // before name detection so unfingerprinted KSE wheels still resolve.
+        val result = detector.detect(services, deviceName = null)
+
+        assertTrue(result is WheelTypeDetector.DetectionResult.Detected, "got $result")
+        val detected = result as WheelTypeDetector.DetectionResult.Detected
+        assertEquals(WheelConnectionInfo.forKingsongKse(), detected.connectionInfo)
+        assertEquals(WheelType.KINGSONG, detected.connectionInfo.wheelType)
+        assertEquals(BleUuids.KingsongKse.SERVICE, detected.connectionInfo.readServiceUuid)
+        assertEquals(BleUuids.KingsongKse.READ_CHARACTERISTIC, detected.connectionInfo.readCharacteristicUuid)
+        assertEquals(BleUuids.KingsongKse.WRITE_CHARACTERISTIC, detected.connectionInfo.writeCharacteristicUuid)
+        assertEquals(WheelTransportProfile.KingsongKse, detected.connectionInfo.transportProfile)
+        assertEquals(WheelTypeDetector.Confidence.HIGH, detected.confidence)
+    }
+
+    @Test
+    fun `detect KSE via AD00 service even when device name is missing characteristics`() {
+        // The fast path checks the service tree itself; partial topologies
+        // (just AD00 without both characteristics) must NOT trigger it.
+        val partial = DiscoveredServices(
+            services = listOf(
+                DiscoveredService(
+                    uuid = BleUuids.KingsongKse.SERVICE,
+                    characteristics = listOf(BleUuids.KingsongKse.WRITE_CHARACTERISTIC),
+                )
+            )
+        )
+
+        val result = detector.detect(partial, deviceName = null)
+
+        assertTrue(
+            result is WheelTypeDetector.DetectionResult.Unknown,
+            "Partial KSE topology (missing AD02) must NOT be auto-resolved; got $result",
+        )
+    }
+
+    @Test
+    fun `detect KSE via name when AD00 service is absent`() {
+        // Real-world fallback: a wheel that names itself "KSE-…" but whose
+        // services haven't been observed yet (or got dropped in advertising)
+        // should still route to the KSE connection info via the
+        // name-detection branch.
+        val services = DiscoveredServices(services = emptyList())
+
+        val result = detector.detect(services, deviceName = "KS-E1-9876")
+
+        assertTrue(result is WheelTypeDetector.DetectionResult.Detected, "got $result")
+        val detected = result as WheelTypeDetector.DetectionResult.Detected
+        assertEquals(WheelConnectionInfo.forKingsongKse(), detected.connectionInfo)
+        assertEquals(WheelTransportProfile.KingsongKse, detected.connectionInfo.transportProfile)
+    }
+
+    @Test
+    fun `detect KSE via name for KSE prefix`() {
+        val services = DiscoveredServices(services = emptyList())
+
+        val result = detector.detect(services, deviceName = "KSE-1234")
+
+        assertTrue(result is WheelTypeDetector.DetectionResult.Detected, "got $result")
+        val detected = result as WheelTypeDetector.DetectionResult.Detected
+        assertEquals(WheelTransportProfile.KingsongKse, detected.connectionInfo.transportProfile)
+    }
+
+    @Test
+    fun `classic Kingsong names still resolve to classic connection info`() {
+        // Regression guard: the KSE name branch must run BEFORE the generic
+        // Kingsong path, but classic-model names must still flow through the
+        // generic branch and land on `forKingsong()` (classic FFE0 +
+        // KingsongClassic profile).
+        val services = DiscoveredServices(services = emptyList())
+
+        val result = detector.detect(services, deviceName = "KS-S18-1234")
+
+        assertTrue(result is WheelTypeDetector.DetectionResult.Detected, "got $result")
+        val detected = result as WheelTypeDetector.DetectionResult.Detected
+        assertEquals(WheelConnectionInfo.forKingsong(), detected.connectionInfo)
+        assertEquals(WheelTransportProfile.KingsongClassic, detected.connectionInfo.transportProfile)
+        assertEquals(BleUuids.Kingsong.SERVICE, detected.connectionInfo.readServiceUuid)
+    }
+
+    @Test
+    fun `forKingsongKse factory carries KSE UUIDs and KingsongKse profile`() {
+        val info = WheelConnectionInfo.forKingsongKse()
+        assertEquals(WheelType.KINGSONG, info.wheelType)
+        assertEquals(BleUuids.KingsongKse.SERVICE, info.readServiceUuid)
+        assertEquals(BleUuids.KingsongKse.SERVICE, info.writeServiceUuid)
+        assertEquals(BleUuids.KingsongKse.READ_CHARACTERISTIC, info.readCharacteristicUuid)
+        assertEquals(BleUuids.KingsongKse.WRITE_CHARACTERISTIC, info.writeCharacteristicUuid)
+        assertEquals(BleUuids.KingsongKse.DESCRIPTOR, info.descriptorUuid)
+        assertEquals(WheelTransportProfile.KingsongKse, info.transportProfile)
+    }
+
+    @Test
+    fun `forType KINGSONG keeps returning classic Kingsong`() {
+        // Commit 4 intentionally leaves the `forType` shortcut on classic
+        // Kingsong because saved-profile hints can't distinguish classic
+        // vs KSE today (`ProtocolFamily.KINGSONG.toWheelType()` →
+        // `WheelType.KINGSONG`). The variant split is enforced only at
+        // live detection time. Pinning this so a Commit 5 widening is
+        // a conscious decision rather than an accidental drift.
+        val info = WheelConnectionInfo.forType(WheelType.KINGSONG)
+        assertNotNull(info)
+        assertEquals(WheelConnectionInfo.forKingsong(), info)
+        assertEquals(WheelTransportProfile.KingsongClassic, info.transportProfile)
+    }
+
+    @Test
+    fun `KingsongKse profile values are conservative for Commit 4`() {
+        // Pinned: until real-hardware captures justify otherwise, KSE runs a
+        // vanilla WITHOUT_RESPONSE transport — no MTU bump, no spacing, no
+        // retries, no warmup, no heartbeat. A later commit can promote
+        // values once captures land.
+        val profile = WheelTransportProfile.KingsongKse
+        assertEquals(org.freewheel.core.service.BleWriteType.WITHOUT_RESPONSE, profile.writeType)
+        assertFalse(profile.requestMaxMtu)
+        assertEquals(0L, profile.interWriteSpacingMs)
+        assertEquals(0, profile.retryPolicy.maxRetries)
+        assertEquals(0L, profile.retryPolicy.retryBackoffMs)
+        assertEquals(org.freewheel.core.service.TransportKeepAlivePolicy.None, profile.keepAlivePolicy)
+        assertTrue(profile.postConnectWarmups.isEmpty())
     }
 }
 

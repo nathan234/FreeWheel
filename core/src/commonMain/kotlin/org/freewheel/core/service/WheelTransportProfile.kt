@@ -115,6 +115,29 @@ data class WheelTransportProfile(
                 ),
             ),
         )
+
+        /**
+         * Transport profile for KS-E1 / KS-E3 ("KSE") wheels.
+         *
+         * Commit 4 of the Kingsong BLE parity plan. Intentionally conservative:
+         * the official Kingsong DLC Android app's KSE path does not request
+         * MTU, does not pace writes, and we have no capture proving the
+         * classic `0x5E` warmup or 1 Hz blank heartbeat applies to KSE
+         * firmware. Until a real-hardware capture says otherwise, KSE
+         * runs a vanilla WITHOUT_RESPONSE transport with no transport-driven
+         * maintenance — strictly safer than borrowing classic assumptions.
+         *
+         * The decoder is unchanged (`KingsongDecoder`); the variant lives
+         * purely on the transport surface (UUIDs + this profile).
+         */
+        val KingsongKse: WheelTransportProfile = WheelTransportProfile(
+            writeType = BleWriteType.WITHOUT_RESPONSE,
+            requestMaxMtu = false,
+            interWriteSpacingMs = 0,
+            retryPolicy = RetryPolicy(),
+            keepAlivePolicy = TransportKeepAlivePolicy.None,
+            postConnectWarmups = emptyList(),
+        )
     }
 }
 

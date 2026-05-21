@@ -39,15 +39,31 @@ class WheelTypeDetector(
     sealed class DetectionResult {
         /**
          * Successfully detected wheel type.
+         *
+         * Commit 4 of the Kingsong BLE parity plan: carries the full
+         * [WheelConnectionInfo] (UUIDs + transport profile) rather than
+         * loose UUID fields. Required because two distinct transport
+         * variants — classic Kingsong and KSE — both resolve to
+         * [WheelType.KINGSONG] but need different UUIDs and a different
+         * [org.freewheel.core.service.WheelTransportProfile]. If [WheelConnectionManager]
+         * re-derived the info from `wheelType` alone (the pre-Commit-4
+         * pattern), KSE would silently collapse back onto classic Kingsong
+         * — exactly the bug the Commit 3 stopgap was guarding against.
+         *
+         * The legacy field-style accessors ([wheelType], [readServiceUuid],
+         * etc.) are kept as derived properties so existing call sites
+         * (tests, fixtures) continue to compile.
          */
         data class Detected(
-            val wheelType: WheelType,
-            val readServiceUuid: String,
-            val readCharacteristicUuid: String,
-            val writeServiceUuid: String,
-            val writeCharacteristicUuid: String,
-            val confidence: Confidence = Confidence.HIGH
-        ) : DetectionResult()
+            val connectionInfo: WheelConnectionInfo,
+            val confidence: Confidence = Confidence.HIGH,
+        ) : DetectionResult() {
+            val wheelType: WheelType get() = connectionInfo.wheelType
+            val readServiceUuid: String get() = connectionInfo.readServiceUuid
+            val readCharacteristicUuid: String get() = connectionInfo.readCharacteristicUuid
+            val writeServiceUuid: String get() = connectionInfo.writeServiceUuid
+            val writeCharacteristicUuid: String get() = connectionInfo.writeCharacteristicUuid
+        }
 
         /**
          * Could not determine wheel type.
@@ -80,6 +96,22 @@ class WheelTypeDetector(
      * @return Detection result with wheel type and connection info
      */
     fun detect(services: DiscoveredServices, deviceName: String? = null): DetectionResult {
+        // Commit 4: KSE direct-service fast path. KS-E1 / KS-E3 ("KSE")
+        // wheels expose the AD00 service with AD01 (write) + AD02 (notify/
+        // read) — a signature unique enough that detecting directly on it
+        // is safer than authoring a `WheelTopologies.ALL` fingerprint from
+        // partial information. Runs before topology matching so an as-yet-
+        // unfingerprinted KSE wheel still resolves cleanly, and so the
+        // detector hands [WheelConnectionInfo.forKingsongKse] directly to
+        // WCM (no `forType(KINGSONG)` re-lookup, which would collapse KSE
+        // back to classic).
+        if (matchesKingsongKseTopology(services)) {
+            return DetectionResult.Detected(
+                connectionInfo = WheelConnectionInfo.forKingsongKse(),
+                confidence = Confidence.HIGH,
+            )
+        }
+
         // Two-stage matching mirrors legacy WheelData.detectWheel, which
         // reads bluetooth_services.json (the direct fingerprints) and only
         // falls back to bluetooth_proxy_services.json on miss. The two sets
@@ -103,17 +135,25 @@ class WheelTypeDetector(
         }
     }
 
+    /**
+     * True iff [services] exposes the canonical KSE transport signature —
+     * the AD00 service carrying both AD01 (write) and AD02 (notify/read).
+     * Targeted on purpose: this is a transport-family check, not a generic
+     * partial-match fallback.
+     */
+    private fun matchesKingsongKseTopology(services: DiscoveredServices): Boolean {
+        val kseService = services.findService(BleUuids.KingsongKse.SERVICE) ?: return false
+        return kseService.hasCharacteristic(BleUuids.KingsongKse.WRITE_CHARACTERISTIC) &&
+            kseService.hasCharacteristic(BleUuids.KingsongKse.READ_CHARACTERISTIC)
+    }
+
     private fun detectedFromWheelType(wheelType: WheelType): DetectionResult {
         val info = WheelConnectionInfo.forType(wheelType)
             ?: return DetectionResult.Unknown(
                 "Topology matched $wheelType but no WheelConnectionInfo is registered for it."
             )
         return DetectionResult.Detected(
-            wheelType = info.wheelType,
-            readServiceUuid = info.readServiceUuid,
-            readCharacteristicUuid = info.readCharacteristicUuid,
-            writeServiceUuid = info.writeServiceUuid,
-            writeCharacteristicUuid = info.writeCharacteristicUuid,
+            connectionInfo = info,
             confidence = Confidence.HIGH,
         )
     }
@@ -149,17 +189,26 @@ class WheelTypeDetector(
     /**
      * Try to detect wheel type from device name alone.
      * Returns null if name doesn't match any known pattern.
+     *
+     * Commit 4: a KSE-specific name branch runs before the generic
+     * Kingsong path so KS-E1 / KS-E3 / KSE wheels resolve directly to
+     * [WheelConnectionInfo.forKingsongKse]. Without this branch the name
+     * would reach the generic Kingsong path, hit
+     * [WheelConnectionInfo.forType] for KINGSONG, and be mis-protocolled
+     * onto the classic FFE0 transport.
      */
     private fun detectFromName(deviceName: String?): DetectionResult? {
+        if (isKingsongKseName(deviceName)) {
+            return DetectionResult.Detected(
+                connectionInfo = WheelConnectionInfo.forKingsongKse(),
+                confidence = Confidence.HIGH,
+            )
+        }
         val type = deriveTypeFromName(deviceName) ?: return null
         val info = WheelConnectionInfo.forType(type) ?: return null
         return DetectionResult.Detected(
-            wheelType = info.wheelType,
-            readServiceUuid = info.readServiceUuid,
-            readCharacteristicUuid = info.readCharacteristicUuid,
-            writeServiceUuid = info.writeServiceUuid,
-            writeCharacteristicUuid = info.writeCharacteristicUuid,
-            confidence = Confidence.HIGH
+            connectionInfo = info,
+            confidence = Confidence.HIGH,
         )
     }
 
@@ -178,22 +227,16 @@ class WheelTypeDetector(
             val name = deviceName?.uppercase() ?: return null
             if (name.isEmpty()) return null
 
-            // Commit 3 stopgap: classic Kingsong now carries
-            // [WheelTransportProfile.KingsongClassic] (FFE0/FFE1 service,
-            // 0x5E warmup, 1Hz blank heartbeat). KSE wheels (KS-E1/KS-E3/KSE)
-            // expose the AD00 service instead and need a distinct profile,
-            // which lands in Commit 4. Until then, fail closed for KSE names
-            // here so they surface Unknown → wheel-type picker instead of
-            // being mis-protocolled onto the classic transport. The matcher
-            // is intentionally narrow (specific KSE prefixes, not a generic
-            // "any KS" carve-out) so it does not collide with classic
-            // model names like "KS-S18" / "KS-S22".
-            if (name.startsWith("KS-E1") ||
-                name.startsWith("KS-E3") ||
-                name.startsWith("KSE")
-            ) {
-                return null
-            }
+            // Commit 4: KSE name patterns now resolve to the Kingsong family
+            // (was: fail-closed `return null` stopgap in Commit 3). Variant
+            // disambiguation classic vs KSE happens at the
+            // [WheelConnectionInfo] layer — [WheelTypeDetector] picks
+            // [WheelConnectionInfo.forKingsongKse] for these names before the
+            // generic Kingsong path runs (see [detectFromName]). Returning
+            // KINGSONG here keeps the iOS scan-time name-hint contract
+            // (`deriveTypeFromName` -> `ProtocolFamily.fromWheelType`)
+            // working without leaking the classic/KSE split into the
+            // hint surface.
 
             return when {
                 // Veteran/Leaperkim patterns (legacy DC 5A 5C protocol).
@@ -276,6 +319,20 @@ class WheelTypeDetector(
                 .map { it.normalizeWheelName() }
                 .filter { it.isNotEmpty() }
                 .toSet()
+        }
+
+        /**
+         * True iff [deviceName] is one of the KSE family prefixes
+         * (`KS-E1*`, `KS-E3*`, `KSE*`, case-insensitive). Distinct from
+         * the generic Kingsong patterns so the detector can route KSE
+         * directly to [WheelConnectionInfo.forKingsongKse] before the
+         * classic FFE0 fallback runs.
+         */
+        fun isKingsongKseName(deviceName: String?): Boolean {
+            val name = deviceName?.uppercase() ?: return false
+            return name.startsWith("KS-E1") ||
+                name.startsWith("KS-E3") ||
+                name.startsWith("KSE")
         }
     }
 }

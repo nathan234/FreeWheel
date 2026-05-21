@@ -26,6 +26,20 @@ object BleUuids {
         const val DESCRIPTOR = CLIENT_CHARACTERISTIC_CONFIG
     }
 
+    // ==================== KingSong KSE (KS-E1 / KS-E3) ====================
+    //
+    // KSE wheels run the same Kingsong protocol on top of a distinct BLE
+    // transport surface — separate service (AD00) and split read/write
+    // characteristics (AD01 write, AD02 notify/read). Direction is pinned
+    // from the official Kingsong DLC Android app, which is the reference
+    // implementation for this transport family.
+    object KingsongKse {
+        const val SERVICE = "0000ad00$BLE_UUID_SUFFIX"
+        const val WRITE_CHARACTERISTIC = "0000ad01$BLE_UUID_SUFFIX"
+        const val READ_CHARACTERISTIC = "0000ad02$BLE_UUID_SUFFIX"
+        const val DESCRIPTOR = CLIENT_CHARACTERISTIC_CONFIG
+    }
+
     // ==================== Gotway/Begode/Veteran ====================
 
     object Gotway {

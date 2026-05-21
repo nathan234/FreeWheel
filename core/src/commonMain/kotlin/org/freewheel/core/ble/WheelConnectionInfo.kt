@@ -29,8 +29,9 @@ data class WheelConnectionInfo(
          * Create connection info for a classic Kingsong wheel (KS-S16 / S18 /
          * S20 / S22 — every wheel that uses the `FFE0` service). Carries
          * [WheelTransportProfile.KingsongClassic] so post-connect traffic
-         * follows the official app's pacing/warmup/heartbeat behavior. KSE
-         * (KS-E1/E3) gets a distinct factory + profile in Commit 4.
+         * follows the official app's pacing/warmup/heartbeat behavior.
+         * KS-E1/E3 ("KSE") wheels live on the `AD00` service surface and
+         * have their own factory + profile — [forKingsongKse].
          */
         fun forKingsong(): WheelConnectionInfo = WheelConnectionInfo(
             wheelType = WheelType.KINGSONG,
@@ -39,6 +40,32 @@ data class WheelConnectionInfo(
             writeServiceUuid = BleUuids.Kingsong.SERVICE,
             writeCharacteristicUuid = BleUuids.Kingsong.WRITE_CHARACTERISTIC,
             transportProfile = WheelTransportProfile.KingsongClassic,
+        )
+
+        /**
+         * Create connection info for a KSE wheel (KS-E1 / KS-E3). Same
+         * [WheelType.KINGSONG] family (and the same [KingsongDecoder] under
+         * the hood) but distinct transport surface: `AD00` service with
+         * `AD01` write + `AD02` notify/read, paired with the conservative
+         * [WheelTransportProfile.KingsongKse] (no warmup, no heartbeat, no
+         * MTU bump) until real-hardware captures justify divergence.
+         *
+         * Distinguishing KSE from classic Kingsong at runtime relies on the
+         * service-discovery path: [WheelTypeDetector] inspects the
+         * advertised AD00 topology and the device-name prefixes
+         * (KS-E1 / KS-E3 / KSE), and routes to this factory accordingly.
+         * [forType] keeps returning classic Kingsong because saved-profile
+         * hints can't currently distinguish classic vs KSE — the picker /
+         * SAVED_PROFILE story is left for a later commit.
+         */
+        fun forKingsongKse(): WheelConnectionInfo = WheelConnectionInfo(
+            wheelType = WheelType.KINGSONG,
+            readServiceUuid = BleUuids.KingsongKse.SERVICE,
+            readCharacteristicUuid = BleUuids.KingsongKse.READ_CHARACTERISTIC,
+            writeServiceUuid = BleUuids.KingsongKse.SERVICE,
+            writeCharacteristicUuid = BleUuids.KingsongKse.WRITE_CHARACTERISTIC,
+            descriptorUuid = BleUuids.KingsongKse.DESCRIPTOR,
+            transportProfile = WheelTransportProfile.KingsongKse,
         )
 
         /**

@@ -372,12 +372,14 @@ actual class BleManager : BleManagerPort {
      * caller surfaces the failure as a connection error rather than waiting
      * indefinitely for data.
      *
-     * Commit 2 of the Kingsong BLE parity plan: the [WheelConnectionInfo]
-     * carries the wheel-family transport profile alongside the UUIDs. The
-     * profile field is stored so a later commit can act on
-     * [WheelTransportProfile.requestMaxMtu] etc., but Commit 2 keeps the
-     * existing MTU/setup behavior intact because every wheel still uses
-     * [WheelTransportProfile.Default].
+     * Commit 2 of the Kingsong BLE parity plan threaded the
+     * [WheelConnectionInfo] / [WheelTransportProfile] through this call.
+     * Commit 4's [WheelTransportProfile.requestMaxMtu] flag is honored on
+     * Android (`peripheral.requestMtu(...)`); on iOS the flag is a no-op
+     * because CoreBluetooth negotiates ATT MTU automatically and exposes no
+     * client-side API to influence it. Storing the profile here keeps the
+     * platform-independent profile contract symmetrical and leaves a hook
+     * for future iOS-only fields without a second plumbing pass.
      */
     override fun configureForWheel(connectionInfo: WheelConnectionInfo): Boolean {
         this.readServiceUuid = connectionInfo.readServiceUuid

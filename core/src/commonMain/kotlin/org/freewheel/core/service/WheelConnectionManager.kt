@@ -872,24 +872,16 @@ class WheelConnectionManager(
 
         return when (result) {
             is WheelTypeDetector.DetectionResult.Detected -> {
-                Logger.d(TAG, "Detected: ${result.wheelType}, read=${result.readServiceUuid}/${result.readCharacteristicUuid}")
-                // Carry the wheel-family transport profile forward — topology
-                // detection only surfaces UUIDs, so without this lookup a
-                // freshly-detected Kingsong wheel would fall back to
-                // [WheelTransportProfile.Default] instead of
-                // [WheelTransportProfile.KingsongClassic] (Commit 3).
-                val transportProfile = WheelConnectionInfo.forType(result.wheelType)
-                    ?.transportProfile
-                    ?: WheelTransportProfile.Default
-                val info = WheelConnectionInfo(
-                    wheelType = result.wheelType,
-                    readServiceUuid = result.readServiceUuid,
-                    readCharacteristicUuid = result.readCharacteristicUuid,
-                    writeServiceUuid = result.writeServiceUuid,
-                    writeCharacteristicUuid = result.writeCharacteristicUuid,
-                    transportProfile = transportProfile,
-                )
-                reconnectOrSetup(maybeStampNosfetBrand(newState, result.wheelType), result.wheelType, info)
+                val info = result.connectionInfo
+                Logger.d(TAG, "Detected: ${info.wheelType}, read=${info.readServiceUuid}/${info.readCharacteristicUuid}, profile=${info.transportProfile::class.simpleName}")
+                // Commit 4: trust the detector's full [WheelConnectionInfo]
+                // verbatim. The pre-Commit-4 pattern re-derived the transport
+                // profile from `result.wheelType` via [WheelConnectionInfo.forType],
+                // which silently collapsed KSE back onto classic Kingsong
+                // (both resolve to [WheelType.KINGSONG]). The detector now
+                // owns the classic-vs-KSE distinction; WCM must not
+                // re-decide.
+                reconnectOrSetup(maybeStampNosfetBrand(newState, info.wheelType), info.wheelType, info)
             }
             is WheelTypeDetector.DetectionResult.Ambiguous -> {
                 // Pass 3a: with topology-first detection, Ambiguous now only

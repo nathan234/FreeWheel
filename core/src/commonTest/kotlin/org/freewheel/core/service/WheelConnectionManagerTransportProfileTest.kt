@@ -149,6 +149,50 @@ class WheelConnectionManagerTransportProfileTest {
     }
 
     @Test
+    fun `reduceServicesDiscovered preserves a detected KSE transport profile`() = runTest(timeout = 0.5.seconds) {
+        // Commit 4 load-bearing seam: when the detector returns Detected
+        // with a KSE [WheelConnectionInfo] (AD00 + KingsongKse profile),
+        // WCM must hand that exact info to the platform layer.
+        // Pre-Commit-4, WCM re-derived the info from `result.wheelType`
+        // via [WheelConnectionInfo.forType], which always returns classic
+        // Kingsong (FFE0 + KingsongClassic) — silently collapsing KSE.
+        val manager = createManager()
+        manager.connect("AA:BB:CC:DD:EE:FF")
+        val kseServices = org.freewheel.core.ble.DiscoveredServices(
+            services = listOf(
+                org.freewheel.core.ble.DiscoveredService(
+                    uuid = org.freewheel.core.ble.BleUuids.KingsongKse.SERVICE,
+                    characteristics = listOf(
+                        org.freewheel.core.ble.BleUuids.KingsongKse.WRITE_CHARACTERISTIC,
+                        org.freewheel.core.ble.BleUuids.KingsongKse.READ_CHARACTERISTIC,
+                    )
+                )
+            )
+        )
+        manager.onServicesDiscovered(kseServices, "KS-E1-9876")
+        runCurrent()
+
+        val info = fakeBle.lastConfigureConnectionInfo
+        assertNotNull(info, "configureForWheel must run after KSE service discovery")
+        assertEquals(WheelType.KINGSONG, info.wheelType)
+        assertEquals(
+            WheelTransportProfile.KingsongKse,
+            info.transportProfile,
+            "WCM must pass the detector-supplied KSE transport profile through to ConfigureBle",
+        )
+        assertEquals(
+            org.freewheel.core.ble.BleUuids.KingsongKse.SERVICE,
+            info.readServiceUuid,
+            "KSE wheels must keep AD00 — not collapse to classic FFE0",
+        )
+        assertEquals(
+            org.freewheel.core.ble.BleUuids.KingsongKse.WRITE_CHARACTERISTIC,
+            info.writeCharacteristicUuid,
+            "KSE wheels must keep AD01 — not collapse to classic FFE1",
+        )
+    }
+
+    @Test
     fun `disconnect resets the write coordinator cadence`() = runTest(timeout = 0.5.seconds) {
         // Review fix: the coordinator carries lastWriteAt for the lifetime
         // of the WCM. Without a reset hook, a non-default spacing profile

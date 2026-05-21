@@ -299,8 +299,14 @@ actual class BleManager : BleManagerPort {
                 return
             }
 
-            // Request MTU for extended frames
-            peripheral.requestMtu(BluetoothPeripheral.MAX_MTU)
+            // Commit 4 of the Kingsong BLE parity plan: the MTU request used
+            // to live here unconditionally; it now fires from
+            // [configureForWheel] gated on
+            // [WheelTransportProfile.requestMaxMtu] so the KSE profile
+            // (`requestMaxMtu = false`) can match the official Kingsong DLC
+            // app's KSE transport surface, which does not request MTU.
+            // Service discovery happens at default ATT MTU either way —
+            // discovery doesn't need the application MTU bump.
 
             session = BleSessionState.Connected(peripheral, s.attemptId)
 
@@ -896,15 +902,28 @@ actual class BleManager : BleManagerPort {
      * Returns false when the read service or characteristic is missing — the
      * caller surfaces this as a connection failure. Write is best-effort.
      *
-     * Commit 2 of the Kingsong BLE parity plan: the [WheelConnectionInfo]
-     * carries the wheel-family transport profile alongside the UUIDs. The
-     * profile field is stored so a later commit can act on
-     * [WheelTransportProfile.requestMaxMtu] etc., but Commit 2 keeps the
-     * existing unconditional MTU request behavior intact because every wheel
-     * still uses [WheelTransportProfile.Default].
+     * Commit 2 of the Kingsong BLE parity plan introduced the
+     * [WheelConnectionInfo] / [WheelTransportProfile] plumbing through this
+     * call. Commit 4 wires the first profile-honoring platform behavior:
+     * [WheelTransportProfile.requestMaxMtu]. When `true` (Default + classic
+     * Kingsong) we request the max negotiated MTU here so chunked writes can
+     * use the larger frame size; when `false` (KSE) we skip the request,
+     * matching the official Kingsong DLC app's KSE transport surface and
+     * leaving the connection at the default ATT MTU.
+     *
+     * Timing note: the MTU request used to fire in `onConnectedPeripheral`
+     * unconditionally. Moving it here is intentional — at connect time we
+     * don't yet know the wheel family, but by the time `configureForWheel`
+     * runs the wheel has been detected and the profile is authoritative.
+     * Service discovery itself doesn't need the application MTU, and the
+     * first init write happens after this method returns, so the bump
+     * (when requested) is in flight before any data flows.
      */
     override fun configureForWheel(connectionInfo: WheelConnectionInfo): Boolean {
         activeTransportProfile = connectionInfo.transportProfile
+        if (connectionInfo.transportProfile.requestMaxMtu) {
+            session.peripheral?.requestMtu(BluetoothPeripheral.MAX_MTU)
+        }
         val readOk = setReadCharacteristic(connectionInfo.readServiceUuid, connectionInfo.readCharacteristicUuid)
         setWriteCharacteristic(connectionInfo.writeServiceUuid, connectionInfo.writeCharacteristicUuid)
         return readOk
@@ -914,7 +933,7 @@ actual class BleManager : BleManagerPort {
      * Wheel-family transport profile bound by the last successful
      * [configureForWheel]. Defaults to [WheelTransportProfile.Default] so
      * pre-discovery callers see today's behavior. Used by Commit 2 internals
-     * (and reserved for Commit 3's MTU/warmup work).
+     * and Commit 4's MTU gating.
      */
     private var activeTransportProfile: WheelTransportProfile = WheelTransportProfile.Default
 
