@@ -26,11 +26,15 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -154,6 +158,40 @@ class WheelConnectionManager(
      */
     private val transportWarmupJobs: MutableList<Job> = mutableListOf()
 
+    /**
+     * Monotonically increasing counter for [CommandTicket.id]. Read and
+     * written ONLY by the reducer (via [nextTicketId]), which runs inside
+     * the event-loop scan — the single-writer boundary. Not reset on
+     * disconnect: tickets keep globally monotonic ids for the lifetime of
+     * the WCM instance, which makes debugging and cross-session
+     * correlation easier for any future consumer. Commit 5 of the Kingsong
+     * BLE parity plan.
+     */
+    private var ticketIdCounter: Long = 0L
+
+    private fun nextTicketId(): Long {
+        ticketIdCounter += 1
+        return ticketIdCounter
+    }
+
+    /**
+     * Backing flow for [commandTickets]. [BufferOverflow.DROP_OLDEST] with a
+     * 64-entry buffer guarantees a sleeping subscriber cannot backpressure
+     * the dispatch loop. The freshest transitions are the most useful for
+     * any future UI, so dropping oldest is the right trade-off. Commit 5
+     * of the Kingsong BLE parity plan.
+     */
+    private val _commandTickets = MutableSharedFlow<CommandTicketUpdate>(
+        replay = 0,
+        extraBufferCapacity = 64,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
+
+    /** Helper — wraps the publish-with-current-time pattern used by the executor. */
+    private fun publishTicket(ticket: CommandTicket, state: CommandExecutionState) {
+        _commandTickets.tryEmit(CommandTicketUpdate(ticket, state, currentTimeMillis()))
+    }
+
     // ==================== Derived public flows ====================
 
     // Uses scope + dispatcher so stateIn collectors run on the same dispatcher
@@ -246,6 +284,14 @@ class WheelConnectionManager(
         .map { it.isBleReady }
         .distinctUntilChanged()
         .stateIn(derivedScope, SharingStarted.Eagerly, false)
+
+    /**
+     * Per-command lifecycle transitions. Commit 5 of the Kingsong BLE
+     * parity plan — producer-side contract for a future UX commit. See
+     * [WheelConnectionManagerPort.commandTickets] and the
+     * [CommandExecution] doc block for the full contract.
+     */
+    override val commandTickets: SharedFlow<CommandTicketUpdate> = _commandTickets.asSharedFlow()
 
     // ==================== Public methods (emit events) ====================
 
@@ -1195,9 +1241,11 @@ class WheelConnectionManager(
             add(noteEffect)
             add(captureEffect)
             if (decoded.commands.isNotEmpty()) {
+                val tickets = mintTicketsFor(state, decoded.commands, CommandOrigin.RESPONSE)
                 add(WcmEffect.DispatchCommands(
                     decoded.commands,
                     transportProfile = state.activeTransportProfile,
+                    tickets = tickets,
                 ))
             }
             if (validation != null) {
@@ -1334,9 +1382,11 @@ class WheelConnectionManager(
     private fun reduceKeepAliveTick(state: WcmState): WcmTransition {
         val command = state.decoder?.getKeepAliveCommand()
             ?: return WcmTransition(state)
+        val tickets = mintTicketsFor(state, listOf(command), CommandOrigin.KEEPALIVE)
         return WcmTransition(state, listOf(WcmEffect.DispatchCommands(
             listOf(command),
             transportProfile = state.activeTransportProfile,
+            tickets = tickets,
         )))
     }
 
@@ -1354,12 +1404,14 @@ class WheelConnectionManager(
     }
 
     private fun reduceSendCommand(state: WcmState, event: WheelEvent.SendCommand): WcmTransition {
+        val tickets = mintTicketsFor(state, listOf(event.command), CommandOrigin.USER)
         return WcmTransition(state, listOf(
             WcmEffect.DispatchCommands(
                 listOf(event.command),
                 decoder = state.decoder,
                 decoderState = state.decoderState,
                 transportProfile = state.activeTransportProfile,
+                tickets = tickets,
             )
         ))
     }
@@ -1396,7 +1448,12 @@ class WheelConnectionManager(
 
         decoder?.getInitCommands()?.let { cmds ->
             if (cmds.isNotEmpty()) {
-                effects.add(WcmEffect.DispatchCommands(cmds, transportProfile = profileForInit))
+                val tickets = mintTicketsFor(newState, cmds, CommandOrigin.INIT)
+                effects.add(WcmEffect.DispatchCommands(
+                    cmds,
+                    transportProfile = profileForInit,
+                    tickets = tickets,
+                ))
             }
         }
 
@@ -1419,6 +1476,50 @@ class WheelConnectionManager(
     }
 
     private fun WheelConnectionInfo.toConfigureBleEffect() = WcmEffect.ConfigureBle(this)
+
+    /**
+     * Mint one [CommandTicket] per element of [commands] and immediately
+     * publish [CommandExecutionState.Queued] for each. Called from the
+     * four reducer paths that feed [WcmEffect.DispatchCommands]: USER (a
+     * [WheelEvent.SendCommand]), INIT (decoder setup), KEEPALIVE (a
+     * [WheelEvent.KeepAliveTick]), and RESPONSE (decoder follow-up
+     * commands carried by a [DecodeResult.Success]).
+     *
+     * The reducer is the single-writer boundary for [ticketIdCounter], so
+     * id minting needs no synchronization.
+     *
+     * Why publish Queued here rather than at the top of the dispatch
+     * coroutine: a ticket sitting behind earlier work in
+     * [CommandScheduler]'s channel was previously invisible to consumers
+     * until its turn arrived, and a ticket drained by
+     * [CommandScheduler.cancelAll] before dispatch could leave the
+     * consumer with no transitions at all. Emitting Queued at mint time
+     * surfaces the ticket the moment it exists; cancellation-before-
+     * dispatch still leaves the ticket orphaned at Queued (consistent with
+     * the spec's "no synthetic Cancelled" rule).
+     *
+     * Commit 5 of the Kingsong BLE parity plan; review fix P2.
+     */
+    private fun mintTicketsFor(
+        state: WcmState,
+        commands: List<WheelCommand>,
+        origin: CommandOrigin,
+    ): List<CommandTicket> {
+        if (commands.isEmpty()) return emptyList()
+        val attemptId = state.currentAttemptId ?: 0L
+        val submittedAtMs = currentTimeMillis()
+        return commands.map { cmd ->
+            val ticket = CommandTicket(
+                id = nextTicketId(),
+                command = cmd,
+                origin = origin,
+                attemptId = attemptId,
+                submittedAtMs = submittedAtMs,
+            )
+            publishTicket(ticket, CommandExecutionState.Queued)
+            ticket
+        }
+    }
 
     /**
      * Transition to Failed state with full cleanup.
@@ -1483,9 +1584,22 @@ class WheelConnectionManager(
                     val decoder = effect.decoder
                     val decoderState = effect.decoderState
                     val profile = effect.transportProfile
+                    // Commit 5: tickets are minted by the reducer (single-
+                    // writer boundary) and zipped per-command here. Production
+                    // reducer call sites always populate `tickets`; the
+                    // empty-tickets branch is reserved for tests / future
+                    // reducers that intentionally dispatch ticket-less
+                    // traffic. Warn loudly if a real production dispatch
+                    // arrives without tickets so the omission cannot stay
+                    // silent.
+                    val tickets = effect.tickets
+                    if (effect.commands.isNotEmpty() && tickets.isEmpty()) {
+                        Logger.w(TAG, "DispatchCommands missing tickets (commands=${effect.commands.size})")
+                    }
                     commandScheduler.scheduleSequence {
-                        effect.commands.forEach { cmd ->
-                            dispatchCommand(cmd, decoder, decoderState, profile)
+                        effect.commands.forEachIndexed { index, cmd ->
+                            val ticket = tickets.getOrNull(index)
+                            dispatchCommand(cmd, decoder, decoderState, profile, ticket)
                         }
                     }
                 }
@@ -1649,39 +1763,153 @@ class WheelConnectionManager(
      * eliminates the need for locks in decoders whose buildCommand() only
      * reads from [state], and prevents a mid-flight profile swap from
      * splitting one command sequence across two transport policies.
+     *
+     * Commit 5 ticket lifecycle (with P1/P2 fixes from review):
+     *  - [CommandExecutionState.Queued] is emitted by [mintTicketsFor] at
+     *    reducer time, so it lands BEFORE this coroutine starts and stays
+     *    visible even if [WcmEffect.CancelCommands] drains the scheduler
+     *    before dispatch begins (orphaned at Queued, per spec).
+     *  - For single-write semantic commands ([WheelCommand.SendBytes] /
+     *    [WheelCommand.SendDelayed]), one write → one terminal transition
+     *    pair via [publishTicketForResult].
+     *  - For multi-write expansions (`buildCommand` returns N raw writes —
+     *    e.g. Gotway LED W → M → digit → b), the loop is honest about the
+     *    aggregate outcome:
+     *      * On ANY raw write failure (not just the first), emit
+     *        [CommandExecutionState.Failed] with the failing reason and
+     *        STOP — remaining raw writes are not sent. This prevents the
+     *        wheel from receiving a half-applied semantic command after the
+     *        ticket has already terminated, and prevents the ticket from
+     *        lying about success when a later byte failed.
+     *      * On all-success, emit the terminal [Sent] (and [WriteCompleted]
+     *        when WITH_RESPONSE) using the FIRST write's latency/ack — the
+     *        earliest evidence the OS accepted the semantic command's bytes.
+     *  - If `buildCommand` returns no raw writes at all, the ticket
+     *    terminates as [CommandExecutionState.Failed].
      */
     private suspend fun dispatchCommand(
         command: WheelCommand,
         decoder: WheelDecoder?,
         state: DecoderState?,
         profile: WheelTransportProfile,
+        ticket: CommandTicket?,
     ) {
         when (command) {
-            is WheelCommand.SendBytes -> sendBleData(command.data, profile)
-            is WheelCommand.SendDelayed -> sendBleData(command.data, profile, command.delayMs)
+            is WheelCommand.SendBytes -> {
+                val result = writeRaw(command.data, profile)
+                if (ticket != null) publishTicketForResult(ticket, result, profile)
+            }
+            is WheelCommand.SendDelayed -> {
+                val result = writeRaw(command.data, profile, delayMs = command.delayMs)
+                if (ticket != null) publishTicketForResult(ticket, result, profile)
+            }
             else -> {
-                val rawCommands = decoder?.buildCommand(command, state) ?: return
-                for (cmd in rawCommands) {
-                    when (cmd) {
-                        is WheelCommand.SendBytes -> sendBleData(cmd.data, profile)
-                        is WheelCommand.SendDelayed -> sendBleData(cmd.data, profile, cmd.delayMs)
-                        else -> {} // prevent recursion
+                val rawCommands = decoder?.buildCommand(command, state)
+                if (rawCommands.isNullOrEmpty()) {
+                    if (ticket != null) {
+                        publishTicket(
+                            ticket,
+                            CommandExecutionState.Failed("Decoder returned no raw commands"),
+                        )
                     }
+                    return
+                }
+                // Walk every raw write the decoder produced. Abort on the
+                // first failure so the wheel doesn't receive a partial
+                // semantic command after the ticket has terminated.
+                var firstResult: BleWriteResult? = null
+                for (cmd in rawCommands) {
+                    val result: BleWriteResult = when (cmd) {
+                        is WheelCommand.SendBytes -> writeRaw(cmd.data, profile)
+                        is WheelCommand.SendDelayed ->
+                            writeRaw(cmd.data, profile, delayMs = cmd.delayMs)
+                        else -> continue // prevent recursion
+                    }
+                    if (firstResult == null) firstResult = result
+                    if (result is BleWriteResult.Failed) {
+                        if (ticket != null) {
+                            publishTicket(ticket, CommandExecutionState.Failed(result.reason))
+                        }
+                        return
+                    }
+                }
+                // Every raw write submitted (and, for WITH_RESPONSE, every
+                // one was acked). Terminal state reports the first write's
+                // outcome — the moment the semantic command first reached
+                // the OS — matching the "early signal" intent for UIs.
+                if (ticket != null && firstResult != null) {
+                    publishTicketForResult(ticket, firstResult, profile)
                 }
             }
         }
     }
 
+    /**
+     * Low-level write that applies the optional pre-delay, fires the
+     * capture callback, and pipes the request through [writeCoordinator].
+     * Returns the raw [BleWriteResult] so callers (single-write and
+     * multi-write) can map it to ticket lifecycle on their own terms.
+     *
+     * Transport-driven traffic ([startTransportMaintenance]) calls
+     * [sendBleData] which delegates here and discards the result — warmups
+     * / heartbeats stay invisible on the ticket flow by construction.
+     */
+    private suspend fun writeRaw(
+        data: ByteArray,
+        profile: WheelTransportProfile,
+        delayMs: Long = 0,
+        annotation: String = "",
+    ): BleWriteResult {
+        if (delayMs > 0) delay(delayMs)
+        captureCallback?.invoke(data, BlePacketDirection.TX, annotation)
+        return writeCoordinator.write(profile, data, annotation = annotation) { request ->
+            bleManager.write(request)
+        }
+    }
+
+    /** Transport-side wrapper used by warmups / heartbeats. */
     private suspend fun sendBleData(
         data: ByteArray,
         profile: WheelTransportProfile,
         delayMs: Long = 0,
         annotation: String = "",
     ) {
-        if (delayMs > 0) delay(delayMs)
-        captureCallback?.invoke(data, BlePacketDirection.TX, annotation)
-        writeCoordinator.write(profile, data, annotation = annotation) { request ->
-            bleManager.write(request)
+        writeRaw(data, profile, delayMs = delayMs, annotation = annotation)
+    }
+
+    /**
+     * Map a [BleWriteResult] into the terminal ticket transition pair.
+     * Pulled out so single-write and multi-write paths in [dispatchCommand]
+     * share the WITH_RESPONSE two-phase emission rule (Sent THEN
+     * WriteCompleted) without duplicating the when-mapping.
+     */
+    private fun publishTicketForResult(
+        ticket: CommandTicket,
+        result: BleWriteResult,
+        profile: WheelTransportProfile,
+    ) {
+        when (result) {
+            is BleWriteResult.Submitted -> {
+                publishTicket(
+                    ticket,
+                    CommandExecutionState.Sent(result.latencyMs, profile.writeType),
+                )
+            }
+            is BleWriteResult.Completed -> {
+                // Two distinct transitions so a future UI can render
+                // "OS accepted" vs "peer acked" as separate phases.
+                publishTicket(
+                    ticket,
+                    CommandExecutionState.Sent(result.latencyMs, profile.writeType),
+                )
+                publishTicket(
+                    ticket,
+                    CommandExecutionState.WriteCompleted(result.latencyMs, result.ack),
+                )
+            }
+            is BleWriteResult.Failed -> {
+                publishTicket(ticket, CommandExecutionState.Failed(result.reason))
+            }
         }
     }
 

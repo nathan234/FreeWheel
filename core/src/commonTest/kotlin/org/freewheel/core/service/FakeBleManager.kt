@@ -104,6 +104,15 @@ class FakeBleManager : BleManagerPort {
      */
     var writeBehavior: ((BleWriteRequest) -> BleWriteResult)? = null
 
+    /**
+     * Optional suspension gate. When non-null, every [write] call awaits
+     * this deferred before producing its result. Tests use this to model
+     * an in-flight BLE write so they can assert on producer-side timing
+     * (e.g., that ticket transitions emitted by the reducer land BEFORE
+     * the dispatch coroutine resumes).
+     */
+    var writeGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
+
     override suspend fun write(request: BleWriteRequest): BleWriteResult {
         writeRequests.add(request)
         if (!isConnected) {
@@ -114,6 +123,7 @@ class FakeBleManager : BleManagerPort {
             writesDroppedBeforeConfigure += 1
             return BleWriteResult.Failed("Not configured", latencyMs = 0)
         }
+        writeGate?.await()
         writtenData.add(request.data.copyOf())
         writeBehavior?.let { return it(request) }
         return when (request.writeType) {

@@ -1,6 +1,7 @@
 package org.freewheel.core.service
 
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
@@ -495,6 +496,102 @@ class WheelConnectionManagerKingsongTransportTest {
             1,
             fakeBle.writeRequests.count { it.annotation == "ks-heartbeat" },
             "Duplicate BleReady must remain idempotent — at most one heartbeat per interval",
+        )
+    }
+
+    // ==================== Commit 5: transport traffic must be ticket-less ====================
+
+    @Test
+    fun `transport heartbeat and warmup emit no command tickets`() = runTest(timeout = 5.seconds) {
+        // Commit 5 of `KINGSONG_BLE_PARITY_PLAN.md`: transport-driven traffic
+        // bypasses [WcmEffect.DispatchCommands] by design (it calls
+        // sendBleData directly from startTransportMaintenance) and must
+        // therefore be invisible on the command-ticket flow. The warmup and
+        // the recurring heartbeat are the two paths in scope here.
+        val manager = createManager()
+        val tickets = mutableListOf<CommandTicketUpdate>()
+        backgroundScope.launch {
+            manager.commandTickets.collect { tickets.add(it) }
+        }
+        runCurrent()
+
+        bringToConnected(manager, "AA:BB:CC:DD:EE:FF")
+        runCurrent()
+        manager.onBleReady("AA:BB:CC:DD:EE:FF")
+        runCurrent()
+
+        // Cross both the first heartbeat deadline (1000ms) and the warmup
+        // deadline (2500ms) plus enough slop for any spacing to settle.
+        advanceTimeBy(2700)
+        runCurrent()
+
+        // Sanity — the transport writes really did fire on the BLE port.
+        assertTrue(
+            fakeBle.writeRequests.any { it.annotation == "ks-heartbeat" },
+            "Sanity: at least one heartbeat must have reached the BLE port",
+        )
+        assertTrue(
+            fakeBle.writeRequests.any { it.annotation == "ks-0x5e-warmup" },
+            "Sanity: the 0x5E warmup must have reached the BLE port",
+        )
+
+        // Now the actual contract: the ticket flow must be silent for
+        // transport-driven traffic. Decoder keepalive is suppressed by
+        // [TransportKeepAlivePolicy.FixedFrame], so under classic Kingsong
+        // we expect *zero* ticket updates with no other input.
+        assertTrue(
+            tickets.isEmpty(),
+            "Transport-driven warmup/heartbeat must not emit ticket updates; " +
+                "got ${tickets.map { it.ticket.command to it.state }}",
+        )
+    }
+
+    @Test
+    fun `user command produces a ticket while transport traffic stays silent`() = runTest(timeout = 3.seconds) {
+        // Companion to the silence test above — verifies the contract from
+        // the other side: a USER command must still mint a ticket and reach
+        // the ticket flow even when the transport layer is also writing
+        // heartbeats in the background.
+        val manager = createManager()
+        val tickets = mutableListOf<CommandTicketUpdate>()
+        backgroundScope.launch {
+            manager.commandTickets.collect { tickets.add(it) }
+        }
+        runCurrent()
+
+        bringToConnected(manager, "AA:BB:CC:DD:EE:FF")
+        runCurrent()
+        manager.onBleReady("AA:BB:CC:DD:EE:FF")
+        runCurrent()
+
+        // Burn one heartbeat fire so the ticket flow has had every chance
+        // to leak a transport transition.
+        advanceTimeBy(1100)
+        runCurrent()
+        assertTrue(
+            tickets.isEmpty(),
+            "Heartbeat fire alone must not produce tickets; got ${tickets.map { it.state }}",
+        )
+
+        manager.sendCommand(WheelCommand.SendBytes(byteArrayOf(0x42)))
+        runCurrent()
+        // [WheelTransportProfile.KingsongClassic] enforces a 50ms inter-write
+        // spacing window. The preceding heartbeat published a lastWrite
+        // stamp, so the USER write suspends inside [WriteCoordinator.write]
+        // until the spacing delay fires — advance virtual time past it so
+        // the Sent transition can land.
+        advanceTimeBy(60)
+        runCurrent()
+
+        val userOrigins = tickets.map { it.ticket.origin }.distinct()
+        assertEquals(
+            listOf(CommandOrigin.USER),
+            userOrigins,
+            "Only the USER command should be visible on the ticket flow",
+        )
+        assertTrue(
+            tickets.any { it.state is CommandExecutionState.Sent },
+            "USER ticket must transition through Sent on the WITHOUT_RESPONSE Kingsong profile",
         )
     }
 }

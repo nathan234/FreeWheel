@@ -14,7 +14,10 @@ import org.freewheel.core.domain.identity.WheelType
 import org.freewheel.core.logging.BlePacketDirection
 import org.freewheel.core.logging.ConnectionErrorEvent
 import org.freewheel.core.protocol.DecoderConfig
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 
 /**
  * Interface for the subset of [WheelConnectionManager] that the ViewModel depends on.
@@ -40,6 +43,25 @@ interface WheelConnectionManagerPort {
     var writeAckCallback: ((BleWriteAck) -> Unit)?
         get() = null
         set(_) { /* no-op default */ }
+
+    /**
+     * Per-command lifecycle transitions for every semantic [org.freewheel.core.protocol.WheelCommand]
+     * dispatched through the WCM. Commit 5 of `KINGSONG_BLE_PARITY_PLAN.md` —
+     * the producer-side contract that a later UX commit (Compose / SwiftUI)
+     * will consume to drive Begode-style loading / success / failure
+     * affordances.
+     *
+     * The default returns an empty hot flow so existing fakes and tests
+     * don't have to implement it. The real [WheelConnectionManager] backs
+     * this with a buffered [MutableSharedFlow] that drops the oldest entry
+     * on overflow so a sleeping subscriber cannot backpressure the
+     * dispatch loop.
+     *
+     * Transport-driven traffic (warmups, heartbeats) bypasses the ticket
+     * layer by design and is invisible on this flow.
+     */
+    val commandTickets: SharedFlow<CommandTicketUpdate>
+        get() = MutableSharedFlow<CommandTicketUpdate>().asSharedFlow()
 
     /**
      * Connect to [address] with an optional [ConnectionHint].

@@ -127,6 +127,24 @@ sealed class WcmEffect {
          * dispatch before service discovery has bound a connection info.
          */
         val transportProfile: WheelTransportProfile = WheelTransportProfile.Default,
+        /**
+         * Commit 5 of `KINGSONG_BLE_PARITY_PLAN.md`. One ticket per semantic
+         * [WheelCommand] in [commands], minted by the reducer at effect
+         * creation time. The executor uses these to publish lifecycle
+         * transitions on
+         * [WheelConnectionManagerPort.commandTickets].
+         *
+         * Invariants when populated:
+         *  - `tickets.size == commands.size`
+         *  - `tickets[i]` corresponds to `commands[i]`
+         *
+         * Defaults to empty. Production reducer call sites always populate
+         * it; the empty default exists so unit tests and any future reducer
+         * that intentionally dispatches anonymous (ticket-less) traffic can
+         * still construct the effect. The executor logs a warning when
+         * [commands] is non-empty but [tickets] is empty.
+         */
+        val tickets: List<CommandTicket> = emptyList(),
     ) : WcmEffect()
 
     data class StartKeepAlive(val intervalMs: Long) : WcmEffect()
