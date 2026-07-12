@@ -206,7 +206,7 @@ class LeaperkimCorrectnessHarnessTest {
     }
 
     @Test
-    fun `batch 1 SOC table lookup runs via useCustomPercents`() {
+    fun `batch 1 SOC table lookup is unconditional`() {
         val fixture = LeaperkimBatch1Fixtures.socTableLookupByHardwareVersion
         val run = LeaperkimCorrectnessHarness.run(fixture)
         run.outcome(LeaperkimDecoderCandidate.VETERAN).assertMatchesGolden(fixture)

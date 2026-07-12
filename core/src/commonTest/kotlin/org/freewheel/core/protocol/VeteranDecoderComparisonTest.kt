@@ -52,7 +52,7 @@ class VeteranDecoderComparisonTest {
         // - phaseCurrentDouble = -3.4
         // - wheelDistanceDouble = 15.349
         // - totalDistance = 15349
-        // - batteryLevel = 90
+        // - batteryLevel = 88 using the Leaperkim manufacturer table
         // - version = "000.0.00"
 
         assertEquals(0, abs(telemetry.speed), "Speed should be 0")
@@ -355,7 +355,7 @@ class VeteranDecoderComparisonTest {
         assertEquals(123.31, telemetry.voltageV, 0.01, "Voltage should be 123.31V")
         assertEquals(0.0, telemetry.currentA, 0.01, "Phase current should be 0.0A")
         assertEquals(8248, telemetry.totalDistance.toInt(), "Total distance should be 8248m")
-        assertEquals(100, telemetry.batteryLevel, "Battery should be 100%")
+        assertEquals(98, telemetry.batteryLevel, "Battery should follow the Patton manufacturer table")
     }
 
     // ==================== Battery Calculation for 151V Model (Lynx) ====================
@@ -386,7 +386,7 @@ class VeteranDecoderComparisonTest {
         assertEquals(30, telemetry.temperatureC, "Temperature should be 30°C")
         assertEquals(146.19, telemetry.voltageV, 0.01, "Voltage should be 146.19V")
         assertEquals(1904, telemetry.totalDistance.toInt(), "Total distance should be 1904m")
-        assertEquals(94, telemetry.batteryLevel, "Battery should be 94%")
+        assertEquals(91, telemetry.batteryLevel, "Battery should follow the Lynx manufacturer table")
     }
 
     // ==================== veteranNegative (Speed Polarity) ====================
@@ -460,7 +460,7 @@ class VeteranDecoderComparisonTest {
         assertEquals(31, telemetry.temperatureC, "Temperature should be 31°C")
         assertEquals(98.26, telemetry.voltageV, 0.01, "Voltage should be 98.26V")
         assertEquals(6050, telemetry.totalDistance.toInt(), "Total distance should be 6050m")
-        assertEquals(97, telemetry.batteryLevel, "Battery should be 97%")
+        assertEquals(95, telemetry.batteryLevel, "Battery should follow the Sherman manufacturer table")
     }
 
     // ==================== gotwayNegative (Config-driven) ====================

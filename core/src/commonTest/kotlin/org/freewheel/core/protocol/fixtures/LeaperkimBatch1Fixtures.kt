@@ -17,7 +17,7 @@ import org.freewheel.core.utils.ByteUtils
  *  - subtype `8` control-settings frame
  *  - subtype `1` and `5` BMS cell-mapping frames
  *  - battery-percent override via subtype `2`
- *  - official-app SOC table lookup gated by `useCustomPercents`
+ *  - unconditional official-app SOC table lookup
  *
  * Source-of-truth ranking: `OFFICIAL_APP` for the parsing layout
  * ([VeteranDecoder.processFrame], [VeteranDecoder.parseControlSettings],
@@ -143,7 +143,7 @@ internal object LeaperkimBatch1Fixtures {
      * model's mVer and assert model name plus voltage round-trip.
      *
      * Voltage values are picked inside the model's nominal pack range so the
-     * piecewise SOC fallback returns a stable non-extreme number.
+     * manufacturer SOC table returns a stable non-extreme number.
      */
     private fun baselineMainFrameFixture(
         id: String,
@@ -206,24 +206,24 @@ internal object LeaperkimBatch1Fixtures {
         )
     }
 
-    /** Sherman: 100V class. voltage 9000 → piecewise ~55%. */
+    /** Sherman: 100V class. voltage 9000 → official table 60%. */
     val shermanBaselineMainFrame = baselineMainFrameFixture(
         id = "leaperkim_sherman_baseline_main_frame",
         description = "Sherman (mVer=1, 100V class) main-frame model + voltage round-trip.",
         modelName = "Leaperkim Sherman",
         ver = 1000,
         voltage = 9000,
-        expectedBattery = 55,
+        expectedBattery = 60,
     )
 
-    /** Patton: 126V class. (11000 - 9918) / 24.2 = 44.71 → 45. */
+    /** Patton: 126V class. voltage 11000 → official table 49%. */
     val pattonBaselineMainFrame = baselineMainFrameFixture(
         id = "leaperkim_patton_baseline_main_frame",
         description = "Patton (mVer=4, 126V class) main-frame model + voltage round-trip.",
         modelName = "Leaperkim Patton",
         ver = 4000,
         voltage = 11000,
-        expectedBattery = 45,
+        expectedBattery = 49,
     )
 
     /** Patton S: hardwareVersion=0070 shares the Patton SOC curve. */
@@ -233,17 +233,17 @@ internal object LeaperkimBatch1Fixtures {
         modelName = "Leaperkim Patton S",
         ver = 7000,
         voltage = 11000,
-        expectedBattery = 45,
+        expectedBattery = 49,
     )
 
-    /** Sherman L: hardwareVersion=0060, 151V class. (13500 - 11902) / 29.03 = 55.05 → 55. */
+    /** Sherman L: hardwareVersion=0060, voltage 13500 → official table 60%. */
     val shermanLBaselineMainFrame = baselineMainFrameFixture(
         id = "leaperkim_sherman_l_baseline_main_frame",
         description = "Sherman L (mVer=6, hardwareVersion=0060) on the 151V Lynx-class curve.",
         modelName = "Leaperkim Sherman L",
         ver = 6000,
         voltage = 13500,
-        expectedBattery = 55,
+        expectedBattery = 60,
     )
 
     /** Lynx: hardwareVersion=0050, same 151V curve as Sherman L. */
@@ -253,7 +253,7 @@ internal object LeaperkimBatch1Fixtures {
         modelName = "Leaperkim Lynx",
         ver = 5000,
         voltage = 13500,
-        expectedBattery = 55,
+        expectedBattery = 60,
     )
 
     // ==================== #6: Subtype 8 control settings ====================
@@ -413,16 +413,15 @@ internal object LeaperkimBatch1Fixtures {
         ),
     )
 
-    // ==================== #10: SOC table lookup gated by useCustomPercents ====================
+    // ==================== #10: Unconditional manufacturer SOC table lookup ====================
 
     /**
-     * With `useCustomPercents = true`, the decoder routes through the official
-     * Leaperkim SOC tables in [VeteranSocTables] instead of the piecewise
-     * fallback. mVer=5 (Lynx) + voltage 13255 hits LYNX_151V index 50 → 50%.
+     * Recognized models always route through the official Leaperkim SOC tables.
+     * mVer=5 (Lynx) + voltage 13255 hits LYNX_151V index 50 → 50%.
      */
     val socTableLookupByHardwareVersion = LeaperkimCorrectnessFixture(
         id = "leaperkim_soc_table_lookup_by_hardware_version",
-        description = "useCustomPercents routes Lynx voltage 132.55V through LYNX_151V to SOC 50%.",
+        description = "Lynx voltage 132.55V routes through LYNX_151V to SOC 50% without a feature flag.",
         model = "Leaperkim Lynx (SOC table)",
         evidenceClasses = setOf(LeaperkimEvidenceClass.OFFICIAL_APP),
         status = LeaperkimFixtureStatus.APPROVED,
@@ -435,9 +434,9 @@ internal object LeaperkimBatch1Fixtures {
         advertisedServices = legacyFfeGatt,
         golden = DecoderFixture(
             name = "leaperkim_soc_table_lookup_by_hardware_version",
-            description = "Main frame at Lynx voltage 13255 with useCustomPercents=true → SOC 50.",
+            description = "Main frame at Lynx voltage 13255 → manufacturer SOC 50.",
             frames = listOf(hexOf(buildMainFrame(ver = 5000, voltage = 13255))),
-            config = DecoderConfig(useCustomPercents = true),
+            config = DecoderConfig(useCustomPercents = false),
             expect = DecoderFixture.Expected(
                 lastResult = DecoderFixture.ResultKind.SUCCESS,
                 telemetry = DecoderFixture.TelemetryExpect(

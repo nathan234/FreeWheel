@@ -474,7 +474,7 @@ class DecoderLifecycleTest {
     // ==================== VeteranDecoder Lifecycle ====================
 
     @Test
-    fun `Veteran model detected from first frame mVer byte`() {
+    fun `Veteran model detected from first frame version field`() {
         val decoder = VeteranDecoder()
 
         // Build a minimal Veteran frame — use a real packet from comparison tests
@@ -485,7 +485,7 @@ class DecoderLifecycleTest {
 
         val result = decoder.decode(frame, defaultDs, defaultConfig)
         // A Veteran frame should be parseable if it has the right header
-        // The model is derived from ver byte
+        // The model is derived from the three-byte firmware version field.
         if (result is DecodeResult.Success) {
             assertTrue(result.data.assertIdentity().model.isNotEmpty(),
                 "Model should be set after first frame")

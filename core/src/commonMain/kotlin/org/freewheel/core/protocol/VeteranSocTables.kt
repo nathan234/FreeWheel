@@ -3,8 +3,9 @@ package org.freewheel.core.protocol
 /**
  * Official Leaperkim voltage-to-SOC lookup tables, extracted from the Leaperkim Android app v1.4.8.
  *
- * Each table has 100 entries. Index 0-99 corresponds to 0%-99% SOC. Each value is the minimum
- * pack voltage × 100 for that SOC level. Voltage at or above the last entry = 100%.
+ * Each table has 100 entries. The manufacturer apps return 0% at or below the first entry,
+ * 100% at or above the last entry, and otherwise return the index of the first entry greater
+ * than or equal to the pack voltage. Values are pack voltage × 100.
  *
  * Models sharing the same cell chemistry and pack configuration (series/parallel count) share
  * tables because their voltage-SOC curves are identical.

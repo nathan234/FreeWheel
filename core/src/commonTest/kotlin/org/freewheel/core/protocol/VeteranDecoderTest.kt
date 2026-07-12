@@ -21,7 +21,6 @@ import org.freewheel.core.domain.settings.transportMode
 import org.freewheel.core.domain.settings.voltageCorrection
 import org.freewheel.core.domain.settings.wheelDisplayUnit
 import kotlin.math.abs
-import kotlin.math.roundToInt
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -44,8 +43,9 @@ import kotlin.test.assertTrue
  * - Bytes 22-23: Charge mode (BE; byte 22 must be 0x00 for unpacker validation)
  * - Bytes 24-25: Speed alert (BE, multiplied by 10 in decoder)
  * - Bytes 26-27: Speed tiltback (BE, multiplied by 10 in decoder)
- * - Bytes 28-29: Version (BE; mVer = ver / 1000)
- * - Bytes 30-31: Pedals mode (BE; byte 30 must be 0x00 or 0x07 for unpacker validation)
+ * - Bytes 28-29: Low 16 bits of the firmware version
+ * - Byte 30: High byte of the firmware version (0x00 Leaperkim, 0x07 Nosfet)
+ * - Byte 31: Pedals/ride mode
  * - Bytes 32-33: Pitch angle (signed BE)
  * - Bytes 34-35: HW PWM (BE)
  *
@@ -82,8 +82,9 @@ class VeteranDecoderTest {
         totalDistance: Int = 0,
         phaseCurrent: Int = 0,     // raw signed value, decoder multiplies by 10
         temperature: Int = 0,      // raw signed value
-        ver: Int = 5000,           // mVer = ver/1000 = 5 (Lynx)
-        pedalsMode: Int = 0,       // 0x00 or 0x07 for byte 30
+        ver: Int = 5000,           // low 16 bits of firmware version
+        versionHighByte: Int = 0,  // 0x00 Leaperkim, 0x07 Nosfet
+        pedalsMode: Int = 0,
         chargeModeLow: Int = 0,    // byte 23: must be 0x00 or 0x01
         speedAlert: Int = 0,       // raw value, decoder multiplies by 10
         speedTiltback: Int = 0,    // raw value, decoder multiplies by 10
@@ -146,9 +147,9 @@ class VeteranDecoderTest {
         frame[28] = ((ver shr 8) and 0xFF).toByte()
         frame[29] = (ver and 0xFF).toByte()
 
-        // Pedals mode at 30-31: byte 30 must be 0x00 or 0x07
-        frame[30] = (pedalsMode and 0xFF).toByte()
-        frame[31] = 0x00
+        // Three-byte firmware version is byte 30 followed by bytes 28-29.
+        frame[30] = (versionHighByte and 0xFF).toByte()
+        frame[31] = (pedalsMode and 0xFF).toByte()
 
         // Pitch angle signed BE at 32-33
         frame[32] = ((pitchAngle shr 8) and 0xFF).toByte()
@@ -173,6 +174,7 @@ class VeteranDecoderTest {
         phaseCurrent: Int = 0,
         temperature: Int = 0,
         ver: Int = 5000,
+        versionHighByte: Int = 0,
         pedalsMode: Int = 0,
         chargeModeLow: Int = 0,
         speedAlert: Int = 0,
@@ -191,6 +193,7 @@ class VeteranDecoderTest {
             phaseCurrent = phaseCurrent,
             temperature = temperature,
             ver = ver,
+            versionHighByte = versionHighByte,
             pedalsMode = pedalsMode,
             chargeModeLow = chargeModeLow,
             speedAlert = speedAlert,
@@ -283,7 +286,7 @@ class VeteranDecoderTest {
     @Test
     fun `unpacker accepts byte 30 equal to 0x07`() {
         val freshDecoder = VeteranDecoder()
-        val frame = buildVeteranFrame(pedalsMode = 0x07)
+        val frame = buildVeteranFrame(versionHighByte = 0x07)
         val result = freshDecoder.decode(frame, DecoderState(), config)
         assertTrue(result is DecodeResult.Success, "Frame with byte 30 = 0x07 should pass unpacker validation")
     }
@@ -304,7 +307,7 @@ class VeteranDecoderTest {
         assertTrue(result is DecodeResult.Success)
         val decoded = (result as DecodeResult.Success).data
         assertEquals(9870, decoded.assertTelemetry().voltage)
-        assertEquals(100, decoded.assertTelemetry().batteryLevel, "9870 should be 100% for Sherman (100V)")
+        assertEquals(98, decoded.assertTelemetry().batteryLevel, "9870 should follow the Sherman manufacturer table")
     }
 
     @Test
@@ -313,7 +316,7 @@ class VeteranDecoderTest {
         assertTrue(result is DecodeResult.Success)
         val decoded = (result as DecodeResult.Success).data
         assertEquals(7935, decoded.assertTelemetry().voltage)
-        assertEquals(0, decoded.assertTelemetry().batteryLevel, "7935 should be 0% for Sherman (100V)")
+        assertEquals(10, decoded.assertTelemetry().batteryLevel, "7935 should follow the Sherman manufacturer table")
     }
 
     // ==================== Speed with gotwayNegative ====================
@@ -576,61 +579,53 @@ class VeteranDecoderTest {
         assertEquals("Unknown", (result as DecodeResult.Success).data.assertIdentity().model)
     }
 
-    // ==================== Battery Percentage (Standard) ====================
+    // ==================== Manufacturer Battery Percentage ====================
 
     @Test
-    fun `battery 100V wheel (Sherman) at full charge`() {
-        // mVer < 4 → Sherman class, standard %: voltage >= 9870 → 100%
-        val result = decodeSingleFrame(voltage = 9870, ver = 1000)
+    fun `battery 100V wheel uses Sherman table at full charge by default`() {
+        val result = decodeSingleFrame(voltage = 9900, ver = 1000)
         assertTrue(result is DecodeResult.Success)
         assertEquals(100, (result as DecodeResult.Success).data.assertTelemetry().batteryLevel)
     }
 
     @Test
-    fun `battery 100V wheel (Sherman) at empty`() {
-        // mVer < 4 → Sherman class, standard %: voltage <= 7935 → 0%
-        val result = decodeSingleFrame(voltage = 7935, ver = 1000)
+    fun `battery 100V wheel uses Sherman table at empty by default`() {
+        val result = decodeSingleFrame(voltage = 7560, ver = 1000)
         assertTrue(result is DecodeResult.Success)
         assertEquals(0, (result as DecodeResult.Success).data.assertTelemetry().batteryLevel)
     }
 
     @Test
-    fun `battery 100V wheel (Sherman) mid charge`() {
-        // mVer < 4, standard %: (voltage - 7935) / 19.5
-        // voltage = 9686 → (9686 - 7935) / 19.5 = 89.7... → 90
-        val result = decodeSingleFrame(voltage = 9686, ver = 1000)
+    fun `battery 100V wheel uses Sherman table at mid charge by default`() {
+        val result = decodeSingleFrame(voltage = 8837, ver = 1000)
         assertTrue(result is DecodeResult.Success)
-        assertEquals(((9686 - 7935) / 19.5).roundToInt(), (result as DecodeResult.Success).data.assertTelemetry().batteryLevel)
+        assertEquals(50, (result as DecodeResult.Success).data.assertTelemetry().batteryLevel)
     }
 
     @Test
-    fun `battery 126V wheel (Patton) at full charge`() {
-        // mVer=4 → Patton, standard %: voltage >= 12337 → 100%
-        val result = decodeSingleFrame(voltage = 12337, ver = 4000)
+    fun `battery 126V wheel uses Patton table at full charge by default`() {
+        val result = decodeSingleFrame(voltage = 12375, ver = 4000)
         assertTrue(result is DecodeResult.Success)
         assertEquals(100, (result as DecodeResult.Success).data.assertTelemetry().batteryLevel)
     }
 
     @Test
-    fun `battery 126V wheel (Patton) at empty`() {
-        // mVer=4, standard %: voltage <= 9918 → 0%
-        val result = decodeSingleFrame(voltage = 9918, ver = 4000)
+    fun `battery 126V wheel uses Patton table at empty by default`() {
+        val result = decodeSingleFrame(voltage = 9450, ver = 4000)
         assertTrue(result is DecodeResult.Success)
         assertEquals(0, (result as DecodeResult.Success).data.assertTelemetry().batteryLevel)
     }
 
     @Test
-    fun `battery 151V wheel (Lynx) at full charge`() {
-        // mVer=5 → Lynx, standard %: voltage >= 14805 → 100%
-        val result = decodeSingleFrame(voltage = 14805, ver = 5000)
+    fun `battery 151V wheel uses Lynx table at full charge by default`() {
+        val result = decodeSingleFrame(voltage = 14850, ver = 5000)
         assertTrue(result is DecodeResult.Success)
         assertEquals(100, (result as DecodeResult.Success).data.assertTelemetry().batteryLevel)
     }
 
     @Test
-    fun `battery 151V wheel (Lynx) at empty`() {
-        // mVer=5, standard %: voltage <= 11902 → 0%
-        val result = decodeSingleFrame(voltage = 11902, ver = 5000)
+    fun `battery 151V wheel uses Lynx table at empty by default`() {
+        val result = decodeSingleFrame(voltage = 11340, ver = 5000)
         assertTrue(result is DecodeResult.Success)
         assertEquals(0, (result as DecodeResult.Success).data.assertTelemetry().batteryLevel)
     }
@@ -662,11 +657,18 @@ class VeteranDecoderTest {
     // ==================== Battery Percentage (SOC Table Lookup) ====================
 
     @Test
+    fun `battery manufacturer table is independent of custom percents setting`() {
+        val disabled = decodeSingleFrame(voltage = 8837, ver = 1000, cfg = config.copy(useCustomPercents = false))
+        val enabled = decodeSingleFrame(voltage = 8837, ver = 1000, cfg = config.copy(useCustomPercents = true))
+        assertTrue(disabled is DecodeResult.Success)
+        assertTrue(enabled is DecodeResult.Success)
+        assertEquals(50, disabled.data.assertTelemetry().batteryLevel)
+        assertEquals(50, enabled.data.assertTelemetry().batteryLevel)
+    }
+
+    @Test
     fun `battery 100V SOC table at full charge`() {
-        // mVer=1 (Sherman), useCustomPercents → uses official SOC table
-        // Voltage >= last table entry (9900) → 100%
-        val cfg = config.copy(useCustomPercents = true)
-        val result = decodeSingleFrame(voltage = 9950, ver = 1000, cfg = cfg)
+        val result = decodeSingleFrame(voltage = 9950, ver = 1000)
         assertTrue(result is DecodeResult.Success)
         assertEquals(100, (result as DecodeResult.Success).data.assertTelemetry().batteryLevel)
     }
@@ -674,8 +676,7 @@ class VeteranDecoderTest {
     @Test
     fun `battery 100V SOC table at empty`() {
         // Voltage below first table entry (7560) → 0%
-        val cfg = config.copy(useCustomPercents = true)
-        val result = decodeSingleFrame(voltage = 7500, ver = 1000, cfg = cfg)
+        val result = decodeSingleFrame(voltage = 7500, ver = 1000)
         assertTrue(result is DecodeResult.Success)
         assertEquals(0, (result as DecodeResult.Success).data.assertTelemetry().batteryLevel)
     }
@@ -683,8 +684,7 @@ class VeteranDecoderTest {
     @Test
     fun `battery 100V SOC table at exact entry`() {
         // Voltage exactly at table[50] = 8837 → 50%
-        val cfg = config.copy(useCustomPercents = true)
-        val result = decodeSingleFrame(voltage = 8837, ver = 1000, cfg = cfg)
+        val result = decodeSingleFrame(voltage = 8837, ver = 1000)
         assertTrue(result is DecodeResult.Success)
         assertEquals(50, (result as DecodeResult.Success).data.assertTelemetry().batteryLevel)
     }
@@ -692,8 +692,7 @@ class VeteranDecoderTest {
     @Test
     fun `battery 126V SOC table mid range`() {
         // mVer=4 (Patton), table[50] = 11046
-        val cfg = config.copy(useCustomPercents = true)
-        val result = decodeSingleFrame(voltage = 11046, ver = 4000, cfg = cfg)
+        val result = decodeSingleFrame(voltage = 11046, ver = 4000)
         assertTrue(result is DecodeResult.Success)
         assertEquals(50, (result as DecodeResult.Success).data.assertTelemetry().batteryLevel)
     }
@@ -701,21 +700,18 @@ class VeteranDecoderTest {
     @Test
     fun `battery 151V SOC table mid range`() {
         // mVer=5 (Lynx), table[50] = 13255
-        val cfg = config.copy(useCustomPercents = true)
-        val result = decodeSingleFrame(voltage = 13255, ver = 5000, cfg = cfg)
+        val result = decodeSingleFrame(voltage = 13255, ver = 5000)
         assertTrue(result is DecodeResult.Success)
         assertEquals(50, (result as DecodeResult.Success).data.assertTelemetry().batteryLevel)
     }
 
     @Test
-    fun `battery SOC table interpolates between entries`() {
+    fun `battery SOC table uses manufacturer ceiling lookup between entries`() {
         // mVer=1 (Sherman), table[49]=8820, table[50]=8837
-        // Voltage 8828 is about halfway → should interpolate to ~49
-        val cfg = config.copy(useCustomPercents = true)
-        val result = decodeSingleFrame(voltage = 8828, ver = 1000, cfg = cfg)
+        // The apps map every voltage above table[49] through table[50] to 50%.
+        val result = decodeSingleFrame(voltage = 8828, ver = 1000)
         assertTrue(result is DecodeResult.Success)
-        val battery = (result as DecodeResult.Success).data.assertTelemetry().batteryLevel
-        assertTrue(battery in 49..50, "Expected ~49-50 but got $battery")
+        assertEquals(50, (result as DecodeResult.Success).data.assertTelemetry().batteryLevel)
     }
 
     @Test
@@ -728,41 +724,48 @@ class VeteranDecoderTest {
     }
 
     @Test
-    fun `battery Nosfet Aero falls back to piecewise (no SOC table)`() {
-        // mVer=43 (Nosfet Aero) has no official table → piecewise fallback
-        val cfg = config.copy(useCustomPercents = true)
-        val result = decodeSingleFrame(voltage = 12337, ver = 43000, cfg = cfg)
+    fun `battery Nosfet Aero uses official 126V table`() {
+        // Real Aero firmware 502.0.06: high byte 0x07, low bytes 0xA8F6.
+        val result = decodeSingleFrame(voltage = 11046, ver = 0xA8F6, versionHighByte = 0x07, pedalsMode = 0x80)
         assertTrue(result is DecodeResult.Success)
-        assertEquals(100, (result as DecodeResult.Success).data.assertTelemetry().batteryLevel)
+        assertEquals(50, (result as DecodeResult.Success).data.assertTelemetry().batteryLevel)
     }
 
     @Test
-    fun `battery Nosfet Apex uses Lynx 151V table`() {
-        // mVer=42 (Nosfet Apex) shares Lynx table, table[50] = 13255
-        val cfg = config.copy(useCustomPercents = true)
-        val result = decodeSingleFrame(voltage = 13255, ver = 42000, cfg = cfg)
+    fun `battery Nosfet Apex real capture uses Lynx 151V table`() {
+        // Captured Apex packet: firmware 501.0.07 and 134.61 V. The Nosfet app reports 58%.
+        val result = decodeSingleFrame(voltage = 13461, ver = 0xA50F, versionHighByte = 0x07, pedalsMode = 0xB8)
         assertTrue(result is DecodeResult.Success)
-        assertEquals(50, (result as DecodeResult.Success).data.assertTelemetry().batteryLevel)
+        val decoded = result.data
+        assertEquals(58, decoded.assertTelemetry().batteryLevel)
+        assertEquals("501.0.07", decoded.assertIdentity().version)
+        assertEquals("Nosfet Apex", decoded.assertIdentity().model)
     }
 
     // ==================== Version String ====================
 
     @Test
     fun `version string is formatted correctly`() {
-        // ver=5000 → "5.0.00" padded to length 9 → "000005.00.000" no...
-        // version = "${ver/1000}.${(ver%1000)/100}.${ver%100}".padStart(9, '0')
-        // ver=5000 → "5.0.0".padStart(9, '0') = "00005.0.0"
         val result = decodeSingleFrame(ver = 5000)
         assertTrue(result is DecodeResult.Success)
-        assertEquals("00005.0.0", (result as DecodeResult.Success).data.assertIdentity().version)
+        assertEquals("005.0.00", (result as DecodeResult.Success).data.assertIdentity().version)
+    }
+
+    @Test
+    fun `Nosfet three-byte version is decoded without truncation`() {
+        val result = decodeSingleFrame(ver = 0xA8F6, versionHighByte = 0x07, pedalsMode = 0x80)
+        assertTrue(result is DecodeResult.Success)
+        val decoded = result.data
+        assertEquals("502.0.06", decoded.assertIdentity().version)
+        assertEquals("Nosfet Aero", decoded.assertIdentity().model)
+        assertEquals(-1, decoded.assertSettings().pedalsMode)
     }
 
     @Test
     fun `version string with non-trivial values`() {
-        // ver=5123 → "${5}.${1}.${23}" = "5.1.23".padStart(9, '0') = "0005.1.23"
         val result = decodeSingleFrame(ver = 5123)
         assertTrue(result is DecodeResult.Success)
-        assertEquals("0005.1.23", (result as DecodeResult.Success).data.assertIdentity().version)
+        assertEquals("005.1.23", (result as DecodeResult.Success).data.assertIdentity().version)
     }
 
     // ==================== isReady ====================
@@ -858,7 +861,7 @@ class VeteranDecoderTest {
         assertEquals(340, telemetry.phaseCurrent) // raw -34 * 10 = -340, abs() → 340
         assertEquals(15349L, telemetry.wheelDistance)
         assertEquals(15349L, telemetry.totalDistance)
-        assertEquals(90, telemetry.batteryLevel)
+        assertEquals(88, telemetry.batteryLevel)
     }
 
     // ==================== Charging Status ====================
@@ -1033,8 +1036,7 @@ class VeteranDecoderTest {
 
     @Test
     fun `pedalsMode is populated from frame`() {
-        // Bytes 30-31 are pedals mode (BE); byte 30 must be 0x00 or 0x07
-        // With byte 30=0x00, byte 31=0x02 -> pedalsMode = 2
+        // Byte 30 is the firmware-version high byte; byte 31 is pedals mode.
         val freshDecoder = VeteranDecoder()
         val frame = buildVeteranFrame()
         frame[30] = 0x00
@@ -1192,6 +1194,15 @@ class VeteranDecoderTest {
         return extended
     }
 
+    private fun rewriteCrc(frame: ByteArray) {
+        val unpackerLen = frame[3].toInt() and 0xFF
+        val crc = veteranCrc32(frame, 0, unpackerLen)
+        frame[unpackerLen] = ((crc shr 24) and 0xFF).toByte()
+        frame[unpackerLen + 1] = ((crc shr 16) and 0xFF).toByte()
+        frame[unpackerLen + 2] = ((crc shr 8) and 0xFF).toByte()
+        frame[unpackerLen + 3] = (crc and 0xFF).toByte()
+    }
+
     /**
      * Convenience: decode an extended frame with a fresh decoder.
      */
@@ -1210,12 +1221,7 @@ class VeteranDecoderTest {
         frameModifier(frame)
 
         // Recalculate CRC after modification
-        val unpackerLen = frame[3].toInt() and 0xFF
-        val crc = veteranCrc32(frame, 0, unpackerLen)
-        frame[unpackerLen] = ((crc shr 24) and 0xFF).toByte()
-        frame[unpackerLen + 1] = ((crc shr 16) and 0xFF).toByte()
-        frame[unpackerLen + 2] = ((crc shr 8) and 0xFF).toByte()
-        frame[unpackerLen + 3] = (crc and 0xFF).toByte()
+        rewriteCrc(frame)
 
         return freshDecoder.decode(frame, DecoderState(), config)
     }
@@ -1250,6 +1256,53 @@ class VeteranDecoderTest {
         }
         assertTrue(result is DecodeResult.Success)
         assertEquals(75, (result as DecodeResult.Success).data.assertTelemetry().batteryLevel)
+    }
+
+    @Test
+    fun `Leaperkim latches wheel-reported battery across later frames`() {
+        val freshDecoder = VeteranDecoder()
+        val overrideFrame = buildExtendedFrame(voltage = 13500, ver = 5000, subType = 2).also { frame ->
+            frame[50] = 77
+            rewriteCrc(frame)
+        }
+        val first = freshDecoder.decode(overrideFrame, DecoderState(), config)
+        assertTrue(first is DecodeResult.Success)
+        assertEquals(77, first.data.assertTelemetry().batteryLevel)
+
+        val state = first.data.decoderStateFrom(DecoderState())
+        val laterFrame = buildExtendedFrame(voltage = 11340, ver = 5000, subType = 0)
+        val second = freshDecoder.decode(laterFrame, state, config)
+        assertTrue(second is DecodeResult.Success)
+        assertEquals(77, second.data.assertTelemetry().batteryLevel)
+    }
+
+    @Test
+    fun `Nosfet ignores subtype battery byte and keeps official table result`() {
+        val frame = buildExtendedFrame(voltage = 11046, ver = 0xA8F6, subType = 2).also { frame ->
+            frame[30] = 0x07
+            frame[31] = 0x80.toByte()
+            frame[50] = 75
+            rewriteCrc(frame)
+        }
+        val result = VeteranDecoder().decode(frame, DecoderState(), config)
+        assertTrue(result is DecodeResult.Success)
+        assertEquals(50, result.data.assertTelemetry().batteryLevel)
+    }
+
+    @Test
+    fun `reset clears latched Leaperkim wheel-reported battery`() {
+        val freshDecoder = VeteranDecoder()
+        val overrideFrame = buildExtendedFrame(voltage = 13500, ver = 5000, subType = 2).also { frame ->
+            frame[50] = 77
+            rewriteCrc(frame)
+        }
+        val first = freshDecoder.decode(overrideFrame, DecoderState(), config)
+        assertTrue(first is DecodeResult.Success)
+
+        freshDecoder.reset()
+        val afterReset = freshDecoder.decode(buildExtendedFrame(voltage = 11340, ver = 5000), DecoderState(), config)
+        assertTrue(afterReset is DecodeResult.Success)
+        assertEquals(0, afterReset.data.assertTelemetry().batteryLevel)
     }
 
     @Test
@@ -2251,11 +2304,10 @@ class LookupSocTest {
     }
 
     @Test
-    fun `interpolation between entries`() {
+    fun `manufacturer lookup rounds up between entries`() {
         // table[49]=8820, table[50]=8837, range=17
-        // 8828 is 8/17 = 0.47 into the range → 49.47 → rounds to 49
-        assertEquals(49, lookupSoc(8828, VeteranSocTables.SHERMAN_100V))
-        // 8829 is 9/17 = 0.53 → 49.53 → rounds to 50
+        assertEquals(50, lookupSoc(8821, VeteranSocTables.SHERMAN_100V))
+        assertEquals(50, lookupSoc(8828, VeteranSocTables.SHERMAN_100V))
         assertEquals(50, lookupSoc(8829, VeteranSocTables.SHERMAN_100V))
     }
 

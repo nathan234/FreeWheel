@@ -21,24 +21,25 @@ import kotlinx.datetime.toLocalDateTime
 import kotlinx.datetime.offsetAt
 
 /**
- * Looks up SOC percentage from a voltage-to-SOC table.
- * Table has 100 entries (index 0-99 = 0%-99%), each value is the minimum voltage × 100
- * for that SOC level. Returns 100 if voltage exceeds the last entry.
+ * Looks up SOC exactly as the Leaperkim and Nosfet apps do.
+ *
+ * A table has 100 voltage entries. Values at or below the first entry map to 0%, values
+ * at or above the last entry map to 100%, and voltages between entries map to the upper
+ * entry's index. In other words, the manufacturer apps use a ceiling/step lookup rather
+ * than interpolation.
  */
 internal fun lookupSoc(voltage: Int, table: IntArray): Int {
-    if (voltage < table[0]) return 0
+    if (voltage <= table[0]) return 0
     if (voltage >= table[table.lastIndex]) return 100
-    // Binary search: find highest index where voltage >= table[index]
-    var low = 0
+
+    // Binary search for the first table entry >= voltage.
+    var low = 1
     var high = table.lastIndex
     while (low < high) {
-        val mid = (low + high + 1) / 2
-        if (table[mid] <= voltage) low = mid else high = mid - 1
+        val mid = (low + high) / 2
+        if (table[mid] < voltage) low = mid + 1 else high = mid
     }
-    // Interpolate between low and low+1
-    val range = table[low + 1] - table[low]
-    val fraction = if (range > 0) (voltage - table[low]).toDouble() / range else 0.0
-    return (low + fraction).roundToInt()
+    return low
 }
 
 internal fun veteranCrc32(data: ByteArray, offset: Int, length: Int): Long =
@@ -178,7 +179,7 @@ internal class VeteranUnpacker : Unpacker {
  * - Nosfet Apex/Aero/Aeon
  *
  * Data starts streaming immediately — no init commands needed.
- * Model is detected from the mVer byte in the first valid frame.
+ * Model is detected from the three-byte firmware version in the first valid frame.
  *
  * Frame format (reassembled by VeteranUnpacker):
  * - Bytes 0-1:  Voltage (BE, ÷100)
@@ -186,7 +187,9 @@ internal class VeteranUnpacker : Unpacker {
  * - Bytes 4-7:  Distance (BE, ÷1000)
  * - Bytes 8-9:  Phase current (BE, signed)
  * - Bytes 10-11: Temperature (BE, ÷340 + 36.53)
- * - Byte 20:    mVer (model identifier)
+ * - Bytes 28-30: Firmware version (wire order: byte 30, byte 28, byte 29)
+ * - Byte 31:    Pedals/ride mode
+ * - Model family derived from firmware version:
  *   0/1=Sherman, 2=Abrams, 3=Sherman S, 4=Patton, 5=Lynx, 6=Sherman L,
  *   7=Patton S, 8=Oryx, 9=Lynx S, 42=Apex, 43=Aero, 44=Aeon
  *
@@ -226,7 +229,10 @@ class VeteranDecoder : WheelDecoder {
     private var lastPacketTime = 0L
     private var hasSyncedTime = false
     private var mVer = 0
+    private var manufacturerModelVersion = 0
     private var version = ""
+    private var usesWheelReportedBattery = false
+    private var retainedWheelBattery = 0
     private var bms1 = SmartBms()
     private var bms2 = SmartBms()
     private var receivingLog = false
@@ -294,14 +300,20 @@ class VeteranDecoder : WheelDecoder {
         val chargeMode = ByteUtils.shortFromBytesBE(buff, 22)
         val speedAlert = ByteUtils.shortFromBytesBE(buff, 24) * 10
         val speedTiltback = ByteUtils.shortFromBytesBE(buff, 26) * 10
-        val ver = ByteUtils.shortFromBytesBE(buff, 28)
-        mVer = ver / 1000
-        version = "${ver / 1000}.${(ver % 1000) / 100}.${ver % 100}".padStart(9, '0')
-        // Pedals mode: valid values are 0/1/2 (hard/medium/soft).
-        // Nosfet (mVer >= 42) firmware repurposes bytes 30-31 — byte 30 is 0x07,
-        // byte 31 is 0x80 (not-supported marker), giving 1920 as a 16-bit read.
-        // Treat any value > 2 as unknown.
-        val pedalsRaw = ByteUtils.shortFromBytesBE(buff, 30)
+        // The official apps reconstruct a three-byte decimal firmware version in the order
+        // byte 30, byte 28, byte 29. Leaperkim uses a zero high byte; Nosfet uses 0x07,
+        // producing model families 501/502/503. Preserve the manufacturer version string,
+        // while normalizing those families to the existing internal 42/43/44 identifiers.
+        val fullVersion = ((buff[30].toInt() and 0xFF) shl 16) or
+            ((buff[28].toInt() and 0xFF) shl 8) or
+            (buff[29].toInt() and 0xFF)
+        manufacturerModelVersion = fullVersion / 1000
+        mVer = normalizeModelVersion(manufacturerModelVersion)
+        val versionDigits = fullVersion.toString().padStart(6, '0')
+        version = "${versionDigits.substring(0, 3)}.${versionDigits.substring(3, 4)}.${versionDigits.substring(4, 6)}"
+
+        // Byte 31 is the pedals/ride mode. Nosfet sends 0x80 when unsupported.
+        val pedalsRaw = buff[31].toInt() and 0xFF
         val pedalsMode = if (pedalsRaw in 0..2) pedalsRaw else -1
         val pitchAngle = ByteUtils.signedShortFromBytesBE(buff, 32)
         val hwPwm = ByteUtils.shortFromBytesBE(buff, 34)
@@ -317,7 +329,7 @@ class VeteranDecoder : WheelDecoder {
         }
 
         // Calculate battery percentage
-        val battery = calculateBatteryPercent(voltage, config.useCustomPercents)
+        val voltageBattery = calculateBatteryPercent(voltage)
 
         // Apply polarity
         if (veteranNegative == 0) {
@@ -345,7 +357,9 @@ class VeteranDecoder : WheelDecoder {
         val power = ((current / 100.0) * voltage).roundToInt()
 
         // Parse sub-type extended data for newer wheels
-        val subData = if (mVer >= 5 && buff.size > 46) parseSubTypeData(buff) else null
+        val subType = if (mVer >= 5 && buff.size > 46) buff[46].toInt() and 0xFF else null
+        val subData = if (subType != null) parseSubTypeData(buff) else null
+        val battery = resolveBatteryLevel(voltageBattery, subType, subData?.batteryOverride)
 
         val newTel = tel.copy(
             speed = speed,
@@ -356,7 +370,7 @@ class VeteranDecoder : WheelDecoder {
             temperature = temperature,
             wheelDistance = distance,
             totalDistance = totalDistance,
-            batteryLevel = subData?.batteryOverride ?: battery,
+            batteryLevel = battery,
             chargingStatus = chargeMode,
             output = output,
             calculatedPwm = calculatedPwm,
@@ -569,9 +583,10 @@ class VeteranDecoder : WheelDecoder {
         bms.avgCell = totalVolt / cellCount
     }
 
-    private fun calculateBatteryPercent(voltage: Int, useBetterPercents: Boolean): Int {
-        // Use official Leaperkim SOC lookup tables when available
-        val table = if (useBetterPercents) getSocTable() else null
+    private fun calculateBatteryPercent(voltage: Int): Int {
+        // Recognized models always use the manufacturer SOC table. The global custom-percent
+        // preference belongs to other decoder families and must not alter Leaperkim/Nosfet SOC.
+        val table = getSocTable()
         if (table != null) return lookupSoc(voltage, table)
 
         // Piecewise-linear fallback
@@ -626,13 +641,46 @@ class VeteranDecoder : WheelDecoder {
             3 -> VeteranSocTables.SHERMAN_100V // Sherman S (same 100.8V chemistry)
             4 -> VeteranSocTables.PATTON_126V
             7 -> VeteranSocTables.PATTON_126V // Patton S (same 126V chemistry/pack config)
+            43 -> VeteranSocTables.PATTON_126V // Nosfet Aero (official Nosfet 5020 table)
             5 -> VeteranSocTables.LYNX_151V
             6 -> VeteranSocTables.LYNX_151V // Sherman L (same 151.2V chemistry)
             9 -> VeteranSocTables.LYNX_151V // Lynx S (same 151.2V chemistry)
             42 -> VeteranSocTables.LYNX_151V // Nosfet Apex (same 151.2V, same pack config)
             44 -> VeteranSocTables.LYNX_151V // Nosfet Aeon (same 151.2V, 36S)
-            else -> null // Oryx, Nosfet Aero, unknown — use piecewise fallback
+            else -> null // Oryx and unknown models use the model-class fallback
         }
+    }
+
+    private fun normalizeModelVersion(version: Int): Int = when (version) {
+        501 -> 42 // Nosfet Apex
+        502 -> 43 // Nosfet Aero
+        503 -> 44 // Nosfet Aeon
+        else -> version
+    }
+
+    private fun isNosfetModel(): Boolean = manufacturerModelVersion in 501..599 || mVer in 42..44
+
+    /**
+     * Leaperkim latches a valid wheel-reported SOC from subtype 2 for the connection. Nosfet's
+     * app ignores that byte and continues using its model table, so keep the behavior brand-specific.
+     */
+    private fun resolveBatteryLevel(voltageBattery: Int, subType: Int?, override: Int?): Int {
+        if (isNosfetModel()) return voltageBattery
+
+        if (override != null) {
+            usesWheelReportedBattery = true
+            retainedWheelBattery = override
+            return override
+        }
+
+        // On a subtype-2 frame without a valid SOC, the Leaperkim app writes the voltage-derived
+        // value but does not disable the new-SOC mode. Retain that value for subsequent frames.
+        if (subType == 2) {
+            if (usesWheelReportedBattery) retainedWheelBattery = voltageBattery
+            return voltageBattery
+        }
+
+        return if (usesWheelReportedBattery) retainedWheelBattery else voltageBattery
     }
 
     private fun getCellsForWheel(): Int {
@@ -681,7 +729,10 @@ class VeteranDecoder : WheelDecoder {
         lastPacketTime = 0
         hasSyncedTime = false
         mVer = 0
+        manufacturerModelVersion = 0
         version = ""
+        usesWheelReportedBattery = false
+        retainedWheelBattery = 0
         bms1 = SmartBms()
         bms2 = SmartBms()
         receivingLog = false

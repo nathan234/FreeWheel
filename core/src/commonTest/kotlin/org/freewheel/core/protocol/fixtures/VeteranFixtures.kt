@@ -20,10 +20,10 @@ internal object VeteranFixtures {
      * raw phaseCurrent is -340 (×10 scaling), abs gives 340.
      *
      * Verified: voltage=96.86 V, phaseCurrent=340 (abs), total distance=15349 m,
-     * battery=90 %.
+     * battery=88 % using the Leaperkim manufacturer table.
      */
     val oldBoardStationary = DecoderFixture(
-        name = "Veteran old board — stationary, 90% battery",
+        name = "Veteran old board — stationary, 88% battery",
         description = "Pre-mVer 3 firmware capture. gotwayNegative=0 (default).",
         frames = listOf(
             "DC5A5C2025D600003BF500003BF50000FFDE1399",
@@ -37,7 +37,7 @@ internal object VeteranFixtures {
                 phaseCurrent = 340,
                 wheelDistance = 15349L,
                 totalDistance = 15349L,
-                batteryLevel = 90,
+                batteryLevel = 88,
             ),
         ),
     )

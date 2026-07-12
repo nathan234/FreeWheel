@@ -194,7 +194,7 @@ class GotwayDecoderTest {
         assertEquals(340, telemetry.phaseCurrent) // raw -34 * 10 = -340, abs() → 340
         assertEquals(15349L, telemetry.wheelDistance)
         assertEquals(15349L, telemetry.totalDistance)
-        assertEquals(90, telemetry.batteryLevel)
+        assertEquals(88, telemetry.batteryLevel)
     }
 
     @Test
