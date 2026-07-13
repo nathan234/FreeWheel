@@ -17,6 +17,7 @@ Tests: `GotwayDecoderTest.kt` · `GotwayDecoderComparisonTest.kt` · `GotwayUnpa
 ### Init & Identity
 - [x] Send V (firmware), b, N (name), b on connect
 - [x] Recognize GW and JL firmware prefixes as Begode (plus JN Extreme Bull and custom CF/BF prefixes)
+- [x] Match controller name or firmware signature to a Begode/Extreme Bull model catalog for voltage and no-load-speed defaults
 - [x] Retry V command when fw empty after receiving live data frames
 - [x] Retry N command after fw populated but model still empty
 - [x] Fallback naming after 50 attempts (fwProt or "Begode")
@@ -26,8 +27,8 @@ Tests: `GotwayDecoderTest.kt` · `GotwayDecoderComparisonTest.kt` · `GotwayUnpa
 ### Frame Parsing
 - [x] Frame 0x00: live telemetry (speed, voltage, current, temperature, distance)
 - [x] Frame 0x01: extended data (true voltage, BMS temps)
-- [x] Frame 0x02/0x03: BMS cell voltages
-- [x] Accumulate cell count and statistics independently for BMS 1 and BMS 2
+- [x] Frame 0x02/0x03/0x05/0x06: BMS cell voltages for packs 1-4
+- [x] Accumulate cell count and statistics independently for each BMS pack
 - [x] Frame 0x04: total distance, settings, alerts
 - [x] Frame 0x07: battery current, motor temperature
 - [x] Frame 0xFF: firmware settings (stub — no UI)
@@ -39,22 +40,21 @@ Tests: `GotwayDecoderTest.kt` · `GotwayDecoderComparisonTest.kt` · `GotwayUnpa
 - [x] useRatio 0.875x scaling
 - [x] inMiles normalization (speed, distances)
 - [x] Voltage scaling per gotwayVoltage config (16S–40S)
+- [x] Automatic model-derived voltage scaling, with explicit per-wheel manual selection taking precedence
 - [x] Battery percent (standard and "better" curves)
 - [x] SmartBMS cell stats (min, max, diff, avg)
+- [x] Firmware-specific frame 0x00 bytes 14-15: status on standard GW/JL/JN firmware, PWM on CF firmware; standard firmware uses frame 0x07 current and a model-speed PWM fallback
 
 ### Commands
 - [x] Beep, light, pedals mode, miles mode, roll angle
 - [x] LED mode, beeper volume, cutout angle, alarm mode
 - [x] Calibrate (two-step: "c" then "y" after 300ms)
 - [x] Max speed (multi-step W/Y/digits sequence)
+- [x] Compose settings expose max speed, alarm mode, and controller units
+- [x] Suppress stale frame-0x04 settings echoes for 2 frames after simple writes and 5 after multi-step LED/max-speed writes
 
 ### Known Gaps
-- [ ] **[P1]** FreeWheel has no Begode/Extreme Bull model catalog. EUC World matches name/firmware to per-wheel voltage, no-load speed, and SmartBMS defaults, while DarknessBot maintains similar per-model defaults; FreeWheel retains generic/manual decoder defaults, so voltage and PWM-derived alarms can be wrong when BMS voltage is unavailable or a profile has not been configured.
-- [ ] **[P1]** The current Begode app also interprets frame types 0x05/0x06 and byte 19 as a multi-pack BMS index. EUC World and DarknessBot corroborate only the older 0x02/0x03 dual-BMS layout. Supporting four packs needs captures/model discrimination and a domain model beyond `bms1`/`bms2`.
-- [ ] **[P2]** Frame 0x01 contains firmware-reported battery/BMS status fields that EUC World exposes (including pack flags and additional pack contexts); FreeWheel currently retains voltage, current, temperatures, and half-pack voltages only.
-- [ ] **[P2]** Frame 0x00 bytes 14-15 are firmware-dependent: EUC World treats them as status bits on standard firmware and PWM on CF firmware, while FreeWheel retains the legacy duty-cycle current estimate. A modern standard-firmware capture is needed before changing the fallback current/power path.
-- [ ] **[P2]** Max-speed, alarm-mode, and miles-mode commands exist in the decoder, but not all are exposed in the Compose settings UI.
-- [ ] **[P3]** `lock_Changes` debounce counter (legacy has 3-frame debounce before confirming settings change)
+- [ ] **[P2]** Frame 0x01 contains firmware-reported battery/BMS status fields that EUC World exposes (including pack flags and additional pack contexts); FreeWheel currently retains voltage, current, temperatures, and half-pack voltages only. The meaning of byte 19 for these extended frames still needs a capture before mapping it to packs 3/4.
 
 ---
 

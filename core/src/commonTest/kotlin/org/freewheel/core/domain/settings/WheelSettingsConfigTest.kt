@@ -48,6 +48,29 @@ class WheelSettingsConfigTest {
     }
 
     @Test
+    fun `Gotway safety exposes max speed alarm mode and wheel units`() {
+        val safety = WheelSettingsConfig.sections(WheelType.GOTWAY)
+            .single { it.title == "Safety" }
+
+        assertTrue(safety.controls.any { it.commandId == SettingsCommandId.MAX_SPEED })
+        assertTrue(safety.controls.any { it.commandId == SettingsCommandId.ALARM_MODE })
+        assertTrue(safety.controls.any { it.commandId == SettingsCommandId.WHEEL_DISPLAY_UNIT })
+    }
+
+    @Test
+    fun `Gotway settings expose speed alarm and unit readback`() {
+        val settings = WheelSettings.Begode(
+            tiltBackSpeed = 74,
+            speedAlarms = 1,
+            inMiles = true,
+        )
+
+        assertEquals(74, SettingsCommandId.MAX_SPEED.readInt(settings))
+        assertEquals(1, SettingsCommandId.ALARM_MODE.readInt(settings))
+        assertEquals(1, SettingsCommandId.WHEEL_DISPLAY_UNIT.readInt(settings))
+    }
+
+    @Test
     fun `Veteran has 5 sections - Lighting, Ride, Audio, Battery, Dangerous`() {
         val sections = WheelSettingsConfig.sections(WheelType.VETERAN)
         assertEquals(5, sections.size)
@@ -179,10 +202,10 @@ class WheelSettingsConfigTest {
     }
 
     @Test
-    fun `Gotway Safety section has Plate Protection toggle and Power Alarm slider`() {
+    fun `Gotway Safety section exposes controller speed alarm and unit settings`() {
         val safety = WheelSettingsConfig.sections(WheelType.GOTWAY)[3]
         assertEquals("Safety", safety.title)
-        assertEquals(2, safety.controls.size)
+        assertEquals(5, safety.controls.size)
 
         val plateProtection = safety.controls[0] as ControlSpec.Toggle
         assertEquals("Plate Protection", plateProtection.label)
@@ -195,6 +218,22 @@ class WheelSettingsConfigTest {
         assertEquals("%", powerAlarm.unit)
         assertEquals(70, powerAlarm.defaultValue)
         assertEquals(SettingsCommandId.POWER_ALARM, powerAlarm.commandId)
+
+        val tiltBackSpeed = safety.controls[2] as ControlSpec.Slider
+        assertEquals("Controller Tilt-back Speed", tiltBackSpeed.label)
+        assertEquals(0, tiltBackSpeed.min)
+        assertEquals(99, tiltBackSpeed.max)
+        assertEquals(SettingsCommandId.MAX_SPEED, tiltBackSpeed.commandId)
+
+        val alarmMode = safety.controls[3] as ControlSpec.Picker
+        assertEquals("Alarm Mode", alarmMode.label)
+        assertEquals(listOf("Two alarms", "One alarm", "Off", "CF tilt-back"), alarmMode.options)
+        assertEquals(SettingsCommandId.ALARM_MODE, alarmMode.commandId)
+
+        val displayUnit = safety.controls[4] as ControlSpec.Segmented
+        assertEquals("Controller Units", displayUnit.label)
+        assertEquals(listOf("km/h", "mph"), displayUnit.options)
+        assertEquals(SettingsCommandId.WHEEL_DISPLAY_UNIT, displayUnit.commandId)
     }
 
     @Test

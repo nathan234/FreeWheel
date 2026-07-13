@@ -604,6 +604,7 @@ class WheelConnectionManager(
             SettingsCommandId.PEDAL_TILT -> setPedalTilt(intValue * 10)
             SettingsCommandId.PEDAL_SENSITIVITY -> setPedalSensitivity(intValue)
             SettingsCommandId.MAX_SPEED -> setMaxSpeed(intValue)
+            SettingsCommandId.ALARM_MODE -> setAlarmMode(intValue)
             SettingsCommandId.LIMITED_MODE -> setLimitedMode(boolValue)
             SettingsCommandId.LIMITED_SPEED -> setLimitedSpeed(intValue)
             SettingsCommandId.ALARM_ENABLED_1 -> setAlarmEnabled(boolValue, 1)

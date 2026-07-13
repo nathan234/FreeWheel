@@ -54,7 +54,7 @@ object PreferenceDefaults {
     const val POWER_FACTOR = 90
     const val BATTERY_CAPACITY = 0
     const val GOTWAY_NEGATIVE = "0"
-    const val GOTWAY_VOLTAGE = "1"
+    const val GOTWAY_VOLTAGE = "-1"
     const val USE_RATIO = false
     const val HW_PWM = false
     const val AUTO_VOLTAGE = true

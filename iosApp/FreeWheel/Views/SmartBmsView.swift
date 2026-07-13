@@ -33,6 +33,20 @@ struct SmartBmsView: View {
                     Text(BmsLabels.shared.NO_BMS_2)
                         .foregroundColor(.secondary)
                 }
+
+                if let bms = wheelManager.bmsState.bms3 {
+                    Divider()
+                    Text(BmsLabels.shared.BMS_3)
+                        .font(.headline)
+                    BmsBlock(bms: bms)
+                }
+
+                if let bms = wheelManager.bmsState.bms4 {
+                    Divider()
+                    Text(BmsLabels.shared.BMS_4)
+                        .font(.headline)
+                    BmsBlock(bms: bms)
+                }
             }
             .padding()
         }

@@ -8,6 +8,8 @@ import org.freewheel.core.domain.telemetry.SmartBms
 import org.freewheel.core.domain.settings.WheelSettings
 import org.freewheel.core.domain.identity.WheelType
 import org.freewheel.core.utils.ByteUtils
+import org.freewheel.core.utils.Lock
+import org.freewheel.core.utils.withLock
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
@@ -34,7 +36,7 @@ import kotlin.math.roundToLong
  *   Bytes 6-9:   Distance (BE; Alexovik: battery current flag + value)
  *   Bytes 10-11: Phase current (BE signed)
  *   Bytes 12-13: Temperature (BE signed, MPU6050/6500 raw)
- *   Bytes 14-15: Duty-cycle multiplier for current estimation (BE signed; NOT display PWM)
+ *   Bytes 14-15: Status flags on standard firmware; PWM on CF firmware
  *   Byte 16:     Unknown/unused
  *   Byte 17:     Beeper volume (0-9)
  *
@@ -57,16 +59,16 @@ import kotlin.math.roundToLong
  *
  * Other frame types:
  *   0x01 = Extended data (true voltage, BMS temps)
- *   0x02/0x03 = BMS cell voltages
+ *   0x02/0x03/0x05/0x06 = BMS cell voltages for packs 1-4
  *   0xFF = Firmware settings (Alexovik/SmirnoV only)
  *
  * Init commands: "V" (firmware), "b", "N" (name), "b"
  * Retry: re-sends "V"/"N" via getKeepAliveCommand until both fw and model
  * are populated (max 50 attempts).
  *
- * Thread-safe: All methods except [buildCommand] are called from the WCM
- * event loop (single-threaded). [buildCommand] does not read any mutable
- * internal state, so no lock is needed.
+ * Thread-safe: Decode/reset are called from the WCM event loop. [buildCommand]
+ * only shares the stale-settings echo counter with decode, and that isolated
+ * state is protected by [settingsEchoLock].
  */
 class GotwayDecoder : WheelDecoder {
 
@@ -77,18 +79,23 @@ class GotwayDecoder : WheelDecoder {
     private var imu = ""
     private var fw = ""
     private var fwProt = ""
+    private var firmwareSignature = ""
+    private var modelProfile: BegodeModelProfile? = null
 
     /** User-facing brand derived from firmware prefix. */
-    private val brandDisplayName: String get() = when (fwProt) {
+    private val brandDisplayName: String get() = modelProfile?.brand ?: when (fwProt) {
         "ExtremeBull" -> "Extreme Bull"
         else -> fwProt // "Begode", "Freestyl3r", "SV", or "" (not yet known)
     }
+    private val modelDisplayName: String get() = modelProfile?.displayName ?: model
     private var trueVoltage = false
     private var trueCurrent = false
     private var truePWM = false
     private var isReady = false
     private var hasReceivedData = false
     private var alexovikCurrent = 0
+    private val settingsEchoLock = Lock()
+    private var settingsEchoFramesToIgnore = 0
 
     // Retry counter for firmware/model info requests (mirrors legacy adapter)
     private var infoAttempt = 0
@@ -110,6 +117,9 @@ class GotwayDecoder : WheelDecoder {
             SettingsCommandId.PLATE_PROTECTION,
             SettingsCommandId.POWER_ALARM,
             SettingsCommandId.CALIBRATE,
+            SettingsCommandId.MAX_SPEED,
+            SettingsCommandId.ALARM_MODE,
+            SettingsCommandId.WHEEL_DISPLAY_UNIT,
         )
 
         // Frame types (byte 18 of unpacked frame)
@@ -118,6 +128,8 @@ class GotwayDecoder : WheelDecoder {
         private const val FRAME_BMS_CELLS_1 = 0x02
         private const val FRAME_BMS_CELLS_2 = 0x03
         private const val FRAME_TOTAL_DISTANCE = 0x04
+        private const val FRAME_BMS_CELLS_3 = 0x05
+        private const val FRAME_BMS_CELLS_4 = 0x06
         private const val FRAME_CURRENT_TEMP = 0x07
         private const val FRAME_SETTINGS = 0xFF
     }
@@ -125,6 +137,8 @@ class GotwayDecoder : WheelDecoder {
     // BMS state (mutable during decode)
     private var bms1 = SmartBms()
     private var bms2 = SmartBms()
+    private var bms3 = SmartBms()
+    private var bms4 = SmartBms()
 
     override fun decode(data: ByteArray, currentState: DecoderState, config: DecoderConfig): DecodeResult {
         // Pre-loop: parse firmware/model info from string data.
@@ -139,31 +153,56 @@ class GotwayDecoder : WheelDecoder {
                 when {
                     dataStr.startsWith("NAME") -> {
                         model = dataStr.drop(5).trim()
-                        preIdentity = currentState.identity.copy(model = model, brand = brandDisplayName)
+                        refreshModelProfile()
+                        preIdentity = currentState.identity.copy(model = modelDisplayName, brand = brandDisplayName)
                     }
                     dataStr.startsWith("GW") || dataStr.startsWith("JL") -> {
+                        firmwareSignature = dataStr
                         fw = dataStr.drop(2).trim()
                         fwProt = "Begode"
+                        refreshModelProfile()
                         isReady = true
-                        preIdentity = currentState.identity.copy(version = fw, brand = brandDisplayName)
+                        preIdentity = currentState.identity.copy(
+                            model = modelDisplayName.ifEmpty { currentState.identity.model },
+                            version = fw,
+                            brand = brandDisplayName,
+                        )
                     }
                     dataStr.startsWith("JN") -> {
+                        firmwareSignature = dataStr
                         fw = dataStr.drop(2).trim()
                         fwProt = "ExtremeBull"
+                        refreshModelProfile()
                         isReady = true
-                        preIdentity = currentState.identity.copy(version = fw, brand = brandDisplayName)
+                        preIdentity = currentState.identity.copy(
+                            model = modelDisplayName.ifEmpty { currentState.identity.model },
+                            version = fw,
+                            brand = brandDisplayName,
+                        )
                     }
                     dataStr.startsWith("CF") -> {
+                        firmwareSignature = dataStr
                         fw = dataStr.drop(2).trim()
                         fwProt = "Freestyl3r"
+                        refreshModelProfile()
                         isReady = true
-                        preIdentity = currentState.identity.copy(version = fw, brand = brandDisplayName)
+                        preIdentity = currentState.identity.copy(
+                            model = modelDisplayName.ifEmpty { currentState.identity.model },
+                            version = fw,
+                            brand = brandDisplayName,
+                        )
                     }
                     dataStr.startsWith("BF") -> {
+                        firmwareSignature = dataStr
                         fw = dataStr.drop(2).trim()
                         fwProt = "SV"
+                        refreshModelProfile()
                         isReady = true
-                        preIdentity = currentState.identity.copy(version = fw, brand = brandDisplayName)
+                        preIdentity = currentState.identity.copy(
+                            model = modelDisplayName.ifEmpty { currentState.identity.model },
+                            version = fw,
+                            brand = brandDisplayName,
+                        )
                     }
                     dataStr.startsWith("MPU") -> {
                         imu = dataStr.drop(1).take(6).trim()
@@ -200,7 +239,7 @@ class GotwayDecoder : WheelDecoder {
                 } else {
                     // Fallback after max attempts
                     if (model.isEmpty()) {
-                        model = fwProt.ifEmpty { "Begode" }
+                        model = modelDisplayName.ifEmpty { fwProt.ifEmpty { "Begode" } }
                         resultIdentity = (resultIdentity ?: currentState.identity).copy(model = model, brand = brandDisplayName)
                     }
                     if (fw.isEmpty()) {
@@ -217,7 +256,12 @@ class GotwayDecoder : WheelDecoder {
                 frameTypes.add(0, "IDENTITY")
             }
             val resolvedIdentity = resolveWheelIdentity(resultIdentity, currentState.identity, WheelType.GOTWAY)
-            val bmsSnapshot = BmsState(bms1 = bms1.toSnapshot(), bms2 = bms2.toSnapshot())
+            val bmsSnapshot = BmsState(
+                bms1 = bms1.toSnapshot(),
+                bms2 = bms2.toSnapshot(),
+                bms3 = bms3.toSnapshot().takeIf { it.cellNum > 0 || it.voltage > 0.0 },
+                bms4 = bms4.toSnapshot().takeIf { it.cellNum > 0 || it.voltage > 0.0 },
+            )
             DecodeResult.Success(DecodedData(
                 telemetry = successData?.telemetry,
                 identity = resolvedIdentity?.takeIf { it != currentState.identity },
@@ -250,6 +294,8 @@ class GotwayDecoder : WheelDecoder {
             FRAME_BMS_CELLS_1 -> processBmsCellsFrame(buff, frameType).copy(frameType = "BMS_CELLS_1")
             FRAME_BMS_CELLS_2 -> processBmsCellsFrame(buff, frameType).copy(frameType = "BMS_CELLS_2")
             FRAME_TOTAL_DISTANCE -> processTotalDistanceFrame(buff, currentState, config, isAlexovikFW).copy(frameType = "TOTAL_DISTANCE")
+            FRAME_BMS_CELLS_3 -> processBmsCellsFrame(buff, frameType).copy(frameType = "BMS_CELLS_3")
+            FRAME_BMS_CELLS_4 -> processBmsCellsFrame(buff, frameType).copy(frameType = "BMS_CELLS_4")
             FRAME_CURRENT_TEMP -> (processCurrentTempFrame(buff, currentState, isAlexovikFW, gotwayNegative) ?: FrameResult(hasNewData = false)).copy(frameType = "CURRENT_TEMP")
             FRAME_SETTINGS -> FrameResult(hasNewData = false, frameType = "SETTINGS")
             else -> return FrameOutcome.Unrecognized("type=0x${frameType.toString(16)}")
@@ -298,18 +344,16 @@ class GotwayDecoder : WheelDecoder {
 
         val beeperVolume = buff[17].toInt() and 0xFF
 
-        var hwPwm = ByteUtils.signedShortFromBytesBE(buff, 14) * 10
+        val frame0StatusOrPwm = ByteUtils.signedShortFromBytesBE(buff, 14)
 
         // Apply direction/polarity settings
         if (gotwayNegative == 0) {
             speed = abs(speed)
             phaseCurrent = abs(phaseCurrent)
-            hwPwm = abs(hwPwm)
         } else {
             phaseCurrent *= gotwayNegative
             if (!isAlexovikFW) {
                 speed *= gotwayNegative
-                hwPwm *= gotwayNegative
             }
         }
 
@@ -340,12 +384,21 @@ class GotwayDecoder : WheelDecoder {
             hasReceivedData = true
         }
 
-        // Calculate current and power
-        val calculatedPwm = hwPwm / 10000.0
-        val current = if (isAlexovikFW && trueCurrent) {
-            alexovikCurrent
-        } else {
-            (calculatedPwm * phaseCurrent).roundToInt()
+        // Standard GW/JN/JL firmware uses bytes 14-15 as a status bitfield. CF
+        // firmware uses the same word as PWM in 0.1% units. Until a frame 0x07
+        // provides actual battery current, standard firmware retains the last
+        // known current instead of multiplying status bits by phase current.
+        val calculatedPwm = when {
+            truePWM -> tel.calculatedPwm
+            fwProt == "Freestyl3r" -> abs(frame0StatusOrPwm) / 1000.0
+            else -> calculateSpeedBasedPwm(speed, voltage, config)
+        }
+        val output = if (truePWM) tel.output else (calculatedPwm * 10000.0).roundToInt()
+        val current = when {
+            isAlexovikFW && trueCurrent -> alexovikCurrent
+            trueCurrent -> tel.current
+            fwProt == "Freestyl3r" -> (calculatedPwm * phaseCurrent).roundToInt()
+            else -> tel.current
         }
         val power = ((current / 100.0) * voltage).roundToInt()
 
@@ -355,6 +408,8 @@ class GotwayDecoder : WheelDecoder {
             phaseCurrent = phaseCurrent,
             current = current,
             power = power,
+            output = output,
+            calculatedPwm = calculatedPwm,
             temperature = temperature,
             wheelDistance = distance,
             batteryLevel = battery
@@ -362,7 +417,7 @@ class GotwayDecoder : WheelDecoder {
 
         val newIdentity = currentState.identity.copy(
             wheelType = WheelType.GOTWAY,
-            model = model.ifEmpty { currentState.identity.model },
+            model = modelDisplayName.ifEmpty { currentState.identity.model },
             brand = brandDisplayName
         )
 
@@ -421,12 +476,15 @@ class GotwayDecoder : WheelDecoder {
         )
     }
 
-    /**
-     * Frame type 0x02/0x03: BMS cell voltages
-     */
+    /** Frame types 0x02/0x03/0x05/0x06: BMS cell voltages for packs 1-4. */
     private fun processBmsCellsFrame(buff: ByteArray, frameType: Int): FrameResult {
-        val bmsNum = (frameType and 0xFF) - 0x01
-        val bms = if (bmsNum == 1) bms1 else bms2
+        val bms = when (frameType) {
+            FRAME_BMS_CELLS_1 -> bms1
+            FRAME_BMS_CELLS_2 -> bms2
+            FRAME_BMS_CELLS_3 -> bms3
+            FRAME_BMS_CELLS_4 -> bms4
+            else -> return FrameResult(hasNewData = false)
+        }
         val pNum = buff[19].toInt() and 0xFF
 
         for (i in 0 until 8) {
@@ -498,13 +556,10 @@ class GotwayDecoder : WheelDecoder {
                 totalDistance = (totalDistance / ByteUtils.KM_TO_MILES_MULTIPLIER).roundToLong()
             }
 
-            return FrameResult(
-                telemetry = tel.copy(
-                    totalDistance = totalDistance,
-                    wheelAlarm = wheelAlarm,
-                    alert = alertLine
-                ),
-                settings = gw.copy(
+            val settingsUpdate = if (consumeSettingsEchoSuppression()) {
+                null
+            } else {
+                gw.copy(
                     pedalsMode = 2 - pedalsMode,
                     speedAlarms = speedAlarms,
                     rollAngle = rollAngle,
@@ -512,7 +567,16 @@ class GotwayDecoder : WheelDecoder {
                     lightMode = lightMode,
                     ledMode = ledMode,
                     inMiles = isMiles
+                )
+            }
+
+            return FrameResult(
+                telemetry = tel.copy(
+                    totalDistance = totalDistance,
+                    wheelAlarm = wheelAlarm,
+                    alert = alertLine
                 ),
+                settings = settingsUpdate,
                 hasNewData = false,
                 news = news
             )
@@ -568,12 +632,14 @@ class GotwayDecoder : WheelDecoder {
         }
 
         val current = (-1) * batteryCurrent
+        val power = ((current / 100.0) * tel.voltage).roundToInt()
         val output = if (truePWM) hwPWMb * 100 else tel.output
         val calculatedPwm = if (truePWM) output / 10000.0 else tel.calculatedPwm
 
         return FrameResult(
             telemetry = tel.copy(
                 current = current,
+                power = power,
                 temperature2 = motorTemp * 100,
                 output = output,
                 calculatedPwm = calculatedPwm
@@ -636,8 +702,30 @@ class GotwayDecoder : WheelDecoder {
         }
     }
 
+    private fun calculateSpeedBasedPwm(speed: Int, voltage: Int, config: DecoderConfig): Double {
+        val speedKmh = abs(speed) / 100.0
+        if (speedKmh == 0.0 || voltage <= 0) return 0.0
+
+        modelProfile?.let { profile ->
+            val noLoadSpeed = profile.noLoadSpeedKmh
+            if (noLoadSpeed != null && profile.fullVoltageV > 0.0) {
+                val voltageFraction = (voltage / 100.0) / profile.fullVoltageV
+                val availableSpeed = noLoadSpeed * voltageFraction
+                if (availableSpeed > 0.0) return speedKmh / availableSpeed
+            }
+        }
+
+        val referenceSpeedKmh = config.rotationSpeed / 10.0
+        val referenceVoltageV = config.rotationVoltage / 10.0
+        val powerFactor = config.powerFactor / 100.0
+        if (referenceSpeedKmh <= 0.0 || referenceVoltageV <= 0.0 || powerFactor <= 0.0) return 0.0
+        val availableSpeed = referenceSpeedKmh * ((voltage / 100.0) / referenceVoltageV) * powerFactor
+        return if (availableSpeed > 0.0) speedKmh / availableSpeed else 0.0
+    }
+
     private fun scaleVoltage(voltage: Int, config: DecoderConfig): Double {
         val scaler = when (config.gotwayVoltage) {
+            -1 -> modelProfile?.let { it.fullVoltageV / 67.2 } ?: 1.25
             0 -> 1.0                    // 67.2V (16S)
             1 -> 1.25                   // 84V (20S)
             2 -> 1.5                    // 100.8V (24S)
@@ -650,13 +738,29 @@ class GotwayDecoder : WheelDecoder {
         return voltage * scaler
     }
 
+    private fun refreshModelProfile() {
+        modelProfile = BegodeModelCatalog.match(model = model, firmware = firmwareSignature)
+    }
+
+    private fun armSettingsEchoSuppression(frames: Int) {
+        settingsEchoLock.withLock {
+            settingsEchoFramesToIgnore = frames
+        }
+    }
+
+    private fun consumeSettingsEchoSuppression(): Boolean = settingsEchoLock.withLock {
+        if (settingsEchoFramesToIgnore <= 0) return@withLock false
+        settingsEchoFramesToIgnore--
+        true
+    }
+
     override fun isReady(): Boolean = isReady && hasReceivedData
 
     override fun getCapabilities(): CapabilitySet {
         if (!isReady) return CapabilitySet()
         return CapabilitySet(
             supportedCommands = SUPPORTED_COMMANDS,
-            detectedModel = model,
+            detectedModel = modelDisplayName,
             firmwareVersion = fw,
             isResolved = true
         )
@@ -670,6 +774,8 @@ class GotwayDecoder : WheelDecoder {
         imu = ""
         fw = ""
         fwProt = ""
+        firmwareSignature = ""
+        modelProfile = null
         trueVoltage = false
         trueCurrent = false
         truePWM = false
@@ -677,8 +783,11 @@ class GotwayDecoder : WheelDecoder {
         hasReceivedData = false
         alexovikCurrent = 0
         infoAttempt = 0
+        settingsEchoLock.withLock { settingsEchoFramesToIgnore = 0 }
         bms1 = SmartBms()
         bms2 = SmartBms()
+        bms3 = SmartBms()
+        bms4 = SmartBms()
     }
 
     override fun buildCommand(command: WheelCommand, state: DecoderState?): List<WheelCommand> {
@@ -697,6 +806,7 @@ class GotwayDecoder : WheelDecoder {
                     2 -> "T"
                     else -> "E"
                 }
+                armSettingsEchoSuppression(2)
                 listOf(WheelCommand.SendBytes(cmd.encodeToByteArray()))
             }
             is WheelCommand.SetPedalsMode -> {
@@ -708,11 +818,16 @@ class GotwayDecoder : WheelDecoder {
                     3 -> "i"
                     else -> return emptyList()
                 }
+                armSettingsEchoSuppression(2)
                 listOf(WheelCommand.SendBytes(cmd.encodeToByteArray()))
             }
             is WheelCommand.SetMilesMode -> {
                 val cmd = if (command.enabled) "m" else "g"
+                armSettingsEchoSuppression(2)
                 listOf(WheelCommand.SendBytes(cmd.encodeToByteArray()))
+            }
+            is WheelCommand.SetWheelDisplayUnit -> {
+                buildCommand(WheelCommand.SetMilesMode(command.miles), state)
             }
             is WheelCommand.SetRollAngleMode -> {
                 // 0=normal(">"), 1=equal("="), 2=reverse("<")
@@ -722,11 +837,13 @@ class GotwayDecoder : WheelDecoder {
                     2 -> "<"
                     else -> return emptyList()
                 }
+                armSettingsEchoSuppression(2)
                 listOf(WheelCommand.SendBytes(cmd.encodeToByteArray()))
             }
             is WheelCommand.SetLedMode -> {
                 // Multi-step: W, then M 100ms later, digit 100ms later, b 100ms later
                 val param = byteArrayOf(((command.mode % 10) + 0x30).toByte())
+                armSettingsEchoSuppression(5)
                 listOf(
                     WheelCommand.SendBytes("W".encodeToByteArray()),
                     WheelCommand.SendDelayed("M".encodeToByteArray(), 100),
@@ -764,6 +881,7 @@ class GotwayDecoder : WheelDecoder {
                     3 -> "I"
                     else -> return emptyList()
                 }
+                armSettingsEchoSuppression(2)
                 listOf(WheelCommand.SendBytes(cmd.encodeToByteArray()))
             }
             is WheelCommand.Calibrate -> {
@@ -813,6 +931,7 @@ class GotwayDecoder : WheelDecoder {
                 listOf(WheelCommand.SendBytes(cmd.encodeToByteArray()))
             }
             is WheelCommand.SetMaxSpeed -> {
+                armSettingsEchoSuppression(5)
                 if (command.speed != 0) {
                     val hhh = byteArrayOf(((command.speed / 10) + 0x30).toByte())
                     val lll = byteArrayOf(((command.speed % 10) + 0x30).toByte())

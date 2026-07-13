@@ -76,7 +76,18 @@ object WheelSettingsConfig {
         )),
         SettingsSection("Safety", listOf(
             ControlSpec.Toggle("Plate Protection", SettingsCommandId.PLATE_PROTECTION),
-            ControlSpec.Slider("Power Alarm", 50, 90, "%", 70, SettingsCommandId.POWER_ALARM)
+            ControlSpec.Slider("Power Alarm", 50, 90, "%", 70, SettingsCommandId.POWER_ALARM),
+            ControlSpec.Slider("Controller Tilt-back Speed", 0, 99, "wheel units", 0, SettingsCommandId.MAX_SPEED),
+            ControlSpec.Picker(
+                "Alarm Mode",
+                listOf("Two alarms", "One alarm", "Off", "CF tilt-back"),
+                SettingsCommandId.ALARM_MODE,
+            ),
+            ControlSpec.Segmented(
+                "Controller Units",
+                listOf("km/h", "mph"),
+                SettingsCommandId.WHEEL_DISPLAY_UNIT,
+            )
         )),
         SettingsSection("Dangerous Actions", listOf(
             calibrateButton()

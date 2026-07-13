@@ -74,10 +74,11 @@ frame header would eliminate.
 ### No self-description of battery configuration
 
 Begode sells wheels with 16S, 20S, 24S, 30S, and 40S battery configurations. The
-protocol doesn't include the series count anywhere. The `gotwayVoltage` decoder config
-exists solely because the app has to guess the battery configuration from voltage
-ranges to calculate battery percentage. Get it wrong and the battery indicator is
-meaningless.
+protocol doesn't include the series count anywhere. FreeWheel now resolves known
+controller names and firmware signatures through a model catalog, while retaining
+`gotwayVoltage` as a per-wheel manual override. An unknown or misidentified model can
+still have incorrect voltage and PWM-derived telemetry because the wire format itself
+does not provide the missing configuration.
 
 ### Undocumented fields
 

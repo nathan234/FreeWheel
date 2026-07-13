@@ -186,7 +186,11 @@ val WheelSettings.cutoutAngle: Int get() = when (this) {
     is WheelSettings.None -> -1
 }
 
-val WheelSettings.maxSpeed: Int get() = (this as? WheelSettings.InMotionV2)?.maxSpeed ?: -1
+val WheelSettings.maxSpeed: Int get() = when (this) {
+    is WheelSettings.Begode -> tiltBackSpeed
+    is WheelSettings.InMotionV2 -> maxSpeed
+    else -> -1
+}
 
 val WheelSettings.pedalTilt: Int get() = when (this) {
     is WheelSettings.LeaperkimCan -> pedalTilt

@@ -1,6 +1,7 @@
 package org.freewheel.core.protocol
 
 import org.freewheel.core.domain.identity.WheelIdentity
+import org.freewheel.core.domain.settings.SettingsCommandId
 import org.freewheel.core.domain.settings.beeperVolume
 import org.freewheel.core.domain.settings.cutoutAngle
 import org.freewheel.core.domain.settings.rollAngle
@@ -310,6 +311,51 @@ class GotwayDecoderTest {
         assertEquals(6000, decoded.assertTelemetry().voltage)
     }
 
+    @Test
+    fun `auto voltage uses Commander Max model profile`() {
+        val freshDecoder = GotwayDecoder()
+        freshDecoder.decode("NAME:MAX".encodeToByteArray(), DecoderState(), config)
+
+        val result = freshDecoder.decode(
+            buildLiveDataFrame(voltage = 6000),
+            DecoderState(),
+            config.copy(gotwayVoltage = -1),
+        )
+
+        assertTrue(result is DecodeResult.Success)
+        val decoded = (result as DecodeResult.Success).data
+        assertEquals(15000, decoded.assertTelemetry().voltage)
+        assertEquals("Commander Max", decoded.assertIdentity().model)
+        assertEquals("Extreme Bull", decoded.assertIdentity().brand)
+    }
+
+    @Test
+    fun `manual voltage selection overrides matched model profile`() {
+        val freshDecoder = GotwayDecoder()
+        freshDecoder.decode("NAME:MAX".encodeToByteArray(), DecoderState(), config)
+
+        val result = freshDecoder.decode(
+            buildLiveDataFrame(voltage = 6000),
+            DecoderState(),
+            config.copy(gotwayVoltage = 1),
+        )
+
+        assertTrue(result is DecodeResult.Success)
+        assertEquals(7500, (result as DecodeResult.Success).data.assertTelemetry().voltage)
+    }
+
+    @Test
+    fun `auto voltage keeps legacy 84V fallback for unknown model`() {
+        val result = GotwayDecoder().decode(
+            buildLiveDataFrame(voltage = 6000),
+            DecoderState(),
+            config.copy(gotwayVoltage = -1),
+        )
+
+        assertTrue(result is DecodeResult.Success)
+        assertEquals(7500, (result as DecodeResult.Success).data.assertTelemetry().voltage)
+    }
+
     // ==================== Veteran Model Names ====================
 
     @Test
@@ -606,19 +652,19 @@ class GotwayDecoderTest {
     }
 
     @Test
-    fun `NAME before firmware leaves brand empty until firmware arrives`() {
+    fun `known NAME resolves catalog brand before firmware arrives`() {
         val freshDecoder = GotwayDecoder()
         var ds = DecoderState()
 
-        // NAME arrives first (fwProt still "")
+        // NAME arrives first (fwProt still ""), but the model catalog already
+        // knows which brand owns this wheel.
         val nameData = "NAME Rocket".encodeToByteArray()
         val r1 = freshDecoder.decode(nameData, ds, config)
         assertTrue(r1 is DecodeResult.Success)
         ds = (r1 as DecodeResult.Success).data.decoderStateFrom(ds)
         assertEquals("Rocket", ds.identity.model)
-        assertEquals("", ds.identity.brand)
-        // Falls back to wheelType brand
-        assertEquals("Begode Rocket", ds.identity.displayName)
+        assertEquals("Extreme Bull", ds.identity.brand)
+        assertEquals("Extreme Bull Rocket", ds.identity.displayName)
     }
 
     // ==================== Miles Normalization ====================
@@ -891,6 +937,45 @@ class GotwayDecoderTest {
         assertTrue(result is DecodeResult.Success)
         assertEquals(0, (result as DecodeResult.Success).data.assertSettings().tiltBackSpeed,
             ">=100 clamps to 0 (off)")
+    }
+
+    @Test
+    fun `short Begode setting command ignores two stale settings echoes`() {
+        val freshDecoder = GotwayDecoder()
+        initDecoder(freshDecoder)
+        freshDecoder.buildCommand(WheelCommand.SetLightMode(1))
+        val staleFrame = buildSettingsFrame(lightMode = 0)
+
+        repeat(2) {
+            val stale = freshDecoder.decode(staleFrame, DecoderState(), config)
+            assertTrue(stale is DecodeResult.Success)
+            assertNull(
+                (stale as DecodeResult.Success).data.settings,
+                "Stale frame ${it + 1} must not overwrite the requested setting",
+            )
+        }
+
+        val confirmed = freshDecoder.decode(staleFrame, DecoderState(), config)
+        assertTrue(confirmed is DecodeResult.Success)
+        assertEquals(0, (confirmed as DecodeResult.Success).data.assertSettings().lightMode)
+    }
+
+    @Test
+    fun `multi-step Begode setting command ignores five stale settings echoes`() {
+        val freshDecoder = GotwayDecoder()
+        initDecoder(freshDecoder)
+        freshDecoder.buildCommand(WheelCommand.SetMaxSpeed(74))
+        val staleFrame = buildSettingsFrame(tiltBackSpeed = 0)
+
+        repeat(5) {
+            val stale = freshDecoder.decode(staleFrame, DecoderState(), config)
+            assertTrue(stale is DecodeResult.Success)
+            assertNull((stale as DecodeResult.Success).data.settings)
+        }
+
+        val confirmed = freshDecoder.decode(staleFrame, DecoderState(), config)
+        assertTrue(confirmed is DecodeResult.Success)
+        assertEquals(0, (confirmed as DecodeResult.Success).data.assertSettings().tiltBackSpeed)
     }
 
     // ==================== Command Encoding (Begode Protocol) ====================
@@ -1328,34 +1413,30 @@ class GotwayDecoderTest {
     // ==================== Current/PWM Verification ====================
 
     @Test
-    fun `current calculated as (hwPwm div 10000) times phaseCurrent for frame 0x00`() {
+    fun `standard firmware treats frame 0x00 bytes 14-15 as status and uses model no-load PWM`() {
         val freshDecoder = GotwayDecoder()
-        initDecoder(freshDecoder)
+        freshDecoder.decode("GW2035101".encodeToByteArray(), DecoderState(), config)
+        freshDecoder.decode("NAME:Blitz".encodeToByteArray(), DecoderState(), config)
 
-        // Build frame with known phaseCurrent and hwPwm
-        // phaseCurrent at offset 10-11 (signed), hwPwm at offset 14-15 (signed, * 10 in decoder)
-        val header = byteArrayOf(0x55, 0xAA.toByte())
-        val phaseCurrent: Short = -500  // -5A raw
-        val hwPwmRaw: Short = 3000     // hwPwm in decoder = 3000 * 10 = 30000
-        val frame = header +
-            shortToBytesBE(6000) +       // voltage
-            shortToBytesBE(0) +          // speed
-            byteArrayOf(0, 0) +
-            shortToBytesBE(0) +          // distance
-            shortToBytesBE(phaseCurrent) +
-            shortToBytesBE(99) +         // temperature
-            shortToBytesBE(hwPwmRaw) +   // offset 14-15
-            byteArrayOf(0, 0, 0, 0x18, 0x5A, 0x5A, 0x5A, 0x5A)
+        val result = freshDecoder.decode(
+            buildLiveDataFrame(
+                voltage = 6720,
+                speed = 1000, // 36 km/h
+                phaseCurrent = 500,
+                statusWord = 3000,
+            ),
+            DecoderState(),
+            config.copy(gotwayVoltage = -1),
+        )
 
-        val result = freshDecoder.decode(frame, DecoderState(), config)
         assertTrue(result is DecodeResult.Success)
         val decoded = (result as DecodeResult.Success).data
+        val telemetry = decoded.assertTelemetry()
 
-        // gotwayNegative=0 (default): abs(phaseCurrent) = 500, abs(hwPwm) = 30000
-        // calculatedPwm = 30000 / 10000.0 = 3.0
-        // current = round(3.0 * 500) = 1500
-        assertEquals(500, decoded.assertTelemetry().phaseCurrent)
-        assertEquals(1500, decoded.assertTelemetry().current)
+        assertEquals(500, telemetry.phaseCurrent)
+        assertEquals(0, telemetry.current, "Status bits must not be multiplied into battery current")
+        assertEquals(36.0 / 150.0, telemetry.calculatedPwm, 0.001)
+        assertEquals(2400, telemetry.output)
     }
 
     @Test
@@ -1379,8 +1460,8 @@ class GotwayDecoderTest {
         assertTrue(result is DecodeResult.Success)
         val decoded = (result as DecodeResult.Success).data
 
-        // Frame 0x00 bytes 14-15 are a duty-cycle multiplier for current estimation,
-        // not real PWM. Only frame 0x07 sets display PWM (output/calculatedPwm).
+        // Standard firmware uses frame 0x00 bytes 14-15 as status flags, not
+        // actual PWM. With zero speed, the speed-based fallback is also zero.
         assertEquals(0, decoded.assertTelemetry().output)
         assertEquals(0.0, decoded.assertTelemetry().calculatedPwm)
     }
@@ -1405,6 +1486,27 @@ class GotwayDecoderTest {
         // hwPwm=45 → output = 45 * 100 = 4500, calculatedPwm = 4500 / 10000.0 = 0.45 (45%)
         assertEquals(4500, decoded.assertTelemetry().output)
         assertEquals(0.45, decoded.assertTelemetry().calculatedPwm)
+    }
+
+    @Test
+    fun `frame 0x07 actual battery current refreshes power`() {
+        val freshDecoder = GotwayDecoder()
+        initDecoder(freshDecoder)
+
+        var state = DecoderState()
+        val live = freshDecoder.decode(buildLiveDataFrame(voltage = 6000), state, config)
+        if (live is DecodeResult.Success) state = live.data.decoderStateFrom(state)
+
+        val result = freshDecoder.decode(
+            buildCurrentTempFrame(batteryCurrent = 100, motorTemp = 40),
+            state,
+            config,
+        )
+
+        assertTrue(result is DecodeResult.Success)
+        val telemetry = (result as DecodeResult.Success).data.assertTelemetry()
+        assertEquals(-100, telemetry.current)
+        assertEquals(-6000, telemetry.power)
     }
 
     @Test
@@ -1992,6 +2094,49 @@ class GotwayDecoderTest {
         assertEquals(32.0, bms.bms2?.voltage ?: 0.0, 0.001)
     }
 
+    @Test
+    fun `new Begode frame types 0x05 and 0x06 populate BMS 3 and 4`() {
+        val freshDecoder = GotwayDecoder()
+        initDecoder(freshDecoder)
+
+        freshDecoder.decode(
+            buildBmsCellFrame(0x05, pNum = 0, List(8) { 4100 }),
+            DecoderState(),
+            config,
+        )
+        val result = freshDecoder.decode(
+            buildBmsCellFrame(0x06, pNum = 0, List(8) { 3900 }),
+            DecoderState(),
+            config,
+        )
+
+        assertTrue(result is DecodeResult.Success)
+        val bms = (result as DecodeResult.Success).data.assertBms()
+        assertEquals(8, bms.bms3?.cellNum)
+        assertEquals(4.1, bms.bms3?.avgCell ?: 0.0, 0.001)
+        assertEquals(8, bms.bms4?.cellNum)
+        assertEquals(3.9, bms.bms4?.avgCell ?: 0.0, 0.001)
+    }
+
+    @Test
+    fun `Begode capabilities expose implemented speed alarm and unit commands`() {
+        val freshDecoder = GotwayDecoder()
+        freshDecoder.decode("GW2035101".encodeToByteArray(), DecoderState(), config)
+
+        val commands = freshDecoder.getCapabilities().supportedCommands
+        assertTrue(SettingsCommandId.MAX_SPEED in commands)
+        assertTrue(SettingsCommandId.ALARM_MODE in commands)
+        assertTrue(SettingsCommandId.WHEEL_DISPLAY_UNIT in commands)
+    }
+
+    @Test
+    fun `SetWheelDisplayUnit maps to Begode miles command`() {
+        val commands = decoder.buildCommand(WheelCommand.SetWheelDisplayUnit(miles = true))
+
+        assertEquals(1, commands.size)
+        assertEquals("m", (commands.single() as WheelCommand.SendBytes).data.decodeToString())
+    }
+
     // ==================== Helpers ====================
 
     /**
@@ -2010,7 +2155,9 @@ class GotwayDecoderTest {
         voltage: Int = 6000,
         speed: Int = 0,
         distance: Int = 0,
-        beeperVolume: Int = 0
+        beeperVolume: Int = 0,
+        phaseCurrent: Int = 0,
+        statusWord: Int = 0,
     ): ByteArray {
         val header = byteArrayOf(0x55, 0xAA.toByte())
         return header +
@@ -2018,9 +2165,10 @@ class GotwayDecoderTest {
             shortToBytesBE(speed) +
             byteArrayOf(0, 0) +
             shortToBytesBE(distance) +
-            shortToBytesBE(0) + // phaseCurrent
+            shortToBytesBE(phaseCurrent) +
             shortToBytesBE(99) + // temperature
-            byteArrayOf(0, 0, 0, beeperVolume.toByte(), 0, 0x18, 0x5A, 0x5A, 0x5A, 0x5A)
+            shortToBytesBE(statusWord) +
+            byteArrayOf(0, beeperVolume.toByte(), 0, 0x18, 0x5A, 0x5A, 0x5A, 0x5A)
     }
 
     /**

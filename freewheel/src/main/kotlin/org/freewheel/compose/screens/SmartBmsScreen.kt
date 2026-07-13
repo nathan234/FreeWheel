@@ -26,11 +26,21 @@ import org.freewheel.core.utils.DisplayUtils
 @Composable
 fun SmartBmsScreen(viewModel: WheelViewModel) {
     val bms by viewModel.bmsState.collectAsStateWithLifecycle()
-    SmartBmsContent(bms1 = bms.bms1, bms2 = bms.bms2)
+    SmartBmsContent(
+        bms1 = bms.bms1,
+        bms2 = bms.bms2,
+        bms3 = bms.bms3,
+        bms4 = bms.bms4,
+    )
 }
 
 @Composable
-internal fun SmartBmsContent(bms1: BmsSnapshot?, bms2: BmsSnapshot?) {
+internal fun SmartBmsContent(
+    bms1: BmsSnapshot?,
+    bms2: BmsSnapshot?,
+    bms3: BmsSnapshot? = null,
+    bms4: BmsSnapshot? = null,
+) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -40,20 +50,19 @@ internal fun SmartBmsContent(bms1: BmsSnapshot?, bms2: BmsSnapshot?) {
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        Text("BMS 1", style = MaterialTheme.typography.titleMedium)
-        if (bms1 != null && bms1.voltage > 0) {
-            BmsBlock(bms1)
-        } else {
-            Text("No BMS 1 data", style = MaterialTheme.typography.bodySmall)
-        }
-
-        Spacer(Modifier.height(12.dp))
-
-        Text("BMS 2", style = MaterialTheme.typography.titleMedium)
-        if (bms2 != null && bms2.voltage > 0) {
-            BmsBlock(bms2)
-        } else {
-            Text("No BMS 2 data", style = MaterialTheme.typography.bodySmall)
+        val packs = listOf(bms1, bms2, bms3, bms4)
+        packs.forEachIndexed { index, pack ->
+            // BMS 1/2 remain visible for all wheels. Newer Begode packs appear
+            // only after frame 0x05/0x06 data is actually received.
+            if (index < 2 || pack != null) {
+                if (index > 0) Spacer(Modifier.height(12.dp))
+                Text("BMS ${index + 1}", style = MaterialTheme.typography.titleMedium)
+                if (pack != null && (pack.voltage > 0.0 || pack.cellNum > 0)) {
+                    BmsBlock(pack)
+                } else {
+                    Text("No BMS ${index + 1} data", style = MaterialTheme.typography.bodySmall)
+                }
+            }
         }
     }
 }

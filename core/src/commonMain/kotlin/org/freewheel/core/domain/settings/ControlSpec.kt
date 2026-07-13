@@ -18,6 +18,7 @@ enum class SettingsCommandId {
     // Speed
     MAX_SPEED, LIMITED_MODE, LIMITED_SPEED,
     // Alarms
+    ALARM_MODE,
     ALARM_ENABLED_1, ALARM_ENABLED_2, ALARM_ENABLED_3,
     ALARM_SPEED_1, ALARM_SPEED_2, ALARM_SPEED_3,
     // Audio
@@ -86,7 +87,7 @@ enum class SettingsCommandId {
         PEDALS_MODE, ROLL_ANGLE_MODE, CUTOUT_ANGLE, HANDLE_BUTTON, BRAKE_ASSIST,
         RIDE_MODE, GO_HOME_MODE, FANCIER_MODE,
         PEDAL_SENSITIVITY, MAX_SPEED, LIMITED_MODE, LIMITED_SPEED,
-        ALARM_ENABLED_1, ALARM_ENABLED_2, ALARM_ENABLED_3,
+        ALARM_MODE, ALARM_ENABLED_1, ALARM_ENABLED_2, ALARM_ENABLED_3,
         ALARM_SPEED_2, ALARM_SPEED_3,
         SPEAKER_VOLUME, BEEPER_VOLUME, MUTE, FAN,
         CALIBRATE, POWER_OFF, LOCK, RESET_TRIP -> false
@@ -100,6 +101,7 @@ enum class SettingsCommandId {
         ROLL_ANGLE_MODE -> settings.rollAngle.takeIf { it >= 0 }
         CUTOUT_ANGLE -> settings.cutoutAngle.takeIf { it >= 0 }
         MAX_SPEED -> settings.maxSpeed.takeIf { it >= 0 }
+        ALARM_MODE -> (settings as? WheelSettings.Begode)?.speedAlarms?.takeIf { it >= 0 }
         PEDAL_TILT -> settings.pedalTilt.takeIf { it >= 0 }?.let { it / 10 }
         PEDAL_SENSITIVITY -> settings.pedalSensitivity.takeIf { it >= 0 }
         SPEAKER_VOLUME -> settings.speakerVolume.takeIf { it >= 0 }
@@ -128,7 +130,10 @@ enum class SettingsCommandId {
         LATERAL_CUTOFF_ANGLE -> settings.lateralCutoffAngle.takeIf { it >= 0 }
         DYNAMIC_ASSIST -> settings.dynamicAssist.takeIf { it >= 0 }
         ACCELERATION_LIMIT -> settings.accelerationLimit.takeIf { it >= 0 }
-        WHEEL_DISPLAY_UNIT -> settings.wheelDisplayUnit.takeIf { it >= 0 }
+        WHEEL_DISPLAY_UNIT -> when (settings) {
+            is WheelSettings.Begode -> if (settings.inMiles) 1 else 0
+            else -> settings.wheelDisplayUnit.takeIf { it >= 0 }
+        }
         PEDAL_HARDNESS -> settings.pedalSensitivity.takeIf { it >= 0 }
         BALANCE_ANGLE -> settings.balanceAngle.takeIf { it != -1 }
         MIN_TIRE_PRESSURE -> settings.minTirePressure.takeIf { it >= 0 }
@@ -207,6 +212,7 @@ enum class SettingsCommandId {
         PEDALS_MODE, LIGHT_MODE, LED_MODE, STROBE_MODE, TAIL_LIGHT,
         ROLL_ANGLE_MODE, CUTOUT_ANGLE, BRAKE_ASSIST, LIGHT_BRIGHTNESS,
         PEDAL_TILT, PEDAL_SENSITIVITY, MAX_SPEED, LIMITED_MODE, LIMITED_SPEED,
+        ALARM_MODE,
         ALARM_ENABLED_1, ALARM_ENABLED_2, ALARM_ENABLED_3,
         ALARM_SPEED_1, ALARM_SPEED_2, ALARM_SPEED_3,
         SPEAKER_VOLUME, BEEPER_VOLUME, FAN,
