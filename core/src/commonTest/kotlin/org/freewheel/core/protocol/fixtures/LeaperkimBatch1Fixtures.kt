@@ -43,9 +43,8 @@ internal object LeaperkimBatch1Fixtures {
      * Build a 36-byte Veteran main telemetry frame. Mirrors
      * `VeteranDecoder.processFrame` field offsets.
      *
-     * Defaults are zeroed except where the unpacker requires specific values
-     * (byte 22 = 0x00 charge-mode high byte, byte 23 in {0x00, 0x01}, byte 30
-     * in {0x00, 0x07}, byte 31 = 0x00).
+     * Payload fields default to zero. The unpacker treats them as data and relies
+     * on the header, declared length, and (for extended frames) CRC for framing.
      */
     fun buildMainFrame(
         voltage: Int = 0,
@@ -94,7 +93,7 @@ internal object LeaperkimBatch1Fixtures {
         frame[28] = ((ver shr 8) and 0xFF).toByte()
         frame[29] = (ver and 0xFF).toByte()
 
-        // pedals mode byte 30 in {0x00, 0x07}; byte 31 = 0x00
+        // firmware high byte 30 = 0x00; pedals mode byte 31 = 0x00
         frame[30] = 0x00
         frame[31] = 0x00
 

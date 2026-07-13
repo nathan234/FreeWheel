@@ -14,8 +14,9 @@ import kotlin.test.assertTrue
  * - Bytes 4+: Data payload
  * - Last 4 bytes: CRC32 (for newer firmware, len > 38)
  *
- * Data verification checks at byte positions 22, 23, and 30 reject
- * frames with unexpected values.
+ * Payload fields are not framing sentinels. New wheel firmware may assign new
+ * values to them, so only the header, declared length, and CRC establish frame
+ * validity.
  */
 class VeteranUnpackerTest {
 
@@ -32,7 +33,6 @@ class VeteranUnpackerTest {
     /**
      * Build a valid Veteran frame with the given payload length.
      * The header (DC 5A 5C) and length byte are prepended.
-     * Byte 22 = 0x00, byte 23 = 0x00, byte 30 = 0x00 to pass validation.
      */
     private fun buildValidFrame(payloadLen: Int = 36): ByteArray {
         val frame = ByteArray(payloadLen + 4) // header(3) + len(1) + payload
@@ -40,10 +40,6 @@ class VeteranUnpackerTest {
         frame[1] = 0x5A.toByte()
         frame[2] = 0x5C.toByte()
         frame[3] = payloadLen.toByte()
-        // Verification bytes must pass checks:
-        // bsize 22 → byte == 0x00 (frame[22] = 0x00, already zeroed)
-        // bsize 23 → (byte and 0xFE) == 0x00 (frame[23] = 0x00, already zeroed)
-        // bsize 30 → byte == 0x00 || byte == 0x07 (frame[30] = 0x00, already zeroed)
         return frame
     }
 
@@ -64,36 +60,17 @@ class VeteranUnpackerTest {
     }
 
     @Test
-    fun stats_dataValidationFailure_incrementsCounters() {
+    fun stats_payloadFieldChanges_doNotRejectFrame() {
         val unpacker = VeteranUnpacker()
-        // Build a frame where byte at position 22 is non-zero (fails validation)
         val frame = buildValidFrame(36)
-        frame[22] = 0x01.toByte() // should be 0x00 → validation failure
+        frame[22] = 0x01.toByte()
+        frame[23] = 0x04.toByte()
+        frame[30] = 0x08.toByte()
 
         val result = feedBytes(unpacker, frame)
-        assertFalse(result, "Frame with invalid byte 22 should be rejected")
-        assertEquals(1, unpacker.stats.errorResets)
-        assertTrue(unpacker.stats.bytesDiscarded > 0)
-    }
-
-    @Test
-    fun stats_byte23ValidationFailure_incrementsCounters() {
-        val unpacker = VeteranUnpacker()
-        val frame = buildValidFrame(36)
-        frame[23] = 0x04.toByte() // (0x04 and 0xFE) = 0x04 ≠ 0x00 → failure
-
-        feedBytes(unpacker, frame)
-        assertEquals(1, unpacker.stats.errorResets)
-    }
-
-    @Test
-    fun stats_byte30ValidationFailure_incrementsCounters() {
-        val unpacker = VeteranUnpacker()
-        val frame = buildValidFrame(36)
-        frame[30] = 0x05.toByte() // not 0x00 or 0x07 → failure
-
-        feedBytes(unpacker, frame)
-        assertEquals(1, unpacker.stats.errorResets)
+        assertTrue(result, "Changing payload fields must not invalidate framing")
+        assertEquals(0, unpacker.stats.errorResets)
+        assertEquals(0, unpacker.stats.bytesDiscarded)
     }
 
     @Test
@@ -113,8 +90,7 @@ class VeteranUnpackerTest {
     @Test
     fun stats_persistAcrossReset() {
         val unpacker = VeteranUnpacker()
-        val frame = buildValidFrame(36)
-        frame[22] = 0x01.toByte() // trigger validation error
+        val frame = buildValidFrame(42) // invalid zero CRC
 
         feedBytes(unpacker, frame)
         unpacker.reset()
@@ -125,8 +101,7 @@ class VeteranUnpackerTest {
     @Test
     fun stats_clearedByResetStats() {
         val unpacker = VeteranUnpacker()
-        val frame = buildValidFrame(36)
-        frame[22] = 0x01.toByte()
+        val frame = buildValidFrame(42) // invalid zero CRC
 
         feedBytes(unpacker, frame)
         unpacker.resetStats()
@@ -138,8 +113,7 @@ class VeteranUnpackerTest {
     @Test
     fun stats_multipleErrors_accumulate() {
         val unpacker = VeteranUnpacker()
-        val frame = buildValidFrame(36)
-        frame[22] = 0x01.toByte() // validation error
+        val frame = buildValidFrame(42) // invalid zero CRC
 
         feedBytes(unpacker, frame)
         feedBytes(unpacker, frame)

@@ -12,7 +12,6 @@ import org.freewheel.core.domain.settings.WheelSettings
 import org.freewheel.core.domain.identity.WheelType
 import org.freewheel.core.domain.identity.resolveAt
 import org.freewheel.core.utils.ByteUtils
-import org.freewheel.core.utils.currentTimeMillis
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlinx.datetime.Clock
@@ -91,6 +90,38 @@ internal class VeteranUnpacker : Unpacker {
         state = State.UNKNOWN
     }
 
+    /**
+     * Clear framing and session-format state when the decoder is attached to a new wheel.
+     * [reset] deliberately preserves [usingCrc] between frames on one connection; carrying
+     * that latch to another wheel would make a legacy no-CRC frame fail validation.
+     */
+    fun resetConnection() {
+        reset()
+        buffer.clear()
+        len = 0
+        usingCrc = false
+    }
+
+    /**
+     * A wheel frame normally begins at a BLE notification boundary. If a notification was
+     * lost while assembling the prior frame, a complete new header is stronger evidence than
+     * the stale declared length. Abandon the partial frame so the normal header scanner can
+     * consume this chunk from its first byte.
+     */
+    fun prepareForChunk(data: ByteArray) {
+        val startsWithHeader = data.size >= 3 &&
+            data[0] == 0xDC.toByte() && data[1] == 0x5A.toByte() && data[2] == 0x5C.toByte()
+        if (startsWithHeader && (state == State.COLLECTING || state == State.LEN_SEARCH)) {
+            _errorResets++
+            _bytesDiscarded += buffer.size()
+            buffer.clear()
+            len = 0
+            old1 = 0
+            old2 = 0
+            state = State.UNKNOWN
+        }
+    }
+
     override fun getBuffer(): ByteArray = buffer.toByteArray()
 
     override fun addChar(c: Int): Boolean {
@@ -99,18 +130,6 @@ internal class VeteranUnpacker : Unpacker {
         when (state) {
             State.COLLECTING -> {
                 val bsize = buffer.size()
-
-                // Data verification checks
-                if ((bsize == 22 && byte != 0x00) ||
-                    (bsize == 30 && !(byte == 0x00 || byte == 0x07)) ||
-                    (bsize == 23 && (byte and 0xFE) != 0x00)) {
-                    // Data validation failed — partial frame discarded
-                    _errorResets++
-                    _bytesDiscarded += bsize + 1  // buffer size + current byte
-                    state = State.DONE
-                    reset()
-                    return false
-                }
 
                 buffer.write(byte)
 
@@ -176,7 +195,7 @@ internal class VeteranUnpacker : Unpacker {
  * - Patton, Patton S
  * - Lynx, Lynx S
  * - Oryx
- * - Nosfet Apex/Aero/Aeon
+ * - Nosfet Apex/Aero/Aeon/Xeno
  *
  * Data starts streaming immediately — no init commands needed.
  * Model is detected from the three-byte firmware version in the first valid frame.
@@ -191,7 +210,7 @@ internal class VeteranUnpacker : Unpacker {
  * - Byte 31:    Pedals/ride mode
  * - Model family derived from firmware version:
  *   0/1=Sherman, 2=Abrams, 3=Sherman S, 4=Patton, 5=Lynx, 6=Sherman L,
- *   7=Patton S, 8=Oryx, 9=Lynx S, 42=Apex, 43=Aero, 44=Aeon
+ *   7=Patton S, 8=Oryx, 9=Lynx S, 42=Apex, 43=Aero, 44=Aeon, 45=Xeno
  *
  * State machine: none — always ready after first frame with valid mVer.
  *
@@ -226,7 +245,6 @@ class VeteranDecoder : WheelDecoder {
     )
 
     private val unpacker = VeteranUnpacker()
-    private var lastPacketTime = 0L
     private var hasSyncedTime = false
     private var mVer = 0
     private var manufacturerModelVersion = 0
@@ -238,13 +256,7 @@ class VeteranDecoder : WheelDecoder {
     private var receivingLog = false
 
     override fun decode(data: ByteArray, currentState: DecoderState, config: DecoderConfig): DecodeResult {
-        val currentTime = currentTimeMillis()
-
-        // Reset unpacker if too much time has passed (packet loss)
-        if (currentTime - lastPacketTime > WAITING_TIME) {
-            unpacker.reset()
-        }
-        lastPacketTime = currentTime
+        unpacker.prepareForChunk(data)
 
         val loopResult = decodeFrames(data, unpacker, currentState) { buffer, state ->
             processFrame(buffer, state, config)
@@ -302,8 +314,8 @@ class VeteranDecoder : WheelDecoder {
         val speedTiltback = ByteUtils.shortFromBytesBE(buff, 26) * 10
         // The official apps reconstruct a three-byte decimal firmware version in the order
         // byte 30, byte 28, byte 29. Leaperkim uses a zero high byte; Nosfet uses 0x07,
-        // producing model families 501/502/503. Preserve the manufacturer version string,
-        // while normalizing those families to the existing internal 42/43/44 identifiers.
+        // producing model families 501/502/503 (and, by inference, 504 for Xeno). Preserve
+        // the manufacturer version string while normalizing the families to compact internal IDs.
         val fullVersion = ((buff[30].toInt() and 0xFF) shl 16) or
             ((buff[28].toInt() and 0xFF) shl 8) or
             (buff[29].toInt() and 0xFF)
@@ -605,7 +617,7 @@ class VeteranDecoder : WheelDecoder {
                     else -> ((voltage - 9918) / 24.2).roundToInt()
                 }
             }
-            mVer == 43 -> { // Nosfet Aero (126V, 2P — different curve than Patton 4P)
+            mVer == 43 || mVer == 45 -> { // Nosfet Aero/Xeno (126V)
                 when {
                     voltage <= 9918 -> 0
                     voltage >= 12337 -> 100
@@ -642,6 +654,7 @@ class VeteranDecoder : WheelDecoder {
             4 -> VeteranSocTables.PATTON_126V
             7 -> VeteranSocTables.PATTON_126V // Patton S (same 126V chemistry/pack config)
             43 -> VeteranSocTables.PATTON_126V // Nosfet Aero (official Nosfet 5020 table)
+            45 -> VeteranSocTables.PATTON_126V // Nosfet Xeno (126V/30S; same class as Patton S)
             5 -> VeteranSocTables.LYNX_151V
             6 -> VeteranSocTables.LYNX_151V // Sherman L (same 151.2V chemistry)
             9 -> VeteranSocTables.LYNX_151V // Lynx S (same 151.2V chemistry)
@@ -655,10 +668,11 @@ class VeteranDecoder : WheelDecoder {
         501 -> 42 // Nosfet Apex
         502 -> 43 // Nosfet Aero
         503 -> 44 // Nosfet Aeon
+        504 -> 45 // Nosfet Xeno (inferred from sequential Nosfet family numbering)
         else -> version
     }
 
-    private fun isNosfetModel(): Boolean = manufacturerModelVersion in 501..599 || mVer in 42..44
+    private fun isNosfetModel(): Boolean = manufacturerModelVersion in 501..599 || mVer in 42..45
 
     /**
      * Leaperkim latches a valid wheel-reported SOC from subtype 2 for the connection. Nosfet's
@@ -685,7 +699,7 @@ class VeteranDecoder : WheelDecoder {
 
     private fun getCellsForWheel(): Int {
         return when {
-            mVer == 4 || mVer == 7 || mVer == 43 -> 30 // Patton, Patton S, Aero
+            mVer == 4 || mVer == 7 || mVer == 43 || mVer == 45 -> 30 // Patton, Patton S, Aero, Xeno
             mVer == 8 -> 42 // Oryx
             mVer == 5 || mVer == 6 || mVer == 9 || mVer == 42 || mVer == 44 -> 36 // Lynx, Sherman L, Lynx S, Apex, Aeon
             mVer >= 5 -> 36 // fallback for unknown mVer >= 5
@@ -707,6 +721,7 @@ class VeteranDecoder : WheelDecoder {
             42 -> "Nosfet Apex"
             43 -> "Nosfet Aero"
             44 -> "Nosfet Aeon"
+            45 -> "Nosfet Xeno"
             else -> "Unknown"
         }
     }
@@ -725,8 +740,7 @@ class VeteranDecoder : WheelDecoder {
     override fun getUnpackerStats(): UnpackerStats = unpacker.stats
 
     override fun reset() {
-        unpacker.reset()
-        lastPacketTime = 0
+        unpacker.resetConnection()
         hasSyncedTime = false
         mVer = 0
         manufacturerModelVersion = 0
@@ -1238,8 +1252,6 @@ class VeteranDecoder : WheelDecoder {
     override fun getInitCommands(): List<WheelCommand> = emptyList()
 
     companion object {
-        private const val WAITING_TIME = 100L
-
         /** Single source of truth for Veteran command support by mVer. */
         val CAPABILITY_MAP: CapabilityMap = mapOf(
             // mVer 0+ (all models — ASCII protocol fallback)

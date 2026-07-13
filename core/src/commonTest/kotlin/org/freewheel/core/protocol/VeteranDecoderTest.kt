@@ -40,7 +40,7 @@ import kotlin.test.assertTrue
  * - Bytes 16-17: Phase current (signed BE, multiplied by 10 in decoder)
  * - Bytes 18-19: Temperature (signed BE)
  * - Bytes 20-21: Auto-off seconds (BE)
- * - Bytes 22-23: Charge mode (BE; byte 22 must be 0x00 for unpacker validation)
+ * - Bytes 22-23: Charge mode (BE)
  * - Bytes 24-25: Speed alert (BE, multiplied by 10 in decoder)
  * - Bytes 26-27: Speed tiltback (BE, multiplied by 10 in decoder)
  * - Bytes 28-29: Low 16 bits of the firmware version
@@ -48,11 +48,6 @@ import kotlin.test.assertTrue
  * - Byte 31: Pedals/ride mode
  * - Bytes 32-33: Pitch angle (signed BE)
  * - Bytes 34-35: HW PWM (BE)
- *
- * Unpacker validation rules:
- * - Byte 22 must be 0x00
- * - Byte 23 must satisfy (byte & 0xFE) == 0x00 (i.e., 0x00 or 0x01)
- * - Byte 30 must be 0x00 or 0x07
  */
 class VeteranDecoderTest {
 
@@ -85,7 +80,7 @@ class VeteranDecoderTest {
         ver: Int = 5000,           // low 16 bits of firmware version
         versionHighByte: Int = 0,  // 0x00 Leaperkim, 0x07 Nosfet
         pedalsMode: Int = 0,
-        chargeModeLow: Int = 0,    // byte 23: must be 0x00 or 0x01
+        chargeModeLow: Int = 0,
         speedAlert: Int = 0,       // raw value, decoder multiplies by 10
         speedTiltback: Int = 0,    // raw value, decoder multiplies by 10
         autoOffSec: Int = 0,       // raw value (seconds)
@@ -131,7 +126,7 @@ class VeteranDecoderTest {
         frame[20] = ((autoOffSec shr 8) and 0xFF).toByte()
         frame[21] = (autoOffSec and 0xFF).toByte()
 
-        // Charge mode at 22-23: byte 22 MUST be 0x00, byte 23 must be 0x00 or 0x01
+        // Charge mode at 22-23
         frame[22] = 0x00
         frame[23] = (chargeModeLow and 0x01).toByte()
 
@@ -225,9 +220,7 @@ class VeteranDecoderTest {
         frame[1] = 0x5A
         frame[2] = 0x5C
         frame[3] = 31 // length shorter than needed
-        frame[22] = 0x00 // validation byte
-        // byte 23: 0x00 (default)
-        // byte 30: 0x00 (default)
+        frame[22] = 0x00
 
         val result = freshDecoder.decode(frame, DecoderState(), config)
         assertTrue(result is DecodeResult.Unhandled, "Frame shorter than 36 bytes should return Unhandled")
@@ -248,47 +241,29 @@ class VeteranDecoderTest {
     }
 
     @Test
-    fun `unpacker rejects invalid byte 22`() {
+    fun `unpacker accepts new payload field values`() {
         val freshDecoder = VeteranDecoder()
-        // Build a frame where byte 22 is not 0x00
         val frame = buildVeteranFrame()
-        frame[22] = 0x01 // invalid: must be 0x00
+        frame[22] = 0x01
+        frame[23] = 0x02
+        frame[30] = 0x08
         val result = freshDecoder.decode(frame, DecoderState(), config)
-        assertTrue(result is DecodeResult.Buffering, "Frame with byte 22 != 0x00 should be rejected by unpacker")
-    }
-
-    @Test
-    fun `unpacker rejects invalid byte 23`() {
-        val freshDecoder = VeteranDecoder()
-        // Build a frame where byte 23 has (byte & 0xFE) != 0x00
-        val frame = buildVeteranFrame()
-        frame[23] = 0x02 // invalid: (0x02 & 0xFE) = 0x02 != 0x00
-        val result = freshDecoder.decode(frame, DecoderState(), config)
-        assertTrue(result is DecodeResult.Buffering, "Frame with byte 23 & 0xFE != 0x00 should be rejected by unpacker")
+        assertTrue(result is DecodeResult.Success, "Payload fields must not be mistaken for framing sentinels")
+        assertEquals(0x0102, result.data.assertTelemetry().chargingStatus)
     }
 
     @Test
     fun `unpacker accepts byte 23 equal to 0x01`() {
         val result = decodeSingleFrame(chargeModeLow = 1)
-        assertTrue(result is DecodeResult.Success, "Frame with byte 23 = 0x01 should pass unpacker validation")
+        assertTrue(result is DecodeResult.Success)
     }
 
     @Test
-    fun `unpacker rejects invalid byte 30`() {
-        val freshDecoder = VeteranDecoder()
-        // Build a frame where byte 30 is not 0x00 or 0x07
-        val frame = buildVeteranFrame()
-        frame[30] = 0x02 // invalid: must be 0x00 or 0x07
-        val result = freshDecoder.decode(frame, DecoderState(), config)
-        assertTrue(result is DecodeResult.Buffering, "Frame with byte 30 not 0x00 or 0x07 should be rejected by unpacker")
-    }
-
-    @Test
-    fun `unpacker accepts byte 30 equal to 0x07`() {
+    fun `unpacker accepts Nosfet firmware high byte`() {
         val freshDecoder = VeteranDecoder()
         val frame = buildVeteranFrame(versionHighByte = 0x07)
         val result = freshDecoder.decode(frame, DecoderState(), config)
-        assertTrue(result is DecodeResult.Success, "Frame with byte 30 = 0x07 should pass unpacker validation")
+        assertTrue(result is DecodeResult.Success)
     }
 
     // ==================== Voltage Parsing ====================
@@ -573,6 +548,16 @@ class VeteranDecoderTest {
     }
 
     @Test
+    fun `manufacturer family 504 is Nosfet Xeno`() {
+        // Inferred sequential family after 501=Apex, 502=Aero, and 503=Aeon.
+        // 504006 is encoded as high byte 0x07 followed by low bytes 0xB0C6.
+        val result = decodeSingleFrame(ver = 0xB0C6, versionHighByte = 0x07, pedalsMode = 0x80)
+        assertTrue(result is DecodeResult.Success)
+        assertEquals("Nosfet Xeno", result.data.assertIdentity().model)
+        assertEquals("504.0.06", result.data.assertIdentity().version)
+    }
+
+    @Test
     fun `unknown mVer returns Unknown`() {
         val result = decodeSingleFrame(ver = 99000) // mVer=99
         assertTrue(result is DecodeResult.Success)
@@ -732,6 +717,18 @@ class VeteranDecoderTest {
     }
 
     @Test
+    fun `battery Nosfet Xeno uses Patton S 126V table`() {
+        val result = decodeSingleFrame(
+            voltage = 11046,
+            ver = 0xB0C6,
+            versionHighByte = 0x07,
+            pedalsMode = 0x80
+        )
+        assertTrue(result is DecodeResult.Success)
+        assertEquals(50, result.data.assertTelemetry().batteryLevel)
+    }
+
+    @Test
     fun `battery Nosfet Apex real capture uses Lynx 151V table`() {
         // Captured Apex packet: firmware 501.0.07 and 134.61 V. The Nosfet app reports 58%.
         val result = decodeSingleFrame(voltage = 13461, ver = 0xA50F, versionHighByte = 0x07, pedalsMode = 0xB8)
@@ -835,6 +832,34 @@ class VeteranDecoderTest {
         assertTrue(freshDecoder.isReady())
     }
 
+    @Test
+    fun `reset clears CRC format learned from previous connection`() {
+        val freshDecoder = VeteranDecoder()
+        val crcFrame = buildExtendedFrame(ver = 5000)
+        assertTrue(freshDecoder.decode(crcFrame, DecoderState(), config) is DecodeResult.Success)
+
+        freshDecoder.reset()
+
+        val legacyFrame = buildVeteranFrame(ver = 1000)
+        assertTrue(
+            freshDecoder.decode(legacyFrame, DecoderState(), config) is DecodeResult.Success,
+            "A CRC-capable prior wheel must not force CRC validation on a new legacy connection"
+        )
+    }
+
+    @Test
+    fun `new frame header replaces an incomplete prior notification`() {
+        val freshDecoder = VeteranDecoder()
+        val partialFrame = buildExtendedFrame(ver = 5000).copyOf(20)
+        assertTrue(freshDecoder.decode(partialFrame, DecoderState(), config) is DecodeResult.Buffering)
+
+        val completeFrame = buildVeteranFrame(ver = 7000, voltage = 11046)
+        val result = freshDecoder.decode(completeFrame, DecoderState(), config)
+
+        assertTrue(result is DecodeResult.Success, "A fresh header should resynchronize after packet loss")
+        assertEquals("Leaperkim Patton S", result.data.assertIdentity().model)
+    }
+
     // ==================== Comparison Test (from GotwayDecoderTest) ====================
 
     @Test
@@ -869,7 +894,7 @@ class VeteranDecoderTest {
     @Test
     fun `chargeMode is parsed correctly`() {
         // chargeMode = shortFromBytesBE(buff, 22)
-        // byte 22 = 0x00 (must be for validation), byte 23 = 0x01 → chargeMode = 1
+        // byte 22 = 0x00, byte 23 = 0x01 → chargeMode = 1
         val result = decodeSingleFrame(chargeModeLow = 1)
         assertTrue(result is DecodeResult.Success)
         assertEquals(1, (result as DecodeResult.Success).data.assertTelemetry().chargingStatus)
