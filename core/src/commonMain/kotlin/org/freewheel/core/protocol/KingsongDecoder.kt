@@ -20,7 +20,8 @@ import kotlin.math.roundToInt
  * Supports:
  * - KS-14, KS-16, KS-18 series
  * - KS-S18, KS-S16, KS-S19, KS-S20, KS-S22
- * - KS-F18P, KS-F22P
+ * - KS-F18P, KS-F22, KS-F22P
+ * - KS-N, KS-S9, and KS-X low-voltage families
  *
  * Frame format: Fixed 20 bytes
  * - Bytes 0-1:  Header (AA 55)
@@ -63,6 +64,8 @@ class KingsongDecoder : WheelDecoder {
     private var hasReceivedVoltage = false
     private var bms1 = SmartBms()
     private var bms2 = SmartBms()
+    private var bms1MetadataRequested = false
+    private var bms2MetadataRequested = false
     private var versionNum = 0           // firmware version number (e.g., 205 for v2.05)
 
     /** Result from a single Kingsong frame handler. */
@@ -98,17 +101,16 @@ class KingsongDecoder : WheelDecoder {
             FrameType.MAX_SPEED_ALERTS, FrameType.MAX_SPEED_ALERTS_2 ->
                 processMaxSpeedAlerts(data, ks, frameType)
             FrameType.BMS_DATA_1, FrameType.BMS_DATA_2 -> {
-                processBmsData(data, frameType)
-                KsFrameOutput()
+                KsFrameOutput(commands = processBmsData(data, frameType))
             }
             FrameType.BMS_DATA_3, FrameType.BMS_DATA_4 -> KsFrameOutput()
             FrameType.BMS_SERIAL_1, FrameType.BMS_SERIAL_2 -> {
                 processBmsSerial(data, frameType)
-                null
+                KsFrameOutput()
             }
             FrameType.BMS_FW_1, FrameType.BMS_FW_2 -> {
                 processBmsFirmware(data, frameType)
-                null
+                KsFrameOutput()
             }
             FrameType.LOCK_STATUS -> processLockStatus(data, ks)
             FrameType.LOCK_RESULT -> processLockResult(data, ks)
@@ -408,7 +410,7 @@ class KingsongDecoder : WheelDecoder {
      * Modifies internal SmartBms objects. BMS snapshots are applied in decode()
      * via the BmsState comparison at the end.
      */
-    private fun processBmsData(data: ByteArray, frameType: Int) {
+    private fun processBmsData(data: ByteArray, frameType: Int): List<WheelCommand> {
         val bmsNum = (frameType and 0xFF) - 0xF0
         val bms = if (bmsNum == 1) bms1 else bms2
         val pNum = data[17].toInt() and 0xFF
@@ -457,6 +459,22 @@ class KingsongDecoder : WheelDecoder {
                 processExtendedBmsPacket(data, bms)
             }
         }
+
+        if (pNum != 0x00) return emptyList()
+
+        val shouldRequestMetadata = if (bmsNum == 1) {
+            if (bms1MetadataRequested) false else true.also { bms1MetadataRequested = true }
+        } else {
+            if (bms2MetadataRequested) false else true.also { bms2MetadataRequested = true }
+        }
+        if (!shouldRequestMetadata) return emptyList()
+
+        val serialType = if (bmsNum == 1) FrameType.BMS_SERIAL_1 else FrameType.BMS_SERIAL_2
+        val firmwareType = if (bmsNum == 1) FrameType.BMS_FW_1 else FrameType.BMS_FW_2
+        return listOf(
+            WheelCommand.SendBytes(createRequest(serialType)),
+            WheelCommand.SendBytes(createRequest(firmwareType))
+        )
     }
 
     private fun processExtendedBmsPacket(data: ByteArray, bms: SmartBms) {
@@ -504,7 +522,7 @@ class KingsongDecoder : WheelDecoder {
     /**
      * Frame 0xE1/0xE2: BMS Serial Number
      *
-     * Modifies internal SmartBms serial; returns no state update (Unhandled path).
+     * Modifies the internal SmartBms; decode() publishes the resulting snapshot.
      */
     private fun processBmsSerial(data: ByteArray, frameType: Int) {
         val bmsNum = (frameType and 0xFF) - 0xE0
@@ -521,7 +539,7 @@ class KingsongDecoder : WheelDecoder {
     /**
      * Frame 0xE5/0xE6: BMS Firmware Version
      *
-     * Modifies internal SmartBms firmware; returns no state update (Unhandled path).
+     * Modifies the internal SmartBms; decode() publishes the resulting snapshot.
      */
     private fun processBmsFirmware(data: ByteArray, frameType: Int) {
         val bmsNum = (frameType and 0xFF) - 0xE4
@@ -658,13 +676,41 @@ class KingsongDecoder : WheelDecoder {
     }
 
     private fun calculateBatteryPercent(voltage: Int, useBetterPercents: Boolean): Int {
+        lowVoltageCellCount()?.let { return calcBatteryForCellCount(voltage, it, useBetterPercents) }
         return when {
             is84vWheel() -> calc84vBattery(voltage, useBetterPercents)
             is126vWheel() -> calc126vBattery(voltage, useBetterPercents)
             is151vWheel() -> calc151vBattery(voltage, useBetterPercents)
+            is157vWheel() -> calc157vBattery(voltage, useBetterPercents)
             is176vWheel() -> calc176vBattery(voltage, useBetterPercents)
             is100vWheel() -> calc100vBattery(voltage, useBetterPercents)
             else -> calc67vBattery(voltage, useBetterPercents)
+        }
+    }
+
+    /** Scaled version of KingSong's established per-cell voltage curves. */
+    private fun calcBatteryForCellCount(voltage: Int, cells: Int, useBetterPercents: Boolean): Int {
+        return if (useBetterPercents) {
+            val full = cells * 417.5
+            val highStart = cells * 340.0
+            val highOrigin = cells * 332.5
+            val highStep = cells * 0.85
+            val lowStart = cells * 320.0
+            val lowStep = cells * 2.25
+            when {
+                voltage > full -> 100
+                voltage > highStart -> ((voltage - highOrigin) / highStep).roundToInt().coerceIn(0, 100)
+                voltage > lowStart -> ((voltage - lowStart) / lowStep).roundToInt().coerceIn(0, 100)
+                else -> 0
+            }
+        } else {
+            val empty = cells * 312.5
+            val full = cells * 412.5
+            when {
+                voltage < empty -> 0
+                voltage >= full -> 100
+                else -> ((voltage - empty) / cells).roundToInt().coerceIn(0, 100)
+            }
         }
     }
 
@@ -736,6 +782,28 @@ class KingsongDecoder : WheelDecoder {
         }
     }
 
+    /**
+     * KS-F22 (non-Pro) uses an unusual 37S pack. Keep it separate from the
+     * 42S KS-F22P; treating both as F22P materially understates the non-Pro SOC,
+     * while the old 67 V fallback pins it at 100% for most of the ride.
+     */
+    private fun calc157vBattery(voltage: Int, useBetterPercents: Boolean): Int {
+        return if (useBetterPercents) {
+            when {
+                voltage > 15_448 -> 100
+                voltage > 12_580 -> ((voltage - 12_302.5) / 31.45).roundToInt().coerceIn(0, 100)
+                voltage > 11_840 -> ((voltage - 11_840.0) / 83.25).roundToInt().coerceIn(0, 100)
+                else -> 0
+            }
+        } else {
+            when {
+                voltage < 11_563 -> 0
+                voltage >= 15_263 -> 100
+                else -> ((voltage - 11_562.5) / 37.0).roundToInt().coerceIn(0, 100)
+            }
+        }
+    }
+
     private fun calc100vBattery(voltage: Int, useBetterPercents: Boolean): Int {
         return if (useBetterPercents) {
             when {
@@ -777,15 +845,27 @@ class KingsongDecoder : WheelDecoder {
 
     private fun is126vWheel(): Boolean = model in listOf("KS-S20", "KS-S22")
     private fun is151vWheel(): Boolean = model in listOf("KS-F18P")
+    private fun is157vWheel(): Boolean = model == "KS-F22"
     private fun is176vWheel(): Boolean = model in listOf("KS-F22P")
     private fun is100vWheel(): Boolean = model in listOf("KS-S19")
 
+    /** Newer low-voltage families that do not use the legacy 16S fallback. */
+    private fun lowVoltageCellCount(): Int? = when {
+        model.startsWith("KS-X") -> 10
+        model.startsWith("KS-S9") -> 12
+        model.startsWith("KS-N12P") -> null // 16S; preserve the established 67 V curve
+        model.startsWith("KS-N") -> 13
+        else -> null
+    }
+
     private fun getCellsForWheel(): Int {
+        lowVoltageCellCount()?.let { return it }
         return when {
             is84vWheel() -> 20
             is100vWheel() -> 24
             is126vWheel() -> 30
             is151vWheel() -> 36
+            is157vWheel() -> 37
             is176vWheel() -> 42
             else -> 16
         }
@@ -826,6 +906,8 @@ class KingsongDecoder : WheelDecoder {
         hasReceivedVoltage = false
         bms1 = SmartBms()
         bms2 = SmartBms()
+        bms1MetadataRequested = false
+        bms2MetadataRequested = false
         versionNum = 0
     }
 

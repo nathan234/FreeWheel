@@ -257,7 +257,8 @@ class WheelTypeDetector(
                 // InMotion V2 patterns (before Gotway to avoid conflicts with names like "MASTER")
                 name.startsWith("V11") || name.startsWith("V12") || name.startsWith("V13") ||
                 name.startsWith("V14") || name.startsWith("V9") || name.startsWith("P6") ||
-                name.startsWith("E20") || name.startsWith("CLIMBER") || name.startsWith("GLIDE") ||
+                name.startsWith("E20") || name.startsWith("E25") ||
+                name.startsWith("CLIMBER") || name.startsWith("GLIDE") ||
                 name.contains("INMOTION") -> WheelType.INMOTION_V2
 
                 // Gotway/Begode patterns

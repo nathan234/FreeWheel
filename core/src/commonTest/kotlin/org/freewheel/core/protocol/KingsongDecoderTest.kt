@@ -182,6 +182,60 @@ class KingsongDecoderTest {
     }
 
     @Test
+    fun `live data uses 37S battery range for KS-F22 non-Pro`() {
+        decoder.reset()
+        decoder.decode(buildKsNamePacket("KS-F22-0100"), defaultState, defaultConfig)
+
+        val result = decoder.decode(
+            buildKsLivePacket(voltage = 14000),
+            defaultState,
+            defaultConfig
+        )
+
+        assertTrue(result is DecodeResult.Success)
+        val telemetry = (result as DecodeResult.Success).data.assertTelemetry()
+        assertEquals(66, telemetry.batteryLevel, "140 V is roughly two-thirds on the 37S F22 pack")
+    }
+
+    @Test
+    fun `KS-F22P remains on the 42S battery range`() {
+        decoder.reset()
+        decoder.decode(buildKsNamePacket("KS-F22P-0100"), defaultState, defaultConfig)
+
+        val result = decoder.decode(
+            buildKsLivePacket(voltage = 14000),
+            defaultState,
+            defaultConfig
+        )
+
+        assertTrue(result is DecodeResult.Success)
+        val telemetry = (result as DecodeResult.Success).data.assertTelemetry()
+        assertEquals(20, telemetry.batteryLevel, "F22 Pro must retain its 42S curve")
+    }
+
+    @Test
+    fun `new low-voltage models use their model-specific cell counts`() {
+        val cases = listOf(
+            Triple("KS-X1-0100", 3700, 58),  // 10S
+            Triple("KS-S9-0100", 4500, 63), // 12S
+            Triple("KS-N10-0100", 4800, 57) // 13S
+        )
+
+        for ((name, voltage, expectedPercent) in cases) {
+            decoder.reset()
+            decoder.decode(buildKsNamePacket(name), defaultState, defaultConfig)
+            val result = decoder.decode(buildKsLivePacket(voltage = voltage), defaultState, defaultConfig)
+
+            assertTrue(result is DecodeResult.Success)
+            assertEquals(
+                expectedPercent,
+                (result as DecodeResult.Success).data.assertTelemetry().batteryLevel,
+                "$name should use its own series-cell range"
+            )
+        }
+    }
+
+    @Test
     fun `live data 0xA9 sets wheelType to KINGSONG`() {
         decoder.reset()
         val packet = buildKsLivePacket(voltage = 6000)
@@ -850,25 +904,59 @@ class KingsongDecoderTest {
     // ==================== BMS Serial/Firmware Tests ====================
 
     @Test
-    fun `BMS serial frame 0xE1 returns Unhandled but stores serial`() {
+    fun `BMS serial frame 0xE1 surfaces updated BMS metadata`() {
         decoder.reset()
-        // BMS serial frames (0xE1/0xE2) return null state from processBmsSerial
-        // but still set the serial in the SmartBms object
         val data = ByteArray(14)
         "BMS-SN123".encodeToByteArray().copyInto(data, 0, 0, 9)
         val packet = buildKsFrame(0xE1, data)
 
-        // processBmsSerial returns null, so decode returns Unhandled (no state update)
         val result = decoder.decode(packet, defaultState, defaultConfig)
-        assertTrue(result is DecodeResult.Unhandled, "BMS serial frame should return Unhandled (no state update path)")
+        assertTrue(result is DecodeResult.Success)
+        val bms = (result as DecodeResult.Success).data.assertBms().bms1!!
+        assertTrue(bms.serialNumber.startsWith("BMS-SN123"))
     }
 
     @Test
-    fun `BMS firmware frame 0xE5 returns Unhandled`() {
+    fun `BMS firmware frame 0xE5 surfaces updated BMS metadata`() {
         decoder.reset()
-        val packet = buildKsFrame(0xE5)
+        val data = ByteArray(14)
+        "BMS-FW2.1".encodeToByteArray().copyInto(data, 0, 0, 9)
+        val packet = buildKsFrame(0xE5, data)
         val result = decoder.decode(packet, defaultState, defaultConfig)
-        assertTrue(result is DecodeResult.Unhandled, "BMS firmware frame should return Unhandled")
+        assertTrue(result is DecodeResult.Success)
+        val bms = (result as DecodeResult.Success).data.assertBms().bms1!!
+        assertTrue(bms.versionNumber.startsWith("BMS-FW2.1"))
+    }
+
+    @Test
+    fun `first BMS data frame requests serial and firmware once per battery`() {
+        decoder.reset()
+
+        val firstBms1 = decoder.decode(
+            buildKsBmsInfoFrame(voltage = 8400, current = 500),
+            defaultState,
+            defaultConfig
+        ) as DecodeResult.Success
+        assertEquals(
+            listOf(0xE1, 0xE5),
+            firstBms1.data.commands.map { (it as WheelCommand.SendBytes).data[16].toInt() and 0xFF }
+        )
+
+        val secondBms1 = decoder.decode(
+            buildKsBmsInfoFrame(voltage = 8400, current = 500),
+            defaultState,
+            defaultConfig
+        ) as DecodeResult.Success
+        assertTrue(secondBms1.data.commands.isEmpty(), "BMS1 metadata requests should be one-shot")
+
+        val bms2Frame = buildKsBmsInfoFrame(voltage = 8400, current = 500).also {
+            it[16] = 0xF2.toByte()
+        }
+        val firstBms2 = decoder.decode(bms2Frame, defaultState, defaultConfig) as DecodeResult.Success
+        assertEquals(
+            listOf(0xE2, 0xE6),
+            firstBms2.data.commands.map { (it as WheelCommand.SendBytes).data[16].toInt() and 0xFF }
+        )
     }
 
     // ==================== Unknown Frame Type Tests ====================

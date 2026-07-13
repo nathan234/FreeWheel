@@ -16,6 +16,7 @@ Tests: `GotwayDecoderTest.kt` · `GotwayDecoderComparisonTest.kt` · `GotwayUnpa
 
 ### Init & Identity
 - [x] Send V (firmware), b, N (name), b on connect
+- [x] Recognize GW and JL firmware prefixes as Begode (plus JN Extreme Bull and custom CF/BF prefixes)
 - [x] Retry V command when fw empty after receiving live data frames
 - [x] Retry N command after fw populated but model still empty
 - [x] Fallback naming after 50 attempts (fwProt or "Begode")
@@ -26,6 +27,7 @@ Tests: `GotwayDecoderTest.kt` · `GotwayDecoderComparisonTest.kt` · `GotwayUnpa
 - [x] Frame 0x00: live telemetry (speed, voltage, current, temperature, distance)
 - [x] Frame 0x01: extended data (true voltage, BMS temps)
 - [x] Frame 0x02/0x03: BMS cell voltages
+- [x] Accumulate cell count and statistics independently for BMS 1 and BMS 2
 - [x] Frame 0x04: total distance, settings, alerts
 - [x] Frame 0x07: battery current, motor temperature
 - [x] Frame 0xFF: firmware settings (stub — no UI)
@@ -47,6 +49,11 @@ Tests: `GotwayDecoderTest.kt` · `GotwayDecoderComparisonTest.kt` · `GotwayUnpa
 - [x] Max speed (multi-step W/Y/digits sequence)
 
 ### Known Gaps
+- [ ] **[P1]** FreeWheel has no Begode/Extreme Bull model catalog. EUC World matches name/firmware to per-wheel voltage, no-load speed, and SmartBMS defaults, while DarknessBot maintains similar per-model defaults; FreeWheel retains generic/manual decoder defaults, so voltage and PWM-derived alarms can be wrong when BMS voltage is unavailable or a profile has not been configured.
+- [ ] **[P1]** The current Begode app also interprets frame types 0x05/0x06 and byte 19 as a multi-pack BMS index. EUC World and DarknessBot corroborate only the older 0x02/0x03 dual-BMS layout. Supporting four packs needs captures/model discrimination and a domain model beyond `bms1`/`bms2`.
+- [ ] **[P2]** Frame 0x01 contains firmware-reported battery/BMS status fields that EUC World exposes (including pack flags and additional pack contexts); FreeWheel currently retains voltage, current, temperatures, and half-pack voltages only.
+- [ ] **[P2]** Frame 0x00 bytes 14-15 are firmware-dependent: EUC World treats them as status bits on standard firmware and PWM on CF firmware, while FreeWheel retains the legacy duty-cycle current estimate. A modern standard-firmware capture is needed before changing the fallback current/power path.
+- [ ] **[P2]** Max-speed, alarm-mode, and miles-mode commands exist in the decoder, but not all are exposed in the Compose settings UI.
 - [ ] **[P3]** `lock_Changes` debounce counter (legacy has 3-frame debounce before confirming settings change)
 
 ---
@@ -84,7 +91,8 @@ Tests: `KingsongDecoderTest.kt` · `KingsongDecoderComparisonTest.kt`
 
 ### Telemetry
 - [x] KS-18L distance scaling (0.83x)
-- [x] Battery percent for 67V/84V/100V/126V/151V/176V wheels
+- [x] Battery percent for 42.5V/51V/55.25V/67V/84V/100V/126V/151V/157V/176V wheels
+- [x] Newer pack identification (KS-X 10S, KS-S9 12S, KS-N 13S, KS-F22 37S, KS-F22P 42S)
 - [x] Custom battery percent curves
 
 ### Commands
@@ -99,7 +107,7 @@ Tests: `KingsongDecoderTest.kt` · `KingsongDecoderComparisonTest.kt`
 - [x] Init: request light status (0x5B), lift sensor (0x81) on connect
 
 ### Known Gaps
-- [ ] **[P2]** Auto-request BMS serial (0xE1/0xE2) and firmware (0xE5/0xE6) when first BMS F1/F2 data arrives (legacy triggers these automatically)
+- [x] ~~**[P2]** Auto-request BMS serial and firmware~~: one-shot E1/E5 or E2/E6 requests are sent when each BMS first reports F1/F2 page 0.
 - [ ] **[P2]** 0xA4 response should also request BMS data for new wheels
 - [ ] **[P2]** Lock command requires password-based protocol (0x41/0x42 with challenge-response from 0x5F)
 - [ ] **[P3]** Volume up/down (0x95) — KS uses relative +/- buttons, not absolute slider
@@ -259,13 +267,14 @@ Tests: `InMotionV2DecoderTest.kt` · `InMotionV2UnpackerTest.kt`
 ### Init & Identity
 - [x] Send car type (0x01), serial (0x02), versions (0x06), settings, stats on connect
 - [x] Keep-alive state machine: model → serial → version → real-time data
-- [x] 13 model variants (V11, V11Y, V12HS/HT/PRO, V12S, V13, V13PRO, V14g, V14s, V9, P6)
+- [x] V11, V11Y, V12HS/HT/PRO/S, V13/PRO, V14g/s, V9, P6, and E20 model routing
+- [x] E25 advertised-name routing to the InMotion V2/Lorin decoder family
 
 ### Frame Parsing
 - [x] Message verification with XOR checksum
 - [x] Escape sequence handling (0xA5 prefix for 0xAA/0xA5 bytes)
-- [x] Real-time info per model (V11, V12, V13, V14, V11Y, V9/V12S/P6 shared)
-- [x] Settings parsing per model (V9/V12S/P6 share extended parser; EUC World skips P6/V12S settings)
+- [x] Real-time info per model (including dedicated E20 layout and P6 extended 0x87 data)
+- [x] Settings parsing per model (including dedicated E20 offsets)
 - [x] Total stats (total distance)
 - [x] Battery real-time info
 - [x] Diagnostic data
@@ -273,8 +282,9 @@ Tests: `InMotionV2DecoderTest.kt` · `InMotionV2UnpackerTest.kt`
 
 ### Telemetry
 - [x] Model-specific field offsets (V11 proto v1 vs v2, V12, V13, V14, V11Y)
-- [x] Temperature decoding (byte + 80 - 256)
+- [x] Temperature decoding (signed byte + 80)
 - [x] IM2-specific fields: torque, motorPower, cpuTemp, imuTemp, angle, roll
+- [x] P6 output rate and consumed-SOC fields kept separate (offsets 14 and 32)
 
 ### Commands
 - [x] Beep, light, lock, power off, calibrate
@@ -293,6 +303,7 @@ Tests: `InMotionV2DecoderTest.kt` · `InMotionV2UnpackerTest.kt`
 - [x] V9/V12 split riding modes sub-cmd 0x42 (others use 0x3E)
 
 ### Known Gaps
+- [ ] **[P1]** E25 is a shipping Lorin-protocol target, but telemetry/settings need an E25 model-response and notification capture. V18 appears only as dormant official-app protocol code and is not treated as a shipping support target.
 - [ ] **[P2]** Multi-stage shutdown (legacy sends 0x81 first, waits for ACK, then sends 0x82 — KMP sends single 0x81)
 - [x] ~~**[P2]** Battery real-time info request in keep-alive loop~~: BMS polling added to keep-alive via `bmsPollCounter` cycle.
 - [ ] **[P3]** Light state debounce (legacy has `lightSwitchCounter` with 3-frame debounce)

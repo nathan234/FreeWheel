@@ -31,7 +31,7 @@ class InMotionV2DecoderComparisonTest {
     // ==================== V11 Full Data ====================
 
     @Test
-    fun `V11 full data matches legacy`() {
+    fun `V11 full captured data decodes accurately`() {
         // From InMotionAdapterV2Test: decode with v11 full data
         decoder.reset()
         val ds = feedPackets(
@@ -59,8 +59,10 @@ class InMotionV2DecoderComparisonTest {
         // Temperatures
         assertEquals(27, telemetry.temperatureC)
         assertEquals(30, telemetry.temperature2C)
-        assertEquals(-176, telemetry.imuTemp)
-        assertEquals(-176, telemetry.cpuTemp)
+        // The capture has raw zero for both sensors. The protocol uses a signed
+        // byte with an +80 offset; the legacy unsigned conversion produced -176.
+        assertEquals(80, telemetry.imuTemp)
+        assertEquals(80, telemetry.cpuTemp)
 
         // IM2-specific
         assertEquals(44.26, telemetry.torque, 0.01)

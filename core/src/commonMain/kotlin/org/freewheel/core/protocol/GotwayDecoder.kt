@@ -16,7 +16,7 @@ import kotlin.math.roundToLong
  * Gotway/Begode protocol decoder.
  *
  * Supports multiple firmware variants:
- * - Begode (standard GW firmware)
+ * - Begode (standard GW/JL firmware)
  * - ExtremeBull
  * - Freestyl3r (custom firmware with hardware PWM)
  * - SmirnoV/SV (Alexovik custom firmware)
@@ -25,7 +25,7 @@ import kotlin.math.roundToLong
  * - Bytes 0-1:   Header (55 AA)
  * - Bytes 2-17:  Data payload (varies by frame type, see below)
  * - Byte 18:     Frame type
- * - Byte 19:     Footer byte (typically 0x18)
+ * - Byte 19:     Context (0x18 for normal frames; page index for BMS frames)
  * - Bytes 20-23: Footer (5A 5A 5A 5A)
  *
  * Frame 0x00 (live telemetry) layout:
@@ -83,7 +83,6 @@ class GotwayDecoder : WheelDecoder {
         "ExtremeBull" -> "Extreme Bull"
         else -> fwProt // "Begode", "Freestyl3r", "SV", or "" (not yet known)
     }
-    private var smartBmsCells = 0
     private var trueVoltage = false
     private var trueCurrent = false
     private var truePWM = false
@@ -130,7 +129,7 @@ class GotwayDecoder : WheelDecoder {
     override fun decode(data: ByteArray, currentState: DecoderState, config: DecoderConfig): DecodeResult {
         // Pre-loop: parse firmware/model info from string data.
             // Binary frames always start with 0x55 (header byte); string responses
-            // (NAME, GW, JN, CF, BF, MPU) start with ASCII letters.
+            // (NAME, GW, JL, JN, CF, BF, MPU) start with ASCII letters.
             // Skip decodeToString() for binary data to avoid a wasted String allocation
             // and potential malformed-encoding issues.
             var preIdentity: WheelIdentity? = null
@@ -142,7 +141,7 @@ class GotwayDecoder : WheelDecoder {
                         model = dataStr.drop(5).trim()
                         preIdentity = currentState.identity.copy(model = model, brand = brandDisplayName)
                     }
-                    dataStr.startsWith("GW") -> {
+                    dataStr.startsWith("GW") || dataStr.startsWith("JL") -> {
                         fw = dataStr.drop(2).trim()
                         fwProt = "Begode"
                         isReady = true
@@ -435,10 +434,8 @@ class GotwayDecoder : WheelDecoder {
             if (cellNum >= bms.cells.size) break
             val cellVal = ByteUtils.shortFromBytesBE(buff, (i + 1) * 2) / 1000.0
             bms.cells[cellNum] = cellVal
-            if (smartBmsCells <= cellNum && cellVal != 0.0) {
-                smartBmsCells = cellNum + 1
-            } else if (smartBmsCells == cellNum + 1 && bms.cellNum != smartBmsCells) {
-                bms.cellNum = smartBmsCells
+            if (cellVal > 0.0) {
+                bms.cellNum = maxOf(bms.cellNum, cellNum + 1)
             }
         }
 
@@ -587,30 +584,38 @@ class GotwayDecoder : WheelDecoder {
     }
 
     private fun updateBmsCellStats(bms: SmartBms) {
-        if (smartBmsCells == 0) return
-
-        bms.minCell = bms.cells[0]
-        bms.maxCell = bms.cells[0]
-        bms.maxCellNum = 1
-        bms.minCellNum = 1
+        var validCellCount = 0
         var totalVolt = 0.0
 
-        for (i in 0 until smartBmsCells) {
+        for (i in 0 until bms.cellNum) {
             val cell = bms.cells[i]
             if (cell > 0.0) {
                 totalVolt += cell
-                if (bms.maxCell < cell) {
+                validCellCount++
+                if (validCellCount == 1 || bms.maxCell < cell) {
                     bms.maxCell = cell
                     bms.maxCellNum = i + 1
                 }
-                if (bms.minCell > cell) {
+                if (validCellCount == 1 || bms.minCell > cell) {
                     bms.minCell = cell
                     bms.minCellNum = i + 1
                 }
             }
         }
+
+        if (validCellCount == 0) {
+            bms.minCell = 0.0
+            bms.maxCell = 0.0
+            bms.minCellNum = 0
+            bms.maxCellNum = 0
+            bms.cellDiff = 0.0
+            bms.avgCell = 0.0
+            bms.voltage = 0.0
+            return
+        }
+
         bms.cellDiff = bms.maxCell - bms.minCell
-        bms.avgCell = totalVolt / smartBmsCells
+        bms.avgCell = totalVolt / validCellCount
         bms.voltage = totalVolt
     }
 
@@ -665,7 +670,6 @@ class GotwayDecoder : WheelDecoder {
         imu = ""
         fw = ""
         fwProt = ""
-        smartBmsCells = 0
         trueVoltage = false
         trueCurrent = false
         truePWM = false

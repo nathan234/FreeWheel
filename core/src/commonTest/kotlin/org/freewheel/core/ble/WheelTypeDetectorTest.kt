@@ -695,7 +695,7 @@ class WheelTypeDetectorTest {
 
     @Test
     fun `detect InMotion V2 from new model names`() {
-        val imNames = listOf("E20-123", "CLIMBER-456", "GLIDE-789")
+        val imNames = listOf("E20-123", "E25-123", "CLIMBER-456", "GLIDE-789")
         for (name in imNames) {
             assertDetectedAs(name, WheelType.INMOTION_V2)
         }

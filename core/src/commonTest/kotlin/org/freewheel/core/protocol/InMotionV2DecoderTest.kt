@@ -97,6 +97,13 @@ class InMotionV2DecoderTest {
     }
 
     @Test
+    fun `Model findById returns E20 for series 10 type 1`() {
+        val model = InMotionV2Decoder.Model.findById(10, 1)
+        assertEquals(InMotionV2Decoder.Model.E20, model)
+        assertEquals("InMotion E20", model.displayName)
+    }
+
+    @Test
     fun `Model findById returns UNKNOWN for invalid id`() {
         val model = InMotionV2Decoder.Model.findById(99, 99)
         assertEquals(InMotionV2Decoder.Model.UNKNOWN, model)
@@ -724,10 +731,10 @@ class InMotionV2DecoderTest {
 
     @Test
     fun `temperature decoding uses correct offset formula`() {
-        // Temperature formula: (byte & 0xFF) + 80 - 256
-        // For byte 0xCE (206): 206 + 80 - 256 = 30
-        // For byte 0xCD (205): 205 + 80 - 256 = 29
-        // For byte 0xD1 (209): 209 + 80 - 256 = 33
+        // Temperature formula: signed byte + 80.
+        // For byte 0xCE (-50 signed): -50 + 80 = 30
+        // For byte 0xCD (-51 signed): -51 + 80 = 29
+        // For byte 0xD1 (-47 signed): -47 + 80 = 33
 
         val temp30 = (0xCE + 80 - 256)
         val temp29 = (0xCD + 80 - 256)
@@ -736,6 +743,45 @@ class InMotionV2DecoderTest {
         assertEquals(30, temp30)
         assertEquals(29, temp29)
         assertEquals(33, temp33)
+    }
+
+    @Test
+    fun `temperature decoding preserves positive signed-byte range`() {
+        val decoder = InMotionV2Decoder()
+        decoder.decode(buildCarTypeFrame(9, 1), defaultDecoderState, defaultConfig)
+        val payload = ByteArray(80)
+        payload[58] = 0x0A // signed 10 + 80 = 90°C
+        payload[59] = 0x14 // signed 20 + 80 = 100°C
+        payload[62] = 0x00 // signed 0 + 80 = 80°C
+        payload[63] = 0x7F // signed 127 + 80 = 207°C
+
+        val result = decoder.decode(
+            buildIM2Frame(0x14, 0x84, payload),
+            defaultDecoderState,
+            defaultConfig
+        )
+
+        assertTrue(result is DecodeResult.Success)
+        val telemetry = (result as DecodeResult.Success).data.assertTelemetry()
+        assertEquals(9_000, telemetry.temperature)
+        assertEquals(10_000, telemetry.temperature2)
+        assertEquals(80, telemetry.cpuTemp)
+        assertEquals(207, telemetry.imuTemp)
+    }
+
+    @Test
+    fun `captured control acknowledgement is recognized`() {
+        val decoder = InMotionV2Decoder()
+        // P6 response to control sub-command 0x25 with success status 0x00.
+        val frame = "AA AA 14 03 E0 25 00 D2".hexToByteArray()
+
+        val result = decoder.decode(frame, defaultDecoderState, defaultConfig)
+
+        assertTrue(result is DecodeResult.Success)
+        val decoded = (result as DecodeResult.Success).data
+        assertEquals(listOf("CONTROL_ACK"), decoded.frameTypes)
+        assertEquals(WheelType.INMOTION_V2, decoded.assertIdentity().wheelType)
+        assertFalse(decoded.hasNewData)
     }
 
     // ==================== V11 Protocol Version Test ====================
@@ -1056,6 +1102,82 @@ class InMotionV2DecoderTest {
         assertEquals(InMotionV2Decoder.Model.P6, model)
         assertEquals("InMotion P6", model.displayName)
         assertEquals(56, model.cellCount)
+    }
+
+    @Test
+    fun `E20 real-time telemetry uses its model-specific layout`() {
+        val decoder = InMotionV2Decoder()
+        decoder.decode(buildCarTypeFrame(10, 1), defaultDecoderState, defaultConfig)
+        val payload = ByteArray(69)
+        payload[0] = 0xD0.toByte(); payload[1] = 0x20 // voltage = 8400 (84.00 V)
+        payload[2] = 0xA2.toByte(); payload[3] = 0xFE.toByte() // current = -350 (-3.50 A)
+        payload[4] = 0xD2.toByte(); payload[5] = 0x04 // speed = 1234 (12.34 km/h)
+        payload[8] = 0xE2.toByte(); payload[9] = 0x04 // consumed = 1250 (12.50%)
+        payload[16] = 0x06; payload[17] = 0xFF.toByte() // pitch = -250 (-2.50 degrees)
+        payload[20] = 0x2C; payload[21] = 0x01 // roll = 300 (3.00 degrees)
+        payload[24] = 0xD2.toByte(); payload[25] = 0x04 // odometer = 12.34 km
+        payload[30] = 0xD0.toByte(); payload[31] = 0x07 // speed limit = 20.00 km/h
+        payload[32] = 0xA0.toByte(); payload[33] = 0x0F // current limit = 40.00 A
+        payload[40] = 0xCE.toByte() // motor temperature = 30 C
+        payload[43] = 0xD8.toByte() // MOS temperature = 40 C
+        payload[44] = 0xE2.toByte() // CPU temperature = 50 C
+        payload[45] = 0xEC.toByte() // IMU temperature = 60 C
+        payload[54] = 0x40 // motor active
+
+        val result = decoder.decode(
+            buildIM2Frame(0x14, 0x84, payload),
+            defaultDecoderState,
+            defaultConfig
+        )
+
+        assertTrue(result is DecodeResult.Success)
+        val decoded = (result as DecodeResult.Success).data
+        val telemetry = decoded.assertTelemetry()
+        assertEquals(8400, telemetry.voltage)
+        assertEquals(-350, telemetry.current)
+        assertEquals(1234, telemetry.speed)
+        assertEquals(88, telemetry.batteryLevel)
+        assertEquals(12_340L, telemetry.wheelDistance)
+        assertEquals(-2.5, telemetry.angle, 0.001)
+        assertEquals(3.0, telemetry.roll, 0.001)
+        assertEquals(20.0, telemetry.speedLimit, 0.001)
+        assertEquals(40.0, telemetry.currentLimit, 0.001)
+        assertEquals(3000, telemetry.temperature)
+        assertEquals(4000, telemetry.temperature2)
+        assertEquals(50, telemetry.cpuTemp)
+        assertEquals(60, telemetry.imuTemp)
+        assertEquals("Active", decoded.assertIdentity().modeStr)
+        assertEquals("InMotion E20", decoded.assertIdentity().model)
+    }
+
+    @Test
+    fun `E20 settings response uses E20 offsets`() {
+        val decoder = InMotionV2Decoder()
+        decoder.decode(buildCarTypeFrame(10, 1), defaultDecoderState, defaultConfig)
+        val payload = ByteArray(40)
+        payload[9] = 0xD0.toByte(); payload[10] = 0x07 // tilt-back = 20.00 km/h
+        payload[17] = 0x0A; payload[18] = 0x00 // standby = 10 minutes
+        payload[19] = 0x11 // ride mode 1 + performance bit
+        payload[21] = 75 // pedal sensitivity
+        payload[23] = 3 // LED mode
+        payload[39] = 0x40 // transport mode
+
+        val result = decoder.decode(
+            buildIM2Frame(0x14, 0xA0, payload),
+            defaultDecoderState,
+            defaultConfig
+        )
+
+        assertTrue(result is DecodeResult.Success)
+        val settings = (result as DecodeResult.Success).data.assertSettings() as WheelSettings.InMotionV2
+        assertEquals(20, settings.maxSpeed)
+        assertEquals(10, settings.standbyTime)
+        assertEquals(true, settings.rideMode)
+        assertEquals(true, settings.fancierMode)
+        assertEquals(75, settings.pedalSensitivity)
+        assertEquals(3, settings.ledMode)
+        assertEquals(true, settings.transportMode)
+        assertEquals(-1, settings.speakerVolume, "E20 byte 23 is LED mode, not speaker volume")
     }
 
     // ==================== Unknown Model Skips Parsing ====================
@@ -1953,8 +2075,10 @@ class InMotionV2DecoderTest {
         // speed at [8:9] = 12490 (124.90 km/h)
         payload[8] = 0xCA.toByte(); payload[9] = 0x30
         // torque at [12:13] = 0
-        // battery at [14:15] = 278 → 100 - abs(278)/100 = 97%
-        payload[14] = 0x16; payload[15] = 0x01
+        // output rate at [14:15] = 449 (4.49%)
+        payload[14] = 0xC1.toByte(); payload[15] = 0x01
+        // battery consumption at [32:33] = 278 → 100 - 278/100 = 97%
+        payload[32] = 0x16; payload[33] = 0x01
         // mosTemp at [58] = 0xC2 → (194 + 80 - 256) = 18°C
         payload[58] = 0xC2.toByte()
         // temp2 at [59] = 0xC6 → 22°C
@@ -1970,8 +2094,37 @@ class InMotionV2DecoderTest {
         assertEquals(-36, decoded.assertTelemetry().current, "Current should be -36")
         assertEquals(12490, decoded.assertTelemetry().speed, "Speed should be 12490")
         assertEquals(97, decoded.assertTelemetry().batteryLevel, "Battery should be 97% (100 - 278/100)")
+        assertEquals(449, decoded.assertTelemetry().output, "Output rate should be 4.49%")
+        assertEquals(0.0449, decoded.assertTelemetry().calculatedPwm, 0.000001)
         // 0x87 is a lightweight frame — it does NOT contain temperatures
         assertEquals(0, decoded.assertTelemetry().temperature, "0x87 should not set temperature")
+    }
+
+    @Test
+    fun `P6 captured telemetry separates battery consumption from output rate`() {
+        val decoder = InMotionV2Decoder()
+        // Raw on-wire notification captured from a P6. It includes an escaped 0xAA byte
+        // (A5 AA), so this also protects the complete unpack-and-decode path.
+        val frame = (
+            "AA AA 16 65 21 02 87 01 00 98 5A 00 00 00 00 00 00 CC FF 00 00 " +
+                "A5 AA FE C1 01 00 00 00 00 A6 26 DA 25 98 3A 98 3A 98 3A B4 BD " +
+                "B5 03 72 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 " +
+                "00 0A 00 00 00 C8 2D 00 00 73 ED 13 00 5C 76 03 00 97 2D 00 00 " +
+                "E8 83 00 00 D8 00 49 00 00 00 00 00 00 00 00 00 00 00 00 DC " +
+                "FE 69 02 E1"
+            ).hexToByteArray()
+
+        val result = decoder.decode(frame, defaultDecoderState, defaultConfig)
+
+        assertTrue(result is DecodeResult.Success, "Captured P6 telemetry should be decoded")
+        val telemetry = (result as DecodeResult.Success).data.assertTelemetry()
+        assertEquals(23192, telemetry.voltage)
+        assertEquals(0, telemetry.current)
+        assertEquals(-52, telemetry.speed)
+        assertEquals(91, telemetry.batteryLevel, "Battery consumption 9.49% should mean 91% remaining")
+        assertEquals(449, telemetry.output, "Output rate should come from payload offset 14")
+        assertEquals(0.0449, telemetry.calculatedPwm, 0.000001)
+        assertEquals(150_000L, telemetry.wheelDistance)
     }
 
     @Test
@@ -1983,41 +2136,41 @@ class InMotionV2DecoderTest {
         initData[27] = 0x0D; initData[28] = 0x01
         decoder.decode(buildIM2Frame(0x16, 0x21, initData), defaultDecoderState, defaultConfig)
 
-        // Test with real captured data: discharge=278 → battery=97%
+        // Test with real captured data: consumption=278 → battery=97%
         val payload1 = ByteArray(96)
         payload1[0] = 0x6E; payload1[1] = 0x5A  // voltage = 23150
-        payload1[14] = 0x16; payload1[15] = 0x01 // discharge = 278
+        payload1[32] = 0x16; payload1[33] = 0x01 // consumption = 278
         val frame1 = buildIM2Frame(0x16, 0x21, byteArrayOf(0x02, 0x87.toByte(), 0x01, 0x00) + payload1)
         val r1 = decoder.decode(frame1, defaultDecoderState, defaultConfig)
         assertTrue(r1 is DecodeResult.Success)
-        assertEquals(97, (r1 as DecodeResult.Success).data.assertTelemetry().batteryLevel, "278 discharge → 97% remaining")
+        assertEquals(97, (r1 as DecodeResult.Success).data.assertTelemetry().batteryLevel, "278 consumption → 97% remaining")
 
-        // Test with discharge=5000 → battery=50%
+        // Test with consumption=5000 → battery=50%
         val payload2 = ByteArray(96)
         payload2[0] = 0x6E; payload2[1] = 0x5A
-        payload2[14] = 0x88.toByte(); payload2[15] = 0x13 // discharge = 5000
+        payload2[32] = 0x88.toByte(); payload2[33] = 0x13 // consumption = 5000
         val frame2 = buildIM2Frame(0x16, 0x21, byteArrayOf(0x02, 0x87.toByte(), 0x01, 0x00) + payload2)
         val r2 = decoder.decode(frame2, defaultDecoderState, defaultConfig)
         assertTrue(r2 is DecodeResult.Success)
-        assertEquals(50, (r2 as DecodeResult.Success).data.assertTelemetry().batteryLevel, "5000 discharge → 50% remaining")
+        assertEquals(50, (r2 as DecodeResult.Success).data.assertTelemetry().batteryLevel, "5000 consumption → 50% remaining")
 
-        // Test with discharge=9900 → battery=1%
+        // Test with consumption=9900 → battery=1%
         val payload3 = ByteArray(96)
         payload3[0] = 0x6E; payload3[1] = 0x5A
-        payload3[14] = 0xAC.toByte(); payload3[15] = 0x26 // discharge = 9900
+        payload3[32] = 0xAC.toByte(); payload3[33] = 0x26 // consumption = 9900
         val frame3 = buildIM2Frame(0x16, 0x21, byteArrayOf(0x02, 0x87.toByte(), 0x01, 0x00) + payload3)
         val r3 = decoder.decode(frame3, defaultDecoderState, defaultConfig)
         assertTrue(r3 is DecodeResult.Success)
-        assertEquals(1, (r3 as DecodeResult.Success).data.assertTelemetry().batteryLevel, "9900 discharge → 1% remaining")
+        assertEquals(1, (r3 as DecodeResult.Success).data.assertTelemetry().batteryLevel, "9900 consumption → 1% remaining")
 
-        // Test with discharge=0 → battery=100%
+        // Test with consumption=0 → battery=100%
         val payload4 = ByteArray(96)
         payload4[0] = 0x6E; payload4[1] = 0x5A
-        // payload4[14:15] already 0
+        // payload4[32:33] already 0
         val frame4 = buildIM2Frame(0x16, 0x21, byteArrayOf(0x02, 0x87.toByte(), 0x01, 0x00) + payload4)
         val r4 = decoder.decode(frame4, defaultDecoderState, defaultConfig)
         assertTrue(r4 is DecodeResult.Success)
-        assertEquals(100, (r4 as DecodeResult.Success).data.assertTelemetry().batteryLevel, "0 discharge → 100% remaining")
+        assertEquals(100, (r4 as DecodeResult.Success).data.assertTelemetry().batteryLevel, "0 consumption → 100% remaining")
     }
 
     @Test
@@ -2173,7 +2326,7 @@ class InMotionV2DecoderTest {
         val lightPayload = ByteArray(96)
         lightPayload[0] = 0x00; lightPayload[1] = 0x50 // voltage = 20480
         lightPayload[8] = 0x00; lightPayload[9] = 0x10 // speed = 4096
-        lightPayload[14] = 0xE8.toByte(); lightPayload[15] = 0x03 // discharge = 1000
+        lightPayload[32] = 0xE8.toByte(); lightPayload[33] = 0x03 // consumption = 1000
         val lightData = byteArrayOf(0x02, 0x87.toByte(), 0x01, 0x00) + lightPayload
         val lightFrame = buildIM2Frame(0x16, 0x21, lightData)
         val r2 = decoder.decode(lightFrame, stateAfterFull, defaultConfig)

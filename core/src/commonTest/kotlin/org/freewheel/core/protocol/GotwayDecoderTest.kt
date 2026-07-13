@@ -595,6 +595,17 @@ class GotwayDecoderTest {
     }
 
     @Test
+    fun `JL firmware accepted by EUC World resolves as Begode`() {
+        val freshDecoder = GotwayDecoder()
+        val result = freshDecoder.decode("JL2035101".encodeToByteArray(), DecoderState(), config)
+
+        assertTrue(result is DecodeResult.Success)
+        val identity = (result as DecodeResult.Success).data.assertIdentity()
+        assertEquals("Begode", identity.brand)
+        assertEquals("2035101", identity.version)
+    }
+
+    @Test
     fun `NAME before firmware leaves brand empty until firmware arrives`() {
         val freshDecoder = GotwayDecoder()
         var ds = DecoderState()
@@ -1955,6 +1966,30 @@ class GotwayDecoderTest {
         assertEquals(0.350, snapshot.cellDiff, 0.001)
         assertEquals(1, snapshot.maxCellNum) // 1-indexed
         assertEquals(8, snapshot.minCellNum)
+    }
+
+    @Test
+    fun `dual BMS cell counts and averages accumulate independently`() {
+        val freshDecoder = GotwayDecoder()
+        initDecoder(freshDecoder)
+
+        val bms1Page = List(8) { 4200 }
+        freshDecoder.decode(buildBmsCellFrame(0x02, pNum = 0, bms1Page), DecoderState(), config)
+        freshDecoder.decode(buildBmsCellFrame(0x02, pNum = 1, bms1Page), DecoderState(), config)
+
+        val bms2Page = List(8) { 4000 }
+        val result = freshDecoder.decode(
+            buildBmsCellFrame(0x03, pNum = 0, bms2Page),
+            DecoderState(),
+            config,
+        )
+
+        assertTrue(result is DecodeResult.Success)
+        val bms = (result as DecodeResult.Success).data.assertBms()
+        assertEquals(16, bms.bms1?.cellNum)
+        assertEquals(8, bms.bms2?.cellNum)
+        assertEquals(4.0, bms.bms2?.avgCell ?: 0.0, 0.001)
+        assertEquals(32.0, bms.bms2?.voltage ?: 0.0, 0.001)
     }
 
     // ==================== Helpers ====================
