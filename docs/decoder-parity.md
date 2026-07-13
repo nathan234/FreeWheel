@@ -108,8 +108,8 @@ Tests: `KingsongDecoderTest.kt` · `KingsongDecoderComparisonTest.kt`
 
 ### Known Gaps
 - [x] ~~**[P2]** Auto-request BMS serial and firmware~~: one-shot E1/E5 or E2/E6 requests are sent when each BMS first reports F1/F2 page 0.
-- [ ] **[P2]** 0xA4 response should also request BMS data for new wheels
-- [ ] **[P2]** Lock command requires password-based protocol (0x41/0x42 with challenge-response from 0x5F)
+- [n/a] ~~**[P2]** Send BMS requests after 0xA4~~: rejected after cross-checking the official KingSong 4.8.73 app and three WheelLog implementations. The 0xA4 response only repeats the frame as 0x98; BMS requests are a separate flow.
+- [ ] **[P2]** Wheel lock command remains unverified. The official app's 0x41/0x42 frames set/clear its connection password; a lock/unlock capture is required before enabling this control.
 - [ ] **[P3]** Volume up/down (0x95) — KS uses relative +/- buttons, not absolute slider
 - [ ] **[P3]** Extended settings readback frames (0x87, 0x8A, 0x8B) — sub-typed, informational
 - [ ] **[P3]** Date/time frame (0xF9) — informational only
@@ -236,7 +236,7 @@ Tests: `InMotionDecoderTest.kt` · `InMotionDecoderComparisonTest.kt` · `InMoti
 
 ### Init & Identity
 - [x] CAN frame parsing with header 0xAA 0xAA
-- [x] Model detection from slow info data
+- [x] Model, version, serial, and settings readback from slow info data
 - [x] Version extraction
 - [x] Serial number parsing
 
@@ -254,7 +254,7 @@ Tests: `InMotionDecoderTest.kt` · `InMotionDecoderComparisonTest.kt` · `InMoti
 
 ### Known Gaps
 - [ ] **[P1]** Password authentication (legacy retries 6 times with 6-digit PIN before wheel responds)
-- [ ] **[P2]** Slow data re-request (legacy re-requests slow data periodically to refresh settings)
+- [x] ~~**[P2]** Slow data discovery and settings refresh~~: keep-alive requests slow info until the model resolves, switches to fast telemetry after a valid response, and re-arms slow readback after setting acknowledgements.
 - [ ] **[P3]** Full model-specific speed calculation factors (20+ V1 models with different factors)
 
 ---

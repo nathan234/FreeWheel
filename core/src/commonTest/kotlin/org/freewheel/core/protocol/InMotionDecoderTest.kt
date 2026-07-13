@@ -1,7 +1,10 @@
 package org.freewheel.core.protocol
 
 import org.freewheel.core.domain.identity.WheelType
+import org.freewheel.core.domain.settings.SettingsCommandId
+import org.freewheel.core.domain.settings.WheelSettings
 import kotlin.test.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
@@ -112,17 +115,132 @@ class InMotionDecoderTest {
     }
 
     @Test
-    fun `InMotionDecoder getKeepAliveCommand returns valid command`() {
+    fun `InMotionDecoder first keep-alive requests slow identity and settings data`() {
         val decoder = InMotionDecoder()
         val command = decoder.getKeepAliveCommand()
 
         assertNotNull(command)
         assertTrue(command is WheelCommand.SendBytes)
-        val bytes = (command as WheelCommand.SendBytes).data
+        assertContentEquals(
+            InMotionDecoder.CANMessage.getSlowData().writeBuffer(),
+            (command as WheelCommand.SendBytes).data,
+            "The decoder must resolve its model/settings before switching to fast telemetry"
+        )
+    }
 
-        // Should start with AA AA header
-        assertEquals(0xAA.toByte(), bytes[0])
-        assertEquals(0xAA.toByte(), bytes[1])
+    @Test
+    fun `InMotionDecoder switches to fast keep-alive after valid slow response`() {
+        val decoder = InMotionDecoder()
+        val slowResponse = InMotionDecoder.CANMessage.standardMessage().apply {
+            id = InMotionDecoder.IDValue.GetSlowInfo.value
+            len = 0xFE
+            format = 1
+            data = byteArrayOf(108, 0, 0, 0, 0, 0, 0, 0)
+            exData = ByteArray(108).also { data ->
+                data[104] = 6 // Combined with byte 107 below: model ID "86" (V8F)
+                data[107] = 8
+            }
+        }
+
+        val result = decoder.decode(slowResponse.writeBuffer(), DecoderState(), config)
+        assertTrue(result is DecodeResult.Success)
+        assertTrue(decoder.isReady())
+
+        val command = decoder.getKeepAliveCommand()
+        assertTrue(command is WheelCommand.SendBytes)
+        assertContentEquals(
+            InMotionDecoder.CANMessage.standardMessage().writeBuffer(),
+            command.data,
+            "A resolved decoder should poll fast telemetry"
+        )
+    }
+
+    @Test
+    fun `InMotionDecoder slow response surfaces authoritative V1 settings`() {
+        val decoder = InMotionDecoder()
+        val slowData = ByteArray(133).apply {
+            this[104] = 6
+            this[107] = 8 // Model ID "86" (V8F)
+
+            val pedalTiltRaw = 5 * 65536 // 5 degrees; protocol reports tenths to the UI
+            this[56] = (pedalTiltRaw and 0xFF).toByte()
+            this[57] = ((pedalTiltRaw shr 8) and 0xFF).toByte()
+            this[58] = ((pedalTiltRaw shr 16) and 0xFF).toByte()
+            this[59] = ((pedalTiltRaw shr 24) and 0xFF).toByte()
+
+            val maxSpeedRaw = 45_000
+            this[60] = (maxSpeedRaw and 0xFF).toByte()
+            this[61] = ((maxSpeedRaw shr 8) and 0xFF).toByte()
+            this[80] = 1 // Headlight on
+            this[124] = (75 + 28).toByte() // Pedal sensitivity 75%
+
+            val speakerVolumeRaw = 6_400
+            this[125] = (speakerVolumeRaw and 0xFF).toByte()
+            this[126] = ((speakerVolumeRaw shr 8) and 0xFF).toByte()
+            this[129] = 1 // Handle button enabled (legacy stores inverse disabled flag)
+            this[130] = 1 // LEDs on
+            this[132] = 1 // Classic ride mode
+        }
+        val slowResponse = InMotionDecoder.CANMessage.standardMessage().apply {
+            id = InMotionDecoder.IDValue.GetSlowInfo.value
+            len = 0xFE
+            format = 1
+            data = byteArrayOf(133.toByte(), 0, 0, 0, 0, 0, 0, 0)
+            exData = slowData
+        }
+
+        val result = decoder.decode(slowResponse.writeBuffer(), DecoderState(), config)
+        assertTrue(result is DecodeResult.Success)
+        val settings = result.data.assertSettings() as WheelSettings.InMotionV1
+
+        assertEquals(1, settings.lightMode)
+        assertEquals(1, settings.ledMode)
+        assertEquals(true, settings.handleButton)
+        assertEquals(true, settings.rideMode)
+        assertEquals(45, settings.maxSpeed)
+        assertEquals(50, settings.pedalTilt)
+        assertEquals(75, settings.pedalSensitivity)
+        assertEquals(64, settings.speakerVolume)
+
+        // Pin the values consumed by the shared Android/iOS settings UI.
+        assertEquals(1, SettingsCommandId.LIGHT_MODE.readInt(settings))
+        assertEquals(true, SettingsCommandId.LED.readBool(settings))
+        assertEquals(true, SettingsCommandId.HANDLE_BUTTON.readBool(settings))
+        assertEquals(true, SettingsCommandId.RIDE_MODE.readBool(settings))
+        assertEquals(45, SettingsCommandId.MAX_SPEED.readInt(settings))
+        assertEquals(5, SettingsCommandId.PEDAL_TILT.readInt(settings))
+        assertEquals(75, SettingsCommandId.PEDAL_SENSITIVITY.readInt(settings))
+        assertEquals(64, SettingsCommandId.SPEAKER_VOLUME.readInt(settings))
+    }
+
+    @Test
+    fun `InMotionDecoder setting acknowledgement re-arms slow settings refresh`() {
+        val decoder = InMotionDecoder()
+        val slowResponse = InMotionDecoder.CANMessage.standardMessage().apply {
+            id = InMotionDecoder.IDValue.GetSlowInfo.value
+            len = 0xFE
+            format = 1
+            data = byteArrayOf(108, 0, 0, 0, 0, 0, 0, 0)
+            exData = ByteArray(108).also { data ->
+                data[104] = 6
+                data[107] = 8
+            }
+        }
+        decoder.decode(slowResponse.writeBuffer(), DecoderState(), config)
+        assertContentEquals(
+            InMotionDecoder.CANMessage.standardMessage().writeBuffer(),
+            (decoder.getKeepAliveCommand() as WheelCommand.SendBytes).data
+        )
+
+        val lightAck = InMotionDecoder.CANMessage.setLight(true)
+        val result = decoder.decode(lightAck.writeBuffer(), DecoderState(), config)
+        assertTrue(result is DecodeResult.Success)
+
+        assertContentEquals(
+            InMotionDecoder.CANMessage.getSlowData().writeBuffer(),
+            (decoder.getKeepAliveCommand() as WheelCommand.SendBytes).data,
+            "A setting acknowledgement should trigger authoritative settings readback"
+        )
     }
 
     @Test

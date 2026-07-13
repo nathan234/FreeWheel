@@ -154,7 +154,15 @@ sealed class WheelSettings {
     ) : WheelSettings()
 
     data class InMotionV1(
-        override val lightMode: Int = -1
+        override val lightMode: Int = -1,
+        override val ledMode: Int = -1,
+        val handleButton: Boolean? = null,
+        val rideMode: Boolean? = null,
+        val maxSpeed: Int = -1,
+        /** Pedal tilt in tenths of a degree, matching the shared settings convention. */
+        val pedalTilt: Int = -1,
+        val pedalSensitivity: Int = -1,
+        val speakerVolume: Int = -1
     ) : WheelSettings()
 
     data object Ninebot : WheelSettings()
@@ -188,32 +196,36 @@ val WheelSettings.cutoutAngle: Int get() = when (this) {
 
 val WheelSettings.maxSpeed: Int get() = when (this) {
     is WheelSettings.Begode -> tiltBackSpeed
+    is WheelSettings.InMotionV1 -> maxSpeed
     is WheelSettings.InMotionV2 -> maxSpeed
     else -> -1
 }
 
 val WheelSettings.pedalTilt: Int get() = when (this) {
     is WheelSettings.LeaperkimCan -> pedalTilt
+    is WheelSettings.InMotionV1 -> pedalTilt
     is WheelSettings.InMotionV2 -> pedalTilt
     is WheelSettings.Begode, is WheelSettings.Kingsong, is WheelSettings.Veteran,
-    is WheelSettings.InMotionV1, is WheelSettings.Ninebot, is WheelSettings.NinebotZ,
+    is WheelSettings.Ninebot, is WheelSettings.NinebotZ,
     is WheelSettings.None -> -1
 }
 
 val WheelSettings.pedalSensitivity: Int get() = when (this) {
     is WheelSettings.Veteran -> pedalSensitivity
     is WheelSettings.LeaperkimCan -> pedalSensitivity
+    is WheelSettings.InMotionV1 -> pedalSensitivity
     is WheelSettings.InMotionV2 -> pedalSensitivity
     is WheelSettings.NinebotZ -> pedalSensitivity
-    is WheelSettings.Begode, is WheelSettings.Kingsong, is WheelSettings.InMotionV1,
+    is WheelSettings.Begode, is WheelSettings.Kingsong,
     is WheelSettings.Ninebot, is WheelSettings.None -> -1
 }
 
 val WheelSettings.speakerVolume: Int get() = when (this) {
+    is WheelSettings.InMotionV1 -> speakerVolume
     is WheelSettings.InMotionV2 -> speakerVolume
     is WheelSettings.NinebotZ -> speakerVolume
     is WheelSettings.Begode, is WheelSettings.Kingsong, is WheelSettings.Veteran,
-    is WheelSettings.LeaperkimCan, is WheelSettings.InMotionV1,
+    is WheelSettings.LeaperkimCan,
     is WheelSettings.Ninebot, is WheelSettings.None -> -1
 }
 
@@ -297,9 +309,10 @@ val WheelSettings.plateProtection: Boolean? get() = (this as? WheelSettings.Bego
 
 val WheelSettings.rideMode: Boolean? get() = when (this) {
     is WheelSettings.LeaperkimCan -> rideMode
+    is WheelSettings.InMotionV1 -> rideMode
     is WheelSettings.InMotionV2 -> rideMode
     is WheelSettings.Begode, is WheelSettings.Kingsong, is WheelSettings.Veteran,
-    is WheelSettings.InMotionV1, is WheelSettings.Ninebot, is WheelSettings.NinebotZ,
+    is WheelSettings.Ninebot, is WheelSettings.NinebotZ,
     is WheelSettings.None -> null
 }
 
@@ -316,9 +329,10 @@ val WheelSettings.mute: Boolean? get() = when (this) {
 val WheelSettings.handleButton: Boolean? get() = when (this) {
     is WheelSettings.Kingsong -> handleButton
     is WheelSettings.LeaperkimCan -> handleButton
+    is WheelSettings.InMotionV1 -> handleButton
     is WheelSettings.InMotionV2 -> handleButton
     is WheelSettings.NinebotZ -> handleButton
-    is WheelSettings.Begode, is WheelSettings.Veteran, is WheelSettings.InMotionV1,
+    is WheelSettings.Begode, is WheelSettings.Veteran,
     is WheelSettings.Ninebot, is WheelSettings.None -> null
 }
 

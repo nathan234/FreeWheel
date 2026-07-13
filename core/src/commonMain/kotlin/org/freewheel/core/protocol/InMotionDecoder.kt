@@ -4,6 +4,7 @@ import org.freewheel.core.domain.identity.CapabilitySet
 import org.freewheel.core.domain.settings.SettingsCommandId
 import org.freewheel.core.domain.identity.WheelIdentity
 import org.freewheel.core.domain.identity.WheelType
+import org.freewheel.core.domain.settings.WheelSettings
 import org.freewheel.core.utils.ByteUtils
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -123,6 +124,7 @@ class InMotionDecoder : WheelDecoder {
             }
 
             IDValue.RideMode -> {
+                needSlowData = true
                 val news = if (canMessage.data[0] == 1.toByte()) {
                     "Ride mode changed"
                 } else {
@@ -132,6 +134,7 @@ class InMotionDecoder : WheelDecoder {
             }
 
             IDValue.Light -> {
+                needSlowData = true
                 val news = if (canMessage.data[0] == 1.toByte()) {
                     "Light toggled"
                 } else {
@@ -141,6 +144,7 @@ class InMotionDecoder : WheelDecoder {
             }
 
             IDValue.HandleButton -> {
+                needSlowData = true
                 val news = if (canMessage.data[0] == 1.toByte()) {
                     "Handle button setting changed"
                 } else {
@@ -150,6 +154,7 @@ class InMotionDecoder : WheelDecoder {
             }
 
             IDValue.SpeakerVolume -> {
+                needSlowData = true
                 val news = if (canMessage.data[0] == 1.toByte()) {
                     "Speaker volume changed"
                 } else {
@@ -228,7 +233,12 @@ class InMotionDecoder : WheelDecoder {
     }
 
     override fun getKeepAliveCommand(): WheelCommand? {
-        return WheelCommand.SendBytes(CANMessage.standardMessage().writeBuffer())
+        val message = if (model == Model.UNKNOWN || needSlowData) {
+            CANMessage.getSlowData()
+        } else {
+            CANMessage.standardMessage()
+        }
+        return WheelCommand.SendBytes(message.writeBuffer())
     }
 
     override val keepAliveIntervalMs: Long = 250L
@@ -549,10 +559,12 @@ class InMotionDecoder : WheelDecoder {
 
         data class SlowInfoResult(
             val identity: WheelIdentity,
+            val settings: WheelSettings.InMotionV1,
             val detectedModel: Model
         ) {
             fun toFrameResult(frameType: String): FrameResult = FrameResult(
                 identity = identity,
+                settings = settings,
                 frameType = frameType
             )
         }
@@ -588,7 +600,34 @@ class InMotionDecoder : WheelDecoder {
                 wheelType = WheelType.INMOTION
             )
 
-            return SlowInfoResult(identity, detectedModel)
+            val currentSettings = currentState.settings as? WheelSettings.InMotionV1
+                ?: WheelSettings.InMotionV1()
+            val pedalTilt = (ByteUtils.intFromBytesLE(exData, 56) / 6553.6).roundToInt()
+            val maxSpeed = (((exData[61].toInt() and 0xFF) shl 8) or
+                (exData[60].toInt() and 0xFF)) / 1000
+            val settings = currentSettings.copy(
+                lightMode = if (exData[80] == 1.toByte()) 1 else 0,
+                ledMode = if (exData.size > 130) {
+                    if (exData[130] == 1.toByte()) 1 else 0
+                } else currentSettings.ledMode,
+                handleButton = if (exData.size > 129) {
+                    exData[129] == 1.toByte()
+                } else currentSettings.handleButton,
+                rideMode = if (exData.size > 132) {
+                    exData[132] == 1.toByte()
+                } else currentSettings.rideMode,
+                maxSpeed = maxSpeed,
+                pedalTilt = pedalTilt,
+                pedalSensitivity = if (exData.size > 124) {
+                    (exData[124].toInt() - 28) and 0xFF
+                } else currentSettings.pedalSensitivity,
+                speakerVolume = if (exData.size > 126) {
+                    (((exData[126].toInt() and 0xFF) shl 8) or
+                        (exData[125].toInt() and 0xFF)) / 100
+                } else currentSettings.speakerVolume
+            )
+
+            return SlowInfoResult(identity, settings, detectedModel)
         }
 
         companion object {
