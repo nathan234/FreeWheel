@@ -452,7 +452,7 @@ class KingsongDecoder : WheelDecoder {
                 bms.tempMosEnv = (ByteUtils.getInt2R(data, 10) - 2730) / 10.0
 
                 // Calculate cell statistics
-                updateBmsCellStats(bms)
+                bms.recalculateCellStats(getCellsForWheel())
             }
             0xD0 -> {
                 // Extended BMS packet for F-series
@@ -516,7 +516,7 @@ class KingsongDecoder : WheelDecoder {
         bms.humidity2Env = ByteUtils.getInt2R(data, offset2 + 20) / 10.0
 
         // Calculate cell statistics
-        updateBmsCellStats(bms, cells)
+        bms.recalculateCellStats(cells)
     }
 
     /**
@@ -648,31 +648,6 @@ class KingsongDecoder : WheelDecoder {
         if ((data[2].toInt() and 0xFF) != 0) return KsFrameOutput()
         val timerMinutes = ByteUtils.getInt2R(data, 4)
         return KsFrameOutput(settings = ks.copy(autoOffTime = timerMinutes * 60))
-    }
-
-    private fun updateBmsCellStats(bms: SmartBms, cellCount: Int = getCellsForWheel()) {
-        bms.minCell = bms.cells[0]
-        bms.maxCell = bms.cells[0]
-        bms.maxCellNum = 1
-        bms.minCellNum = 1
-        var totalVolt = 0.0
-
-        for (i in 0 until cellCount) {
-            val cell = bms.cells[i]
-            if (cell > 0.0) {
-                totalVolt += cell
-                if (bms.maxCell < cell) {
-                    bms.maxCell = cell
-                    bms.maxCellNum = i + 1
-                }
-                if (bms.minCell > cell) {
-                    bms.minCell = cell
-                    bms.minCellNum = i + 1
-                }
-            }
-        }
-        bms.cellDiff = bms.maxCell - bms.minCell
-        bms.avgCell = totalVolt / cellCount
     }
 
     private fun calculateBatteryPercent(voltage: Int, useBetterPercents: Boolean): Int {

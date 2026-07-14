@@ -11,10 +11,9 @@ Gap priority: **[P1]** = affects real-world usage, **[P2]** = correctness/comple
 
 ## Cross-Decoder Accuracy
 
-- [ ] **[P1]** Share valid-cell BMS statistics across InMotion V2, KingSong, Veteran, and
-  Ninebot Z. Their duplicated implementations can report a false 0 V minimum and depress
-  average voltage when a page is partial or zero-filled. Gotway already has the desired
-  valid-positive-cell behavior.
+- [x] Shared valid-positive-cell BMS statistics now cover Gotway, InMotion V2, KingSong,
+  Veteran, and Ninebot Z. Partial or zero-filled pages no longer produce a false 0 V minimum
+  or depress the average by dividing by absent cells.
 
 ---
 
@@ -315,8 +314,7 @@ Tests: `InMotionV2DecoderTest.kt` · `InMotionV2UnpackerTest.kt`
 - [x] V9/V12 split riding modes sub-cmd 0x42 (others use 0x3E)
 
 ### Known Gaps
-- [ ] **[P1]** V14 declares and polls four batteries, but the decoder currently maps packs
-  2-4 into `bms2` and publishes only `bms1`/`bms2`.
+- [x] V14 battery IDs 0x24-0x27 accumulate and publish independently as BMS packs 1-4.
 - [ ] **[P1]** E25 is a shipping Lorin-protocol target, but telemetry/settings need an E25 model-response and notification capture. V18 appears only as dormant official-app protocol code and is not treated as a shipping support target.
 - [ ] **[P2]** General battery real-time info (`flag 0x14`, command `0x05`) is currently
   discarded; determine its authoritative fields from a capture before mapping them.

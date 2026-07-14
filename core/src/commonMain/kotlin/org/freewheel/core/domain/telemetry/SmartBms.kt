@@ -86,6 +86,58 @@ class SmartBms {
         cells = DoubleArray(MAX_CELLS)
     }
 
+    /**
+     * Recalculate cell minimum, maximum, difference, and average from valid positive cells.
+     *
+     * BMS protocols commonly deliver cells across multiple pages or pad unused positions with
+     * zero. Those entries are unknown, not real 0 V cells, so they must not affect statistics.
+     * [cellNum] remains the protocol/model-declared count while the average is divided by the
+     * number of cells actually present.
+     *
+     * Most protocols report pack voltage separately and should leave [updatePackVoltage] false.
+     * Protocols whose pack voltage is derived from the cell list can request the valid-cell sum.
+     */
+    fun recalculateCellStats(
+        cellCount: Int = cellNum,
+        updatePackVoltage: Boolean = false
+    ) {
+        val boundedCellCount = cellCount.coerceIn(0, cells.size)
+        cellNum = boundedCellCount
+        var validCellCount = 0
+        var totalVoltage = 0.0
+
+        for (i in 0 until boundedCellCount) {
+            val cell = cells[i]
+            if (cell <= 0.0) continue
+
+            totalVoltage += cell
+            validCellCount++
+            if (validCellCount == 1 || cell > maxCell) {
+                maxCell = cell
+                maxCellNum = i + 1
+            }
+            if (validCellCount == 1 || cell < minCell) {
+                minCell = cell
+                minCellNum = i + 1
+            }
+        }
+
+        if (validCellCount == 0) {
+            minCell = 0.0
+            maxCell = 0.0
+            minCellNum = 0
+            maxCellNum = 0
+            cellDiff = 0.0
+            avgCell = 0.0
+            if (updatePackVoltage) voltage = 0.0
+            return
+        }
+
+        cellDiff = maxCell - minCell
+        avgCell = totalVoltage / validCellCount
+        if (updatePackVoltage) voltage = totalVoltage
+    }
+
     fun toSnapshot(): BmsSnapshot = BmsSnapshot(
         serialNumber = serialNumber,
         versionNumber = versionNumber,

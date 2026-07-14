@@ -778,35 +778,7 @@ class NinebotZDecoder : WheelDecoder {
         bms.cellNum = cellNum
 
         // Calculate min/max/avg cell voltages
-        updateBmsCellStats(bms)
-    }
-
-    private fun updateBmsCellStats(bms: SmartBms) {
-        if (bms.cellNum == 0) return
-
-        bms.minCell = bms.cells[0]
-        bms.maxCell = bms.cells[0]
-        bms.minCellNum = 1
-        bms.maxCellNum = 1
-        var totalVolt = 0.0
-
-        for (i in 0 until bms.cellNum) {
-            val cell = bms.cells[i]
-            if (cell > 0.0) {
-                totalVolt += cell
-                if (bms.maxCell < cell) {
-                    bms.maxCell = cell
-                    bms.maxCellNum = i + 1
-                }
-                if (bms.minCell > cell) {
-                    bms.minCell = cell
-                    bms.minCellNum = i + 1
-                }
-            }
-        }
-
-        bms.cellDiff = bms.maxCell - bms.minCell
-        bms.avgCell = if (bms.cellNum > 0) totalVolt / bms.cellNum else 0.0
+        bms.recalculateCellStats()
     }
 
     // ========== Keep-alive and Initialization ==========

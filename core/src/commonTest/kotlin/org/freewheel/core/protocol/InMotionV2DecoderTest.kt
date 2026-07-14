@@ -2562,6 +2562,33 @@ class InMotionV2DecoderTest {
         return d
     }
 
+    private fun decoderWithV14(): InMotionV2Decoder {
+        val d = InMotionV2Decoder()
+        d.decode(buildCarTypeFrame(9, 1), defaultDecoderState, defaultConfig) // V14g
+        return d
+    }
+
+    private fun buildBmsStatusPayload(
+        voltageHundredths: Int,
+        remainingPercent: Int = 50,
+        temp1: Int? = null,
+        temp2: Int? = null
+    ): ByteArray {
+        val size = when {
+            temp2 != null -> 26
+            temp1 != null -> 25
+            else -> 18
+        }
+        return ByteArray(size).apply {
+            this[6] = (voltageHundredths and 0xFF).toByte()
+            this[7] = ((voltageHundredths shr 8) and 0xFF).toByte()
+            this[16] = (remainingPercent and 0xFF).toByte()
+            this[17] = ((remainingPercent shr 8) and 0xFF).toByte()
+            temp1?.let { this[24] = it.toByte() }
+            temp2?.let { this[25] = it.toByte() }
+        }
+    }
+
     @Test
     fun `BMS cell voltages parsed for P6`() {
         val d = decoderWithP6()
@@ -2626,6 +2653,66 @@ class InMotionV2DecoderTest {
         assertEquals(85, bms.remPerc)
         assertEquals(28.0, bms.temp1)
         assertEquals(30.0, bms.temp2)
+    }
+
+    @Test
+    fun `V14 keeps all four BMS status packs independent`() {
+        val d = decoderWithV14()
+        val voltages = listOf(11100, 11200, 11300, 11400)
+        var lastResult: DecodeResult.Success? = null
+
+        voltages.forEachIndexed { index, voltage ->
+            val frame = buildBmsFrame(
+                batteryId = 0x24 + index,
+                responseType = 0x81,
+                payload = buildBmsStatusPayload(
+                    voltageHundredths = voltage,
+                    remainingPercent = 60 + index
+                )
+            )
+            val result = d.decode(frame, defaultDecoderState, defaultConfig)
+            assertTrue(result is DecodeResult.Success)
+            lastResult = result
+        }
+
+        val bms = assertNotNull(lastResult).data.assertBms()
+        val packs = listOf(
+            assertNotNull(bms.bms1),
+            assertNotNull(bms.bms2),
+            assertNotNull(bms.bms3),
+            assertNotNull(bms.bms4)
+        )
+        assertEquals(listOf(111.0, 112.0, 113.0, 114.0), packs.map { it.voltage })
+        assertEquals(listOf(60, 61, 62, 63), packs.map { it.remPerc })
+    }
+
+    @Test
+    fun `BMS temperatures parse at their exact response lengths`() {
+        val d = decoderWithP6()
+
+        val temp1Result = d.decode(
+            buildBmsFrame(
+                batteryId = 0x24,
+                responseType = 0x81,
+                payload = buildBmsStatusPayload(20160, temp1 = 28)
+            ),
+            defaultDecoderState,
+            defaultConfig
+        )
+        assertTrue(temp1Result is DecodeResult.Success)
+        assertEquals(28.0, assertNotNull(temp1Result.data.assertBms().bms1).temp1)
+
+        val temp2Result = d.decode(
+            buildBmsFrame(
+                batteryId = 0x24,
+                responseType = 0x81,
+                payload = buildBmsStatusPayload(20160, temp1 = 28, temp2 = 30)
+            ),
+            defaultDecoderState,
+            defaultConfig
+        )
+        assertTrue(temp2Result is DecodeResult.Success)
+        assertEquals(30.0, assertNotNull(temp2Result.data.assertBms().bms1).temp2)
     }
 
     @Test

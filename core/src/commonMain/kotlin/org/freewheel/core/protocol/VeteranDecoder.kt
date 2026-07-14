@@ -562,37 +562,9 @@ class VeteranDecoder : WheelDecoder {
                 bms.temp5 = ByteUtils.signedShortFromBytesBE(buff, 55) / 100.0
                 bms.temp6 = ByteUtils.signedShortFromBytesBE(buff, 57) / 100.0
 
-                updateBmsCellStats(bms)
+                bms.recalculateCellStats(getCellsForWheel(), updatePackVoltage = true)
             }
         }
-    }
-
-    private fun updateBmsCellStats(bms: SmartBms) {
-        val cellCount = getCellsForWheel()
-        bms.cellNum = cellCount
-        bms.minCell = bms.cells[0]
-        bms.maxCell = bms.cells[0]
-        bms.maxCellNum = 1
-        bms.minCellNum = 1
-        var totalVolt = 0.0
-
-        for (i in 0 until cellCount) {
-            val cell = bms.cells[i]
-            totalVolt += cell
-            if (cell > 0.0) {
-                if (bms.maxCell < cell) {
-                    bms.maxCell = cell
-                    bms.maxCellNum = i + 1
-                }
-                if (bms.minCell > cell) {
-                    bms.minCell = cell
-                    bms.minCellNum = i + 1
-                }
-            }
-        }
-        bms.cellDiff = bms.maxCell - bms.minCell
-        bms.voltage = totalVolt
-        bms.avgCell = totalVolt / cellCount
     }
 
     private fun calculateBatteryPercent(voltage: Int): Int {

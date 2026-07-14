@@ -18,12 +18,17 @@ Accuracy changes should be backed by the strongest available source:
 Catalog or competitor defaults are useful corroboration, but they are not automatically
 ground truth. Every model-derived calibration should record its source and confidence.
 
+## Resolved Findings
+
+| Area | Resolution |
+|---|---|
+| InMotion V14 BMS | Four independent BMS accumulators now route and publish battery IDs 0x24-0x27; packet tests prove distinct status for all four packs. |
+| BMS cell statistics | `SmartBms.recalculateCellStats` now provides valid-positive-cell min/max/average behavior for Gotway, InMotion V2, KingSong, Veteran, and Ninebot Z while preserving protocol-specific pack-voltage semantics. |
+
 ## Confirmed Accuracy Gaps
 
 | Priority | Area | Finding | Evidence / next action |
 |---|---|---|---|
-| P1 | InMotion V14 BMS | The decoder requests four battery IDs, but batteries 2-4 share `bms2` and only two snapshots are published. | EUC World independently has init/status/voltage states for battery 4. Add four independent accumulators and packet-level tests. |
-| P1 | BMS cell statistics | InMotion V2, KingSong, Veteran, and Ninebot Z initialize minimum voltage from cell 1 and divide by the expected count even when cells are zero or absent. This can report a false 0 V minimum and a low average. | Promote Gotway's valid-cell behavior into shared `SmartBms` logic and test zero-filled and partial pages. |
 | P1 | InMotion E25 | Advertised-name routing exists, but model identification, telemetry offsets, and settings offsets are not capture-backed. | Obtain model-response and notification captures from the shipping E25. |
 | P2 | Begode multi-pack status | Cell frames support four BMS packs, while frame `0x01` status contexts still collapse into two accumulators. | Capture frame `0x01` from a four-pack wheel and identify the byte-19 context before mapping packs 3/4. |
 | P2 | Leaperkim Oryx SOC | Oryx uses a model-class piecewise-linear 176 V fallback rather than a manufacturer table. | Obtain a manufacturer-app table or voltage/SOC observations across a discharge. |
@@ -100,11 +105,9 @@ application settings.
 
 ## Recommended Sequence
 
-1. Fix V14 four-pack BMS accumulation and shared valid-cell statistics, test-first.
-2. Introduce a typed per-wheel calibration/profile model and migrate `DecoderConfigStore`
+1. Introduce a typed per-wheel calibration/profile model and migrate `DecoderConfigStore`
    without breaking legacy keys.
-3. Split the product UI into App Settings and Wheel, with Wheel containing Controls and
+2. Split the product UI into App Settings and Wheel, with Wheel containing Controls and
    Profile & Calibration.
-4. Mark write-only cached values as unconfirmed and retain timestamps where useful.
-5. Continue capture-backed work for E25, Begode four-pack status, and Oryx SOC.
-
+3. Mark write-only cached values as unconfirmed and retain timestamps where useful.
+4. Continue capture-backed work for E25, Begode four-pack status, and Oryx SOC.

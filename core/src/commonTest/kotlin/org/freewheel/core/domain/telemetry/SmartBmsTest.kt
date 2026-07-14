@@ -205,6 +205,64 @@ class SmartBmsTest {
         }
     }
 
+    // ==================== Cell Statistics Tests ====================
+
+    @Test
+    fun `cell statistics ignore zero-filled and missing cells`() {
+        val bms = SmartBms().apply {
+            voltage = 84.0
+            cells[1] = 4.10
+            cells[3] = 3.90
+        }
+
+        bms.recalculateCellStats(cellCount = 4)
+
+        assertEquals(4, bms.cellNum)
+        assertEquals(3.90, bms.minCell, 0.001)
+        assertEquals(4.10, bms.maxCell, 0.001)
+        assertEquals(4, bms.minCellNum)
+        assertEquals(2, bms.maxCellNum)
+        assertEquals(0.20, bms.cellDiff, 0.001)
+        assertEquals(4.00, bms.avgCell, 0.001)
+        assertEquals(84.0, bms.voltage, "A separately reported pack voltage must be preserved")
+    }
+
+    @Test
+    fun `cell statistics clear stale values when no valid cells exist`() {
+        val bms = SmartBms().apply {
+            minCell = 3.8
+            maxCell = 4.2
+            minCellNum = 3
+            maxCellNum = 7
+            cellDiff = 0.4
+            avgCell = 4.0
+        }
+
+        bms.recalculateCellStats(cellCount = 20)
+
+        assertEquals(0.0, bms.minCell)
+        assertEquals(0.0, bms.maxCell)
+        assertEquals(0, bms.minCellNum)
+        assertEquals(0, bms.maxCellNum)
+        assertEquals(0.0, bms.cellDiff)
+        assertEquals(0.0, bms.avgCell)
+    }
+
+    @Test
+    fun `cell statistics can derive pack voltage from valid cells`() {
+        val bms = SmartBms().apply {
+            voltage = 100.0
+            cells[0] = 4.15
+            cells[1] = 0.0
+            cells[2] = 4.05
+        }
+
+        bms.recalculateCellStats(cellCount = 3, updatePackVoltage = true)
+
+        assertEquals(8.20, bms.voltage, 0.001)
+        assertEquals(4.10, bms.avgCell, 0.001)
+    }
+
     // ==================== Property Storage Tests ====================
 
     @Test

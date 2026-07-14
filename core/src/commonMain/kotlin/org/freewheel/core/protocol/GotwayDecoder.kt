@@ -498,7 +498,7 @@ class GotwayDecoder : WheelDecoder {
         }
 
         // Recalculate cell stats
-        updateBmsCellStats(bms)
+        bms.recalculateCellStats(updatePackVoltage = true)
 
         return FrameResult(hasNewData = false)
     }
@@ -647,42 +647,6 @@ class GotwayDecoder : WheelDecoder {
             settings = gw.copy(cutoutAngle = cutoutAngle),
             hasNewData = hasNewData
         )
-    }
-
-    private fun updateBmsCellStats(bms: SmartBms) {
-        var validCellCount = 0
-        var totalVolt = 0.0
-
-        for (i in 0 until bms.cellNum) {
-            val cell = bms.cells[i]
-            if (cell > 0.0) {
-                totalVolt += cell
-                validCellCount++
-                if (validCellCount == 1 || bms.maxCell < cell) {
-                    bms.maxCell = cell
-                    bms.maxCellNum = i + 1
-                }
-                if (validCellCount == 1 || bms.minCell > cell) {
-                    bms.minCell = cell
-                    bms.minCellNum = i + 1
-                }
-            }
-        }
-
-        if (validCellCount == 0) {
-            bms.minCell = 0.0
-            bms.maxCell = 0.0
-            bms.minCellNum = 0
-            bms.maxCellNum = 0
-            bms.cellDiff = 0.0
-            bms.avgCell = 0.0
-            bms.voltage = 0.0
-            return
-        }
-
-        bms.cellDiff = bms.maxCell - bms.minCell
-        bms.avgCell = totalVolt / validCellCount
-        bms.voltage = totalVolt
     }
 
     private fun calculateBetterPercent(voltage: Int): Int {

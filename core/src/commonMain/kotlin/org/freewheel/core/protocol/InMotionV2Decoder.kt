@@ -61,6 +61,8 @@ class InMotionV2Decoder : WheelDecoder {
     private var keepAliveCounter = 0
     private var bms1 = SmartBms()
     private var bms2 = SmartBms()
+    private var bms3 = SmartBms()
+    private var bms4 = SmartBms()
     private var bmsInitDone = false
     private var bmsPollCounter = 0
 
@@ -157,7 +159,12 @@ class InMotionV2Decoder : WheelDecoder {
 
         return when (loopResult) {
             is DecodeResult.Success -> {
-                val bmsSnapshot = BmsState(bms1 = bms1.toSnapshot(), bms2 = bms2.toSnapshot())
+                val bmsSnapshot = BmsState(
+                    bms1 = bms1.toSnapshot(),
+                    bms2 = bms2.toSnapshot(),
+                    bms3 = bms3.toSnapshot().takeIf { model.batteryCount >= 3 },
+                    bms4 = bms4.toSnapshot().takeIf { model.batteryCount >= 4 }
+                )
                 val resolvedIdentity = resolveWheelIdentity(loopResult.data.identity, currentState.identity, WheelType.INMOTION_V2)
                 DecodeResult.Success(DecodedData(
                     telemetry = loopResult.data.telemetry,
@@ -514,7 +521,13 @@ class InMotionV2Decoder : WheelDecoder {
 
     // ==================== BMS Parsing (Extended Protocol) ====================
 
-    private fun bmsForNum(num: Int): SmartBms = if (num <= 1) bms1 else bms2
+    private fun bmsForNum(num: Int): SmartBms = when (num) {
+        1 -> bms1
+        2 -> bms2
+        3 -> bms3
+        4 -> bms4
+        else -> error("Unsupported InMotion BMS number: $num")
+    }
 
     /**
      * Process BMS serial/init response (sub-type 0x04, response 0x84).
@@ -566,10 +579,10 @@ class InMotionV2Decoder : WheelDecoder {
             bms.remPerc = ByteUtils.shortFromBytesLE(data, 18)
         }
         // Temperatures at EUC World offsets 27, 28 = data[26], data[27]
-        if (data.size > 27) {
+        if (data.size > 26) {
             bms.temp1 = (data[26].toInt() and 0xFF).toDouble()
         }
-        if (data.size > 28) {
+        if (data.size > 27) {
             bms.temp2 = (data[27].toInt() and 0xFF).toDouble()
         }
 
@@ -595,38 +608,12 @@ class InMotionV2Decoder : WheelDecoder {
             bms.cells[i] = mv * 0.001
         }
 
-        updateBmsCellStats(bms, cellCount)
+        bms.recalculateCellStats(cellCount)
 
         return FrameResult(
             hasNewData = false,
             frameType = "BMS${bmsNum}_VOLTAGES"
         )
-    }
-
-    private fun updateBmsCellStats(bms: SmartBms, cellCount: Int) {
-        if (cellCount == 0) return
-        bms.minCell = bms.cells[0]
-        bms.maxCell = bms.cells[0]
-        bms.maxCellNum = 1
-        bms.minCellNum = 1
-        var totalVolt = 0.0
-
-        for (i in 0 until cellCount) {
-            val cell = bms.cells[i]
-            if (cell > 0.0) {
-                totalVolt += cell
-                if (bms.maxCell < cell) {
-                    bms.maxCell = cell
-                    bms.maxCellNum = i + 1
-                }
-                if (bms.minCell > cell) {
-                    bms.minCell = cell
-                    bms.minCellNum = i + 1
-                }
-            }
-        }
-        bms.cellDiff = bms.maxCell - bms.minCell
-        bms.avgCell = if (cellCount > 0) totalVolt / cellCount else 0.0
     }
 
     /**
@@ -1432,6 +1419,8 @@ class InMotionV2Decoder : WheelDecoder {
         keepAliveCounter = 0
         bms1 = SmartBms()
         bms2 = SmartBms()
+        bms3 = SmartBms()
+        bms4 = SmartBms()
         bmsInitDone = false
         bmsPollCounter = 0
     }
