@@ -56,6 +56,7 @@ import org.freewheel.core.domain.settings.AppSettingId
 import org.freewheel.core.domain.settings.AppSettingsStore
 import org.freewheel.core.domain.settings.WheelCommandCacheStore
 import org.freewheel.core.domain.profile.DecoderConfigStore
+import org.freewheel.core.domain.profile.ResolvedWheelCalibration
 import org.freewheel.core.domain.profile.LockPromptState
 import org.freewheel.core.domain.profile.PasswordManagementInput
 import org.freewheel.core.domain.profile.PasswordManagementState
@@ -946,6 +947,22 @@ class WheelViewModel(
      */
     fun resetWheelType(address: String) {
         profileStore.clearWheelType(address)
+    }
+
+    /** Effective app-owned calibration for the connected wheel, including provenance. */
+    fun getResolvedCalibrationForCurrentWheel(): ResolvedWheelCalibration {
+        val address = (_connectionState.value as? ConnectionState.Connected)?.address.orEmpty()
+        return decoderConfigStore.getResolvedCalibration(address, identityState.value)
+    }
+
+    /** Clears app-owned calibration overrides without sending a command to wheel firmware. */
+    fun resetCalibrationForCurrentWheel(): Boolean {
+        val address = (_connectionState.value as? ConnectionState.Connected)?.address
+            ?.takeUnless { it == "demo" || it == "replay" }
+            ?: return false
+        decoderConfigStore.resetCalibration(address)
+        pushDecoderConfig()
+        return true
     }
 
     private fun autoSaveProfile(address: String) {

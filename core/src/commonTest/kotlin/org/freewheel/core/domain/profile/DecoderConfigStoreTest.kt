@@ -198,6 +198,12 @@ class DecoderConfigStoreTest {
         store.resetCalibration(address)
 
         assertEquals(WheelCalibration(), store.getCalibration(address))
+        val resolved = store.getResolvedCalibration(address, WheelIdentity())
+        assertEquals(
+            WheelCalibrationSource.DEFAULT,
+            resolved.sourceFor(WheelCalibrationField.CUSTOM_BATTERY_PERCENT),
+        )
+        assertFalse(resolved.hasUserOverrides)
     }
 
     @Test
@@ -229,6 +235,7 @@ class DecoderConfigStoreTest {
             WheelCalibrationSource.DEFAULT,
             resolved.sourceFor(WheelCalibrationField.BATTERY_CAPACITY),
         )
+        assertFalse(resolved.hasUserOverrides)
     }
 
     @Test
@@ -258,6 +265,7 @@ class DecoderConfigStoreTest {
             WheelCalibrationSource.MODEL_CATALOG,
             resolved.sourceFor(WheelCalibrationField.ROTATION_VOLTAGE),
         )
+        assertTrue(resolved.hasUserOverrides)
     }
 
     @Test

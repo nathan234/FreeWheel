@@ -42,6 +42,10 @@ import org.freewheel.compose.components.WheelSettingsContent
 import org.freewheel.core.domain.settings.AppSettingId
 import org.freewheel.core.domain.CommonLabels
 import org.freewheel.core.domain.DashboardLabels
+import org.freewheel.core.domain.identity.WheelIdentity
+import org.freewheel.core.domain.identity.WheelType
+import org.freewheel.core.domain.profile.WheelCalibrationField
+import org.freewheel.core.domain.profile.WheelCalibrationSource
 import org.freewheel.core.domain.settings.WheelSettingsConfig
 import org.freewheel.core.service.ConnectionState
 
@@ -83,6 +87,8 @@ fun WheelSettingsScreen(viewModel: WheelViewModel, onBack: () -> Unit) {
         ) {
             Spacer(Modifier.height(4.dp))
 
+            WheelProfileCalibrationCard(viewModel, identity)
+
             GaugeTopSpeedOverrideCard(viewModel)
 
             ResetWheelTypeCard(viewModel)
@@ -117,6 +123,121 @@ fun WheelSettingsScreen(viewModel: WheelViewModel, onBack: () -> Unit) {
     // Veteran password-management dialog (set/modify/clear/auto-lock).
     // Driven by viewModel.passwordManagementState; renders nothing when Idle.
     PasswordManagementDialog(viewModel = viewModel)
+}
+
+/**
+ * App-owned identity and telemetry calibration. These values never represent wheel
+ * firmware settings; provenance makes catalog defaults and user overrides explicit.
+ */
+@Composable
+private fun WheelProfileCalibrationCard(
+    viewModel: WheelViewModel,
+    identity: WheelIdentity,
+) {
+    val connectionState by viewModel.connectionState.collectAsStateWithLifecycle()
+    var revision by remember { mutableStateOf(0) }
+    val resolved = remember(identity, connectionState, revision) {
+        viewModel.getResolvedCalibrationForCurrentWheel()
+    }
+    val calibration = resolved.calibration
+    val isBegode = identity.wheelType == WheelType.GOTWAY
+
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = "Profile & calibration",
+                style = MaterialTheme.typography.titleMedium,
+            )
+            Text(
+                text = "FreeWheel's per-wheel interpretation. These values are not written to wheel firmware.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp, bottom = 12.dp),
+            )
+
+            ProfileValueRow(
+                label = "Detected model",
+                value = resolved.matchedModelName
+                    ?: identity.model.ifBlank { identity.name.ifBlank { "Unknown" } },
+            )
+            ProfileValueRow(
+                label = "Protocol",
+                value = identity.wheelType.displayName.ifBlank { "Unknown" },
+            )
+
+            if (isBegode) {
+                ProfileValueRow(
+                    label = "Pack voltage",
+                    value = calibration.begodeVoltageClass.displayName,
+                    source = resolved.sourceFor(WheelCalibrationField.BEGODE_VOLTAGE_CLASS),
+                )
+                ProfileValueRow(
+                    label = "No-load reference",
+                    value = "${calibration.rotationSpeedTenthsKmh / 10.0} km/h",
+                    source = resolved.sourceFor(WheelCalibrationField.ROTATION_SPEED),
+                )
+                ProfileValueRow(
+                    label = "Reference voltage",
+                    value = "${calibration.rotationVoltageTenthsVolts / 10.0} V",
+                    source = resolved.sourceFor(WheelCalibrationField.ROTATION_VOLTAGE),
+                )
+                ProfileValueRow(
+                    label = "PWM factor",
+                    value = "${calibration.powerFactorPercent}%",
+                    source = resolved.sourceFor(WheelCalibrationField.POWER_FACTOR),
+                )
+            }
+
+            if (resolved.hasUserOverrides) {
+                Text(
+                    text = "One or more advanced values override the detected model defaults.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.tertiary,
+                    modifier = Modifier.padding(top = 12.dp),
+                )
+                TextButton(
+                    onClick = {
+                        if (viewModel.resetCalibrationForCurrentWheel()) revision++
+                    },
+                    modifier = Modifier.align(Alignment.End),
+                ) {
+                    Text("Reset calibration overrides")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProfileValueRow(
+    label: String,
+    value: String,
+    source: WheelCalibrationSource? = null,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.Top,
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f),
+        )
+        Column(horizontalAlignment = Alignment.End) {
+            Text(text = value, style = MaterialTheme.typography.bodyMedium)
+            source?.let {
+                Text(
+                    text = it.displayName,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
 }
 
 /**

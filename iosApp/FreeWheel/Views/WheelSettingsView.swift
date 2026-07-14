@@ -5,11 +5,12 @@ import FreeWheelCore
 // When adding, removing, or reordering sections, update the counterpart.
 //
 // Shared sections (in order):
-//  1. Navigation title and dedicated WheelSettingsContent
-//  2. Dynamic sections from WheelSettingsConfig.sections(wheelType)
-//  3. Control rendering: Toggle, Segmented, Picker, Slider, DangerousButton, DangerousToggle
-//  4. Confirmation dialogs for dangerous actions (calibrate, power off, lock)
-//  5. Empty state when no settings available for wheel type
+//  1. App-owned Profile & Calibration with field provenance
+//  2. Navigation title and dedicated WheelSettingsContent
+//  3. Dynamic sections from WheelSettingsConfig.sections(wheelType)
+//  4. Control rendering: Toggle, Segmented, Picker, Slider, DangerousButton, DangerousToggle
+//  5. Confirmation dialogs for dangerous actions (calibrate, power off, lock)
+//  6. Empty state when no settings available for wheel type
 //  Note: both platforms expose wheel controls only on their dedicated Wheel Settings screen.
 
 // MARK: - Embeddable Wheel Settings Content
@@ -306,11 +307,108 @@ struct WheelSettingsContent: View {
 struct WheelSettingsView: View {
     var body: some View {
         Form {
+            WheelProfileCalibrationSection()
             ResetWheelTypeSection()
             WheelSettingsContent()
         }
         .navigationTitle(DashboardLabels.shared.WHEEL_SETTINGS)
         .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+/// App-owned identity and telemetry calibration. Provenance distinguishes detected
+/// model defaults from advanced user overrides; none of these rows are wheel firmware.
+private struct WheelProfileCalibrationSection: View {
+    @EnvironmentObject var wheelManager: WheelManager
+    @State private var showResetConfirmation = false
+
+    private var resolved: ResolvedWheelCalibration {
+        wheelManager.getResolvedCalibrationForCurrentWheel()
+    }
+
+    private var modelName: String {
+        if let matched = resolved.matchedModelName, !matched.isEmpty { return matched }
+        if !wheelManager.identity.model.isEmpty { return wheelManager.identity.model }
+        if !wheelManager.identity.name.isEmpty { return wheelManager.identity.name }
+        return "Unknown"
+    }
+
+    var body: some View {
+        let calibration = resolved.calibration
+
+        Section {
+            LabeledContent("Detected model", value: modelName)
+            LabeledContent(
+                "Protocol",
+                value: wheelManager.identity.wheelType.displayName.isEmpty
+                    ? "Unknown"
+                    : wheelManager.identity.wheelType.displayName
+            )
+
+            if wheelManager.identity.wheelType == .gotway {
+                calibrationRow(
+                    "Pack voltage",
+                    value: calibration.begodeVoltageClass.displayName,
+                    field: .begodeVoltageClass
+                )
+                calibrationRow(
+                    "No-load reference",
+                    value: String(format: "%.1f km/h", Double(calibration.rotationSpeedTenthsKmh) / 10.0),
+                    field: .rotationSpeed
+                )
+                calibrationRow(
+                    "Reference voltage",
+                    value: String(format: "%.1f V", Double(calibration.rotationVoltageTenthsVolts) / 10.0),
+                    field: .rotationVoltage
+                )
+                calibrationRow(
+                    "PWM factor",
+                    value: "\(calibration.powerFactorPercent)%",
+                    field: .powerFactor
+                )
+            }
+
+            if resolved.hasUserOverrides {
+                Text("One or more advanced values override the detected model defaults.")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                Button("Reset calibration overrides", role: .destructive) {
+                    showResetConfirmation = true
+                }
+            }
+        } header: {
+            Text("Profile & calibration")
+        } footer: {
+            Text("FreeWheel's per-wheel interpretation. These values are not written to wheel firmware.")
+        }
+        .confirmationDialog(
+            "Reset calibration overrides?",
+            isPresented: $showResetConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Reset overrides", role: .destructive) {
+                wheelManager.resetCalibrationForCurrentWheel()
+            }
+            Button(CommonLabels.shared.CANCEL, role: .cancel) {}
+        }
+    }
+
+    @ViewBuilder
+    private func calibrationRow(
+        _ label: String,
+        value: String,
+        field: WheelCalibrationField
+    ) -> some View {
+        LabeledContent {
+            VStack(alignment: .trailing, spacing: 2) {
+                Text(value)
+                Text(resolved.sourceFor(field: field).displayName)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        } label: {
+            Text(label)
+        }
     }
 }
 

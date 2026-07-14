@@ -66,14 +66,19 @@ class DecoderConfigStore(private val store: KeyValueStore) {
             .associateWith { WheelCalibrationSource.DEFAULT }
             .toMutableMap()
 
+        val hasScopedCustomPercent = address.isNotBlank() &&
+            store.contains(scoped(address, PreferenceKeys.CUSTOM_PERCENTS))
         calibrationKeyByField.forEach { (field, key) ->
             if (address.isNotBlank() && store.contains(scoped(address, key))) {
-                sources[field] = WheelCalibrationSource.USER_OVERRIDE
+                val isResetGuard = field == WheelCalibrationField.CUSTOM_BATTERY_PERCENT &&
+                    store.contains(PreferenceKeys.CUSTOM_PERCENTS) &&
+                    calibration.customBatteryPercentEnabled == PreferenceDefaults.CUSTOM_PERCENTS
+                if (!isResetGuard) sources[field] = WheelCalibrationSource.USER_OVERRIDE
             }
         }
 
         if (
-            sources[WheelCalibrationField.CUSTOM_BATTERY_PERCENT] != WheelCalibrationSource.USER_OVERRIDE &&
+            !hasScopedCustomPercent &&
             store.contains(PreferenceKeys.CUSTOM_PERCENTS)
         ) {
             sources[WheelCalibrationField.CUSTOM_BATTERY_PERCENT] = WheelCalibrationSource.LEGACY_GLOBAL

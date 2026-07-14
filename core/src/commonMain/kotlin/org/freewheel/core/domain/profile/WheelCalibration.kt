@@ -66,6 +66,11 @@ enum class BegodeVoltageClass(val legacyValue: Int) {
             V210 -> 210.0
         }
 
+    val displayName: String
+        get() = fullVoltageV?.let { voltage ->
+            if (voltage % 1.0 == 0.0) "${voltage.toInt()} V" else "$voltage V"
+        } ?: "Automatic"
+
     companion object {
         fun fromLegacy(value: Int): BegodeVoltageClass =
             entries.firstOrNull { it.legacyValue == value } ?: AUTO
@@ -98,7 +103,15 @@ enum class WheelCalibrationSource {
     USER_OVERRIDE,
     MODEL_CATALOG,
     LEGACY_GLOBAL,
-    DEFAULT,
+    DEFAULT;
+
+    val displayName: String
+        get() = when (this) {
+            USER_OVERRIDE -> "User override"
+            MODEL_CATALOG -> "Model catalog"
+            LEGACY_GLOBAL -> "Legacy global setting"
+            DEFAULT -> "App default"
+        }
 }
 
 /**
@@ -111,6 +124,9 @@ data class ResolvedWheelCalibration(
     val sources: Map<WheelCalibrationField, WheelCalibrationSource>,
     val matchedModelName: String? = null,
 ) {
+    val hasUserOverrides: Boolean
+        get() = sources.values.any { it == WheelCalibrationSource.USER_OVERRIDE }
+
     fun sourceFor(field: WheelCalibrationField): WheelCalibrationSource =
         sources[field] ?: WheelCalibrationSource.DEFAULT
 }

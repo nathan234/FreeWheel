@@ -433,6 +433,25 @@ class WheelManager: ObservableObject {
         wheelProfileStore.clearWheelType(address: address)
     }
 
+    /// Effective app-owned calibration for the connected wheel, including provenance.
+    func getResolvedCalibrationForCurrentWheel() -> ResolvedWheelCalibration {
+        decoderConfigStore.getResolvedCalibration(
+            address: connectionState.connectedAddress ?? "",
+            identity: identity
+        )
+    }
+
+    /// Clears app-owned calibration overrides without sending a wheel command.
+    @discardableResult
+    func resetCalibrationForCurrentWheel() -> Bool {
+        guard let address = connectionState.connectedAddress,
+              address != "demo", address != "replay" else { return false }
+        decoderConfigStore.resetCalibration(address: address)
+        pushDecoderConfig()
+        objectWillChange.send()
+        return true
+    }
+
     // MARK: - KMP Components
 
     private var bleManager: BleManager?

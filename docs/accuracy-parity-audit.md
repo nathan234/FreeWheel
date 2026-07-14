@@ -30,6 +30,7 @@ ground truth. Every model-derived calibration should record its source and confi
 | Legacy calibration safety | Existing scoped keys remain compatible. Custom SOC now supports per-wheel values with the old global key as a migration fallback, and malformed Begode voltage values resolve to automatic detection rather than the 67.2 V class. |
 | Write-only wheel commands | Last-sent slider values now live in a dedicated per-wheel `WheelCommandCacheStore`, retain send timestamps, and are labeled “Last sent — not confirmed by wheel” on Android and iOS. Defaults without readback are also identified as unconfirmed. |
 | Calibration provenance | The Begode model catalog is now shared outside the decoder. `ResolvedWheelCalibration` merges detected pack voltage and no-load/PWM references with scoped overrides and records each field as model catalog, user override, legacy global, or app default. Explicit 42 V and 210 V classes cover every voltage currently represented by the catalog. |
+| Profile and calibration UI | Android and iOS Wheel Settings now begin with an app-owned Profile & Calibration surface. It combines detected identity with effective calibration, labels model defaults versus overrides, explains that values are not wheel firmware, and resets overrides without sending a wheel command. |
 
 ## Confirmed Accuracy Gaps
 
@@ -95,8 +96,6 @@ become wheel controls unless the value is actually written to wheel firmware.
 
 ## Current Boundary Problems
 
-- `WheelProfile` and `WheelCalibration` are still loaded separately in platform UI, and
-  resolved calibration does not yet have a product surface.
 - `batteryCapacity` and `cellVoltageTiltback` remain in decoder config but are not consumed
   by a decoder. The obsolete `useMph` and `useFahrenheit` fields also remain in the data
   class for compatibility, although platform factories no longer populate them.
@@ -107,6 +106,6 @@ application settings.
 
 ## Recommended Sequence
 
-1. Add Profile & Calibration beneath the dedicated Wheel area; Controls are already
-   separated from App Settings.
+1. Remove or relocate decoder-config fields that no decoder consumes, so app-owned profile
+   metadata cannot be mistaken for protocol behavior.
 2. Continue capture-backed work for E25, Begode four-pack status, and Oryx SOC.
