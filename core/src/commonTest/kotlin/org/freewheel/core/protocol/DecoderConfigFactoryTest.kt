@@ -5,7 +5,6 @@ import org.freewheel.core.domain.profile.WheelCalibration
 import org.freewheel.core.domain.profile.WheelCurrentPolarity
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
 
 class DecoderConfigFactoryTest {
 
@@ -28,14 +27,10 @@ class DecoderConfigFactoryTest {
 
         val config = DecoderConfigFactory.fromCalibration(calibration, wheelPassword = "123456")
 
-        assertFalse(config.useMph)
-        assertFalse(config.useFahrenheit)
         assertEquals(true, config.useCustomPercents)
-        assertEquals(315, config.cellVoltageTiltback)
         assertEquals(650, config.rotationSpeed)
         assertEquals(1260, config.rotationVoltage)
         assertEquals(95, config.powerFactor)
-        assertEquals(3600, config.batteryCapacity)
         assertEquals("123456", config.wheelPassword)
         assertEquals(-1, config.gotwayNegative)
         assertEquals(5, config.gotwayVoltage)

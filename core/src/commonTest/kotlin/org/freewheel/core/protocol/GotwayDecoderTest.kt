@@ -32,8 +32,6 @@ class GotwayDecoderTest {
     // scaling). Pin gotwayVoltage = 0 so assertions stay valid regardless of what
     // the data class default is set to.
     private val config = DecoderConfig(
-        useMph = false,
-        useFahrenheit = false,
         useCustomPercents = false,
         gotwayVoltage = 0,
     )

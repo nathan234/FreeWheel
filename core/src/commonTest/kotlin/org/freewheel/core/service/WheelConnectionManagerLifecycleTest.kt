@@ -1023,7 +1023,7 @@ class WheelConnectionManagerLifecycleTest {
     @Test
     fun `updateConfig and getConfig round-trip`() = runTest(timeout = 0.1.seconds) {
         val manager = createManager()
-        val config = DecoderConfig(useMph = true, useFahrenheit = true, batteryCapacity = 1800)
+        val config = DecoderConfig(rotationSpeed = 650, gotwayVoltage = 5)
 
         manager.updateConfig(config)
         runCurrent()

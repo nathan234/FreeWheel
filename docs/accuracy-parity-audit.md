@@ -31,6 +31,7 @@ ground truth. Every model-derived calibration should record its source and confi
 | Write-only wheel commands | Last-sent slider values now live in a dedicated per-wheel `WheelCommandCacheStore`, retain send timestamps, and are labeled “Last sent — not confirmed by wheel” on Android and iOS. Defaults without readback are also identified as unconfirmed. |
 | Calibration provenance | The Begode model catalog is now shared outside the decoder. `ResolvedWheelCalibration` merges detected pack voltage and no-load/PWM references with scoped overrides and records each field as model catalog, user override, legacy global, or app default. Explicit 42 V and 210 V classes cover every voltage currently represented by the catalog. |
 | Profile and calibration UI | Android and iOS Wheel Settings now begin with an app-owned Profile & Calibration surface. It combines detected identity with effective calibration, labels model defaults versus overrides, explains that values are not wheel firmware, and resets overrides without sending a wheel command. |
+| Decoder configuration ownership | `DecoderConfig` now contains only values actually consumed by protocol code. Display-unit flags and unused battery-capacity/empty-cell fields were removed; capacity and cell endpoints remain app-owned profile metadata until a validated range or SOC model consumes them. |
 
 ## Confirmed Accuracy Gaps
 
@@ -94,11 +95,13 @@ Choices about application behavior and presentation:
 App alarms remain user preferences even when their storage scope is per wheel. They do not
 become wheel controls unless the value is actually written to wheel firmware.
 
-## Current Boundary Problems
+## Remaining Boundary Work
 
-- `batteryCapacity` and `cellVoltageTiltback` remain in decoder config but are not consumed
-  by a decoder. The obsolete `useMph` and `useFahrenheit` fields also remain in the data
-  class for compatibility, although platform factories no longer populate them.
+- Catalog-backed provenance currently covers Begode calibration. Manufacturer-derived
+  Leaperkim/Nosfet SOC tables and known KingSong/InMotion voltage classes are accurate in
+  their decoders but are not yet represented in the app-owned wheel profile.
+- Battery capacity and empty-cell voltage remain stored profile metadata but are deliberately
+  not exposed as effective decoder settings until a validated range or SOC model uses them.
 
 DarknessBot provides useful architectural corroboration here: device settings contain
 battery capacity, pack voltage, 0%/100% cell voltage, and speed correction, separately from
@@ -106,6 +109,6 @@ application settings.
 
 ## Recommended Sequence
 
-1. Remove or relocate decoder-config fields that no decoder consumes, so app-owned profile
-   metadata cannot be mistaken for protocol behavior.
+1. Extend profile provenance across Leaperkim/Nosfet, KingSong, and InMotion without
+   duplicating decoder model tables.
 2. Continue capture-backed work for E25, Begode four-pack status, and Oryx SOC.

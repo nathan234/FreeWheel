@@ -18,8 +18,6 @@ import org.freewheel.core.protocol.DecodeResult
 class InMotionDecoderTest {
 
     private val config = DecoderConfig(
-        useMph = false,
-        useFahrenheit = false,
         useCustomPercents = false
     )
 

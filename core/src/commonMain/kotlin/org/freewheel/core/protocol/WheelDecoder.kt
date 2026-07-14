@@ -220,24 +220,9 @@ data class DecodedData(
  */
 data class DecoderConfig(
     /**
-     * Use MPH instead of KM/H.
-     */
-    val useMph: Boolean = false,
-
-    /**
-     * Use Fahrenheit instead of Celsius.
-     */
-    val useFahrenheit: Boolean = false,
-
-    /**
      * Use custom battery percentage calculation.
      */
     val useCustomPercents: Boolean = false,
-
-    /**
-     * Cell voltage considered empty (for custom percent calculation).
-     */
-    val cellVoltageTiltback: Int = 330,
 
     /**
      * Expected rotation speed at a given voltage (for PWM calculation).
@@ -253,11 +238,6 @@ data class DecoderConfig(
      * Power factor for PWM calculation.
      */
     val powerFactor: Int = 90,
-
-    /**
-     * Battery capacity in Wh.
-     */
-    val batteryCapacity: Int = 0,
 
     /**
      * Password for InMotion wheels.

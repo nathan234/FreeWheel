@@ -53,8 +53,6 @@ class VeteranDecoderTest {
 
     private val decoder = VeteranDecoder()
     private val config = DecoderConfig(
-        useMph = false,
-        useFahrenheit = false,
         useCustomPercents = false
     )
 

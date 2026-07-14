@@ -15,8 +15,6 @@ import kotlin.test.assertTrue
 class NinebotDecoderTest {
 
     private val config = DecoderConfig(
-        useMph = false,
-        useFahrenheit = false,
         useCustomPercents = false
     )
 

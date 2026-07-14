@@ -31,8 +31,6 @@ internal object GotwayFixtures {
             "000804185A5A5A5A",
         ),
         config = DecoderConfig(
-            useMph = false,
-            useFahrenheit = false,
             useCustomPercents = false,
             // 2020 board capture is from a 16S wheel — pin scaler so the raw 6593
             // voltage passes through unchanged.

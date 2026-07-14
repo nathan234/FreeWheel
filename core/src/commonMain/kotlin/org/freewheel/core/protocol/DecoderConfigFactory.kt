@@ -9,11 +9,9 @@ object DecoderConfigFactory {
         wheelPassword: String = "",
     ): DecoderConfig = DecoderConfig(
         useCustomPercents = calibration.customBatteryPercentEnabled,
-        cellVoltageTiltback = calibration.emptyCellVoltageHundredths,
         rotationSpeed = calibration.rotationSpeedTenthsKmh,
         rotationVoltage = calibration.rotationVoltageTenthsVolts,
         powerFactor = calibration.powerFactorPercent,
-        batteryCapacity = calibration.batteryCapacityWh,
         wheelPassword = wheelPassword,
         gotwayNegative = calibration.currentPolarity.legacyValue,
         useRatio = calibration.gotwayDistanceRatioEnabled,
