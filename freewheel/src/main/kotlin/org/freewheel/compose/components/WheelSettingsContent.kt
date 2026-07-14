@@ -22,8 +22,8 @@ import org.freewheel.core.service.ConnectionState
  * Renders wheel-side settings sections plus the dangerous-action confirmation dialog.
  * Owns the local toggle state, persisted slider overrides, and pending-action state.
  *
- * Used by both WheelSettingsScreen (standalone) and SettingsScreen (embedded inline).
- * iOS has the equivalent in WheelSettingsContent within SettingsView.swift.
+ * Used by the dedicated [org.freewheel.compose.screens.WheelSettingsScreen].
+ * iOS has the equivalent in `WheelSettingsContent` within `WheelSettingsView.swift`.
  */
 @Composable
 fun WheelSettingsContent(

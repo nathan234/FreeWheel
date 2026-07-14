@@ -5,13 +5,12 @@ import FreeWheelCore
 // When adding, removing, or reordering sections, update the counterpart.
 //
 // Shared sections (in order):
-//  1. Top bar with back button (WheelSettingsView only; WheelSettingsContent is embedded)
+//  1. Navigation title and dedicated WheelSettingsContent
 //  2. Dynamic sections from WheelSettingsConfig.sections(wheelType)
 //  3. Control rendering: Toggle, Segmented, Picker, Slider, DangerousButton, DangerousToggle
 //  4. Confirmation dialogs for dangerous actions (calibrate, power off, lock)
 //  5. Empty state when no settings available for wheel type
-//  Note: iOS has reusable WheelSettingsContent embedded in SettingsView;
-//        Android has standalone WheelSettingsScreen + SectionCard component
+//  Note: both platforms expose wheel controls only on their dedicated Wheel Settings screen.
 
 // MARK: - Embeddable Wheel Settings Content
 

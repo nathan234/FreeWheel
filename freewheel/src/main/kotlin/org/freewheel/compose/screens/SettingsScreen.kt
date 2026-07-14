@@ -48,10 +48,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.freewheel.BuildConfig
 import org.freewheel.compose.WheelViewModel
 import org.freewheel.compose.components.StatRow
-import org.freewheel.compose.components.LockPromptDialog
-import org.freewheel.compose.components.PasswordManagementDialog
-import org.freewheel.compose.components.VeteranPasswordCard
-import org.freewheel.compose.components.WheelSettingsContent
 import org.freewheel.core.domain.settings.AppSettingId
 import org.freewheel.core.domain.settings.AppSettingSpec
 import org.freewheel.core.domain.settings.AppSettingVisibilityEvaluator
@@ -62,7 +58,6 @@ import org.freewheel.core.domain.settings.AppSettingsSection
 import org.freewheel.core.domain.settings.AppSettingsState
 import org.freewheel.core.domain.settings.AppSettingsValueIds
 import org.freewheel.core.domain.settings.SettingsLabels
-import org.freewheel.core.domain.settings.WheelSettingsConfig
 import org.freewheel.core.domain.settings.displayUnit
 import org.freewheel.core.domain.settings.displayValue
 import org.freewheel.core.service.ConnectionState
@@ -80,7 +75,6 @@ fun SettingsScreen(
     onNavigateToErrorLog: () -> Unit = {},
     onNavigateToDiagnostics: () -> Unit = {}
 ) {
-    val wheelSettings by viewModel.settingsState.collectAsStateWithLifecycle()
     val identity by viewModel.identityState.collectAsStateWithLifecycle()
     val connectionState by viewModel.connectionState.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -133,13 +127,6 @@ fun SettingsScreen(
     val useMph = boolStates[AppSettingId.USE_MPH] ?: AppSettingId.USE_MPH.defaultBool
     val useFahrenheit = boolStates[AppSettingId.USE_FAHRENHEIT] ?: AppSettingId.USE_FAHRENHEIT.defaultBool
 
-    // Wheel settings sections — rendering, toggle/slider state, and dangerous-action
-    // confirmation are owned by WheelSettingsContent.
-    val capabilities by viewModel.capabilities.collectAsStateWithLifecycle()
-    val wheelSections = remember(identity.wheelType, capabilities) {
-        WheelSettingsConfig.sections(identity.wheelType, capabilities)
-    }
-
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -156,23 +143,6 @@ fun SettingsScreen(
 
         for (section in sections) {
             if (!AppSettingVisibilityEvaluator.isVisible(section.visibility, visibilityState)) continue
-
-            // Wheel settings placeholder: delegate to shared WheelSettingsContent
-            if (section.title == AppSettingsConfig.WHEEL_SETTINGS_TITLE) {
-                if (wheelSections.isNotEmpty()) {
-                    WheelSettingsContent(
-                        viewModel = viewModel,
-                        sections = wheelSections,
-                        wheelSettings = wheelSettings,
-                        useMph = useMph
-                    )
-                    // Veteran-only entry point for lock-password management.
-                    // Renders nothing when the wheel isn't Veteran or hasn't
-                    // reported a lockState yet.
-                    VeteranPasswordCard(viewModel)
-                }
-                continue
-            }
 
             // Close App section: render as standalone button
             if (section.controls.singleOrNull() is AppSettingSpec.ActionButton) {
@@ -240,13 +210,6 @@ fun SettingsScreen(
 
         Spacer(Modifier.height(16.dp))
     }
-
-    // Veteran lock/unlock prompt — shared with WheelSettingsScreen so the
-    // dialog appears wherever the user toggles the lock control.
-    LockPromptDialog(viewModel = viewModel)
-
-    // Veteran password-management dialog (set/modify/clear/auto-lock).
-    PasswordManagementDialog(viewModel = viewModel)
 }
 
 // ---------------------------------------------------------------------------

@@ -11,7 +11,7 @@ class AppSettingsConfigTest {
     @Test
     fun sectionsReturnsExpectedCount() {
         val sections = AppSettingsConfig.sections()
-        assertEquals(14, sections.size)
+        assertEquals(13, sections.size)
     }
 
     @Test
@@ -28,7 +28,6 @@ class AppSettingsConfigTest {
                 SettingsLabels.SECTION_CONNECTION,
                 SettingsLabels.SECTION_LOGGING,
                 SettingsLabels.SECTION_AUTO_TORCH,
-                AppSettingsConfig.WHEEL_SETTINGS_TITLE,
                 "Interface",
                 "Developer",
                 SettingsLabels.SECTION_ABOUT,
@@ -36,6 +35,12 @@ class AppSettingsConfigTest {
             ),
             titles
         )
+    }
+
+    @Test
+    fun appSettingsDoNotEmbedWheelControls() {
+        val titles = AppSettingsConfig.sections().map { it.title }
+        assertFalse("Wheel Settings" in titles)
     }
 
     @Test

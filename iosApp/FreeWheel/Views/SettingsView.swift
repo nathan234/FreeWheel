@@ -14,15 +14,8 @@ struct SettingsView: View {
         Form {
             ForEach(Array(sections.enumerated()), id: \.offset) { _, section in
                 if AppSettingVisibilityEvaluator.shared.isVisible(condition: section.visibility, state: state) {
-
-                    // Wheel settings placeholder: delegate to existing WheelSettingsConfig
-                    if section.title == AppSettingsConfig.shared.WHEEL_SETTINGS_TITLE {
-                        if wheelManager.connectionState.isConnected {
-                            WheelSettingsContent()
-                        }
-                    }
                     // Close app action button
-                    else if let action = section.controls.first as? AppSettingSpec.ActionButton {
+                    if let action = section.controls.first as? AppSettingSpec.ActionButton {
                         Section {
                             Button(action: {
                                 if action.actionId == AppSettingsActions.shared.CLOSE_APP {

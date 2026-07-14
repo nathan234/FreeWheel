@@ -23,7 +23,9 @@ ground truth. Every model-derived calibration should record its source and confi
 | Area | Resolution |
 |---|---|
 | InMotion V14 BMS | Four independent BMS accumulators now route and publish battery IDs 0x24-0x27; packet tests prove distinct status for all four packs. |
+| InMotion BMS temperatures | Exact-length V1 BMS frames now retain both temperature fields instead of requiring an extra trailing byte. |
 | BMS cell statistics | `SmartBms.recalculateCellStats` now provides valid-positive-cell min/max/average behavior for Gotway, InMotion V2, KingSong, Veteran, and Ninebot Z while preserving protocol-specific pack-voltage semantics. |
+| Settings navigation | App Settings no longer embeds connected-wheel controls. Android and iOS retain Wheel Settings as a dedicated destination, establishing the first visible ownership boundary. |
 
 ## Confirmed Accuracy Gaps
 
@@ -33,7 +35,6 @@ ground truth. Every model-derived calibration should record its source and confi
 | P2 | Begode multi-pack status | Cell frames support four BMS packs, while frame `0x01` status contexts still collapse into two accumulators. | Capture frame `0x01` from a four-pack wheel and identify the byte-19 context before mapping packs 3/4. |
 | P2 | Leaperkim Oryx SOC | Oryx uses a model-class piecewise-linear 176 V fallback rather than a manufacturer table. | Obtain a manufacturer-app table or voltage/SOC observations across a discharge. |
 | P2 | InMotion V2 battery summary | The general battery real-time response is accepted but discarded; only extended per-pack BMS responses are retained. | Compare a capture with the manufacturer app and EUC World before assigning fields. |
-| P3 | InMotion V2 BMS temperatures | The two temperature guards require one byte more than the indexed value, dropping values from exact-length responses. | Correct the bounds while adding V14 BMS fixtures. |
 
 ## Known Accurate or Corroborated Areas
 
@@ -90,7 +91,6 @@ become wheel controls unless the value is actually written to wheel firmware.
 
 ## Current Boundary Problems
 
-- `AppSettingsConfig` embeds wheel controls through a title-matched placeholder section.
 - `AppSettingsStore` persists last-written wheel-command slider positions.
 - `DecoderConfigStore` contains hidden legacy calibration separately from `WheelProfile`.
 - `useCustomPercents` is global even though SOC calibration is wheel-specific.
@@ -107,7 +107,7 @@ application settings.
 
 1. Introduce a typed per-wheel calibration/profile model and migrate `DecoderConfigStore`
    without breaking legacy keys.
-2. Split the product UI into App Settings and Wheel, with Wheel containing Controls and
-   Profile & Calibration.
+2. Add Profile & Calibration beneath the dedicated Wheel area; Controls are already
+   separated from App Settings.
 3. Mark write-only cached values as unconfirmed and retain timestamps where useful.
 4. Continue capture-backed work for E25, Begode four-pack status, and Oryx SOC.

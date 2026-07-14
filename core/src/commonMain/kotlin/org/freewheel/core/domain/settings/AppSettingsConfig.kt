@@ -13,13 +13,10 @@ import org.freewheel.core.domain.identity.WheelType
  * the sections, evaluate visibility via [AppSettingVisibilityEvaluator], and render
  * each [AppSettingSpec] using native controls.
  *
- * Wheel-specific settings (pedals mode, light mode, etc.) are handled separately by
- * [WheelSettingsConfig] and rendered via the [WHEEL_SETTINGS_TITLE] placeholder section.
+ * Wheel-specific controls (pedals mode, light mode, etc.) are handled separately by
+ * [WheelSettingsConfig] and rendered on the dedicated Wheel Settings destination.
  */
 object AppSettingsConfig {
-
-    /** Title used for the wheel settings placeholder section. */
-    const val WHEEL_SETTINGS_TITLE = "Wheel Settings"
 
     // Reusable visibility conditions
     private val alarmsOn = AppSettingVisibility.WhenEnabled(AppSettingId.ALARMS_ENABLED)
@@ -42,7 +39,6 @@ object AppSettingsConfig {
         connectionSection(),
         loggingSection(),
         autoTorchSection(),
-        wheelSettingsSection(),
         interfaceSection(),
         developerSection(),
         aboutSection(),
@@ -241,17 +237,6 @@ object AppSettingsConfig {
             )
         ),
         footer = SettingsLabels.AUTO_TORCH_HINT
-    )
-
-    /**
-     * Placeholder section for wheel-specific settings.
-     * Platform layers detect this by [WHEEL_SETTINGS_TITLE] and delegate to
-     * [WheelSettingsConfig] rendering instead.
-     */
-    private fun wheelSettingsSection() = AppSettingsSection(
-        title = WHEEL_SETTINGS_TITLE,
-        visibility = AppSettingVisibility.WhenConnected,
-        controls = emptyList()
     )
 
     private fun interfaceSection() = AppSettingsSection(

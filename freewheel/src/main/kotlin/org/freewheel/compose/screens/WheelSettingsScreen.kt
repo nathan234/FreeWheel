@@ -49,7 +49,7 @@ import org.freewheel.core.service.ConnectionState
 // Section structure comes from the shared WheelSettingsConfig; the platform-specific
 // pieces here are the top bar, the gauge top-speed override card, and the empty-state
 // fallback. Section rendering and dangerous-action confirmation live in
-// WheelSettingsContent (mirrors iOS's WheelSettingsContent embedded in SettingsView).
+// WheelSettingsContent (mirrors iOS's dedicated WheelSettingsContent).
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

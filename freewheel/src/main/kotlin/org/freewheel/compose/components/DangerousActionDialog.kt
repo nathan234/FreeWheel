@@ -12,7 +12,7 @@ import org.freewheel.core.domain.settings.SettingsCommandId
 
 /**
  * Confirmation dialog for dangerous wheel settings actions (calibrate, power off, lock, etc.).
- * Used in both SettingsScreen and WheelSettingsScreen.
+ * Used by WheelSettingsScreen for wheel-side actions that require confirmation.
  */
 @Composable
 fun DangerousActionDialog(
