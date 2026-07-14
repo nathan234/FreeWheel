@@ -39,6 +39,14 @@ interface WheelDecoder {
     fun decode(data: ByteArray, currentState: DecoderState, config: DecoderConfig): DecodeResult
 
     /**
+     * Update configuration needed outside [decode], such as credentials used by
+     * initialization or keep-alive commands. The connection manager calls this
+     * on its event loop before the decoder's first command and after live config
+     * changes.
+     */
+    fun updateConfig(config: DecoderConfig) {}
+
+    /**
      * Check if the decoder has received enough data to be considered ready.
      * Some wheels require multiple data frames before all information is available.
      */

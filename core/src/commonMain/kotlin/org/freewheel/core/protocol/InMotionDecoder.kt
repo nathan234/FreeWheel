@@ -45,6 +45,21 @@ class InMotionDecoder : WheelDecoder {
     private var model = Model.UNKNOWN
     private var isReady = false
     private var needSlowData = true
+    private var wheelPassword = DEFAULT_PASSWORD
+    private var passwordAttempts = 0
+    private var passwordAcknowledged = false
+
+    override fun updateConfig(config: DecoderConfig) {
+        val normalizedPassword = config.wheelPassword.takeIf {
+            it.length == PASSWORD_LENGTH && it.all { digit -> digit in '0'..'9' }
+        } ?: DEFAULT_PASSWORD
+        if (normalizedPassword == wheelPassword) return
+
+        wheelPassword = normalizedPassword
+        passwordAttempts = 0
+        passwordAcknowledged = false
+        needSlowData = true
+    }
 
     override fun decode(data: ByteArray, currentState: DecoderState, config: DecoderConfig): DecodeResult {
         val loopResult = decodeFrames(data, unpacker, currentState) { buffer, state ->
@@ -111,6 +126,7 @@ class InMotionDecoder : WheelDecoder {
             }
 
             IDValue.PinCode -> {
+                passwordAcknowledged = true
                 FrameResult(frameType = typeName)
             }
 
@@ -187,6 +203,8 @@ class InMotionDecoder : WheelDecoder {
         model = Model.UNKNOWN
         isReady = false
         needSlowData = true
+        passwordAttempts = 0
+        passwordAcknowledged = false
     }
 
     override fun buildCommand(command: WheelCommand, state: DecoderState?): List<WheelCommand> {
@@ -233,10 +251,13 @@ class InMotionDecoder : WheelDecoder {
     }
 
     override fun getKeepAliveCommand(): WheelCommand? {
-        val message = if (model == Model.UNKNOWN || needSlowData) {
-            CANMessage.getSlowData()
-        } else {
-            CANMessage.standardMessage()
+        val message = when {
+            !passwordAcknowledged && passwordAttempts < MAX_PASSWORD_ATTEMPTS -> {
+                passwordAttempts++
+                CANMessage.getPassword(wheelPassword)
+            }
+            model == Model.UNKNOWN || needSlowData -> CANMessage.getSlowData()
+            else -> CANMessage.standardMessage()
         }
         return WheelCommand.SendBytes(message.writeBuffer())
     }
@@ -925,6 +946,10 @@ class InMotionDecoder : WheelDecoder {
     // ==================== Utility Functions ====================
 
     companion object {
+        private const val DEFAULT_PASSWORD = "000000"
+        private const val PASSWORD_LENGTH = 6
+        private const val MAX_PASSWORD_ATTEMPTS = 6
+
         val SUPPORTED_COMMANDS: Set<SettingsCommandId> = setOf(
             SettingsCommandId.LIGHT_MODE,
             SettingsCommandId.LED,

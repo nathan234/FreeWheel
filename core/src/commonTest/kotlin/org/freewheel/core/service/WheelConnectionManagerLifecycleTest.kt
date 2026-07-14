@@ -1031,6 +1031,24 @@ class WheelConnectionManagerLifecycleTest {
         assertEquals(config, manager.getConfig())
     }
 
+    @Test
+    fun `decoder receives current config on creation and subsequent updates`() = runTest(timeout = 0.1.seconds) {
+        val manager = createManager()
+        val initialConfig = DecoderConfig(wheelPassword = "123456")
+        manager.updateConfig(initialConfig)
+        manager.connect("AA:BB:CC:DD:EE:FF")
+        manager.onWheelTypeDetected(WheelType.KINGSONG)
+        runCurrent()
+
+        assertEquals(listOf(initialConfig), fakeDecoder.configUpdates)
+
+        val updatedConfig = initialConfig.copy(wheelPassword = "654321")
+        manager.updateConfig(updatedConfig)
+        runCurrent()
+
+        assertEquals(listOf(initialConfig, updatedConfig), fakeDecoder.configUpdates)
+    }
+
     // ==================== sendCommand ====================
 
     @Test
@@ -1555,6 +1573,11 @@ class FakeDecoder(
     private var _keepAliveCommand: WheelCommand? = keepAliveCommand
     var resetCalled = false
     var decodeCallCount = 0
+    val configUpdates = mutableListOf<DecoderConfig>()
+
+    override fun updateConfig(config: DecoderConfig) {
+        configUpdates += config
+    }
 
     override fun decode(data: ByteArray, currentState: DecoderState, config: DecoderConfig): DecodeResult {
         decodeCallCount++

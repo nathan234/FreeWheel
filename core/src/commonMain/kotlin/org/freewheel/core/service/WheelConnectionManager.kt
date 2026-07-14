@@ -1418,6 +1418,7 @@ class WheelConnectionManager(
     }
 
     private fun reduceConfigUpdated(state: WcmState, event: WheelEvent.ConfigUpdated): WcmTransition {
+        state.decoder?.updateConfig(event.config)
         return WcmTransition(state.copy(decoderConfig = event.config))
     }
 
@@ -1442,6 +1443,7 @@ class WheelConnectionManager(
         state.decoder?.let { effects.add(WcmEffect.ResetDecoder(it)) }
 
         val decoder = decoderFactory.createDecoder(wheelType)
+        decoder?.updateConfig(state.decoderConfig)
         val newState = state.copy(
             decoder = decoder,
             identity = state.identity.copy(wheelType = wheelType)

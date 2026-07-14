@@ -115,22 +115,82 @@ class InMotionDecoderTest {
     }
 
     @Test
-    fun `InMotionDecoder first keep-alive requests slow identity and settings data`() {
+    fun `InMotionDecoder sends configured password six times before slow discovery`() {
         val decoder = InMotionDecoder()
-        val command = decoder.getKeepAliveCommand()
+        decoder.updateConfig(config.copy(wheelPassword = "123456"))
 
-        assertNotNull(command)
-        assertTrue(command is WheelCommand.SendBytes)
+        repeat(6) {
+            val command = decoder.getKeepAliveCommand()
+            assertNotNull(command)
+            assertTrue(command is WheelCommand.SendBytes)
+            assertContentEquals(
+                InMotionDecoder.CANMessage.getPassword("123456").writeBuffer(),
+                command.data,
+                "Password attempt ${it + 1} should use the configured six-digit PIN"
+            )
+        }
+
         assertContentEquals(
             InMotionDecoder.CANMessage.getSlowData().writeBuffer(),
-            (command as WheelCommand.SendBytes).data,
-            "The decoder must resolve its model/settings before switching to fast telemetry"
+            (decoder.getKeepAliveCommand() as WheelCommand.SendBytes).data,
+            "After six password attempts the decoder should continue with slow discovery"
+        )
+    }
+
+    @Test
+    fun `InMotionDecoder uses default password when configured PIN is invalid`() {
+        listOf("12ab56", "١٢٣٤٥٦").forEach { invalidPin ->
+            val decoder = InMotionDecoder()
+            decoder.updateConfig(config.copy(wheelPassword = invalidPin))
+
+            assertContentEquals(
+                InMotionDecoder.CANMessage.getPassword("000000").writeBuffer(),
+                (decoder.getKeepAliveCommand() as WheelCommand.SendBytes).data
+            )
+        }
+    }
+
+    @Test
+    fun `InMotionDecoder password acknowledgement stops retries early`() {
+        val decoder = InMotionDecoder()
+        decoder.updateConfig(config.copy(wheelPassword = "654321"))
+
+        assertContentEquals(
+            InMotionDecoder.CANMessage.getPassword("654321").writeBuffer(),
+            (decoder.getKeepAliveCommand() as WheelCommand.SendBytes).data
+        )
+        val result = decoder.decode(
+            InMotionDecoder.CANMessage.getPassword("654321").writeBuffer(),
+            DecoderState(),
+            config
+        )
+        assertTrue(result is DecodeResult.Success)
+
+        assertContentEquals(
+            InMotionDecoder.CANMessage.getSlowData().writeBuffer(),
+            (decoder.getKeepAliveCommand() as WheelCommand.SendBytes).data,
+            "A PIN response should immediately advance to slow discovery"
+        )
+    }
+
+    @Test
+    fun `InMotionDecoder reset replays authentication with configured password`() {
+        val decoder = InMotionDecoder()
+        decoder.updateConfig(config.copy(wheelPassword = "234567"))
+        acknowledgePassword(decoder, "234567")
+
+        decoder.reset()
+
+        assertContentEquals(
+            InMotionDecoder.CANMessage.getPassword("234567").writeBuffer(),
+            (decoder.getKeepAliveCommand() as WheelCommand.SendBytes).data
         )
     }
 
     @Test
     fun `InMotionDecoder switches to fast keep-alive after valid slow response`() {
         val decoder = InMotionDecoder()
+        acknowledgePassword(decoder)
         val slowResponse = InMotionDecoder.CANMessage.standardMessage().apply {
             id = InMotionDecoder.IDValue.GetSlowInfo.value
             len = 0xFE
@@ -216,6 +276,7 @@ class InMotionDecoderTest {
     @Test
     fun `InMotionDecoder setting acknowledgement re-arms slow settings refresh`() {
         val decoder = InMotionDecoder()
+        acknowledgePassword(decoder)
         val slowResponse = InMotionDecoder.CANMessage.standardMessage().apply {
             id = InMotionDecoder.IDValue.GetSlowInfo.value
             len = 0xFE
@@ -241,6 +302,19 @@ class InMotionDecoderTest {
             (decoder.getKeepAliveCommand() as WheelCommand.SendBytes).data,
             "A setting acknowledgement should trigger authoritative settings readback"
         )
+    }
+
+    private fun acknowledgePassword(decoder: InMotionDecoder, password: String = "000000") {
+        assertContentEquals(
+            InMotionDecoder.CANMessage.getPassword(password).writeBuffer(),
+            (decoder.getKeepAliveCommand() as WheelCommand.SendBytes).data
+        )
+        val result = decoder.decode(
+            InMotionDecoder.CANMessage.getPassword(password).writeBuffer(),
+            DecoderState(),
+            config
+        )
+        assertTrue(result is DecodeResult.Success)
     }
 
     @Test
