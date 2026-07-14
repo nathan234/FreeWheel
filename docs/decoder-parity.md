@@ -1,11 +1,20 @@
 # Decoder Parity Checklist
 
 Tracks which legacy Android adapter behaviors have been replicated in the KMP decoders.
-Updated after each migration pass. See also [protocol-quality-assessment.md](protocol-quality-assessment.md) for protocol quality comparison and [CLAUDE.md](../CLAUDE.md) for decoder architecture.
+Updated after each migration pass. See also [accuracy-parity-audit.md](accuracy-parity-audit.md)
+for the cross-app accuracy audit, [protocol-quality-assessment.md](protocol-quality-assessment.md)
+for protocol quality comparison, and [CLAUDE.md](../CLAUDE.md) for decoder architecture.
 
 Legend: `[x]` = implemented, `[ ]` = known gap, `[n/a]` = intentionally skipped
 
 Gap priority: **[P1]** = affects real-world usage, **[P2]** = correctness/completeness, **[P3]** = minor/edge-case
+
+## Cross-Decoder Accuracy
+
+- [ ] **[P1]** Share valid-cell BMS statistics across InMotion V2, KingSong, Veteran, and
+  Ninebot Z. Their duplicated implementations can report a false 0 V minimum and depress
+  average voltage when a page is partial or zero-filled. Gotway already has the desired
+  valid-positive-cell behavior.
 
 ---
 
@@ -160,13 +169,15 @@ Tests: `VeteranDecoderTest.kt` · `VeteranDecoderComparisonTest.kt`
 - [x] Sub-type 8: control settings readback (pedal hardness, transport mode, volume, low voltage mode, high speed mode, key tone; 0x80 = not supported sentinel)
 
 ### Known Gaps
-- [ ] **[P1]** Nosfet Aero (mVer 43) SOC table: 126V/2P pack has a different voltage-SOC curve than Patton/Patton-S (126V/4P). Uses piecewise-linear fallback. Need real-world data or Leaperkim-provided table.
+- [x] ~~**[P1]** Nosfet Aero SOC fallback~~: mVer 43 uses the official Nosfet 5020
+  voltage table, which matches the Patton-class 126 V table.
 - [x] ~~**[P2]** Dual-format commands~~: LdAp command format added. Old (LkAp) format still sent for basic commands; new format used for extended settings.
 - [ ] **[P2]** Lock command: requires time-based password prefix (`genPwdCmd` in official app). Currently returns empty.
 - [ ] **[P2]** Oryx (mVer 8) SOC table: no official table available (not in Leaperkim app v1.4.8). Uses piecewise-linear fallback.
 - [x] ~~**[P3]** Fall protection angle~~: parsed from sub-type 2 (byte 47) and surfaced in WheelState.
 - [x] ~~**[P3]** Time sync on connect~~: sends time sync commands on first valid frame.
-- [ ] **[P3]** Sub-types 1/5 cell voltages (cells 1-15), 2/6 cells 16-30, 3/7 remaining cells + temps: not yet parsed (BMS data already comes from main frame for mVer >= 5).
+- [x] Sub-types 1/5 cell voltages (cells 1-15), 2/6 cells 16-30, and 3/7 remaining
+  cells plus temperatures are accumulated independently for both BMS packs.
 
 ---
 
@@ -253,7 +264,8 @@ Tests: `InMotionDecoderTest.kt` · `InMotionDecoderComparisonTest.kt` · `InMoti
 - [x] Power off
 
 ### Known Gaps
-- [ ] **[P1]** Password authentication (legacy retries 6 times with 6-digit PIN before wheel responds)
+- [x] Password authentication retries a configured six-digit PIN up to six times before
+  continuing discovery, and advances immediately on acknowledgement.
 - [x] ~~**[P2]** Slow data discovery and settings refresh~~: keep-alive requests slow info until the model resolves, switches to fast telemetry after a valid response, and re-arms slow readback after setting acknowledgements.
 - [ ] **[P3]** Full model-specific speed calculation factors (20+ V1 models with different factors)
 
@@ -276,7 +288,7 @@ Tests: `InMotionV2DecoderTest.kt` · `InMotionV2UnpackerTest.kt`
 - [x] Real-time info per model (including dedicated E20 layout and P6 extended 0x87 data)
 - [x] Settings parsing per model (including dedicated E20 offsets)
 - [x] Total stats (total distance)
-- [x] Battery real-time info
+- [x] Extended per-pack BMS status and cell-voltage responses
 - [x] Diagnostic data
 - [x] Mode string and error string parsing
 
@@ -303,7 +315,11 @@ Tests: `InMotionV2DecoderTest.kt` · `InMotionV2UnpackerTest.kt`
 - [x] V9/V12 split riding modes sub-cmd 0x42 (others use 0x3E)
 
 ### Known Gaps
+- [ ] **[P1]** V14 declares and polls four batteries, but the decoder currently maps packs
+  2-4 into `bms2` and publishes only `bms1`/`bms2`.
 - [ ] **[P1]** E25 is a shipping Lorin-protocol target, but telemetry/settings need an E25 model-response and notification capture. V18 appears only as dormant official-app protocol code and is not treated as a shipping support target.
+- [ ] **[P2]** General battery real-time info (`flag 0x14`, command `0x05`) is currently
+  discarded; determine its authoritative fields from a capture before mapping them.
 - [ ] **[P2]** Multi-stage shutdown (legacy sends 0x81 first, waits for ACK, then sends 0x82 — KMP sends single 0x81)
 - [x] ~~**[P2]** Battery real-time info request in keep-alive loop~~: BMS polling added to keep-alive via `bmsPollCounter` cycle.
 - [ ] **[P3]** Light state debounce (legacy has `lightSwitchCounter` with 3-frame debounce)
