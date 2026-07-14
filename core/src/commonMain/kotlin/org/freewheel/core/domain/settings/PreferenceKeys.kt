@@ -49,7 +49,8 @@ object PreferenceKeys {
     const val USE_RECONNECT = "use_reconnect"
     const val SHOW_UNKNOWN_DEVICES = "show_unknown_devices"
 
-    // Decoder config (custom_percents global; rest per-wheel)
+    // Legacy wheel calibration keys. All new writes are per-wheel; CUSTOM_PERCENTS
+    // retains a read-only global fallback for migration from older installations.
     const val CUSTOM_PERCENTS = "custom_percents"
     const val CELL_VOLTAGE_TILTBACK = "cell_voltage_tiltback"
     const val ROTATION_SPEED = "rotation_speed"

@@ -26,6 +26,8 @@ ground truth. Every model-derived calibration should record its source and confi
 | InMotion BMS temperatures | Exact-length V1 BMS frames now retain both temperature fields instead of requiring an extra trailing byte. |
 | BMS cell statistics | `SmartBms.recalculateCellStats` now provides valid-positive-cell min/max/average behavior for Gotway, InMotion V2, KingSong, Veteran, and Ninebot Z while preserving protocol-specific pack-voltage semantics. |
 | Settings navigation | App Settings no longer embeds connected-wheel controls. Android and iOS retain Wheel Settings as a dedicated destination, establishing the first visible ownership boundary. |
+| Wheel calibration ownership | `WheelCalibration` now provides one typed per-wheel model for both platforms, with explicit current-polarity and Begode voltage-class enums. `DecoderConfigFactory` is the single mapping into protocol configuration, and app presentation preferences no longer enter or refresh decoder config. |
+| Legacy calibration safety | Existing scoped keys remain compatible. Custom SOC now supports per-wheel values with the old global key as a migration fallback, and malformed Begode voltage values resolve to automatic detection rather than the 67.2 V class. |
 
 ## Confirmed Accuracy Gaps
 
@@ -92,12 +94,11 @@ become wheel controls unless the value is actually written to wheel firmware.
 ## Current Boundary Problems
 
 - `AppSettingsStore` persists last-written wheel-command slider positions.
-- `DecoderConfigStore` contains hidden legacy calibration separately from `WheelProfile`.
-- `useCustomPercents` is global even though SOC calibration is wheel-specific.
-- `batteryCapacity` and `cellVoltageTiltback` are persisted and propagated but are not
-  consumed by a decoder; `useMph` and `useFahrenheit` also do not belong in decoder config.
-- `WheelProfile` currently stores identity, last connection, and a gauge override, but not
-  the protocol calibration that affects telemetry accuracy.
+- `WheelProfile` and `WheelCalibration` are still loaded separately, and calibration has
+  neither a product surface nor a provenance-bearing catalog/default merge.
+- `batteryCapacity` and `cellVoltageTiltback` remain in decoder config but are not consumed
+  by a decoder. The obsolete `useMph` and `useFahrenheit` fields also remain in the data
+  class for compatibility, although platform factories no longer populate them.
 
 DarknessBot provides useful architectural corroboration here: device settings contain
 battery capacity, pack voltage, 0%/100% cell voltage, and speed correction, separately from
@@ -105,8 +106,8 @@ application settings.
 
 ## Recommended Sequence
 
-1. Introduce a typed per-wheel calibration/profile model and migrate `DecoderConfigStore`
-   without breaking legacy keys.
+1. Merge catalog-derived defaults and field-level override provenance into
+   `WheelCalibration`.
 2. Add Profile & Calibration beneath the dedicated Wheel area; Controls are already
    separated from App Settings.
 3. Mark write-only cached values as unconfirmed and retain timestamps where useful.

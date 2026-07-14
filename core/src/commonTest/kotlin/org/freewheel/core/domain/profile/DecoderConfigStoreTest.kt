@@ -5,6 +5,8 @@ import org.freewheel.core.domain.settings.PreferenceDefaults
 import org.freewheel.core.domain.settings.PreferenceKeys
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 class DecoderConfigStoreTest {
 
@@ -24,6 +26,7 @@ class DecoderConfigStoreTest {
     @Test
     fun `defaults returned when keys absent`() {
         val (store, _) = newStore()
+        assertEquals(WheelCalibration(), store.getCalibration())
         assertEquals(PreferenceDefaults.CUSTOM_PERCENTS, store.getCustomPercents())
         assertEquals(PreferenceDefaults.CELL_VOLTAGE_TILTBACK, store.getCellVoltageTiltback())
         assertEquals(PreferenceDefaults.ROTATION_SPEED, store.getRotationSpeed())
@@ -40,13 +43,17 @@ class DecoderConfigStoreTest {
     }
 
     @Test
-    fun `customPercents is global - same value regardless of MAC`() {
+    fun `legacy global custom percents is fallback but scoped value wins`() {
         val (store, kvs) = newStore()
         kvs.putBool(PreferenceKeys.CUSTOM_PERCENTS, true)
         setMac(kvs, "AA:BB:CC:DD:EE:FF")
-        assertEquals(true, store.getCustomPercents())
+        assertTrue(store.getCalibration().customBatteryPercentEnabled)
+
+        kvs.putBool("AA:BB:CC:DD:EE:FF_${PreferenceKeys.CUSTOM_PERCENTS}", false)
+        assertFalse(store.getCalibration().customBatteryPercentEnabled)
+
         setMac(kvs, "11:22:33:44:55:66")
-        assertEquals(true, store.getCustomPercents())
+        assertTrue(store.getCalibration().customBatteryPercentEnabled)
     }
 
     @Test
@@ -94,11 +101,114 @@ class DecoderConfigStoreTest {
     }
 
     @Test
-    fun `gotway int parsing falls back to 0 on malformed string`() {
+    fun `gotway voltage parsing falls back to automatic on malformed string`() {
         val (store, kvs) = newStore()
         setMac(kvs, "AA:BB:CC:DD:EE:FF")
         kvs.putString("AA:BB:CC:DD:EE:FF_${PreferenceKeys.GOTWAY_VOLTAGE}", "not-a-number")
-        assertEquals(0, store.getGotwayVoltage())
+        assertEquals(-1, store.getGotwayVoltage())
+    }
+
+    @Test
+    fun `calibration reads legacy keys into typed values`() {
+        val (store, kvs) = newStore()
+        val address = "AA:BB:CC:DD:EE:FF"
+        setMac(kvs, address)
+        kvs.putBool("${address}_${PreferenceKeys.CUSTOM_PERCENTS}", true)
+        kvs.putInt("${address}_${PreferenceKeys.CELL_VOLTAGE_TILTBACK}", 315)
+        kvs.putInt("${address}_${PreferenceKeys.ROTATION_SPEED}", 650)
+        kvs.putInt("${address}_${PreferenceKeys.ROTATION_VOLTAGE}", 1260)
+        kvs.putInt("${address}_${PreferenceKeys.POWER_FACTOR}", 95)
+        kvs.putInt("${address}_${PreferenceKeys.BATTERY_CAPACITY}", 3600)
+        kvs.putString("${address}_${PreferenceKeys.GOTWAY_NEGATIVE}", "-1")
+        kvs.putString("${address}_${PreferenceKeys.GOTWAY_VOLTAGE}", "5")
+        kvs.putBool("${address}_${PreferenceKeys.USE_RATIO}", true)
+        kvs.putBool("${address}_${PreferenceKeys.HW_PWM}", true)
+        kvs.putBool("${address}_${PreferenceKeys.AUTO_VOLTAGE}", false)
+        kvs.putBool("${address}_${PreferenceKeys.KS18L_SCALER}", true)
+
+        assertEquals(
+            WheelCalibration(
+                customBatteryPercentEnabled = true,
+                emptyCellVoltageHundredths = 315,
+                rotationSpeedTenthsKmh = 650,
+                rotationVoltageTenthsVolts = 1260,
+                powerFactorPercent = 95,
+                batteryCapacityWh = 3600,
+                currentPolarity = WheelCurrentPolarity.INVERTED,
+                begodeVoltageClass = BegodeVoltageClass.V168,
+                gotwayDistanceRatioEnabled = true,
+                hardwarePwmEnabled = true,
+                autoVoltageEnabled = false,
+                ks18LDistanceScalerEnabled = true,
+            ),
+            store.getCalibration(),
+        )
+    }
+
+    @Test
+    fun `saving calibration uses legacy scoped keys and isolates wheels`() {
+        val (store, kvs) = newStore()
+        val first = "AA:BB:CC:DD:EE:FF"
+        val second = "11:22:33:44:55:66"
+        val calibration = WheelCalibration(
+            customBatteryPercentEnabled = true,
+            emptyCellVoltageHundredths = 320,
+            currentPolarity = WheelCurrentPolarity.ORIGINAL,
+            begodeVoltageClass = BegodeVoltageClass.V151_2,
+        )
+
+        store.saveCalibration(first, calibration)
+
+        assertEquals(calibration, store.getCalibration(first))
+        assertEquals(WheelCalibration(), store.getCalibration(second))
+        assertTrue(kvs.getBool("${first}_${PreferenceKeys.CUSTOM_PERCENTS}", false))
+        assertEquals("1", kvs.getString("${first}_${PreferenceKeys.GOTWAY_NEGATIVE}", null))
+        assertEquals("6", kvs.getString("${first}_${PreferenceKeys.GOTWAY_VOLTAGE}", null))
+    }
+
+    @Test
+    fun `typed calibration safely defaults malformed enum values`() {
+        val (store, kvs) = newStore()
+        val address = "AA:BB:CC:DD:EE:FF"
+        kvs.putString("${address}_${PreferenceKeys.GOTWAY_NEGATIVE}", "not-a-number")
+        kvs.putString("${address}_${PreferenceKeys.GOTWAY_VOLTAGE}", "not-a-number")
+
+        val calibration = store.getCalibration(address)
+
+        assertEquals(WheelCurrentPolarity.ABSOLUTE, calibration.currentPolarity)
+        assertEquals(BegodeVoltageClass.AUTO, calibration.begodeVoltageClass)
+    }
+
+    @Test
+    fun `reset calibration restores per-wheel defaults without reviving global legacy value`() {
+        val (store, kvs) = newStore()
+        val address = "AA:BB:CC:DD:EE:FF"
+        kvs.putBool(PreferenceKeys.CUSTOM_PERCENTS, true)
+        store.saveCalibration(
+            address,
+            WheelCalibration(
+                customBatteryPercentEnabled = true,
+                rotationSpeedTenthsKmh = 700,
+                begodeVoltageClass = BegodeVoltageClass.V168,
+            ),
+        )
+
+        store.resetCalibration(address)
+
+        assertEquals(WheelCalibration(), store.getCalibration(address))
+    }
+
+    @Test
+    fun `decoder updates are limited to calibration address and credential keys`() {
+        val (store, _) = newStore()
+
+        assertTrue(store.affectsDecoderConfig(null))
+        assertTrue(store.affectsDecoderConfig(PreferenceKeys.LAST_CONNECTED_MAC))
+        assertTrue(store.affectsDecoderConfig(PreferenceKeys.CUSTOM_PERCENTS))
+        assertTrue(store.affectsDecoderConfig("AA:BB_${PreferenceKeys.ROTATION_SPEED}"))
+        assertTrue(store.affectsDecoderConfig("wheel_password_AA:BB"))
+        assertFalse(store.affectsDecoderConfig(PreferenceKeys.USE_MPH))
+        assertFalse(store.affectsDecoderConfig(PreferenceKeys.ALARMS_ENABLED))
     }
 
     @Test

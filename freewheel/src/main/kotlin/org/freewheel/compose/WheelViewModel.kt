@@ -74,6 +74,7 @@ import org.freewheel.core.domain.dashboard.DashboardPreset
 import org.freewheel.core.domain.dashboard.NavigationConfig
 import org.freewheel.core.domain.dashboard.NavigationConfigSerializer
 import org.freewheel.core.protocol.DecoderConfig
+import org.freewheel.core.protocol.DecoderConfigFactory
 import android.content.SharedPreferences
 import org.freewheel.core.alarm.AlarmChecker
 import org.freewheel.core.alarm.AlarmConfig
@@ -420,27 +421,14 @@ class WheelViewModel(
 
     // --- DecoderConfig propagation ---
 
-    private val prefChangeListener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
-        pushDecoderConfig()
+    private val prefChangeListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+        if (decoderConfigStore.affectsDecoderConfig(key)) pushDecoderConfig()
     }
 
     private fun buildDecoderConfig(): DecoderConfig {
-        return DecoderConfig(
-            useMph = appSettingsStore.getBool(AppSettingId.USE_MPH),
-            useFahrenheit = appSettingsStore.getBool(AppSettingId.USE_FAHRENHEIT),
-            useCustomPercents = decoderConfigStore.getCustomPercents(),
-            cellVoltageTiltback = decoderConfigStore.getCellVoltageTiltback(),
-            rotationSpeed = decoderConfigStore.getRotationSpeed(),
-            rotationVoltage = decoderConfigStore.getRotationVoltage(),
-            powerFactor = decoderConfigStore.getPowerFactor(),
-            batteryCapacity = decoderConfigStore.getBatteryCapacity(),
+        return DecoderConfigFactory.fromCalibration(
+            calibration = decoderConfigStore.getCurrentCalibration(),
             wheelPassword = decoderConfigStore.getWheelPassword(),
-            gotwayNegative = decoderConfigStore.getGotwayNegative(),
-            useRatio = decoderConfigStore.getUseRatio(),
-            gotwayVoltage = decoderConfigStore.getGotwayVoltage(),
-            hwPwmEnabled = decoderConfigStore.getHwPwm(),
-            autoVoltage = decoderConfigStore.getAutoVoltage(),
-            ks18LScaler = decoderConfigStore.getKs18LScaler()
         )
     }
 

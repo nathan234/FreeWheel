@@ -24,13 +24,11 @@ class WheelManager: ObservableObject {
     @Published var useMph: Bool = WheelManager.initSettingsStore.getBool(id: AppSettingId.useMph) {
         didSet {
             appSettingsStore.setBool(id: AppSettingId.useMph, value: useMph)
-            pushDecoderConfig()
         }
     }
     @Published var useFahrenheit: Bool = WheelManager.initSettingsStore.getBool(id: AppSettingId.useFahrenheit) {
         didSet {
             appSettingsStore.setBool(id: AppSettingId.useFahrenheit, value: useFahrenheit)
-            pushDecoderConfig()
         }
     }
     @Published var isLightOn: Bool = false
@@ -1455,25 +1453,11 @@ class WheelManager: ObservableObject {
 
     private func pushDecoderConfig() {
         guard let cm = connectionManager else { return }
-        // Per-wheel decoder tuning fields scope through last_mac (dual-written at
-        // connect/disconnect). useMph/useFahrenheit are global app settings and
-        // continue to come from the @Published properties above.
-        let config = DecoderConfig(
-            useMph: useMph,
-            useFahrenheit: useFahrenheit,
-            useCustomPercents: decoderConfigStore.getCustomPercents(),
-            cellVoltageTiltback: Int32(decoderConfigStore.getCellVoltageTiltback()),
-            rotationSpeed: Int32(decoderConfigStore.getRotationSpeed()),
-            rotationVoltage: Int32(decoderConfigStore.getRotationVoltage()),
-            powerFactor: Int32(decoderConfigStore.getPowerFactor()),
-            batteryCapacity: Int32(decoderConfigStore.getBatteryCapacity()),
-            wheelPassword: decoderConfigStore.getWheelPassword(),
-            gotwayNegative: Int32(decoderConfigStore.getGotwayNegative()),
-            useRatio: decoderConfigStore.getUseRatio(),
-            gotwayVoltage: Int32(decoderConfigStore.getGotwayVoltage()),
-            hwPwmEnabled: decoderConfigStore.getHwPwm(),
-            ks18LScaler: decoderConfigStore.getKs18LScaler(),
-            autoVoltage: decoderConfigStore.getAutoVoltage()
+        // App display preferences never enter the decoder. Calibration is scoped to
+        // the last connected physical wheel; credentials remain a separate legacy bridge.
+        let config = DecoderConfigFactory.shared.fromCalibration(
+            calibration: decoderConfigStore.getCurrentCalibration(),
+            wheelPassword: decoderConfigStore.getWheelPassword()
         )
         WheelConnectionManagerHelper.shared.updateDecoderConfig(manager: cm, config: config)
     }
