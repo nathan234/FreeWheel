@@ -357,6 +357,7 @@ class WheelManager: ObservableObject {
     // MARK: - Settings Stores (KMP-backed)
 
     private let appSettingsStore = AppSettingsStore(store: UserDefaultsKeyValueStore(defaults: .standard))
+    private let wheelCommandCacheStore = WheelCommandCacheStore(store: UserDefaultsKeyValueStore(defaults: .standard))
     private let decoderConfigStore = DecoderConfigStore(store: UserDefaultsKeyValueStore(defaults: .standard))
 
     // Initializer-only counterpart to appSettingsStore. @Published property
@@ -1469,6 +1470,20 @@ class WheelManager: ObservableObject {
     func wheelBeep() {
         guard let cm = connectionManager else { return }
         WheelConnectionManagerHelper.shared.sendBeep(manager: cm)
+    }
+
+    /// Returns app history only; this value is not confirmed wheel readback.
+    func loadLastSentWheelCommand(_ commandId: SettingsCommandId) -> LastSentWheelCommand? {
+        wheelCommandCacheStore.loadLastSent(commandId: commandId)
+    }
+
+    func saveLastSentWheelCommand(_ commandId: SettingsCommandId, value: Int32) {
+        let sentAtMs = Int64(Date().timeIntervalSince1970 * 1_000)
+        wheelCommandCacheStore.saveLastSent(
+            commandId: commandId,
+            value: value,
+            sentAtEpochMs: sentAtMs
+        )
     }
 
     func toggleLight() {

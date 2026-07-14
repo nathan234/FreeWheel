@@ -13,6 +13,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.freewheel.compose.WheelViewModel
 import org.freewheel.core.domain.settings.ControlSpec
+import org.freewheel.core.domain.settings.LastSentWheelCommand
 import org.freewheel.core.domain.settings.SettingsCommandId
 import org.freewheel.core.domain.settings.SettingsSection
 import org.freewheel.core.domain.settings.WheelSettings
@@ -20,7 +21,7 @@ import org.freewheel.core.service.ConnectionState
 
 /**
  * Renders wheel-side settings sections plus the dangerous-action confirmation dialog.
- * Owns the local toggle state, persisted slider overrides, and pending-action state.
+ * Owns local toggle state, last-sent slider history, and pending-action state.
  *
  * Used by the dedicated [org.freewheel.compose.screens.WheelSettingsScreen].
  * iOS has the equivalent in `WheelSettingsContent` within `WheelSettingsView.swift`.
@@ -39,12 +40,13 @@ fun WheelSettingsContent(
     // previous wheel into the new wheel's UI.
     val activeMac = (connectionState as? ConnectionState.Connected)?.address ?: ""
     val toggleStates = remember(activeMac) { mutableStateMapOf<SettingsCommandId, Boolean>() }
-    val sliderOverrides = remember(activeMac, sections) {
-        mutableStateMapOf<SettingsCommandId, Int>().apply {
+    val lastSentValues = remember(activeMac, sections) {
+        mutableStateMapOf<SettingsCommandId, LastSentWheelCommand>().apply {
             for (section in sections) {
                 for (control in section.controls) {
                     if (control is ControlSpec.Slider) {
-                        viewModel.appSettingsStore.loadSliderValue(control.commandId)?.let { put(control.commandId, it) }
+                        viewModel.wheelCommandCacheStore.loadLastSent(control.commandId)
+                            ?.let { put(control.commandId, it) }
                     }
                 }
             }
@@ -58,11 +60,12 @@ fun WheelSettingsContent(
                 section = section,
                 wheelSettings = wheelSettings,
                 toggleStates = toggleStates,
-                sliderOverrides = sliderOverrides,
+                lastSentValues = lastSentValues,
                 useMph = useMph,
                 onIntCommand = { id, value ->
-                    viewModel.appSettingsStore.saveSliderValue(id, value)
-                    sliderOverrides[id] = value
+                    val sentAtMs = System.currentTimeMillis()
+                    viewModel.wheelCommandCacheStore.saveLastSent(id, value, sentAtMs)
+                    lastSentValues[id] = LastSentWheelCommand(value, sentAtMs)
                     viewModel.executeWheelCommand(id, intValue = value)
                 },
                 onBoolCommand = { id, value ->

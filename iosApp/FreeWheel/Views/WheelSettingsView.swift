@@ -191,18 +191,15 @@ struct WheelSettingsContent: View {
     private func sliderContent(_ control: ControlSpec.Slider) -> some View {
         let key = control.commandId.name
         let readback = readInt(control.commandId)
-        // Slider fallback cache is scoped to the connected wheel's MAC. Without a connection
-        // there is no persisted fallback — using a global key would let one wheel's last value
-        // bleed into another wheel's UI.
-        let persistKey: String? = wheelManager.connectionState.connectedAddress.map {
-            PreferenceKeys.shared.wheelSliderKey(mac: $0, commandName: key)
-        }
-        let persisted: Double? = persistKey.flatMap { pk in
-            UserDefaults.standard.object(forKey: pk) != nil
-                ? UserDefaults.standard.double(forKey: pk)
-                : nil
-        }
-        let initial = readback.map { Double($0) } ?? persisted ?? Double(control.defaultValue)
+        let lastSent = wheelManager.loadLastSentWheelCommand(control.commandId)
+        let initial = readback.map { Double($0) }
+            ?? lastSent.map { Double($0.value) }
+            ?? Double(control.defaultValue)
+        let provenance: String? = {
+            if readback != nil { return nil }
+            if lastSent != nil { return SettingsLabels.shared.LAST_SENT_UNCONFIRMED }
+            return SettingsLabels.shared.DEFAULT_UNCONFIRMED
+        }()
         let useMph = wheelManager.useMph
 
         SliderRow(
@@ -219,14 +216,13 @@ struct WheelSettingsContent: View {
             displayDivisor: Int(control.displayDivisor),
             unitCategory: control.unitCategory,
             useMph: useMph,
+            provenance: provenance,
             onEditingChanged: { editing in
                 if !editing, let value = sliderValues[key] {
-                    if let pk = persistKey {
-                        UserDefaults.standard.set(value, forKey: pk)
-                    }
+                    wheelManager.saveLastSentWheelCommand(control.commandId, value: Int32(value))
                     executeCommand(control.commandId, intValue: Int32(value))
                     // Clear local override so readback from wheel takes precedence.
-                    // The persisted value serves as fallback until readback arrives.
+                    // Last-sent history serves as fallback until readback arrives.
                     sliderValues.removeValue(forKey: key)
                 }
             }
@@ -372,6 +368,7 @@ private struct SliderRow: View {
     var displayDivisor: Int = 1
     var unitCategory: UnitCategory = .none
     var useMph: Bool = false
+    var provenance: String? = nil
     var onEditingChanged: ((Bool) -> Void)? = nil
 
     private var displayText: String {
@@ -395,6 +392,11 @@ private struct SliderRow: View {
                 Text(label)
                 Spacer()
                 Text(displayText)
+                    .foregroundColor(.secondary)
+            }
+            if let provenance {
+                Text(provenance)
+                    .font(.caption)
                     .foregroundColor(.secondary)
             }
             Slider(value: $value, in: range, step: step) { editing in

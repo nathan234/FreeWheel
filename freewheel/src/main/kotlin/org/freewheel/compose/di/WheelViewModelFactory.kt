@@ -22,6 +22,7 @@ class WheelViewModelFactory(
             profileStore = AppModule.profileStore,
             chargerProfileStore = AppModule.chargerProfileStore,
             appSettingsStore = AppModule.appSettingsStore,
+            wheelCommandCacheStore = AppModule.wheelCommandCacheStore,
             decoderConfigStore = AppModule.decoderConfigStore,
             demoDataProvider = AppModule.demoDataProvider,
             alarmChecker = AppModule.alarmChecker,

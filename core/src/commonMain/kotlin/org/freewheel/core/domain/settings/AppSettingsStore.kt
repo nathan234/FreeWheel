@@ -5,8 +5,7 @@ import org.freewheel.core.domain.KeyValueStore
 import org.freewheel.core.domain.telemetry.SpeedDisplayMode
 
 /**
- * Typed reader/writer for app-level settings keyed by [AppSettingId] (and remembered
- * slider values keyed by [SettingsCommandId]).
+ * Typed reader/writer for app-level settings keyed by [AppSettingId].
  *
  * Wraps a [KeyValueStore], handling [SettingScope] and per-wheel MAC prefixing so
  * callers do not have to. The MAC is read fresh on each call from
@@ -80,23 +79,6 @@ class AppSettingsStore(private val store: KeyValueStore) {
 
     fun setSpeedDisplayMode(mode: SpeedDisplayMode) {
         store.putInt(PreferenceKeys.SPEED_DISPLAY_MODE, mode.ordinal)
-    }
-
-    /**
-     * Persist the last-set value for a write-only wheel command (slider position).
-     * No-op when no wheel is connected — sliders are intentionally per-wheel only,
-     * so a global fallback would let one wheel's value leak into another's UI.
-     */
-    fun saveSliderValue(commandId: SettingsCommandId, value: Int) {
-        val mac = currentMac().takeIf { it.isNotBlank() } ?: return
-        store.putInt(PreferenceKeys.wheelSliderKey(mac, commandId.name), value)
-    }
-
-    /** Returns null when no wheel is connected or no value has been stored for it. */
-    fun loadSliderValue(commandId: SettingsCommandId): Int? {
-        val mac = currentMac().takeIf { it.isNotBlank() } ?: return null
-        val key = PreferenceKeys.wheelSliderKey(mac, commandId.name)
-        return if (store.contains(key)) store.getInt(key, 0) else null
     }
 
     private fun scopedKey(id: AppSettingId): String = when (id.scope) {

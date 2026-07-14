@@ -76,9 +76,8 @@ object PreferenceKeys {
     const val SUFFIX_LAST_CONNECTED = "_last_connected"
     const val SUFFIX_TOP_SPEED_OVERRIDE_KMH = "_top_speed_override_kmh"
 
-    // Wheel settings slider persistence — keys MUST be built via wheelSliderKey() so they
-    // are scoped to a specific wheel MAC. A bare prefix would let one wheel's last-set
-    // value leak into another wheel's UI.
+    // Last-sent wheel command cache. Keep the legacy `wheel_slider_` value-key format
+    // for migration; the timestamp was added when this cache moved out of AppSettingsStore.
     private const val WHEEL_SLIDER_PREFIX = "wheel_slider_"
 
     /** Build the per-wheel slider persistence key. [mac] must be non-blank. */
@@ -86,6 +85,9 @@ object PreferenceKeys {
         require(mac.isNotBlank()) { "wheelSliderKey requires a non-blank wheel MAC" }
         return "${mac}_${WHEEL_SLIDER_PREFIX}${commandName}"
     }
+
+    fun wheelSliderSentAtKey(mac: String, commandName: String): String =
+        "${wheelSliderKey(mac, commandName)}_sent_at_ms"
 
     // Dashboard layout (per-wheel)
     const val DASHBOARD_LAYOUT = "dashboard_layout"

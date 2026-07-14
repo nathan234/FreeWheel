@@ -15,6 +15,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.freewheel.compose.di.AppModule
 import org.freewheel.core.domain.settings.AppSettingsStore
+import org.freewheel.core.domain.settings.WheelCommandCacheStore
 import org.freewheel.core.domain.profile.ChargerProfileStore
 import org.freewheel.core.domain.profile.DecoderConfigStore
 import org.freewheel.core.domain.profile.InMemoryWheelPasswordStore
@@ -99,6 +100,7 @@ class WheelViewModelPasswordManagementTest {
             profileStore = WheelProfileStore(kvs),
             chargerProfileStore = ChargerProfileStore(kvs),
             appSettingsStore = AppSettingsStore(kvs),
+            wheelCommandCacheStore = WheelCommandCacheStore(kvs),
             decoderConfigStore = DecoderConfigStore(kvs),
             demoDataProvider = DemoDataProvider(),
             chargingStationRepository = ChargingStationRepository(NoopChargingStationSource),

@@ -28,6 +28,7 @@ ground truth. Every model-derived calibration should record its source and confi
 | Settings navigation | App Settings no longer embeds connected-wheel controls. Android and iOS retain Wheel Settings as a dedicated destination, establishing the first visible ownership boundary. |
 | Wheel calibration ownership | `WheelCalibration` now provides one typed per-wheel model for both platforms, with explicit current-polarity and Begode voltage-class enums. `DecoderConfigFactory` is the single mapping into protocol configuration, and app presentation preferences no longer enter or refresh decoder config. |
 | Legacy calibration safety | Existing scoped keys remain compatible. Custom SOC now supports per-wheel values with the old global key as a migration fallback, and malformed Begode voltage values resolve to automatic detection rather than the 67.2 V class. |
+| Write-only wheel commands | Last-sent slider values now live in a dedicated per-wheel `WheelCommandCacheStore`, retain send timestamps, and are labeled “Last sent — not confirmed by wheel” on Android and iOS. Defaults without readback are also identified as unconfirmed. |
 
 ## Confirmed Accuracy Gaps
 
@@ -93,7 +94,6 @@ become wheel controls unless the value is actually written to wheel firmware.
 
 ## Current Boundary Problems
 
-- `AppSettingsStore` persists last-written wheel-command slider positions.
 - `WheelProfile` and `WheelCalibration` are still loaded separately, and calibration has
   neither a product surface nor a provenance-bearing catalog/default merge.
 - `batteryCapacity` and `cellVoltageTiltback` remain in decoder config but are not consumed
@@ -110,5 +110,4 @@ application settings.
    `WheelCalibration`.
 2. Add Profile & Calibration beneath the dedicated Wheel area; Controls are already
    separated from App Settings.
-3. Mark write-only cached values as unconfirmed and retain timestamps where useful.
-4. Continue capture-backed work for E25, Begode four-pack status, and Oryx SOC.
+3. Continue capture-backed work for E25, Begode four-pack status, and Oryx SOC.

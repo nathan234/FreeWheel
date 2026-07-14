@@ -1,6 +1,10 @@
 package org.freewheel.core.domain.settings
 
 object SettingsLabels {
+    // Wheel command value provenance
+    const val LAST_SENT_UNCONFIRMED = "Last sent — not confirmed by wheel"
+    const val DEFAULT_UNCONFIRMED = "Default — not read from wheel"
+
     // Section headers
     const val SECTION_UNITS = "Units"
     const val SECTION_ALARMS = "Speed & Safety Alarms"

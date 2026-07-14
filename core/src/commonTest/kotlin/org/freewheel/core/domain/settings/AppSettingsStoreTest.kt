@@ -4,8 +4,6 @@ import org.freewheel.core.domain.FakeKeyValueStore
 import org.freewheel.core.domain.telemetry.SpeedDisplayMode
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertNull
-import kotlin.test.assertTrue
 
 class AppSettingsStoreTest {
 
@@ -94,44 +92,6 @@ class AppSettingsStoreTest {
         // Original wheel still has its own value
         setMac(kvs, "AA:BB:CC:DD:EE:FF")
         assertEquals(25, store.getInt(AppSettingId.ALARM_1_SPEED))
-    }
-
-    @Test
-    fun `slider save and load round-trip with MAC`() {
-        val (store, kvs) = newStore()
-        setMac(kvs, "AA:BB:CC:DD:EE:FF")
-        store.saveSliderValue(SettingsCommandId.MAX_SPEED, 42)
-        assertEquals(42, store.loadSliderValue(SettingsCommandId.MAX_SPEED))
-    }
-
-    @Test
-    fun `slider save is no-op when no MAC`() {
-        val (store, kvs) = newStore()
-        // No MAC set — save should silently no-op rather than write a bare-prefix key
-        store.saveSliderValue(SettingsCommandId.MAX_SPEED, 42)
-        assertTrue(kvs.getStringSet("any").isEmpty())
-        assertNull(store.loadSliderValue(SettingsCommandId.MAX_SPEED))
-    }
-
-    @Test
-    fun `slider load returns null when key absent`() {
-        val (store, kvs) = newStore()
-        setMac(kvs, "AA:BB:CC:DD:EE:FF")
-        assertNull(store.loadSliderValue(SettingsCommandId.MAX_SPEED))
-    }
-
-    @Test
-    fun `slider values are isolated per wheel`() {
-        val (store, kvs) = newStore()
-        setMac(kvs, "AA:BB:CC:DD:EE:FF")
-        store.saveSliderValue(SettingsCommandId.MAX_SPEED, 42)
-
-        setMac(kvs, "11:22:33:44:55:66")
-        assertNull(store.loadSliderValue(SettingsCommandId.MAX_SPEED))
-        store.saveSliderValue(SettingsCommandId.MAX_SPEED, 35)
-
-        setMac(kvs, "AA:BB:CC:DD:EE:FF")
-        assertEquals(42, store.loadSliderValue(SettingsCommandId.MAX_SPEED))
     }
 
     @Test

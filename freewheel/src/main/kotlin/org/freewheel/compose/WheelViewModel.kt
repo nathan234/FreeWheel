@@ -54,6 +54,7 @@ import org.freewheel.core.domain.common.AlarmAction
 import org.freewheel.core.domain.common.AlarmType
 import org.freewheel.core.domain.settings.AppSettingId
 import org.freewheel.core.domain.settings.AppSettingsStore
+import org.freewheel.core.domain.settings.WheelCommandCacheStore
 import org.freewheel.core.domain.profile.DecoderConfigStore
 import org.freewheel.core.domain.profile.LockPromptState
 import org.freewheel.core.domain.profile.PasswordManagementInput
@@ -135,6 +136,7 @@ class WheelViewModel(
     val profileStore: WheelProfileStore,
     val chargerProfileStore: ChargerProfileStore,
     val appSettingsStore: AppSettingsStore,
+    val wheelCommandCacheStore: WheelCommandCacheStore,
     private val decoderConfigStore: DecoderConfigStore,
     private val demoDataProvider: DemoDataProvider,
     private val alarmChecker: AlarmChecker = AlarmChecker(),

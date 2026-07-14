@@ -36,6 +36,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.freewheel.core.domain.settings.ControlSpec
+import org.freewheel.core.domain.settings.LastSentWheelCommand
+import org.freewheel.core.domain.settings.SettingsLabels
 import org.freewheel.core.domain.settings.SettingsCommandId
 import org.freewheel.core.domain.settings.SettingsSection
 import org.freewheel.core.domain.settings.WheelSettings
@@ -45,7 +47,7 @@ internal fun SectionCard(
     section: SettingsSection,
     wheelSettings: WheelSettings,
     toggleStates: Map<SettingsCommandId, Boolean>,
-    sliderOverrides: Map<SettingsCommandId, Int> = emptyMap(),
+    lastSentValues: Map<SettingsCommandId, LastSentWheelCommand> = emptyMap(),
     useMph: Boolean = false,
     onIntCommand: (SettingsCommandId, Int) -> Unit,
     onBoolCommand: (SettingsCommandId, Boolean) -> Unit,
@@ -90,7 +92,7 @@ internal fun SectionCard(
                     control = control,
                     wheelSettings = wheelSettings,
                     toggleStates = toggleStates,
-                    sliderOverrides = sliderOverrides,
+                    lastSentValues = lastSentValues,
                     useMph = useMph,
                     onIntCommand = onIntCommand,
                     onBoolCommand = onBoolCommand,
@@ -110,7 +112,7 @@ internal fun RenderControl(
     control: ControlSpec,
     wheelSettings: WheelSettings,
     toggleStates: Map<SettingsCommandId, Boolean>,
-    sliderOverrides: Map<SettingsCommandId, Int> = emptyMap(),
+    lastSentValues: Map<SettingsCommandId, LastSentWheelCommand> = emptyMap(),
     useMph: Boolean = false,
     onIntCommand: (SettingsCommandId, Int) -> Unit,
     onBoolCommand: (SettingsCommandId, Boolean) -> Unit,
@@ -120,7 +122,7 @@ internal fun RenderControl(
         is ControlSpec.Toggle -> ToggleControl(control, wheelSettings, toggleStates, onBoolCommand)
         is ControlSpec.Segmented -> SegmentedControl(control, wheelSettings, onIntCommand)
         is ControlSpec.Picker -> PickerControl(control, wheelSettings, onIntCommand)
-        is ControlSpec.Slider -> SliderControl(control, wheelSettings, sliderOverrides[control.commandId], useMph, onIntCommand)
+        is ControlSpec.Slider -> SliderControl(control, wheelSettings, lastSentValues[control.commandId], useMph, onIntCommand)
         is ControlSpec.DangerousButton -> DangerousButtonControl(control, onDangerousAction)
         is ControlSpec.DangerousToggle -> DangerousToggleControl(control, toggleStates, onBoolCommand, onDangerousAction)
     }
@@ -246,13 +248,18 @@ internal fun PickerControl(
 internal fun SliderControl(
     control: ControlSpec.Slider,
     wheelSettings: WheelSettings,
-    persistedValue: Int?,
+    lastSent: LastSentWheelCommand?,
     useMph: Boolean = false,
     onIntCommand: (SettingsCommandId, Int) -> Unit
 ) {
     val readback = control.commandId.readInt(wheelSettings)
-    val initial = readback ?: persistedValue ?: control.defaultValue
-    var value by remember(readback) { mutableFloatStateOf(initial.toFloat()) }
+    val initial = readback ?: lastSent?.value ?: control.defaultValue
+    var value by remember(readback, lastSent?.value) { mutableFloatStateOf(initial.toFloat()) }
+    val provenance = when {
+        readback != null -> null
+        lastSent != null -> SettingsLabels.LAST_SENT_UNCONFIRMED
+        else -> SettingsLabels.DEFAULT_UNCONFIRMED
+    }
 
     Column {
         Row(
@@ -268,6 +275,13 @@ internal fun SliderControl(
                 },
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodyMedium
+            )
+        }
+        if (provenance != null) {
+            Text(
+                text = provenance,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.labelSmall,
             )
         }
         Slider(

@@ -10,6 +10,7 @@ import androidx.core.content.ContextCompat.getSystemService
 import androidx.preference.PreferenceManager
 import org.freewheel.core.domain.AndroidWheelPasswordStoreFactory
 import org.freewheel.core.domain.settings.AppSettingsStore
+import org.freewheel.core.domain.settings.WheelCommandCacheStore
 import org.freewheel.core.domain.profile.ChargerProfileStore
 import org.freewheel.core.domain.profile.DecoderConfigStore
 import org.freewheel.core.domain.SharedPreferencesKeyValueStore
@@ -72,6 +73,7 @@ object AppModule {
     val profileStore: WheelProfileStore by lazy { WheelProfileStore(keyValueStore) }
     val chargerProfileStore: ChargerProfileStore by lazy { ChargerProfileStore(keyValueStore) }
     val appSettingsStore: AppSettingsStore by lazy { AppSettingsStore(keyValueStore) }
+    val wheelCommandCacheStore: WheelCommandCacheStore by lazy { WheelCommandCacheStore(keyValueStore) }
     val decoderConfigStore: DecoderConfigStore by lazy { DecoderConfigStore(keyValueStore) }
 
     /**
