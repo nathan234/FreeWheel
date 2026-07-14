@@ -304,6 +304,20 @@ class GotwayDecoderTest {
     }
 
     @Test
+    fun `voltage scaling 42V is 0_625x`() {
+        val decoded = decodeNormalData(voltage = 6000, config = config.copy(gotwayVoltage = 7))
+        assertNotNull(decoded)
+        assertEquals(3750, decoded.assertTelemetry().voltage)
+    }
+
+    @Test
+    fun `voltage scaling 210V is 3_125x`() {
+        val decoded = decodeNormalData(voltage = 6000, config = config.copy(gotwayVoltage = 8))
+        assertNotNull(decoded)
+        assertEquals(18750, decoded.assertTelemetry().voltage)
+    }
+
+    @Test
     fun `voltage scaling unknown value falls back to 1x`() {
         val cfg = config.copy(gotwayVoltage = 99)
         val decoded = decodeNormalData(voltage = 6000, config = cfg)

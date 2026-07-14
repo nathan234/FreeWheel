@@ -1,5 +1,7 @@
 package org.freewheel.core.protocol
 
+import org.freewheel.core.domain.profile.BegodeModelCatalog
+import org.freewheel.core.domain.profile.BegodeVoltageClass
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -35,5 +37,11 @@ class BegodeModelCatalogTest {
     @Test
     fun `unknown wheel does not invent a profile`() {
         assertNull(BegodeModelCatalog.match(model = "UNKNOWN MODEL", firmware = "GW0000000"))
+    }
+
+    @Test
+    fun `all catalog pack voltages map to an explicit voltage class`() {
+        assertEquals(BegodeVoltageClass.V42, BegodeModelCatalog.match("Mten mini", "")?.voltageClass)
+        assertEquals(BegodeVoltageClass.V210, BegodeModelCatalog.match("RACE", "")?.voltageClass)
     }
 }

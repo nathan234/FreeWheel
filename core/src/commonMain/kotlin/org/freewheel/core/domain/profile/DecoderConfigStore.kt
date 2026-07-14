@@ -1,8 +1,11 @@
 package org.freewheel.core.domain.profile
 
 import org.freewheel.core.domain.KeyValueStore
+import org.freewheel.core.domain.identity.WheelIdentity
+import org.freewheel.core.domain.identity.WheelType
 import org.freewheel.core.domain.settings.PreferenceDefaults
 import org.freewheel.core.domain.settings.PreferenceKeys
+import kotlin.math.roundToInt
 
 /**
  * Reads app-owned wheel calibration from the legacy decoder preference keys.
@@ -48,6 +51,91 @@ class DecoderConfigStore(private val store: KeyValueStore) {
 
     /** Explicit no-argument bridge for Swift, which does not export Kotlin default arguments. */
     fun getCurrentCalibration(): WheelCalibration = getCalibration(currentMac())
+
+    /**
+     * Resolves stored per-wheel overrides against model-derived defaults while retaining
+     * the source of every field. This is the app-facing view of calibration; the legacy
+     * [getCalibration] method intentionally remains a storage-only compatibility view.
+     */
+    fun getResolvedCalibration(
+        address: String,
+        identity: WheelIdentity,
+    ): ResolvedWheelCalibration {
+        var calibration = getCalibration(address)
+        val sources = WheelCalibrationField.entries
+            .associateWith { WheelCalibrationSource.DEFAULT }
+            .toMutableMap()
+
+        calibrationKeyByField.forEach { (field, key) ->
+            if (address.isNotBlank() && store.contains(scoped(address, key))) {
+                sources[field] = WheelCalibrationSource.USER_OVERRIDE
+            }
+        }
+
+        if (
+            sources[WheelCalibrationField.CUSTOM_BATTERY_PERCENT] != WheelCalibrationSource.USER_OVERRIDE &&
+            store.contains(PreferenceKeys.CUSTOM_PERCENTS)
+        ) {
+            sources[WheelCalibrationField.CUSTOM_BATTERY_PERCENT] = WheelCalibrationSource.LEGACY_GLOBAL
+        }
+
+        val profile = if (identity.wheelType == WheelType.GOTWAY) {
+            sequenceOf(identity.model, identity.name, identity.btName)
+                .filter { it.isNotBlank() }
+                .mapNotNull { candidate -> BegodeModelCatalog.match(candidate, identity.version) }
+                .firstOrNull()
+                ?: BegodeModelCatalog.match("", identity.version)
+        } else {
+            null
+        }
+
+        if (profile != null) {
+            if (sources[WheelCalibrationField.ROTATION_SPEED] == WheelCalibrationSource.DEFAULT &&
+                profile.noLoadSpeedKmh != null
+            ) {
+                calibration = calibration.copy(
+                    rotationSpeedTenthsKmh = (profile.noLoadSpeedKmh * 10.0).roundToInt(),
+                )
+                sources[WheelCalibrationField.ROTATION_SPEED] = WheelCalibrationSource.MODEL_CATALOG
+            }
+            if (sources[WheelCalibrationField.ROTATION_VOLTAGE] == WheelCalibrationSource.DEFAULT) {
+                calibration = calibration.copy(
+                    rotationVoltageTenthsVolts = (profile.fullVoltageV * 10.0).roundToInt(),
+                )
+                sources[WheelCalibrationField.ROTATION_VOLTAGE] = WheelCalibrationSource.MODEL_CATALOG
+            }
+            if (sources[WheelCalibrationField.POWER_FACTOR] == WheelCalibrationSource.DEFAULT &&
+                profile.noLoadSpeedKmh != null
+            ) {
+                // Catalog no-load speeds are already the full-voltage reference; no
+                // additional legacy derating factor should be applied.
+                calibration = calibration.copy(powerFactorPercent = 100)
+                sources[WheelCalibrationField.POWER_FACTOR] = WheelCalibrationSource.MODEL_CATALOG
+            }
+
+            val voltageSource = sources[WheelCalibrationField.BEGODE_VOLTAGE_CLASS]
+            if (
+                voltageSource == WheelCalibrationSource.DEFAULT ||
+                calibration.begodeVoltageClass == BegodeVoltageClass.AUTO
+            ) {
+                profile.voltageClass?.let { voltageClass ->
+                    calibration = calibration.copy(begodeVoltageClass = voltageClass)
+                    sources[WheelCalibrationField.BEGODE_VOLTAGE_CLASS] =
+                        WheelCalibrationSource.MODEL_CATALOG
+                }
+            }
+        }
+
+        return ResolvedWheelCalibration(
+            calibration = calibration,
+            sources = sources,
+            matchedModelName = profile?.displayName,
+        )
+    }
+
+    /** Explicit Swift bridge for the currently scoped physical wheel. */
+    fun getCurrentResolvedCalibration(identity: WheelIdentity): ResolvedWheelCalibration =
+        getResolvedCalibration(currentMac(), identity)
 
     /** Persists [calibration] using the existing per-wheel keys. */
     fun saveCalibration(address: String, calibration: WheelCalibration) {
@@ -165,6 +253,21 @@ class DecoderConfigStore(private val store: KeyValueStore) {
             PreferenceKeys.HW_PWM,
             PreferenceKeys.AUTO_VOLTAGE,
             PreferenceKeys.KS18L_SCALER,
+        )
+
+        val calibrationKeyByField = mapOf(
+            WheelCalibrationField.CUSTOM_BATTERY_PERCENT to PreferenceKeys.CUSTOM_PERCENTS,
+            WheelCalibrationField.EMPTY_CELL_VOLTAGE to PreferenceKeys.CELL_VOLTAGE_TILTBACK,
+            WheelCalibrationField.ROTATION_SPEED to PreferenceKeys.ROTATION_SPEED,
+            WheelCalibrationField.ROTATION_VOLTAGE to PreferenceKeys.ROTATION_VOLTAGE,
+            WheelCalibrationField.POWER_FACTOR to PreferenceKeys.POWER_FACTOR,
+            WheelCalibrationField.BATTERY_CAPACITY to PreferenceKeys.BATTERY_CAPACITY,
+            WheelCalibrationField.CURRENT_POLARITY to PreferenceKeys.GOTWAY_NEGATIVE,
+            WheelCalibrationField.BEGODE_VOLTAGE_CLASS to PreferenceKeys.GOTWAY_VOLTAGE,
+            WheelCalibrationField.GOTWAY_DISTANCE_RATIO to PreferenceKeys.USE_RATIO,
+            WheelCalibrationField.HARDWARE_PWM to PreferenceKeys.HW_PWM,
+            WheelCalibrationField.AUTO_VOLTAGE to PreferenceKeys.AUTO_VOLTAGE,
+            WheelCalibrationField.KS18L_DISTANCE_SCALER to PreferenceKeys.KS18L_SCALER,
         )
     }
 }

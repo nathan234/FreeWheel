@@ -42,16 +42,75 @@ enum class WheelCurrentPolarity(val legacyValue: Int) {
 /** Explicit Begode/Gotway pack-voltage override. [AUTO] delegates to model detection. */
 enum class BegodeVoltageClass(val legacyValue: Int) {
     AUTO(-1),
+    V42(7),
     V67_2(0),
     V84(1),
     V100_8(2),
     V126(3),
     V134_4(4),
     V168(5),
-    V151_2(6);
+    V151_2(6),
+    V210(8);
+
+    val fullVoltageV: Double?
+        get() = when (this) {
+            V42 -> 42.0
+            AUTO -> null
+            V67_2 -> 67.2
+            V84 -> 84.0
+            V100_8 -> 100.8
+            V126 -> 126.0
+            V134_4 -> 134.4
+            V168 -> 168.0
+            V151_2 -> 151.2
+            V210 -> 210.0
+        }
 
     companion object {
         fun fromLegacy(value: Int): BegodeVoltageClass =
             entries.firstOrNull { it.legacyValue == value } ?: AUTO
+
+        fun fromFullVoltage(voltageV: Double): BegodeVoltageClass? =
+            entries.firstOrNull { candidate ->
+                candidate.fullVoltageV?.let { kotlin.math.abs(it - voltageV) < 0.05 } == true
+            }
     }
+}
+
+/** Calibration fields whose effective value may come from a different owner. */
+enum class WheelCalibrationField {
+    CUSTOM_BATTERY_PERCENT,
+    EMPTY_CELL_VOLTAGE,
+    ROTATION_SPEED,
+    ROTATION_VOLTAGE,
+    POWER_FACTOR,
+    BATTERY_CAPACITY,
+    CURRENT_POLARITY,
+    BEGODE_VOLTAGE_CLASS,
+    GOTWAY_DISTANCE_RATIO,
+    HARDWARE_PWM,
+    AUTO_VOLTAGE,
+    KS18L_DISTANCE_SCALER,
+}
+
+/** Why an effective calibration value was selected. */
+enum class WheelCalibrationSource {
+    USER_OVERRIDE,
+    MODEL_CATALOG,
+    LEGACY_GLOBAL,
+    DEFAULT,
+}
+
+/**
+ * Effective calibration plus field-level ownership information for diagnostics and UI.
+ * The map is intentionally queried through [sourceFor] so Swift does not need to bridge
+ * enum-keyed Kotlin maps directly.
+ */
+data class ResolvedWheelCalibration(
+    val calibration: WheelCalibration,
+    val sources: Map<WheelCalibrationField, WheelCalibrationSource>,
+    val matchedModelName: String? = null,
+) {
+    fun sourceFor(field: WheelCalibrationField): WheelCalibrationSource =
+        sources[field] ?: WheelCalibrationSource.DEFAULT
 }

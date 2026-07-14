@@ -3,6 +3,8 @@ package org.freewheel.core.protocol
 import org.freewheel.core.domain.telemetry.BmsState
 import org.freewheel.core.domain.identity.CapabilitySet
 import org.freewheel.core.domain.identity.WheelIdentity
+import org.freewheel.core.domain.profile.BegodeModelCatalog
+import org.freewheel.core.domain.profile.BegodeModelProfile
 import org.freewheel.core.domain.settings.SettingsCommandId
 import org.freewheel.core.domain.telemetry.SmartBms
 import org.freewheel.core.domain.settings.WheelSettings
@@ -697,6 +699,8 @@ class GotwayDecoder : WheelDecoder {
             4 -> 2.0                    // 134.4V (32S)
             5 -> 2.5                    // 168V (40S)
             6 -> 2.25                   // 151V (36S)
+            7 -> 0.625                  // 42V (10S)
+            8 -> 3.125                  // 210V (50S)
             else -> 1.0
         }
         return voltage * scaler

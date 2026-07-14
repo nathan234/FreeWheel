@@ -36,7 +36,7 @@ Key: Y=supported, -=returns empty list, Y*=partial (VT Beep version-dependent, N
 |---|---|---|
 | `gotwayNegative` | GW only | Speed/current sign: 0=abs, 1=keep, -1=invert |
 | `useRatio` | GW only | Apply 0.875 scaling to speed/distance |
-| `gotwayVoltage` | GW only | Battery series (16S-40S) for % calculation |
+| `gotwayVoltage` | GW only | Battery series (10S-50S catalog classes) for voltage scaling and % calculation |
 | `wheelPassword` | IM1 only | InMotion V1 authentication |
 | `useMph`, `useFahrenheit` | KS, GW, NZ | Unit conversion in decoded state |
 | `useCustomPercents`, `cellVoltageTiltback` | KS, GW, VT, NZ, IM2 | Custom battery % from cell voltage |

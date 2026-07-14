@@ -47,7 +47,7 @@ Tests: `GotwayDecoderTest.kt` · `GotwayDecoderComparisonTest.kt` · `GotwayUnpa
 - [x] gotwayNegative polarity (0=abs, 1=keep, -1=invert)
 - [x] useRatio 0.875x scaling
 - [x] inMiles normalization (speed, distances)
-- [x] Voltage scaling per gotwayVoltage config (16S–40S)
+- [x] Voltage scaling per gotwayVoltage config (10S–50S catalog classes)
 - [x] Automatic model-derived voltage scaling, with explicit per-wheel manual selection taking precedence
 - [x] Battery percent (standard and "better" curves)
 - [x] SmartBMS cell stats (min, max, diff, avg)

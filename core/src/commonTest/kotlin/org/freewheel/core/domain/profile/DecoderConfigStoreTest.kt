@@ -1,6 +1,8 @@
 package org.freewheel.core.domain.profile
 
 import org.freewheel.core.domain.FakeKeyValueStore
+import org.freewheel.core.domain.identity.WheelIdentity
+import org.freewheel.core.domain.identity.WheelType
 import org.freewheel.core.domain.settings.PreferenceDefaults
 import org.freewheel.core.domain.settings.PreferenceKeys
 import kotlin.test.Test
@@ -196,6 +198,99 @@ class DecoderConfigStoreTest {
         store.resetCalibration(address)
 
         assertEquals(WheelCalibration(), store.getCalibration(address))
+    }
+
+    @Test
+    fun `model catalog supplies effective Begode calibration with provenance`() {
+        val (store, _) = newStore()
+        val resolved = store.getResolvedCalibration(
+            address = "AA:BB:CC:DD:EE:FF",
+            identity = WheelIdentity(
+                wheelType = WheelType.GOTWAY,
+                model = "Commander Max",
+                brand = "Extreme Bull",
+            ),
+        )
+
+        assertEquals("Commander Max", resolved.matchedModelName)
+        assertEquals(BegodeVoltageClass.V168, resolved.calibration.begodeVoltageClass)
+        assertEquals(1700, resolved.calibration.rotationSpeedTenthsKmh)
+        assertEquals(1680, resolved.calibration.rotationVoltageTenthsVolts)
+        assertEquals(100, resolved.calibration.powerFactorPercent)
+        assertEquals(
+            WheelCalibrationSource.MODEL_CATALOG,
+            resolved.sourceFor(WheelCalibrationField.BEGODE_VOLTAGE_CLASS),
+        )
+        assertEquals(
+            WheelCalibrationSource.MODEL_CATALOG,
+            resolved.sourceFor(WheelCalibrationField.ROTATION_SPEED),
+        )
+        assertEquals(
+            WheelCalibrationSource.DEFAULT,
+            resolved.sourceFor(WheelCalibrationField.BATTERY_CAPACITY),
+        )
+    }
+
+    @Test
+    fun `scoped override wins only its calibration field`() {
+        val (store, kvs) = newStore()
+        val address = "AA:BB:CC:DD:EE:FF"
+        kvs.putInt("${address}_${PreferenceKeys.ROTATION_SPEED}", 1600)
+        kvs.putString("${address}_${PreferenceKeys.GOTWAY_VOLTAGE}", "4")
+
+        val resolved = store.getResolvedCalibration(
+            address = address,
+            identity = WheelIdentity(wheelType = WheelType.GOTWAY, model = "Commander Max"),
+        )
+
+        assertEquals(1600, resolved.calibration.rotationSpeedTenthsKmh)
+        assertEquals(BegodeVoltageClass.V134_4, resolved.calibration.begodeVoltageClass)
+        assertEquals(1680, resolved.calibration.rotationVoltageTenthsVolts)
+        assertEquals(
+            WheelCalibrationSource.USER_OVERRIDE,
+            resolved.sourceFor(WheelCalibrationField.ROTATION_SPEED),
+        )
+        assertEquals(
+            WheelCalibrationSource.USER_OVERRIDE,
+            resolved.sourceFor(WheelCalibrationField.BEGODE_VOLTAGE_CLASS),
+        )
+        assertEquals(
+            WheelCalibrationSource.MODEL_CATALOG,
+            resolved.sourceFor(WheelCalibrationField.ROTATION_VOLTAGE),
+        )
+    }
+
+    @Test
+    fun `automatic voltage selection remains catalog derived when explicitly stored`() {
+        val (store, kvs) = newStore()
+        val address = "AA:BB:CC:DD:EE:FF"
+        kvs.putString("${address}_${PreferenceKeys.GOTWAY_VOLTAGE}", "-1")
+
+        val resolved = store.getResolvedCalibration(
+            address = address,
+            identity = WheelIdentity(wheelType = WheelType.GOTWAY, model = "Commander Max"),
+        )
+
+        assertEquals(BegodeVoltageClass.V168, resolved.calibration.begodeVoltageClass)
+        assertEquals(
+            WheelCalibrationSource.MODEL_CATALOG,
+            resolved.sourceFor(WheelCalibrationField.BEGODE_VOLTAGE_CLASS),
+        )
+    }
+
+    @Test
+    fun `legacy global custom percentage fallback is identified`() {
+        val (store, kvs) = newStore()
+        val address = "AA:BB:CC:DD:EE:FF"
+        kvs.putBool(PreferenceKeys.CUSTOM_PERCENTS, true)
+
+        val resolved = store.getResolvedCalibration(address, WheelIdentity())
+
+        assertTrue(resolved.calibration.customBatteryPercentEnabled)
+        assertEquals(
+            WheelCalibrationSource.LEGACY_GLOBAL,
+            resolved.sourceFor(WheelCalibrationField.CUSTOM_BATTERY_PERCENT),
+        )
     }
 
     @Test

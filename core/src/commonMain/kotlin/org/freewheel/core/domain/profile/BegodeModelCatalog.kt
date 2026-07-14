@@ -1,4 +1,4 @@
-package org.freewheel.core.protocol
+package org.freewheel.core.domain.profile
 
 /**
  * Model-specific defaults for the Gotway/Begode protocol family.
@@ -11,7 +11,7 @@ package org.freewheel.core.protocol
  * signatures use the two-letter prefix plus the first five version digits; the
  * final two digits are patch/build revisions.
  */
-internal data class BegodeModelProfile(
+data class BegodeModelProfile(
     val displayName: String,
     val brand: String = "Begode",
     val fullVoltageV: Double,
@@ -19,9 +19,12 @@ internal data class BegodeModelProfile(
     val emptyVoltageV: Double? = null,
     val noLoadSpeedKmh: Double? = null,
     val smartBmsCount: Int = 0,
-)
+) {
+    val voltageClass: BegodeVoltageClass?
+        get() = BegodeVoltageClass.fromFullVoltage(fullVoltageV)
+}
 
-internal object BegodeModelCatalog {
+object BegodeModelCatalog {
     private data class Entry(
         val profile: BegodeModelProfile,
         val aliases: Set<String>,
