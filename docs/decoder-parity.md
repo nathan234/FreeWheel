@@ -270,10 +270,10 @@ Tests: `InMotionDecoderTest.kt` · `InMotionDecoderComparisonTest.kt` · `InMoti
 
 ---
 
-## InMotionV2Decoder
+## LorinDecoder
 
-Legacy: `InMotionAdapterV2.java` | KMP: `InMotionV2Decoder.kt`
-Tests: `InMotionV2DecoderTest.kt` · `InMotionV2UnpackerTest.kt`
+Legacy: `InMotionAdapterV2.java` | KMP: `LorinDecoder.kt`
+Tests: `LorinDecoderTest.kt` · `LorinUnpackerTest.kt`
 
 ### Init & Identity
 - [x] Send car type (0x01), serial (0x02), versions (0x06), settings, stats on connect
@@ -294,7 +294,7 @@ Tests: `InMotionV2DecoderTest.kt` · `InMotionV2UnpackerTest.kt`
 ### Telemetry
 - [x] Model-specific field offsets (V11 proto v1 vs v2, V12, V13, V14, V11Y)
 - [x] Temperature decoding (signed byte + 80)
-- [x] IM2-specific fields: torque, motorPower, cpuTemp, imuTemp, angle, roll
+- [x] Lorin-specific fields: torque, motorPower, cpuTemp, imuTemp, angle, roll
 - [x] P6 output rate and consumed-SOC fields kept separate (offsets 14 and 32)
 
 ### Commands

@@ -60,7 +60,7 @@ Some decoders have a paired `*Unpacker` for low-level frame reassembly; others h
 | NinebotDecoder | NinebotUnpacker | |
 | NinebotZDecoder | — | Framing handled internally |
 | InMotionDecoder | InMotionUnpacker | |
-| InMotionV2Decoder | InMotionV2Unpacker | |
+| LorinDecoder | LorinUnpacker | |
 
 Supporting files: `WheelDecoder.kt` (interface), `DefaultWheelDecoderFactory.kt` (creates decoder by wheel type), `AutoDetectDecoder.kt` (identifies wheel type from raw packets).
 
@@ -230,7 +230,7 @@ Shared test utilities are in `core/src/commonTest/.../protocol/TestUtils.kt`:
 
 Frame builders (decoder-specific, in respective test files):
 - `buildLiveDataFrame()` / `buildGotwayLiveDataFrame()` — Gotway frame 0x00
-- `buildIM2Frame(flags, command, data)` — InMotion V2 message with escaping + checksum
+- `buildLorinFrame(flags, command, data)` — InMotion V2 message with escaping + checksum
 - `buildSettingsFrame(payload)` — InMotion V2 settings frame
 
 For detailed test coverage breakdown, see [docs/claude-reference.md](docs/claude-reference.md).
@@ -245,10 +245,10 @@ Protocol decoder gotchas discovered during development:
 - **GotwayDecoder retry counter**: `infoAttempt` is 0-indexed and compared with `<`. Fallback triggers
   when counter **reaches** `MAX_INFO_ATTEMPTS` (50), not after 50 iterations — loop needs 51 iterations
   to see the fallback.
-- **InMotionV2 MAIN_INFO sub-types**: Command `0x02` (MAIN_INFO) is used for car type, serial, AND
+- **Lorin MAIN_INFO sub-types**: Command `0x02` (MAIN_INFO) is used for car type, serial, AND
   version requests. The sub-type is in `data[0]`: `0x01`=car type, `0x02`=serial, `0x06`=versions.
   Don't confuse the command byte with the sub-type.
-- **InMotionV2 response bit**: Response frames have command byte OR'd with `0x80`
+- **Lorin response bit**: Response frames have command byte OR'd with `0x80`
   (e.g., SETTINGS `0x20` → response `0xA0`). Mask with `0x7F` to get the base command.
 - **NinebotZ state ordering**: The 14 connection states must be traversed in order — skipping states
   causes the wheel to stop responding. BMS states are conditional on `bmsReadingMode`.

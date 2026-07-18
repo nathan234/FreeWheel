@@ -940,7 +940,7 @@ actual class BleManager : BleManagerPort {
         // All wheel types use one of these service UUIDs
         val wheelServiceUuids = setOf(
             BleUuids.Kingsong.SERVICE.lowercase(),          // ffe0 (KS/GW/Vet/Leaperkim/IM-read/NB)
-            BleUuids.InMotionV2.SERVICE.lowercase(),        // Nordic UART (IMv2/NBZ)
+            BleUuids.Lorin.SERVICE.lowercase(),        // Nordic UART (IMv2/NBZ)
             BleUuids.InMotion.WRITE_SERVICE.lowercase(),    // ffe5 (IM write)
         )
 
@@ -1610,8 +1610,8 @@ private fun wheelServiceUUIDs(): List<CBUUID> = listOf(
     CBUUID.UUIDWithString(BleUuids.Kingsong.SERVICE),
     // InMotion V1 write
     CBUUID.UUIDWithString(BleUuids.InMotion.WRITE_SERVICE),
-    // Nordic UART — InMotionV2, NinebotZ
-    CBUUID.UUIDWithString(BleUuids.InMotionV2.SERVICE),
+    // Nordic UART — Lorin, NinebotZ
+    CBUUID.UUIDWithString(BleUuids.Lorin.SERVICE),
 )
 
 // ==================== UUID Normalization ====================

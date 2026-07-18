@@ -45,12 +45,12 @@ import kotlin.math.roundToInt
  * event loop (single-threaded). [buildCommand] reads model and firmware
  * version from the immutable [DecoderState] snapshot, so no lock is needed.
  */
-class InMotionV2Decoder : WheelDecoder {
+class LorinDecoder : WheelDecoder {
 
-    override val wheelType: WheelType = WheelType.INMOTION_V2
+    override val wheelType: WheelType = WheelType.LORIN
     override val keepAliveIntervalMs: Long = 250L
 
-    private val unpacker = InMotionV2Unpacker()
+    private val unpacker = LorinUnpacker()
     private var model = Model.UNKNOWN
     private var protoVer = 0
     private var serialNumber = ""
@@ -165,7 +165,7 @@ class InMotionV2Decoder : WheelDecoder {
                     bms3 = bms3.toSnapshot().takeIf { model.batteryCount >= 3 },
                     bms4 = bms4.toSnapshot().takeIf { model.batteryCount >= 4 }
                 )
-                val resolvedIdentity = resolveWheelIdentity(loopResult.data.identity, currentState.identity, WheelType.INMOTION_V2)
+                val resolvedIdentity = resolveWheelIdentity(loopResult.data.identity, currentState.identity, WheelType.LORIN)
                 DecodeResult.Success(DecodedData(
                     telemetry = loopResult.data.telemetry,
                     identity = resolvedIdentity?.takeIf { it != currentState.identity },
@@ -322,7 +322,7 @@ class InMotionV2Decoder : WheelDecoder {
                     isModelDetected = true
                     id = id.copy(
                         model = model.displayName,
-                        wheelType = WheelType.INMOTION_V2
+                        wheelType = WheelType.LORIN
                     )
                 }
             }
@@ -366,7 +366,7 @@ class InMotionV2Decoder : WheelDecoder {
 
         // Propagate model/firmware to settings so buildCommand can read them from the state snapshot
         val settingsUpdate = if (isModelDetected || mainBoardVersion.isNotEmpty()) {
-            val im2 = currentState.settings as? WheelSettings.InMotionV2 ?: WheelSettings.InMotionV2()
+            val im2 = currentState.settings as? WheelSettings.Lorin ?: WheelSettings.Lorin()
             im2.copy(modelId = model.id, mainBoardVersion = mainBoardVersion)
         } else null
 
@@ -396,10 +396,10 @@ class InMotionV2Decoder : WheelDecoder {
         isModelDetected = true
         id = id.copy(
             model = model.displayName,
-            wheelType = WheelType.INMOTION_V2
+            wheelType = WheelType.LORIN
         )
 
-        val im2 = currentState.settings as? WheelSettings.InMotionV2 ?: WheelSettings.InMotionV2()
+        val im2 = currentState.settings as? WheelSettings.Lorin ?: WheelSettings.Lorin()
         val settingsUpdate = im2.copy(modelId = model.id, mainBoardVersion = mainBoardVersion)
 
         return FrameResult(identity = id, settings = settingsUpdate, hasNewData = false, frameType = "EXT_INIT")
@@ -730,7 +730,7 @@ class InMotionV2Decoder : WheelDecoder {
             identity = currentState.identity.copy(
                 modeStr = modeStr,
                 model = model.displayName,
-                wheelType = WheelType.INMOTION_V2
+                wheelType = WheelType.LORIN
             ),
             hasNewData = true,
             news = alert.ifEmpty { null },
@@ -911,7 +911,7 @@ class InMotionV2Decoder : WheelDecoder {
             identity = currentState.identity.copy(
                 modeStr = modeStr,
                 model = model.displayName,
-                wheelType = WheelType.INMOTION_V2
+                wheelType = WheelType.LORIN
             ),
             hasNewData = true,
             news = alert.ifEmpty { null },
@@ -976,7 +976,7 @@ class InMotionV2Decoder : WheelDecoder {
             identity = currentState.identity.copy(
                 modeStr = modeStr,
                 model = model.displayName,
-                wheelType = WheelType.INMOTION_V2
+                wheelType = WheelType.LORIN
             ),
             hasNewData = true,
             news = alert.ifEmpty { null },
@@ -1017,7 +1017,7 @@ class InMotionV2Decoder : WheelDecoder {
         val lowBat = ((flags22 shr 2) and 0x03) != 0      // bits 2-3 → goHome
         val fanQuietMode = ((flags22 shr 4) and 0x03) != 0 // bits 4-5
 
-        val im2 = currentState.settings as? WheelSettings.InMotionV2 ?: WheelSettings.InMotionV2()
+        val im2 = currentState.settings as? WheelSettings.Lorin ?: WheelSettings.Lorin()
         return FrameResult(
             settings = im2.copy(
                 maxSpeed = speedLim,
@@ -1058,7 +1058,7 @@ class InMotionV2Decoder : WheelDecoder {
         val handleBtn = ((flags39 shr 2) and 0x01) == 0  // bit 2, inverted
         val transpMode = ((flags39 shr 6) and 0x01) != 0 // bit 6
 
-        val im2 = currentState.settings as? WheelSettings.InMotionV2 ?: WheelSettings.InMotionV2()
+        val im2 = currentState.settings as? WheelSettings.Lorin ?: WheelSettings.Lorin()
         return FrameResult(
             settings = im2.copy(
                 maxSpeed = speedLim,
@@ -1087,7 +1087,7 @@ class InMotionV2Decoder : WheelDecoder {
         val ledMode = data[23].toInt() and 0xFF
         val flags = data[39].toInt() and 0xFF
 
-        val im2 = currentState.settings as? WheelSettings.InMotionV2 ?: WheelSettings.InMotionV2()
+        val im2 = currentState.settings as? WheelSettings.Lorin ?: WheelSettings.Lorin()
         return FrameResult(
             settings = im2.copy(
                 maxSpeed = maxSpeed,
@@ -1126,7 +1126,7 @@ class InMotionV2Decoder : WheelDecoder {
         // data[i+31]
         val transpMode = ((data[i + 31].toInt() shr 4) and 0x01) != 0  // bit 4
 
-        val im2 = currentState.settings as? WheelSettings.InMotionV2 ?: WheelSettings.InMotionV2()
+        val im2 = currentState.settings as? WheelSettings.Lorin ?: WheelSettings.Lorin()
         return FrameResult(
             settings = im2.copy(
                 maxSpeed = speedLim,
@@ -1179,7 +1179,7 @@ class InMotionV2Decoder : WheelDecoder {
         // data[i+32]
         val goHome = ((data[i + 32].toInt() shr 2) and 0x01) != 0  // bit 2
 
-        val im2 = currentState.settings as? WheelSettings.InMotionV2 ?: WheelSettings.InMotionV2()
+        val im2 = currentState.settings as? WheelSettings.Lorin ?: WheelSettings.Lorin()
         return FrameResult(
             settings = im2.copy(
                 maxSpeed = speedLim,
@@ -1268,7 +1268,7 @@ class InMotionV2Decoder : WheelDecoder {
         // The InMotion app sets maxSpeed to 200 when tilt-back is disabled.
         val tiltbackEnabled = maxSpd < 200
 
-        val im2 = currentState.settings as? WheelSettings.InMotionV2 ?: WheelSettings.InMotionV2()
+        val im2 = currentState.settings as? WheelSettings.Lorin ?: WheelSettings.Lorin()
         return FrameResult(
             settings = im2.copy(
                 maxSpeed = maxSpd,
@@ -1484,7 +1484,7 @@ class InMotionV2Decoder : WheelDecoder {
         buildMessage(Flag.DEFAULT, Command.CONTROL, bytes.toList().toByteArray())
 
     override fun buildCommand(command: WheelCommand, state: DecoderState?): List<WheelCommand> {
-        val im2 = state?.settings as? WheelSettings.InMotionV2
+        val im2 = state?.settings as? WheelSettings.Lorin
         val cmdModel = Model.findByFullId(im2?.modelId ?: 0)
         val cmdFwVersion = im2?.mainBoardVersion ?: ""
         val msg = buildCommandMessage(command, cmdModel, cmdFwVersion) ?: return emptyList()
@@ -1776,7 +1776,7 @@ class InMotionV2Decoder : WheelDecoder {
 
     override fun getInitCommands(): List<WheelCommand> {
         val commands = mutableListOf(
-            // Standard IM2 init (V11/V12/V13/V14)
+            // Standard Lorin init (V11/V12/V13/V14)
             WheelCommand.SendBytes(buildMessage(Flag.INITIAL, Command.MAIN_INFO, byteArrayOf(0x01))),
             WheelCommand.SendDelayed(buildMessage(Flag.INITIAL, Command.MAIN_INFO, byteArrayOf(0x02)), 100),
             WheelCommand.SendDelayed(buildMessage(Flag.INITIAL, Command.MAIN_INFO, byteArrayOf(0x06)), 200),

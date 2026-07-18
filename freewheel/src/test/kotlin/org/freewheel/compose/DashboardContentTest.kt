@@ -101,7 +101,7 @@ class DashboardContentTest {
     }
 
     @Test
-    fun `IM2 metrics hidden for Kingsong`() {
+    fun `Lorin metrics hidden for Kingsong`() {
         val diagnostic = DashboardPresets.all().first { it.id == "diagnostic" }.layout
         setContent(layout = diagnostic, identity = previewIdentity(WheelType.KINGSONG))
         composeTestRule.onNodeWithText(DashboardMetric.TORQUE.label, substring = true, useUnmergedTree = true)

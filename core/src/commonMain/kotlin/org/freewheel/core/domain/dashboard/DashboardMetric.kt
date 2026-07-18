@@ -125,7 +125,7 @@ enum class DashboardMetric(
         supportedDisplayTypes = setOf(WidgetType.GAUGE_TILE, WidgetType.STAT_ROW),
         supportedWheelTypes = setOf(
             WheelType.KINGSONG, WheelType.GOTWAY, WheelType.GOTWAY_VIRTUAL,
-            WheelType.INMOTION, WheelType.INMOTION_V2
+            WheelType.INMOTION, WheelType.LORIN
         ),
         colorHex = 0xFFF44336
     ),
@@ -157,7 +157,7 @@ enum class DashboardMetric(
         unitCategory = UnitCategory.ANGLE,
         supportedDisplayTypes = setOf(WidgetType.GAUGE_TILE, WidgetType.STAT_ROW),
         supportedWheelTypes = setOf(
-            WheelType.VETERAN, WheelType.INMOTION, WheelType.INMOTION_V2
+            WheelType.VETERAN, WheelType.INMOTION, WheelType.LORIN
         ),
         colorHex = 0xFF795548
     ),
@@ -168,7 +168,7 @@ enum class DashboardMetric(
         invertedColor = false,
         unitCategory = UnitCategory.ANGLE,
         supportedDisplayTypes = setOf(WidgetType.GAUGE_TILE, WidgetType.STAT_ROW),
-        supportedWheelTypes = setOf(WheelType.INMOTION, WheelType.INMOTION_V2),
+        supportedWheelTypes = setOf(WheelType.INMOTION, WheelType.LORIN),
         colorHex = 0xFF795548
     ),
     TORQUE(
@@ -178,7 +178,7 @@ enum class DashboardMetric(
         invertedColor = false,
         unitCategory = UnitCategory.NONE,
         supportedDisplayTypes = setOf(WidgetType.GAUGE_TILE, WidgetType.STAT_ROW),
-        supportedWheelTypes = setOf(WheelType.INMOTION_V2),
+        supportedWheelTypes = setOf(WheelType.LORIN),
         colorHex = 0xFF607D8B
     ),
     MOTOR_POWER(
@@ -188,7 +188,7 @@ enum class DashboardMetric(
         invertedColor = false,
         unitCategory = UnitCategory.POWER,
         supportedDisplayTypes = setOf(WidgetType.GAUGE_TILE, WidgetType.STAT_ROW),
-        supportedWheelTypes = setOf(WheelType.INMOTION_V2),
+        supportedWheelTypes = setOf(WheelType.LORIN),
         colorHex = 0xFF4CAF50
     ),
     CPU_TEMP(
@@ -198,7 +198,7 @@ enum class DashboardMetric(
         invertedColor = false,
         unitCategory = UnitCategory.TEMPERATURE,
         supportedDisplayTypes = setOf(WidgetType.STAT_ROW),
-        supportedWheelTypes = setOf(WheelType.INMOTION_V2),
+        supportedWheelTypes = setOf(WheelType.LORIN),
         colorHex = 0xFFF44336
     ),
     IMU_TEMP(
@@ -208,7 +208,7 @@ enum class DashboardMetric(
         invertedColor = false,
         unitCategory = UnitCategory.TEMPERATURE,
         supportedDisplayTypes = setOf(WidgetType.STAT_ROW),
-        supportedWheelTypes = setOf(WheelType.INMOTION_V2),
+        supportedWheelTypes = setOf(WheelType.LORIN),
         colorHex = 0xFFF44336
     ),
     CPU_LOAD(
@@ -228,7 +228,7 @@ enum class DashboardMetric(
         invertedColor = false,
         unitCategory = UnitCategory.SPEED,
         supportedDisplayTypes = setOf(WidgetType.STAT_ROW),
-        supportedWheelTypes = setOf(WheelType.INMOTION_V2),
+        supportedWheelTypes = setOf(WheelType.LORIN),
         colorHex = 0xFF607D8B
     ),
     CURRENT_LIMIT(
@@ -238,7 +238,7 @@ enum class DashboardMetric(
         invertedColor = false,
         unitCategory = UnitCategory.CURRENT,
         supportedDisplayTypes = setOf(WidgetType.STAT_ROW),
-        supportedWheelTypes = setOf(WheelType.INMOTION_V2),
+        supportedWheelTypes = setOf(WheelType.LORIN),
         colorHex = 0xFF607D8B
     ),
     FAN_STATUS(

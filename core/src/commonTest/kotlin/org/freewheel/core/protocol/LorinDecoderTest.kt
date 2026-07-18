@@ -12,7 +12,7 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
- * Tests for InMotionV2Decoder using real packet data from legacy InMotionAdapterV2Test.
+ * Tests for LorinDecoder using real packet data from legacy InMotionAdapterV2Test.
  *
  * Covers all supported models:
  * - V11 (series 6, type 1)
@@ -27,9 +27,9 @@ import kotlin.test.assertTrue
  * - V9 (series 12, type 1)
  * - V12S (series 11, type 1)
  */
-class InMotionV2DecoderTest {
+class LorinDecoderTest {
 
-    private val decoder = InMotionV2Decoder()
+    private val decoder = LorinDecoder()
     private val defaultDecoderState = DecoderState()
     private val defaultConfig = DecoderConfig()
 
@@ -38,75 +38,75 @@ class InMotionV2DecoderTest {
 
     @Test
     fun `Model findById returns V11 for series 6 type 1`() {
-        val model = InMotionV2Decoder.Model.findById(6, 1)
-        assertEquals(InMotionV2Decoder.Model.V11, model)
+        val model = LorinDecoder.Model.findById(6, 1)
+        assertEquals(LorinDecoder.Model.V11, model)
         assertEquals("InMotion V11", model.displayName)
         assertEquals(20, model.cellCount)
     }
 
     @Test
     fun `Model findById returns V11Y for series 6 type 2`() {
-        val model = InMotionV2Decoder.Model.findById(6, 2)
-        assertEquals(InMotionV2Decoder.Model.V11Y, model)
+        val model = LorinDecoder.Model.findById(6, 2)
+        assertEquals(LorinDecoder.Model.V11Y, model)
         assertEquals("InMotion V11y", model.displayName)
     }
 
     @Test
     fun `Model findById returns V12HS for series 7 type 1`() {
-        val model = InMotionV2Decoder.Model.findById(7, 1)
-        assertEquals(InMotionV2Decoder.Model.V12HS, model)
+        val model = LorinDecoder.Model.findById(7, 1)
+        assertEquals(LorinDecoder.Model.V12HS, model)
         assertEquals("InMotion V12 HS", model.displayName)
         assertEquals(24, model.cellCount)
     }
 
     @Test
     fun `Model findById returns V12PRO for series 7 type 3`() {
-        val model = InMotionV2Decoder.Model.findById(7, 3)
-        assertEquals(InMotionV2Decoder.Model.V12PRO, model)
+        val model = LorinDecoder.Model.findById(7, 3)
+        assertEquals(LorinDecoder.Model.V12PRO, model)
         assertEquals("InMotion V12 PRO", model.displayName)
     }
 
     @Test
     fun `Model findById returns V13 for series 8 type 1`() {
-        val model = InMotionV2Decoder.Model.findById(8, 1)
-        assertEquals(InMotionV2Decoder.Model.V13, model)
+        val model = LorinDecoder.Model.findById(8, 1)
+        assertEquals(LorinDecoder.Model.V13, model)
         assertEquals("InMotion V13", model.displayName)
         assertEquals(30, model.cellCount)
     }
 
     @Test
     fun `Model findById returns V14s for series 9 type 2`() {
-        val model = InMotionV2Decoder.Model.findById(9, 2)
-        assertEquals(InMotionV2Decoder.Model.V14s, model)
+        val model = LorinDecoder.Model.findById(9, 2)
+        assertEquals(LorinDecoder.Model.V14s, model)
         assertEquals("InMotion V14 50S", model.displayName)
         assertEquals(32, model.cellCount)
     }
 
     @Test
     fun `Model findById returns V9 for series 12 type 1`() {
-        val model = InMotionV2Decoder.Model.findById(12, 1)
-        assertEquals(InMotionV2Decoder.Model.V9, model)
+        val model = LorinDecoder.Model.findById(12, 1)
+        assertEquals(LorinDecoder.Model.V9, model)
         assertEquals("InMotion V9", model.displayName)
     }
 
     @Test
     fun `Model findById returns V12S for series 11 type 1`() {
-        val model = InMotionV2Decoder.Model.findById(11, 1)
-        assertEquals(InMotionV2Decoder.Model.V12S, model)
+        val model = LorinDecoder.Model.findById(11, 1)
+        assertEquals(LorinDecoder.Model.V12S, model)
         assertEquals("InMotion V12S", model.displayName)
     }
 
     @Test
     fun `Model findById returns E20 for series 10 type 1`() {
-        val model = InMotionV2Decoder.Model.findById(10, 1)
-        assertEquals(InMotionV2Decoder.Model.E20, model)
+        val model = LorinDecoder.Model.findById(10, 1)
+        assertEquals(LorinDecoder.Model.E20, model)
         assertEquals("InMotion E20", model.displayName)
     }
 
     @Test
     fun `Model findById returns UNKNOWN for invalid id`() {
-        val model = InMotionV2Decoder.Model.findById(99, 99)
-        assertEquals(InMotionV2Decoder.Model.UNKNOWN, model)
+        val model = LorinDecoder.Model.findById(99, 99)
+        assertEquals(LorinDecoder.Model.UNKNOWN, model)
     }
 
     // ==================== V11 Full Data Test ====================
@@ -138,7 +138,7 @@ class InMotionV2DecoderTest {
 
         // Verify model detection
         assertEquals("InMotion V11", identity.model)
-        assertEquals(WheelType.INMOTION_V2, identity.wheelType)
+        assertEquals(WheelType.LORIN, identity.wheelType)
 
         // Verify serial number
         assertEquals("1480CA122207002B", identity.serialNumber)
@@ -549,26 +549,26 @@ class InMotionV2DecoderTest {
 
     @Test
     fun `INITIAL flag 0x11 is recognized`() {
-        assertEquals(0x11, InMotionV2Decoder.Flag.INITIAL)
+        assertEquals(0x11, LorinDecoder.Flag.INITIAL)
     }
 
     @Test
     fun `DEFAULT flag 0x14 is recognized`() {
-        assertEquals(0x14, InMotionV2Decoder.Flag.DEFAULT)
+        assertEquals(0x14, LorinDecoder.Flag.DEFAULT)
     }
 
     // ==================== Command Tests ====================
 
     @Test
     fun `Command constants have correct values`() {
-        assertEquals(0x01, InMotionV2Decoder.Command.MAIN_VERSION)
-        assertEquals(0x02, InMotionV2Decoder.Command.MAIN_INFO)
-        assertEquals(0x03, InMotionV2Decoder.Command.DIAGNOSTIC)
-        assertEquals(0x04, InMotionV2Decoder.Command.REAL_TIME_INFO)
-        assertEquals(0x05, InMotionV2Decoder.Command.BATTERY_REAL_TIME_INFO)
-        assertEquals(0x11, InMotionV2Decoder.Command.TOTAL_STATS)
-        assertEquals(0x20, InMotionV2Decoder.Command.SETTINGS)
-        assertEquals(0x60, InMotionV2Decoder.Command.CONTROL)
+        assertEquals(0x01, LorinDecoder.Command.MAIN_VERSION)
+        assertEquals(0x02, LorinDecoder.Command.MAIN_INFO)
+        assertEquals(0x03, LorinDecoder.Command.DIAGNOSTIC)
+        assertEquals(0x04, LorinDecoder.Command.REAL_TIME_INFO)
+        assertEquals(0x05, LorinDecoder.Command.BATTERY_REAL_TIME_INFO)
+        assertEquals(0x11, LorinDecoder.Command.TOTAL_STATS)
+        assertEquals(0x20, LorinDecoder.Command.SETTINGS)
+        assertEquals(0x60, LorinDecoder.Command.CONTROL)
     }
 
     // ==================== Reset Test ====================
@@ -633,7 +633,7 @@ class InMotionV2DecoderTest {
         //   XOR = 0x14 xor 0x02 xor 0x04 xor 0xBB = 0x16 xor 0x04 xor 0xBB = 0x12 xor 0xBB = 0xA9. Close!
         // flags=0x14, command=0x04, data=[0xBA] → XOR = 0x14 xor 0x02 xor 0x04 xor 0xBA = 0x12 xor 0xBA = 0xA8.
         // flags=0x14, command=0x04, data=[0xB8] → XOR = 0x12 xor 0xB8 = 0xAA. Yes!
-        val msg = InMotionV2Decoder.buildMessage(0x14, 0x04, byteArrayOf(0xB8.toByte()))
+        val msg = LorinDecoder.buildMessage(0x14, 0x04, byteArrayOf(0xB8.toByte()))
         // Expected: AA AA 14 02 04 B8 A5 AA (checksum 0xAA escaped with 0xA5 prefix)
         val expected = byteArrayOf(
             0xAA.toByte(), 0xAA.toByte(),  // header
@@ -652,7 +652,7 @@ class InMotionV2DecoderTest {
         //   XOR = 0x14 xor 0x02 xor 0x04 xor 0xBD = 0x12 xor 0xBD = 0xAF. Not 0xA5.
         // flags=0x14, command=0x04, data=[0xB7]:
         //   XOR = 0x12 xor 0xB7 = 0xA5. Yes!
-        val msg = InMotionV2Decoder.buildMessage(0x14, 0x04, byteArrayOf(0xB7.toByte()))
+        val msg = LorinDecoder.buildMessage(0x14, 0x04, byteArrayOf(0xB7.toByte()))
         // Expected: AA AA 14 02 04 B7 A5 A5 (checksum 0xA5 escaped with 0xA5 prefix)
         val expected = byteArrayOf(
             0xAA.toByte(), 0xAA.toByte(),  // header
@@ -667,7 +667,7 @@ class InMotionV2DecoderTest {
     @Test
     fun `buildMessage does not escape normal checksum byte`() {
         // flags=0x14, command=0x04, data=[] → checksum = 0x11 (no escaping needed)
-        val msg = InMotionV2Decoder.buildMessage(0x14, 0x04, byteArrayOf())
+        val msg = LorinDecoder.buildMessage(0x14, 0x04, byteArrayOf())
         // Expected: AA AA 14 01 04 11 (no escape prefix)
         val expected = byteArrayOf(
             0xAA.toByte(), 0xAA.toByte(),
@@ -682,7 +682,7 @@ class InMotionV2DecoderTest {
 
     @Test
     fun `getCarTypeMessage returns valid message`() {
-        val message = InMotionV2Decoder.getCarTypeMessage()
+        val message = LorinDecoder.getCarTypeMessage()
         assertTrue(message.isNotEmpty())
         assertEquals(0xAA.toByte(), message[0])
         assertEquals(0xAA.toByte(), message[1])
@@ -690,7 +690,7 @@ class InMotionV2DecoderTest {
 
     @Test
     fun `getSerialNumberMessage returns valid message`() {
-        val message = InMotionV2Decoder.getSerialNumberMessage()
+        val message = LorinDecoder.getSerialNumberMessage()
         assertTrue(message.isNotEmpty())
         assertEquals(0xAA.toByte(), message[0])
         assertEquals(0xAA.toByte(), message[1])
@@ -698,14 +698,14 @@ class InMotionV2DecoderTest {
 
     @Test
     fun `getVersionsMessage returns valid message`() {
-        val message = InMotionV2Decoder.getVersionsMessage()
+        val message = LorinDecoder.getVersionsMessage()
         assertTrue(message.isNotEmpty())
     }
 
     @Test
     fun `setLightMessage builds correct command`() {
-        val lightOn = InMotionV2Decoder.setLightMessage(true)
-        val lightOff = InMotionV2Decoder.setLightMessage(false)
+        val lightOn = LorinDecoder.setLightMessage(true)
+        val lightOff = LorinDecoder.setLightMessage(false)
 
         assertTrue(lightOn.isNotEmpty())
         assertTrue(lightOff.isNotEmpty())
@@ -714,8 +714,8 @@ class InMotionV2DecoderTest {
 
     @Test
     fun `setLockMessage builds correct command`() {
-        val locked = InMotionV2Decoder.setLockMessage(true)
-        val unlocked = InMotionV2Decoder.setLockMessage(false)
+        val locked = LorinDecoder.setLockMessage(true)
+        val unlocked = LorinDecoder.setLockMessage(false)
 
         assertTrue(locked.isNotEmpty())
         assertTrue(unlocked.isNotEmpty())
@@ -723,7 +723,7 @@ class InMotionV2DecoderTest {
 
     @Test
     fun `playBeepMessage builds correct command`() {
-        val beep = InMotionV2Decoder.playBeepMessage()
+        val beep = LorinDecoder.playBeepMessage()
         assertTrue(beep.isNotEmpty())
     }
 
@@ -747,7 +747,7 @@ class InMotionV2DecoderTest {
 
     @Test
     fun `temperature decoding preserves positive signed-byte range`() {
-        val decoder = InMotionV2Decoder()
+        val decoder = LorinDecoder()
         decoder.decode(buildCarTypeFrame(9, 1), defaultDecoderState, defaultConfig)
         val payload = ByteArray(80)
         payload[58] = 0x0A // signed 10 + 80 = 90°C
@@ -756,7 +756,7 @@ class InMotionV2DecoderTest {
         payload[63] = 0x7F // signed 127 + 80 = 207°C
 
         val result = decoder.decode(
-            buildIM2Frame(0x14, 0x84, payload),
+            buildLorinFrame(0x14, 0x84, payload),
             defaultDecoderState,
             defaultConfig
         )
@@ -771,7 +771,7 @@ class InMotionV2DecoderTest {
 
     @Test
     fun `captured control acknowledgement is recognized`() {
-        val decoder = InMotionV2Decoder()
+        val decoder = LorinDecoder()
         // P6 response to control sub-command 0x25 with success status 0x00.
         val frame = "AA AA 14 03 E0 25 00 D2".hexToByteArray()
 
@@ -780,7 +780,7 @@ class InMotionV2DecoderTest {
         assertTrue(result is DecodeResult.Success)
         val decoded = (result as DecodeResult.Success).data
         assertEquals(listOf("CONTROL_ACK"), decoded.frameTypes)
-        assertEquals(WheelType.INMOTION_V2, decoded.assertIdentity().wheelType)
+        assertEquals(WheelType.LORIN, decoded.assertIdentity().wheelType)
         assertFalse(decoded.hasNewData)
     }
 
@@ -802,7 +802,7 @@ class InMotionV2DecoderTest {
     // ==================== Settings Parsing Tests ====================
 
     /**
-     * Build a valid InMotionV2 settings frame from a data payload.
+     * Build a valid Lorin settings frame from a data payload.
      * Handles escape encoding for 0xA5 and 0xAA bytes.
      */
     private fun buildSettingsFrame(payload: ByteArray): ByteArray {
@@ -853,7 +853,7 @@ class InMotionV2DecoderTest {
         val r2 = decoder.decode(settings, ds, defaultConfig)
         assertTrue(r2 is DecodeResult.Success, "Settings should be parsed")
         ds = (r2 as DecodeResult.Success).data.decoderStateFrom(ds)
-        val settings2 = ds.settings as WheelSettings.InMotionV2
+        val settings2 = ds.settings as WheelSettings.Lorin
 
         // Verify parsed settings
         // data[1..2] = 7C 15 → LE short = 0x157C = 5500 → /100 = 55
@@ -916,7 +916,7 @@ class InMotionV2DecoderTest {
         val r2 = decoder.decode(settingsFrame, ds, defaultConfig)
         assertTrue(r2 is DecodeResult.Success, "V13 settings should be parsed")
         ds = (r2 as DecodeResult.Success).data.decoderStateFrom(ds)
-        val settings2 = ds.settings as WheelSettings.InMotionV2
+        val settings2 = ds.settings as WheelSettings.Lorin
 
         assertEquals(70, settings2.maxSpeed, "Max speed should be 70 km/h")
         assertEquals(-1, settings2.pedalTilt, "Pedal tilt should be -1 (wire -10 / 10)")
@@ -967,7 +967,7 @@ class InMotionV2DecoderTest {
         val r2 = decoder.decode(settingsFrame, ds, defaultConfig)
         assertTrue(r2 is DecodeResult.Success, "V11Y settings should be parsed")
         ds = (r2 as DecodeResult.Success).data.decoderStateFrom(ds)
-        val settings2 = ds.settings as WheelSettings.InMotionV2
+        val settings2 = ds.settings as WheelSettings.Lorin
 
         assertEquals(60, settings2.maxSpeed, "Max speed should be 60 km/h")
         assertEquals(0, settings2.pedalTilt, "Pedal tilt should be 0 (wire 5 / 10)")
@@ -1015,7 +1015,7 @@ class InMotionV2DecoderTest {
         val r2 = decoder.decode(settingsFrame, ds, defaultConfig)
         assertTrue(r2 is DecodeResult.Success, "V12 settings should be parsed")
         ds = (r2 as DecodeResult.Success).data.decoderStateFrom(ds)
-        val settings2 = ds.settings as WheelSettings.InMotionV2
+        val settings2 = ds.settings as WheelSettings.Lorin
 
         assertEquals(50, settings2.maxSpeed, "Max speed should be 50 km/h")
         assertEquals(1, settings2.pedalTilt, "Pedal tilt should be 1 (wire 15 / 10)")
@@ -1067,7 +1067,7 @@ class InMotionV2DecoderTest {
         val r2 = decoder.decode(settingsFrame, ds, defaultConfig)
         assertTrue(r2 is DecodeResult.Success, "V9 settings should be parsed")
         ds = (r2 as DecodeResult.Success).data.decoderStateFrom(ds)
-        val settings2 = ds.settings as WheelSettings.InMotionV2
+        val settings2 = ds.settings as WheelSettings.Lorin
 
         assertEquals(45, settings2.maxSpeed, "Max speed should be 45 km/h")
         assertEquals(0, settings2.pedalTilt, "Pedal tilt should be 0")
@@ -1098,15 +1098,15 @@ class InMotionV2DecoderTest {
 
     @Test
     fun `Model findById returns P6 for series 13 type 1`() {
-        val model = InMotionV2Decoder.Model.findById(13, 1)
-        assertEquals(InMotionV2Decoder.Model.P6, model)
+        val model = LorinDecoder.Model.findById(13, 1)
+        assertEquals(LorinDecoder.Model.P6, model)
         assertEquals("InMotion P6", model.displayName)
         assertEquals(56, model.cellCount)
     }
 
     @Test
     fun `E20 real-time telemetry uses its model-specific layout`() {
-        val decoder = InMotionV2Decoder()
+        val decoder = LorinDecoder()
         decoder.decode(buildCarTypeFrame(10, 1), defaultDecoderState, defaultConfig)
         val payload = ByteArray(69)
         payload[0] = 0xD0.toByte(); payload[1] = 0x20 // voltage = 8400 (84.00 V)
@@ -1125,7 +1125,7 @@ class InMotionV2DecoderTest {
         payload[54] = 0x40 // motor active
 
         val result = decoder.decode(
-            buildIM2Frame(0x14, 0x84, payload),
+            buildLorinFrame(0x14, 0x84, payload),
             defaultDecoderState,
             defaultConfig
         )
@@ -1152,7 +1152,7 @@ class InMotionV2DecoderTest {
 
     @Test
     fun `E20 settings response uses E20 offsets`() {
-        val decoder = InMotionV2Decoder()
+        val decoder = LorinDecoder()
         decoder.decode(buildCarTypeFrame(10, 1), defaultDecoderState, defaultConfig)
         val payload = ByteArray(40)
         payload[9] = 0xD0.toByte(); payload[10] = 0x07 // tilt-back = 20.00 km/h
@@ -1163,13 +1163,13 @@ class InMotionV2DecoderTest {
         payload[39] = 0x40 // transport mode
 
         val result = decoder.decode(
-            buildIM2Frame(0x14, 0xA0, payload),
+            buildLorinFrame(0x14, 0xA0, payload),
             defaultDecoderState,
             defaultConfig
         )
 
         assertTrue(result is DecodeResult.Success)
-        val settings = (result as DecodeResult.Success).data.assertSettings() as WheelSettings.InMotionV2
+        val settings = (result as DecodeResult.Success).data.assertSettings() as WheelSettings.Lorin
         assertEquals(20, settings.maxSpeed)
         assertEquals(10, settings.standbyTime)
         assertEquals(true, settings.rideMode)
@@ -1189,7 +1189,7 @@ class InMotionV2DecoderTest {
         data[0] = 0xC8.toByte()
         data[1] = 0x32
 
-        val frame = buildIM2Frame(0x14, 0x84, data)
+        val frame = buildLorinFrame(0x14, 0x84, data)
 
         decoder.reset()
         val result = decoder.decode(frame, defaultDecoderState, defaultConfig)
@@ -1202,7 +1202,7 @@ class InMotionV2DecoderTest {
         val data = ByteArray(50)
         data[0] = 0x20 // sub-type echo
 
-        val frame = buildIM2Frame(0x14, 0xA0, data)
+        val frame = buildLorinFrame(0x14, 0xA0, data)
 
         decoder.reset()
         val result = decoder.decode(frame, defaultDecoderState, defaultConfig)
@@ -1246,10 +1246,10 @@ class InMotionV2DecoderTest {
     // ==================== Helper: Build InMotion V2 Frame ====================
 
     /**
-     * Build a valid InMotionV2 frame from flags, command, and data payload.
+     * Build a valid Lorin frame from flags, command, and data payload.
      * Handles escape encoding for 0xA5 and 0xAA bytes.
      */
-    private fun buildIM2Frame(flags: Int, command: Int, data: ByteArray): ByteArray {
+    private fun buildLorinFrame(flags: Int, command: Int, data: ByteArray): ByteArray {
         val len = data.size + 1  // +1 for command byte
         val inner = byteArrayOf(flags.toByte(), len.toByte(), command.toByte()) + data
 
@@ -1283,7 +1283,7 @@ class InMotionV2DecoderTest {
      * Car type response: flags=0x11, command=0x82 (MAIN_INFO|0x80), data=[0x01, mainSeries, series, type, batch, feature, reverse]
      */
     private fun buildCarTypeFrame(series: Int, type: Int): ByteArray {
-        return buildIM2Frame(0x11, 0x82, byteArrayOf(0x01, 0x00, series.toByte(), type.toByte(), 0x01, 0x00, 0x00))
+        return buildLorinFrame(0x11, 0x82, byteArrayOf(0x01, 0x00, series.toByte(), type.toByte(), 0x01, 0x00, 0x00))
     }
 
     /**
@@ -1303,24 +1303,24 @@ class InMotionV2DecoderTest {
         data[14] = major.toByte()
         // BLE version (arbitrary)
         data[20] = 0x01; data[21] = 0x00; data[22] = 0x01; data[23] = 0x01
-        return buildIM2Frame(0x11, 0x82, data)
+        return buildLorinFrame(0x11, 0x82, data)
     }
 
     /**
      * Create a new decoder configured for a specific model and firmware version.
      */
     /** Decoder + state pair for buildCommand tests. */
-    private data class DecoderWithState(val decoder: InMotionV2Decoder, val state: DecoderState) {
+    private data class DecoderWithState(val decoder: LorinDecoder, val state: DecoderState) {
         fun buildCommand(command: WheelCommand) = decoder.buildCommand(command, state)
     }
 
     private fun decoderForModel(series: Int, type: Int, fwMajor: Int = 1, fwMinor: Int = 5): DecoderWithState {
-        val d = InMotionV2Decoder()
+        val d = LorinDecoder()
         d.decode(buildCarTypeFrame(series, type), defaultDecoderState, defaultConfig)
         d.decode(buildVersionFrame(fwMajor, fwMinor), defaultDecoderState, defaultConfig)
         val modelId = series * 10 + type
         val fw = "$fwMajor.$fwMinor.0"
-        val state = DecoderState(settings = WheelSettings.InMotionV2(modelId = modelId, mainBoardVersion = fw))
+        val state = DecoderState(settings = WheelSettings.Lorin(modelId = modelId, mainBoardVersion = fw))
         return DecoderWithState(d, state)
     }
 
@@ -1348,9 +1348,9 @@ class InMotionV2DecoderTest {
         // The raw message (after AA AA) contains: flags, len, 0x60, sub_cmd, ...
         // But escaping may add 0xA5 prefixes. Use buildMessage which is tested separately.
         // Instead, just rebuild the expected message and compare
-        val expected = InMotionV2Decoder.buildMessage(
-            InMotionV2Decoder.Flag.DEFAULT,
-            InMotionV2Decoder.Command.CONTROL,
+        val expected = LorinDecoder.buildMessage(
+            LorinDecoder.Flag.DEFAULT,
+            LorinDecoder.Command.CONTROL,
             byteArrayOf(expectedSubCmd.toByte(), *bytes.takeLast(bytes.size).toByteArray()) // won't work — compare differently
         )
         // Simpler: just verify the result is non-empty and matches a known pattern
@@ -1364,8 +1364,8 @@ class InMotionV2DecoderTest {
         val d = decoderForModel(6, 1, fwMajor = 1, fwMinor = 5)
         val result = d.buildCommand(WheelCommand.SetFan(true))
         assertTrue(result.isNotEmpty())
-        val expected = InMotionV2Decoder.buildMessage(
-            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+        val expected = LorinDecoder.buildMessage(
+            LorinDecoder.Flag.DEFAULT, LorinDecoder.Command.CONTROL,
             byteArrayOf(0x53, 0x01)
         )
         assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
@@ -1376,8 +1376,8 @@ class InMotionV2DecoderTest {
         val d = decoderForModel(6, 1, fwMajor = 1, fwMinor = 3)
         val result = d.buildCommand(WheelCommand.SetFan(true))
         assertTrue(result.isNotEmpty())
-        val expected = InMotionV2Decoder.buildMessage(
-            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+        val expected = LorinDecoder.buildMessage(
+            LorinDecoder.Flag.DEFAULT, LorinDecoder.Command.CONTROL,
             byteArrayOf(0x43, 0x01)
         )
         assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
@@ -1395,8 +1395,8 @@ class InMotionV2DecoderTest {
         val d = decoderForModel(6, 2, fwMajor = 1, fwMinor = 4)
         val result = d.buildCommand(WheelCommand.SetFan(true))
         assertTrue(result.isNotEmpty())
-        val expected = InMotionV2Decoder.buildMessage(
-            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+        val expected = LorinDecoder.buildMessage(
+            LorinDecoder.Flag.DEFAULT, LorinDecoder.Command.CONTROL,
             byteArrayOf(0x53, 0x01)
         )
         assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
@@ -1409,8 +1409,8 @@ class InMotionV2DecoderTest {
         val d = decoderForModel(6, 1)
         val result = d.buildCommand(WheelCommand.SetFanQuiet(true))
         assertTrue(result.isNotEmpty())
-        val expected = InMotionV2Decoder.buildMessage(
-            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+        val expected = LorinDecoder.buildMessage(
+            LorinDecoder.Flag.DEFAULT, LorinDecoder.Command.CONTROL,
             byteArrayOf(0x38, 0x01)
         )
         assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
@@ -1430,8 +1430,8 @@ class InMotionV2DecoderTest {
         val d = decoderForModel(6, 1, fwMajor = 1, fwMinor = 5)
         val result = d.buildCommand(WheelCommand.SetLight(true))
         assertTrue(result.isNotEmpty())
-        val expected = InMotionV2Decoder.buildMessage(
-            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+        val expected = LorinDecoder.buildMessage(
+            LorinDecoder.Flag.DEFAULT, LorinDecoder.Command.CONTROL,
             byteArrayOf(0x50, 0x01)
         )
         assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
@@ -1442,8 +1442,8 @@ class InMotionV2DecoderTest {
         val d = decoderForModel(6, 1, fwMajor = 1, fwMinor = 3)
         val result = d.buildCommand(WheelCommand.SetLight(true))
         assertTrue(result.isNotEmpty())
-        val expected = InMotionV2Decoder.buildMessage(
-            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+        val expected = LorinDecoder.buildMessage(
+            LorinDecoder.Flag.DEFAULT, LorinDecoder.Command.CONTROL,
             byteArrayOf(0x40, 0x01)
         )
         assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
@@ -1454,8 +1454,8 @@ class InMotionV2DecoderTest {
         val d = decoderForModel(12, 1) // V9
         val result = d.buildCommand(WheelCommand.SetLight(true))
         assertTrue(result.isNotEmpty())
-        val expected = InMotionV2Decoder.buildMessage(
-            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+        val expected = LorinDecoder.buildMessage(
+            LorinDecoder.Flag.DEFAULT, LorinDecoder.Command.CONTROL,
             byteArrayOf(0x50, 0x01, 0x01)
         )
         assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
@@ -1466,8 +1466,8 @@ class InMotionV2DecoderTest {
         val d = decoderForModel(7, 1) // V12HS
         val result = d.buildCommand(WheelCommand.SetLight(true))
         assertTrue(result.isNotEmpty())
-        val expected = InMotionV2Decoder.buildMessage(
-            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+        val expected = LorinDecoder.buildMessage(
+            LorinDecoder.Flag.DEFAULT, LorinDecoder.Command.CONTROL,
             byteArrayOf(0x50, 0x01, 0x00)
         )
         assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
@@ -1480,8 +1480,8 @@ class InMotionV2DecoderTest {
         val d = decoderForModel(12, 1) // V9
         val result = d.buildCommand(WheelCommand.SetPedalSensitivity(50))
         assertTrue(result.isNotEmpty())
-        val expected = InMotionV2Decoder.buildMessage(
-            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+        val expected = LorinDecoder.buildMessage(
+            LorinDecoder.Flag.DEFAULT, LorinDecoder.Command.CONTROL,
             byteArrayOf(0x25, 0x64, 50) // V9: 100 (0x64) first, then value
         )
         assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
@@ -1492,8 +1492,8 @@ class InMotionV2DecoderTest {
         val d = decoderForModel(6, 1) // V11
         val result = d.buildCommand(WheelCommand.SetPedalSensitivity(50))
         assertTrue(result.isNotEmpty())
-        val expected = InMotionV2Decoder.buildMessage(
-            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+        val expected = LorinDecoder.buildMessage(
+            LorinDecoder.Flag.DEFAULT, LorinDecoder.Command.CONTROL,
             byteArrayOf(0x25, 50, 0x64) // Others: value first, then 100 (0x64)
         )
         assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
@@ -1506,8 +1506,8 @@ class InMotionV2DecoderTest {
         val d = decoderForModel(12, 1) // V9
         val result = d.buildCommand(WheelCommand.SetDrl(true))
         assertTrue(result.isNotEmpty())
-        val expected = InMotionV2Decoder.buildMessage(
-            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+        val expected = LorinDecoder.buildMessage(
+            LorinDecoder.Flag.DEFAULT, LorinDecoder.Command.CONTROL,
             byteArrayOf(0x44, 0x01)
         )
         assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
@@ -1518,8 +1518,8 @@ class InMotionV2DecoderTest {
         val d = decoderForModel(8, 1) // V13
         val result = d.buildCommand(WheelCommand.SetDrl(true))
         assertTrue(result.isNotEmpty())
-        val expected = InMotionV2Decoder.buildMessage(
-            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+        val expected = LorinDecoder.buildMessage(
+            LorinDecoder.Flag.DEFAULT, LorinDecoder.Command.CONTROL,
             byteArrayOf(0x2D, 0x01)
         )
         assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
@@ -1535,8 +1535,8 @@ class InMotionV2DecoderTest {
         val speedValue = (50 * 100).toShort()
         val lo = (speedValue.toInt() and 0xFF).toByte()
         val hi = ((speedValue.toInt() shr 8) and 0xFF).toByte()
-        val expected = InMotionV2Decoder.buildMessage(
-            InMotionV2Decoder.Flag.EXTENDED, InMotionV2Decoder.Command.MAIN_INFO,
+        val expected = LorinDecoder.buildMessage(
+            LorinDecoder.Flag.EXTENDED, LorinDecoder.Command.MAIN_INFO,
             byteArrayOf(0x21, 0x60, 0x21, lo, hi, 0x00, 0x00)
         )
         assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
@@ -1550,8 +1550,8 @@ class InMotionV2DecoderTest {
         val speedValue = (50 * 100).toShort()
         val lo = (speedValue.toInt() and 0xFF).toByte()
         val hi = ((speedValue.toInt() shr 8) and 0xFF).toByte()
-        val expected = InMotionV2Decoder.buildMessage(
-            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+        val expected = LorinDecoder.buildMessage(
+            LorinDecoder.Flag.DEFAULT, LorinDecoder.Command.CONTROL,
             byteArrayOf(0x21, lo, hi)
         )
         assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
@@ -1564,8 +1564,8 @@ class InMotionV2DecoderTest {
         val d = decoderForModel(12, 1) // V9
         val result = d.buildCommand(WheelCommand.SetSplitRidingModes(true))
         assertTrue(result.isNotEmpty())
-        val expected = InMotionV2Decoder.buildMessage(
-            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+        val expected = LorinDecoder.buildMessage(
+            LorinDecoder.Flag.DEFAULT, LorinDecoder.Command.CONTROL,
             byteArrayOf(0x42, 0x01)
         )
         assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
@@ -1576,8 +1576,8 @@ class InMotionV2DecoderTest {
         val d = decoderForModel(8, 1) // V13
         val result = d.buildCommand(WheelCommand.SetSplitRidingModes(true))
         assertTrue(result.isNotEmpty())
-        val expected = InMotionV2Decoder.buildMessage(
-            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+        val expected = LorinDecoder.buildMessage(
+            LorinDecoder.Flag.DEFAULT, LorinDecoder.Command.CONTROL,
             byteArrayOf(0x3E, 0x01)
         )
         assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
@@ -1590,8 +1590,8 @@ class InMotionV2DecoderTest {
         val d = decoderForModel(7, 2) // V12HT
         val result = d.buildCommand(WheelCommand.SetSplitRidingModesSettings(70, 50))
         assertTrue(result.isNotEmpty())
-        val expected = InMotionV2Decoder.buildMessage(
-            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+        val expected = LorinDecoder.buildMessage(
+            LorinDecoder.Flag.DEFAULT, LorinDecoder.Command.CONTROL,
             byteArrayOf(0x40, 70, 50)
         )
         assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
@@ -1602,8 +1602,8 @@ class InMotionV2DecoderTest {
         val d = decoderForModel(9, 2) // V14s
         val result = d.buildCommand(WheelCommand.SetSplitRidingModesSettings(70, 50))
         assertTrue(result.isNotEmpty())
-        val expected = InMotionV2Decoder.buildMessage(
-            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+        val expected = LorinDecoder.buildMessage(
+            LorinDecoder.Flag.DEFAULT, LorinDecoder.Command.CONTROL,
             byteArrayOf(0x3F, 70, 50)
         )
         assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
@@ -1616,8 +1616,8 @@ class InMotionV2DecoderTest {
         val d = decoderForModel(7, 1) // V12HS
         val result = d.buildCommand(WheelCommand.SetAutoHeadlight(true))
         assertTrue(result.isNotEmpty())
-        val expected = InMotionV2Decoder.buildMessage(
-            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+        val expected = LorinDecoder.buildMessage(
+            LorinDecoder.Flag.DEFAULT, LorinDecoder.Command.CONTROL,
             byteArrayOf(0x2F, 0x01)
         )
         assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
@@ -1637,8 +1637,8 @@ class InMotionV2DecoderTest {
         val d = decoderForModel(7, 3) // V12PRO
         val result = d.buildCommand(WheelCommand.SetMotorSoundSensitivity(75))
         assertTrue(result.isNotEmpty())
-        val expected = InMotionV2Decoder.buildMessage(
-            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+        val expected = LorinDecoder.buildMessage(
+            LorinDecoder.Flag.DEFAULT, LorinDecoder.Command.CONTROL,
             byteArrayOf(0x38, 75)
         )
         assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
@@ -1658,8 +1658,8 @@ class InMotionV2DecoderTest {
         val d = decoderForModel(7, 1) // V12HS
         val result = d.buildCommand(WheelCommand.SetScreenAutoOff(true))
         assertTrue(result.isNotEmpty())
-        val expected = InMotionV2Decoder.buildMessage(
-            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+        val expected = LorinDecoder.buildMessage(
+            LorinDecoder.Flag.DEFAULT, LorinDecoder.Command.CONTROL,
             byteArrayOf(0x3D, 0x01)
         )
         assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
@@ -1681,8 +1681,8 @@ class InMotionV2DecoderTest {
         assertTrue(result.isNotEmpty())
         val a1 = (30 * 100).toShort()
         val a2 = (40 * 100).toShort()
-        val expected = InMotionV2Decoder.buildMessage(
-            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+        val expected = LorinDecoder.buildMessage(
+            LorinDecoder.Flag.DEFAULT, LorinDecoder.Command.CONTROL,
             byteArrayOf(
                 0x3E,
                 (a1.toInt() and 0xFF).toByte(), ((a1.toInt() shr 8) and 0xFF).toByte(),
@@ -1706,8 +1706,8 @@ class InMotionV2DecoderTest {
         val d = decoderForModel(8, 2) // V13PRO
         val result = d.buildCommand(WheelCommand.SetMotorSound(true))
         assertTrue(result.isNotEmpty())
-        val expected = InMotionV2Decoder.buildMessage(
-            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+        val expected = LorinDecoder.buildMessage(
+            LorinDecoder.Flag.DEFAULT, LorinDecoder.Command.CONTROL,
             byteArrayOf(0x39, 0x01)
         )
         assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
@@ -1718,8 +1718,8 @@ class InMotionV2DecoderTest {
         val d = decoderForModel(9, 2) // V14s
         val result = d.buildCommand(WheelCommand.SetExtendedLateralTilt(true))
         assertTrue(result.isNotEmpty())
-        val expected = InMotionV2Decoder.buildMessage(
-            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+        val expected = LorinDecoder.buildMessage(
+            LorinDecoder.Flag.DEFAULT, LorinDecoder.Command.CONTROL,
             byteArrayOf(0x45, 0x01)
         )
         assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
@@ -1730,8 +1730,8 @@ class InMotionV2DecoderTest {
         val d = decoderForModel(6, 2) // V11Y
         val result = d.buildCommand(WheelCommand.SetMotorNoLoadDetection(true))
         assertTrue(result.isNotEmpty())
-        val expected = InMotionV2Decoder.buildMessage(
-            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+        val expected = LorinDecoder.buildMessage(
+            LorinDecoder.Flag.DEFAULT, LorinDecoder.Command.CONTROL,
             byteArrayOf(0x36, 0x01)
         )
         assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
@@ -1743,8 +1743,8 @@ class InMotionV2DecoderTest {
         val result = d.buildCommand(WheelCommand.SetStandbyTime(300))
         assertTrue(result.isNotEmpty())
         val value = 300.toShort()
-        val expected = InMotionV2Decoder.buildMessage(
-            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+        val expected = LorinDecoder.buildMessage(
+            LorinDecoder.Flag.DEFAULT, LorinDecoder.Command.CONTROL,
             byteArrayOf(0x28, (value.toInt() and 0xFF).toByte(), ((value.toInt() shr 8) and 0xFF).toByte())
         )
         assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
@@ -1764,8 +1764,8 @@ class InMotionV2DecoderTest {
         val d = decoderForModel(13, 1) // P6
         val result = d.buildCommand(WheelCommand.SetDrl(true))
         assertTrue(result.isNotEmpty())
-        val expected = InMotionV2Decoder.buildMessage(
-            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+        val expected = LorinDecoder.buildMessage(
+            LorinDecoder.Flag.DEFAULT, LorinDecoder.Command.CONTROL,
             byteArrayOf(0x4e, 0x01) // P6-specific logo light toggle
         )
         assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
@@ -1776,8 +1776,8 @@ class InMotionV2DecoderTest {
         val d = decoderForModel(13, 1) // P6
         val result = d.buildCommand(WheelCommand.SetLogoLightBrightness(50))
         assertTrue(result.isNotEmpty())
-        val expected = InMotionV2Decoder.buildMessage(
-            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+        val expected = LorinDecoder.buildMessage(
+            LorinDecoder.Flag.DEFAULT, LorinDecoder.Command.CONTROL,
             byteArrayOf(0x44, 0x32) // register 0x44, brightness 50
         )
         assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
@@ -1788,8 +1788,8 @@ class InMotionV2DecoderTest {
         val d = decoderForModel(13, 1) // P6
         val result = d.buildCommand(WheelCommand.SetLogoLightBrightness(150))
         assertTrue(result.isNotEmpty())
-        val expected = InMotionV2Decoder.buildMessage(
-            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+        val expected = LorinDecoder.buildMessage(
+            LorinDecoder.Flag.DEFAULT, LorinDecoder.Command.CONTROL,
             byteArrayOf(0x44, 0x64) // clamped to 100 (0x64)
         )
         assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
@@ -1800,8 +1800,8 @@ class InMotionV2DecoderTest {
         val d = decoderForModel(13, 1) // P6
         val result = d.buildCommand(WheelCommand.SetTailLightMode(2))
         assertTrue(result.isNotEmpty())
-        val expected = InMotionV2Decoder.buildMessage(
-            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+        val expected = LorinDecoder.buildMessage(
+            LorinDecoder.Flag.DEFAULT, LorinDecoder.Command.CONTROL,
             byteArrayOf(0x3b, 0x02) // register 0x3b, mode 2 (Hazard)
         )
         assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
@@ -1812,8 +1812,8 @@ class InMotionV2DecoderTest {
         val d = decoderForModel(13, 1) // P6
         val result = d.buildCommand(WheelCommand.SetTurnSignalMode(3))
         assertTrue(result.isNotEmpty())
-        val expected = InMotionV2Decoder.buildMessage(
-            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+        val expected = LorinDecoder.buildMessage(
+            LorinDecoder.Flag.DEFAULT, LorinDecoder.Command.CONTROL,
             byteArrayOf(0x30, 0x03) // register 0x30, mode 3 (Strobe)
         )
         assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
@@ -1845,8 +1845,8 @@ class InMotionV2DecoderTest {
         val d = decoderForModel(13, 1) // P6
         val result = d.buildCommand(WheelCommand.SetPedalSensitivity(50))
         assertTrue(result.isNotEmpty())
-        val expected = InMotionV2Decoder.buildMessage(
-            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+        val expected = LorinDecoder.buildMessage(
+            LorinDecoder.Flag.DEFAULT, LorinDecoder.Command.CONTROL,
             byteArrayOf(0x25, 0x32, 0x64) // Standard: value, 100
         )
         assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
@@ -1864,8 +1864,8 @@ class InMotionV2DecoderTest {
         val d = decoderForModel(13, 1) // P6
         val result = d.buildCommand(WheelCommand.SetSplitRidingModes(true))
         assertTrue(result.isNotEmpty())
-        val expected = InMotionV2Decoder.buildMessage(
-            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+        val expected = LorinDecoder.buildMessage(
+            LorinDecoder.Flag.DEFAULT, LorinDecoder.Command.CONTROL,
             byteArrayOf(0x42, 0x01) // V9/V12 sub-cmd
         )
         assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
@@ -1876,8 +1876,8 @@ class InMotionV2DecoderTest {
         val d = decoderForModel(13, 1) // P6
         val result = d.buildCommand(WheelCommand.SetSplitRidingModesSettings(80, 60))
         assertTrue(result.isNotEmpty())
-        val expected = InMotionV2Decoder.buildMessage(
-            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+        val expected = LorinDecoder.buildMessage(
+            LorinDecoder.Flag.DEFAULT, LorinDecoder.Command.CONTROL,
             byteArrayOf(0x40, 0x50, 0x3C) // V9/V12 sub-cmd, 80, 60
         )
         assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
@@ -1890,8 +1890,8 @@ class InMotionV2DecoderTest {
         val d = decoderForModel(13, 1) // P6
         val result = d.buildCommand(WheelCommand.SetAutoLock(true))
         assertTrue(result.isNotEmpty())
-        val expected = InMotionV2Decoder.buildMessage(
-            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+        val expected = LorinDecoder.buildMessage(
+            LorinDecoder.Flag.DEFAULT, LorinDecoder.Command.CONTROL,
             byteArrayOf(0x2D, 0x01)
         )
         assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
@@ -1902,8 +1902,8 @@ class InMotionV2DecoderTest {
         val d = decoderForModel(13, 1) // P6
         val result = d.buildCommand(WheelCommand.SetBalanceAngle(200))
         assertTrue(result.isNotEmpty())
-        val expected = InMotionV2Decoder.buildMessage(
-            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+        val expected = LorinDecoder.buildMessage(
+            LorinDecoder.Flag.DEFAULT, LorinDecoder.Command.CONTROL,
             byteArrayOf(0x22, 0xC8.toByte(), 0x00)
         )
         assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
@@ -1914,8 +1914,8 @@ class InMotionV2DecoderTest {
         val d = decoderForModel(13, 1) // P6
         val result = d.buildCommand(WheelCommand.SetChargingCurrent(ac220v = 100, ac110v = 80))
         assertTrue(result.isNotEmpty())
-        val expected = InMotionV2Decoder.buildMessage(
-            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+        val expected = LorinDecoder.buildMessage(
+            LorinDecoder.Flag.DEFAULT, LorinDecoder.Command.CONTROL,
             byteArrayOf(0x39, 100, 80)
         )
         assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
@@ -1926,8 +1926,8 @@ class InMotionV2DecoderTest {
         val d = decoderForModel(13, 1) // P6
         val result = d.buildCommand(WheelCommand.SetIgnoreTirePressure(true))
         assertTrue(result.isNotEmpty())
-        val expected = InMotionV2Decoder.buildMessage(
-            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+        val expected = LorinDecoder.buildMessage(
+            LorinDecoder.Flag.DEFAULT, LorinDecoder.Command.CONTROL,
             byteArrayOf(0x4F, 0x01)
         )
         assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
@@ -1938,8 +1938,8 @@ class InMotionV2DecoderTest {
         val d = decoderForModel(13, 1) // P6
         val result = d.buildCommand(WheelCommand.SetMinTirePressure(0x22, 0x44))
         assertTrue(result.isNotEmpty())
-        val expected = InMotionV2Decoder.buildMessage(
-            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+        val expected = LorinDecoder.buildMessage(
+            LorinDecoder.Flag.DEFAULT, LorinDecoder.Command.CONTROL,
             byteArrayOf(0x4D, 0x22, 0x44)
         )
         assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
@@ -1950,8 +1950,8 @@ class InMotionV2DecoderTest {
         val d = decoderForModel(13, 1) // P6
         val result = d.buildCommand(WheelCommand.SetRideConnectSwitch(false))
         assertTrue(result.isNotEmpty())
-        val expected = InMotionV2Decoder.buildMessage(
-            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+        val expected = LorinDecoder.buildMessage(
+            LorinDecoder.Flag.DEFAULT, LorinDecoder.Command.CONTROL,
             byteArrayOf(0x48, 0x00)
         )
         assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
@@ -1962,8 +1962,8 @@ class InMotionV2DecoderTest {
         val d = decoderForModel(13, 1) // P6
         val result = d.buildCommand(WheelCommand.SetRideConnectLowBattery(true))
         assertTrue(result.isNotEmpty())
-        val expected = InMotionV2Decoder.buildMessage(
-            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+        val expected = LorinDecoder.buildMessage(
+            LorinDecoder.Flag.DEFAULT, LorinDecoder.Command.CONTROL,
             byteArrayOf(0x47, 0x01)
         )
         assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
@@ -1974,8 +1974,8 @@ class InMotionV2DecoderTest {
         val d = decoderForModel(13, 1) // P6
         val result = d.buildCommand(WheelCommand.SetSpeedTiltbackEnable(true))
         assertTrue(result.isNotEmpty())
-        val expected = InMotionV2Decoder.buildMessage(
-            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+        val expected = LorinDecoder.buildMessage(
+            LorinDecoder.Flag.DEFAULT, LorinDecoder.Command.CONTROL,
             byteArrayOf(0x3E, 0x01)
         )
         assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
@@ -1986,8 +1986,8 @@ class InMotionV2DecoderTest {
         val d = decoderForModel(13, 1) // P6
         val result = d.buildCommand(WheelCommand.SetAutoHeadlight(true))
         assertTrue(result.isNotEmpty())
-        val expected = InMotionV2Decoder.buildMessage(
-            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+        val expected = LorinDecoder.buildMessage(
+            LorinDecoder.Flag.DEFAULT, LorinDecoder.Command.CONTROL,
             byteArrayOf(0x2F, 0x01)
         )
         assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
@@ -1998,8 +1998,8 @@ class InMotionV2DecoderTest {
         val d = decoderForModel(13, 1) // P6
         val result = d.buildCommand(WheelCommand.SetScreenAutoOff(true))
         assertTrue(result.isNotEmpty())
-        val expected = InMotionV2Decoder.buildMessage(
-            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+        val expected = LorinDecoder.buildMessage(
+            LorinDecoder.Flag.DEFAULT, LorinDecoder.Command.CONTROL,
             byteArrayOf(0x3D, 0x01)
         )
         assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
@@ -2010,8 +2010,8 @@ class InMotionV2DecoderTest {
         val d = decoderForModel(13, 1) // P6
         val result = d.buildCommand(WheelCommand.SetChargeLimit(80))
         assertTrue(result.isNotEmpty())
-        val expected = InMotionV2Decoder.buildMessage(
-            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+        val expected = LorinDecoder.buildMessage(
+            LorinDecoder.Flag.DEFAULT, LorinDecoder.Command.CONTROL,
             byteArrayOf(0x28, 80)
         )
         assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
@@ -2034,7 +2034,7 @@ class InMotionV2DecoderTest {
 
     @Test
     fun `P6 extended init response detects model and serial`() {
-        val decoder = InMotionV2Decoder()
+        val decoder = LorinDecoder()
         // Build a P6 extended init response (0x86): flags=EXTENDED, cmd=0x21
         // data[0]=0x02, data[1]=0x86, data[5:21]=serial, data[27]=series(13), data[28]=type(1)
         val data = ByteArray(80)
@@ -2049,7 +2049,7 @@ class InMotionV2DecoderTest {
         // series=13, type=1 at data[27:28]
         data[27] = 0x0D // series 13
         data[28] = 0x01 // type 1
-        val frame = buildIM2Frame(0x16, 0x21, data)
+        val frame = buildLorinFrame(0x16, 0x21, data)
         val result = decoder.decode(frame, defaultDecoderState, defaultConfig)
         assertTrue(result is DecodeResult.Success, "Extended init response should be decoded")
         val decoded = (result as DecodeResult.Success).data
@@ -2059,12 +2059,12 @@ class InMotionV2DecoderTest {
 
     @Test
     fun `P6 extended real-time telemetry is decoded`() {
-        val decoder = InMotionV2Decoder()
+        val decoder = LorinDecoder()
         // First, detect model as P6
         val initData = ByteArray(80)
         initData[0] = 0x02; initData[1] = 0x86.toByte()
         initData[27] = 0x0D; initData[28] = 0x01
-        decoder.decode(buildIM2Frame(0x16, 0x21, initData), defaultDecoderState, defaultConfig)
+        decoder.decode(buildLorinFrame(0x16, 0x21, initData), defaultDecoderState, defaultConfig)
 
         // Build a 0x87 telemetry response: [02 87 01 00] + 96 payload bytes
         val payload = ByteArray(96)
@@ -2085,7 +2085,7 @@ class InMotionV2DecoderTest {
         payload[59] = 0xC6.toByte()
 
         val rtData = byteArrayOf(0x02, 0x87.toByte(), 0x01, 0x00) + payload
-        val frame = buildIM2Frame(0x16, 0x21, rtData)
+        val frame = buildLorinFrame(0x16, 0x21, rtData)
 
         val result = decoder.decode(frame, defaultDecoderState, defaultConfig)
         assertTrue(result is DecodeResult.Success, "Extended telemetry should be decoded")
@@ -2102,7 +2102,7 @@ class InMotionV2DecoderTest {
 
     @Test
     fun `P6 captured telemetry separates battery consumption from output rate`() {
-        val decoder = InMotionV2Decoder()
+        val decoder = LorinDecoder()
         // Raw on-wire notification captured from a P6. It includes an escaped 0xAA byte
         // (A5 AA), so this also protects the complete unpack-and-decode path.
         val frame = (
@@ -2129,18 +2129,18 @@ class InMotionV2DecoderTest {
 
     @Test
     fun `P6 battery percentage uses inverted discharge formula`() {
-        val decoder = InMotionV2Decoder()
+        val decoder = LorinDecoder()
         // Detect model as P6
         val initData = ByteArray(80)
         initData[0] = 0x02; initData[1] = 0x86.toByte()
         initData[27] = 0x0D; initData[28] = 0x01
-        decoder.decode(buildIM2Frame(0x16, 0x21, initData), defaultDecoderState, defaultConfig)
+        decoder.decode(buildLorinFrame(0x16, 0x21, initData), defaultDecoderState, defaultConfig)
 
         // Test with real captured data: consumption=278 → battery=97%
         val payload1 = ByteArray(96)
         payload1[0] = 0x6E; payload1[1] = 0x5A  // voltage = 23150
         payload1[32] = 0x16; payload1[33] = 0x01 // consumption = 278
-        val frame1 = buildIM2Frame(0x16, 0x21, byteArrayOf(0x02, 0x87.toByte(), 0x01, 0x00) + payload1)
+        val frame1 = buildLorinFrame(0x16, 0x21, byteArrayOf(0x02, 0x87.toByte(), 0x01, 0x00) + payload1)
         val r1 = decoder.decode(frame1, defaultDecoderState, defaultConfig)
         assertTrue(r1 is DecodeResult.Success)
         assertEquals(97, (r1 as DecodeResult.Success).data.assertTelemetry().batteryLevel, "278 consumption → 97% remaining")
@@ -2149,7 +2149,7 @@ class InMotionV2DecoderTest {
         val payload2 = ByteArray(96)
         payload2[0] = 0x6E; payload2[1] = 0x5A
         payload2[32] = 0x88.toByte(); payload2[33] = 0x13 // consumption = 5000
-        val frame2 = buildIM2Frame(0x16, 0x21, byteArrayOf(0x02, 0x87.toByte(), 0x01, 0x00) + payload2)
+        val frame2 = buildLorinFrame(0x16, 0x21, byteArrayOf(0x02, 0x87.toByte(), 0x01, 0x00) + payload2)
         val r2 = decoder.decode(frame2, defaultDecoderState, defaultConfig)
         assertTrue(r2 is DecodeResult.Success)
         assertEquals(50, (r2 as DecodeResult.Success).data.assertTelemetry().batteryLevel, "5000 consumption → 50% remaining")
@@ -2158,7 +2158,7 @@ class InMotionV2DecoderTest {
         val payload3 = ByteArray(96)
         payload3[0] = 0x6E; payload3[1] = 0x5A
         payload3[32] = 0xAC.toByte(); payload3[33] = 0x26 // consumption = 9900
-        val frame3 = buildIM2Frame(0x16, 0x21, byteArrayOf(0x02, 0x87.toByte(), 0x01, 0x00) + payload3)
+        val frame3 = buildLorinFrame(0x16, 0x21, byteArrayOf(0x02, 0x87.toByte(), 0x01, 0x00) + payload3)
         val r3 = decoder.decode(frame3, defaultDecoderState, defaultConfig)
         assertTrue(r3 is DecodeResult.Success)
         assertEquals(1, (r3 as DecodeResult.Success).data.assertTelemetry().batteryLevel, "9900 consumption → 1% remaining")
@@ -2167,7 +2167,7 @@ class InMotionV2DecoderTest {
         val payload4 = ByteArray(96)
         payload4[0] = 0x6E; payload4[1] = 0x5A
         // payload4[32:33] already 0
-        val frame4 = buildIM2Frame(0x16, 0x21, byteArrayOf(0x02, 0x87.toByte(), 0x01, 0x00) + payload4)
+        val frame4 = buildLorinFrame(0x16, 0x21, byteArrayOf(0x02, 0x87.toByte(), 0x01, 0x00) + payload4)
         val r4 = decoder.decode(frame4, defaultDecoderState, defaultConfig)
         assertTrue(r4 is DecodeResult.Success)
         assertEquals(100, (r4 as DecodeResult.Success).data.assertTelemetry().batteryLevel, "0 consumption → 100% remaining")
@@ -2175,18 +2175,18 @@ class InMotionV2DecoderTest {
 
     @Test
     fun `P6 extended total stats decoded`() {
-        val decoder = InMotionV2Decoder()
+        val decoder = LorinDecoder()
         // Detect model as P6 first
         val initData = ByteArray(80)
         initData[0] = 0x02; initData[1] = 0x86.toByte()
         initData[27] = 0x0D; initData[28] = 0x01
-        decoder.decode(buildIM2Frame(0x16, 0x21, initData), defaultDecoderState, defaultConfig)
+        decoder.decode(buildLorinFrame(0x16, 0x21, initData), defaultDecoderState, defaultConfig)
 
         // Build 0x91 response: [02 91 | 9E 2D 00 00 ...]
         // data[2:5] = 11678 → 116780m
         val statsData = byteArrayOf(0x02, 0x91.toByte(), 0x9E.toByte(), 0x2D, 0x00, 0x00) +
             ByteArray(20) // padding
-        val frame = buildIM2Frame(0x16, 0x21, statsData)
+        val frame = buildLorinFrame(0x16, 0x21, statsData)
         val result = decoder.decode(frame, defaultDecoderState, defaultConfig)
         assertTrue(result is DecodeResult.Success, "Extended total stats should be decoded")
         assertEquals(116780L, (result as DecodeResult.Success).data.assertTelemetry().totalDistance)
@@ -2194,13 +2194,13 @@ class InMotionV2DecoderTest {
 
     @Test
     fun `P6 keepAlive uses extended format after model detection`() {
-        val decoder = InMotionV2Decoder()
+        val decoder = LorinDecoder()
         // Detect model as P6
         val initData = ByteArray(80)
         initData[0] = 0x02; initData[1] = 0x86.toByte()
         initData[27] = 0x0D; initData[28] = 0x01
         "A1421A1150002437".toByteArray().copyInto(initData, 5)
-        decoder.decode(buildIM2Frame(0x16, 0x21, initData), defaultDecoderState, defaultConfig)
+        decoder.decode(buildLorinFrame(0x16, 0x21, initData), defaultDecoderState, defaultConfig)
 
         val cmd = decoder.getKeepAliveCommand()
         assertTrue(cmd is WheelCommand.SendBytes)
@@ -2212,12 +2212,12 @@ class InMotionV2DecoderTest {
 
     @Test
     fun `P6 extended settings response 0xA0 parses all fields`() {
-        val decoder = InMotionV2Decoder()
+        val decoder = LorinDecoder()
         // Detect model as P6
         val initData = ByteArray(80)
         initData[0] = 0x02; initData[1] = 0x86.toByte()
         initData[27] = 0x0D; initData[28] = 0x01
-        decoder.decode(buildIM2Frame(0x16, 0x21, initData), defaultDecoderState, defaultConfig)
+        decoder.decode(buildLorinFrame(0x16, 0x21, initData), defaultDecoderState, defaultConfig)
 
         // Build 0xA0 settings response using real capture data:
         // [02 A0 | 20 00 00 00 00 00 FF 00 00 20 35 FE 2D 62 2E 40 1F 40 1F 34 21 ...]
@@ -2266,11 +2266,11 @@ class InMotionV2DecoderTest {
 
         // Frame: extended prefix [02 A0] + settings payload
         val extData = byteArrayOf(0x02, 0xA0.toByte()) + settingsPayload
-        val frame = buildIM2Frame(0x16, 0x21, extData)
+        val frame = buildLorinFrame(0x16, 0x21, extData)
         val result = decoder.decode(frame, defaultDecoderState, defaultConfig)
 
         assertTrue(result is DecodeResult.Success, "0xA0 settings should be parsed")
-        val settings = (result as DecodeResult.Success).data.assertSettings() as WheelSettings.InMotionV2
+        val settings = (result as DecodeResult.Success).data.assertSettings() as WheelSettings.Lorin
         assertEquals(136, settings.maxSpeed, "Tilt-back speed should be 136 km/h")
         assertEquals(117, settings.speedAlarm, "Speed alarm should be 117 km/h")
         assertEquals(80, settings.pwmTiltBackLimit, "PWM tilt-back limit should be 80%")
@@ -2300,12 +2300,12 @@ class InMotionV2DecoderTest {
 
     @Test
     fun `P6 0x87 does not overwrite temps or limits`() {
-        val decoder = InMotionV2Decoder()
+        val decoder = LorinDecoder()
         // Detect model as P6
         val initData = ByteArray(80)
         initData[0] = 0x02; initData[1] = 0x86.toByte()
         initData[27] = 0x0D; initData[28] = 0x01
-        decoder.decode(buildIM2Frame(0x16, 0x21, initData), defaultDecoderState, defaultConfig)
+        decoder.decode(buildLorinFrame(0x16, 0x21, initData), defaultDecoderState, defaultConfig)
 
         // First, set baseline temps/limits via a full 0x84 frame
         val fullPayload = ByteArray(80)
@@ -2317,7 +2317,7 @@ class InMotionV2DecoderTest {
         fullPayload[59] = 0xD0.toByte() // temp2 = (208+80-256) = 32°C
         fullPayload[62] = 0xCE.toByte() // cpuTemp = (206+80-256) = 30°C
         fullPayload[63] = 0xCC.toByte() // imuTemp = (204+80-256) = 28°C
-        val fullFrame = buildIM2Frame(0x14, 0x84, fullPayload)
+        val fullFrame = buildLorinFrame(0x14, 0x84, fullPayload)
         val r1 = decoder.decode(fullFrame, defaultDecoderState, defaultConfig)
         assertTrue(r1 is DecodeResult.Success)
         val stateAfterFull = (r1 as DecodeResult.Success).data.decoderStateFrom(defaultDecoderState)
@@ -2328,7 +2328,7 @@ class InMotionV2DecoderTest {
         lightPayload[8] = 0x00; lightPayload[9] = 0x10 // speed = 4096
         lightPayload[32] = 0xE8.toByte(); lightPayload[33] = 0x03 // consumption = 1000
         val lightData = byteArrayOf(0x02, 0x87.toByte(), 0x01, 0x00) + lightPayload
-        val lightFrame = buildIM2Frame(0x16, 0x21, lightData)
+        val lightFrame = buildLorinFrame(0x16, 0x21, lightData)
         val r2 = decoder.decode(lightFrame, stateAfterFull, defaultConfig)
         assertTrue(r2 is DecodeResult.Success)
         val telemetry = (r2 as DecodeResult.Success).data.assertTelemetry()
@@ -2351,16 +2351,16 @@ class InMotionV2DecoderTest {
 
     @Test
     fun `P6 0x90 is ignored as ride statistics`() {
-        val decoder = InMotionV2Decoder()
+        val decoder = LorinDecoder()
         // Detect model as P6
         val initData = ByteArray(80)
         initData[0] = 0x02; initData[1] = 0x86.toByte()
         initData[27] = 0x0D; initData[28] = 0x01
-        decoder.decode(buildIM2Frame(0x16, 0x21, initData), defaultDecoderState, defaultConfig)
+        decoder.decode(buildLorinFrame(0x16, 0x21, initData), defaultDecoderState, defaultConfig)
 
         // Build 0x90 response (ride statistics, should be ignored)
         val statsData = byteArrayOf(0x02, 0x90.toByte()) + ByteArray(50)
-        val frame = buildIM2Frame(0x16, 0x21, statsData)
+        val frame = buildLorinFrame(0x16, 0x21, statsData)
         val result = decoder.decode(frame, defaultDecoderState, defaultConfig)
         assertTrue(result is DecodeResult.Unhandled, "0x90 ride statistics should not produce settings")
     }
@@ -2374,8 +2374,8 @@ class InMotionV2DecoderTest {
         val d = decoderForModel(8, 1) // V13
         val result = d.buildCommand(WheelCommand.SetBermAngleMode(true))
         assertTrue(result.isNotEmpty())
-        val expected = InMotionV2Decoder.buildMessage(
-            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+        val expected = LorinDecoder.buildMessage(
+            LorinDecoder.Flag.DEFAULT, LorinDecoder.Command.CONTROL,
             byteArrayOf(0x45, 0x01)
         )
         assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
@@ -2386,8 +2386,8 @@ class InMotionV2DecoderTest {
         val d = decoderForModel(9, 1) // V14g
         val result = d.buildCommand(WheelCommand.SetBermAngleMode(true))
         assertTrue(result.isNotEmpty())
-        val expected = InMotionV2Decoder.buildMessage(
-            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+        val expected = LorinDecoder.buildMessage(
+            LorinDecoder.Flag.DEFAULT, LorinDecoder.Command.CONTROL,
             byteArrayOf(0x45, 0x01)
         )
         assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
@@ -2407,8 +2407,8 @@ class InMotionV2DecoderTest {
         val d = decoderForModel(8, 1) // V13
         val result = d.buildCommand(WheelCommand.SetSafeSpeedLimit(true))
         assertTrue(result.isNotEmpty())
-        val expected = InMotionV2Decoder.buildMessage(
-            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+        val expected = LorinDecoder.buildMessage(
+            LorinDecoder.Flag.DEFAULT, LorinDecoder.Command.CONTROL,
             byteArrayOf(0x44, 0x01)
         )
         assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
@@ -2419,8 +2419,8 @@ class InMotionV2DecoderTest {
         val d = decoderForModel(9, 2) // V14s
         val result = d.buildCommand(WheelCommand.SetSafeSpeedLimit(true))
         assertTrue(result.isNotEmpty())
-        val expected = InMotionV2Decoder.buildMessage(
-            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+        val expected = LorinDecoder.buildMessage(
+            LorinDecoder.Flag.DEFAULT, LorinDecoder.Command.CONTROL,
             byteArrayOf(0x44, 0x01)
         )
         assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
@@ -2440,8 +2440,8 @@ class InMotionV2DecoderTest {
         val d = decoderForModel(8, 1) // V13
         val result = d.buildCommand(WheelCommand.SetLightEffectMode(3))
         assertTrue(result.isNotEmpty())
-        val expected = InMotionV2Decoder.buildMessage(
-            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+        val expected = LorinDecoder.buildMessage(
+            LorinDecoder.Flag.DEFAULT, LorinDecoder.Command.CONTROL,
             byteArrayOf(0x2D, 0x03)
         )
         assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
@@ -2468,8 +2468,8 @@ class InMotionV2DecoderTest {
         val d = decoderForModel(9, 1) // V14g
         val result = d.buildCommand(WheelCommand.SetTwoBatteryMode(true))
         assertTrue(result.isNotEmpty())
-        val expected = InMotionV2Decoder.buildMessage(
-            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+        val expected = LorinDecoder.buildMessage(
+            LorinDecoder.Flag.DEFAULT, LorinDecoder.Command.CONTROL,
             byteArrayOf(0x48, 0x01)
         )
         assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
@@ -2486,7 +2486,7 @@ class InMotionV2DecoderTest {
 
     @Test
     fun `P6 detected from btName when init response fails`() {
-        val decoder = InMotionV2Decoder()
+        val decoder = LorinDecoder()
         // Don't send any init/car-type frames — model stays UNKNOWN
 
         // Build a standard telemetry frame (DEFAULT, REAL_TIME_INFO) with enough data
@@ -2498,7 +2498,7 @@ class InMotionV2DecoderTest {
         // speed at [8:9] = 500
         telemetryData[8] = 0xF4.toByte(); telemetryData[9] = 0x01
 
-        val frame = buildIM2Frame(0x14, 0x84, telemetryData) // DEFAULT flag, REAL_TIME_INFO | 0x80
+        val frame = buildLorinFrame(0x14, 0x84, telemetryData) // DEFAULT flag, REAL_TIME_INFO | 0x80
 
         // Send with a state that has btName = "P6-A1421"
         val stateWithName = DecoderState(identity = WheelIdentity(btName = "P6-A1421"))
@@ -2511,13 +2511,13 @@ class InMotionV2DecoderTest {
     @Test
     fun `name-based detection does not override protocol detection`() {
         // Detect model via standard init as V11
-        val decoder = InMotionV2Decoder()
+        val decoder = LorinDecoder()
         decoder.decode(buildCarTypeFrame(6, 1), defaultDecoderState, defaultConfig)
 
         // Send telemetry with a misleading btName
         val telemetryData = ByteArray(60)
         telemetryData[0] = 0x10; telemetryData[1] = 0x27
-        val frame = buildIM2Frame(0x14, 0x84, telemetryData)
+        val frame = buildLorinFrame(0x14, 0x84, telemetryData)
         val stateWithName = DecoderState(identity = WheelIdentity(btName = "P6-FAKE"))
         val result = decoder.decode(frame, stateWithName, defaultConfig)
 
@@ -2533,11 +2533,11 @@ class InMotionV2DecoderTest {
         // Reconfigure as V11 without setting version
         d.decoder.decode(buildCarTypeFrame(6, 1), defaultDecoderState, defaultConfig)
         // Pass state with V11 model but empty firmware → isFirmwareAtLeast returns false
-        val resetState = DecoderState(settings = WheelSettings.InMotionV2(modelId = 61, mainBoardVersion = ""))
+        val resetState = DecoderState(settings = WheelSettings.Lorin(modelId = 61, mainBoardVersion = ""))
         val result = d.decoder.buildCommand(WheelCommand.SetFan(true), resetState)
         assertTrue(result.isNotEmpty())
-        val expected = InMotionV2Decoder.buildMessage(
-            InMotionV2Decoder.Flag.DEFAULT, InMotionV2Decoder.Command.CONTROL,
+        val expected = LorinDecoder.buildMessage(
+            LorinDecoder.Flag.DEFAULT, LorinDecoder.Command.CONTROL,
             byteArrayOf(0x43, 0x01) // fw unknown → isFirmwareAtLeast returns false → 0x43
         )
         assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
@@ -2553,17 +2553,17 @@ class InMotionV2DecoderTest {
      */
     private fun buildBmsFrame(batteryId: Int, responseType: Int, payload: ByteArray): ByteArray {
         val data = byteArrayOf(0x02, responseType.toByte()) + payload
-        return buildIM2Frame(0x16, batteryId, data)
+        return buildLorinFrame(0x16, batteryId, data)
     }
 
-    private fun decoderWithP6(): InMotionV2Decoder {
-        val d = InMotionV2Decoder()
+    private fun decoderWithP6(): LorinDecoder {
+        val d = LorinDecoder()
         d.decode(buildCarTypeFrame(13, 1), defaultDecoderState, defaultConfig) // P6
         return d
     }
 
-    private fun decoderWithV14(): InMotionV2Decoder {
-        val d = InMotionV2Decoder()
+    private fun decoderWithV14(): LorinDecoder {
+        val d = LorinDecoder()
         d.decode(buildCarTypeFrame(9, 1), defaultDecoderState, defaultConfig) // V14g
         return d
     }
@@ -2738,7 +2738,7 @@ class InMotionV2DecoderTest {
     fun `BMS keep-alive cycles through status and voltages`() {
         val d = decoderWithP6()
         // Feed telemetry so hasReceivedTelemetry = true
-        d.decode(buildIM2Frame(0x16, 0x21, byteArrayOf(0x02, 0x87.toByte()) + ByteArray(100)), defaultDecoderState, defaultConfig)
+        d.decode(buildLorinFrame(0x16, 0x21, byteArrayOf(0x02, 0x87.toByte()) + ByteArray(100)), defaultDecoderState, defaultConfig)
 
         // Collect 8 keep-alive commands, find the BMS ones (every 4th tick, offset 3)
         val commands = mutableListOf<ByteArray>()
@@ -2754,7 +2754,7 @@ class InMotionV2DecoderTest {
 
     @Test
     fun `BMS init commands include battery serial requests`() {
-        val d = InMotionV2Decoder()
+        val d = LorinDecoder()
         val initCommands = d.getInitCommands()
         // Should include BMS serial init for battery 1 and 2
         assertEquals(10, initCommands.size)
@@ -2765,11 +2765,11 @@ class InMotionV2DecoderTest {
 
     @Test
     fun `Model batteryCount correct for each model`() {
-        assertEquals(1, InMotionV2Decoder.Model.V11.batteryCount)
-        assertEquals(1, InMotionV2Decoder.Model.P6.batteryCount)
-        assertEquals(2, InMotionV2Decoder.Model.V13.batteryCount)
-        assertEquals(2, InMotionV2Decoder.Model.V13PRO.batteryCount)
-        assertEquals(4, InMotionV2Decoder.Model.V14g.batteryCount)
-        assertEquals(4, InMotionV2Decoder.Model.V14s.batteryCount)
+        assertEquals(1, LorinDecoder.Model.V11.batteryCount)
+        assertEquals(1, LorinDecoder.Model.P6.batteryCount)
+        assertEquals(2, LorinDecoder.Model.V13.batteryCount)
+        assertEquals(2, LorinDecoder.Model.V13PRO.batteryCount)
+        assertEquals(4, LorinDecoder.Model.V14g.batteryCount)
+        assertEquals(4, LorinDecoder.Model.V14s.batteryCount)
     }
 }

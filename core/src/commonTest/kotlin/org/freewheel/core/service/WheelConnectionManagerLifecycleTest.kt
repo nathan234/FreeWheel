@@ -103,10 +103,10 @@ class WheelConnectionManagerLifecycleTest {
     private val inMotionV2Services = DiscoveredServices(
         listOf(
             DiscoveredService(
-                uuid = BleUuids.InMotionV2.SERVICE,
+                uuid = BleUuids.Lorin.SERVICE,
                 characteristics = listOf(
-                    BleUuids.InMotionV2.READ_CHARACTERISTIC,
-                    BleUuids.InMotionV2.WRITE_CHARACTERISTIC
+                    BleUuids.Lorin.READ_CHARACTERISTIC,
+                    BleUuids.Lorin.WRITE_CHARACTERISTIC
                 )
             ),
             DiscoveredService(
@@ -572,7 +572,7 @@ class WheelConnectionManagerLifecycleTest {
         // ffe0/ffe4 only) doesn't match the full InMotion V2 fingerprint
         // in WheelTopologies.ALL, so detection runs the name-fallback
         // path. "V11Y-001" matches the InMotion V2 name pattern and
-        // resolves to Detected(INMOTION_V2).
+        // resolves to Detected(LORIN).
         val manager = createManager()
         manager.connect("AA:BB:CC:DD:EE:FF")
         runCurrent()
@@ -581,7 +581,7 @@ class WheelConnectionManagerLifecycleTest {
         runCurrent()
 
         assertNotNull(manager.getCurrentDecoder())
-        assertEquals(WheelType.INMOTION_V2, fakeFactory.lastCreatedType)
+        assertEquals(WheelType.LORIN, fakeFactory.lastCreatedType)
     }
 
     // Removed in Pass 4: `onServicesDiscovered with unknown services
@@ -908,7 +908,7 @@ class WheelConnectionManagerLifecycleTest {
         val manager = createManager(decoder = decoder, factory = factory)
 
         manager.connect("AA:BB:CC:DD:EE:FF")
-        manager.onWheelTypeDetected(WheelType.INMOTION_V2)
+        manager.onWheelTypeDetected(WheelType.LORIN)
         runCurrent()
 
         assertTrue(manager.isKeepAliveRunning.value, "Keep-alive should be running after setupDecoder")
@@ -945,7 +945,7 @@ class WheelConnectionManagerLifecycleTest {
         val manager = createManager(decoder = decoder, factory = factory)
 
         manager.connect("AA:BB:CC:DD:EE:FF")
-        manager.onWheelTypeDetected(WheelType.INMOTION_V2)
+        manager.onWheelTypeDetected(WheelType.LORIN)
         runCurrent()
 
         // Clear any writes from init commands

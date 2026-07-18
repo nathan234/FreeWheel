@@ -48,7 +48,7 @@ class BleCaptureLogger(private val fileWriter: FileWriter = FileWriter()) {
      * Start a new BLE capture.
      *
      * @param filePath Full path to the CSV file to create.
-     * @param wheelTypeName Wheel type (e.g., "INMOTION_V2").
+     * @param wheelTypeName Wheel type (e.g., "LORIN").
      * @param wheelName Wheel display name (e.g., "P6").
      * @param firmware Firmware version string.
      * @param appVersion App version string.

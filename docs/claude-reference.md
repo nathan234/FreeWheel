@@ -6,7 +6,7 @@ Detailed reference material for specific subsystems. See [CLAUDE.md](../CLAUDE.m
 
 Which `WheelCommand` types each decoder supports in `buildCommand()`:
 
-| Category | Commands | KS | GW | VT | LK | NB | NZ | IM1 | IM2 |
+| Category | Commands | KS | GW | VT | LK | NB | NZ | IM1 | Lorin |
 |---|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
 | Basic | Beep, Calibrate, PowerOff | Y | Y | Y* | Y* | - | Y | Y | Y |
 | Light | SetLight/Mode | Y | Y | Y | Y | - | Y | Y | Y |
@@ -39,8 +39,8 @@ Key: Y=supported, -=returns empty list, Y*=partial (VT Beep version-dependent, N
 | `gotwayVoltage` | GW only | Battery series (10S-50S catalog classes) for voltage scaling and % calculation |
 | `wheelPassword` | IM1 only | InMotion V1 authentication |
 | `useMph`, `useFahrenheit` | KS, GW, NZ | Unit conversion in decoded state |
-| `useCustomPercents`, `cellVoltageTiltback` | KS, GW, VT, NZ, IM2 | Custom battery % from cell voltage |
-| `rotationSpeed`, `rotationVoltage`, `powerFactor` | KS, GW, VT, IM2 | PWM/output calculation |
+| `useCustomPercents`, `cellVoltageTiltback` | KS, GW, VT, NZ, Lorin | Custom battery % from cell voltage |
+| `rotationSpeed`, `rotationVoltage`, `powerFactor` | KS, GW, VT, Lorin | PWM/output calculation |
 | `batteryCapacity` | All (via EnergyCalculator) | Remaining range estimation |
 
 ## Decoder Data Flow

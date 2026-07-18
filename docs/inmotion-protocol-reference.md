@@ -273,7 +273,7 @@ Several models change their protocol layout based on firmware version:
 
 ## Protocol Families (Non-Lorin)
 
-For completeness, InMotion has three protocol generations. FreeWheel's InMotionV2Decoder handles Lorin only. The older protocols are handled by InMotionDecoder.
+For completeness, InMotion has three protocol generations. FreeWheel's LorinDecoder handles Lorin only. The older protocols are handled by InMotionDecoder.
 
 | Family | Models | Protocol |
 |--------|--------|----------|

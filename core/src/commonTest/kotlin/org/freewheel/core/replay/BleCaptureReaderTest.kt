@@ -14,7 +14,7 @@ class BleCaptureReaderTest {
 
     private val headerLines = listOf(
         "# FreeWheel BLE Capture",
-        "# wheel_type: INMOTION_V2",
+        "# wheel_type: LORIN",
         "# wheel_name: V14",
         "# firmware: 2.3.7",
         "# capture_start: 2025_01_15_10_30_00",
@@ -42,8 +42,8 @@ class BleCaptureReaderTest {
         assertNotNull(capture)
 
         // Header
-        assertEquals(WheelType.INMOTION_V2, capture.header.wheelType)
-        assertEquals("INMOTION_V2", capture.header.wheelTypeName)
+        assertEquals(WheelType.LORIN, capture.header.wheelType)
+        assertEquals("LORIN", capture.header.wheelTypeName)
         assertEquals("V14", capture.header.wheelName)
         assertEquals("2.3.7", capture.header.firmware)
         assertEquals("1.2.3", capture.header.appVersion)
@@ -81,8 +81,8 @@ class BleCaptureReaderTest {
     fun parseHeaderOnly() {
         val header = reader.parseHeader(validHeader)
         assertNotNull(header)
-        assertEquals(WheelType.INMOTION_V2, header.wheelType)
-        assertEquals("INMOTION_V2", header.wheelTypeName)
+        assertEquals(WheelType.LORIN, header.wheelType)
+        assertEquals("LORIN", header.wheelTypeName)
         assertEquals("V14", header.wheelName)
         assertEquals("2.3.7", header.firmware)
         assertEquals("1.2.3", header.appVersion)
@@ -97,7 +97,7 @@ class BleCaptureReaderTest {
 
         val header = reader.parseHeader(csvContent)
         assertNotNull(header)
-        assertEquals(WheelType.INMOTION_V2, header.wheelType)
+        assertEquals(WheelType.LORIN, header.wheelType)
     }
 
     @Test
@@ -123,7 +123,7 @@ class BleCaptureReaderTest {
         assertNotNull(capture)
         assertEquals(0, capture.entries.size)
         assertEquals(0L, capture.durationMs)
-        assertEquals(WheelType.INMOTION_V2, capture.header.wheelType)
+        assertEquals(WheelType.LORIN, capture.header.wheelType)
     }
 
     @Test
@@ -167,7 +167,7 @@ class BleCaptureReaderTest {
         val csvContent = csv(
             "1000,RX,4,AABBCCDD,",
             "# ---- Diagnostic Snapshot ----",
-            "# wheel_type: INMOTION_V2",
+            "# wheel_type: LORIN",
             "# model: V14"
         )
 
@@ -240,7 +240,7 @@ class BleCaptureReaderTest {
 
     private val headerLinesV2 = listOf(
         "# FreeWheel BLE Capture",
-        "# wheel_type: INMOTION_V2",
+        "# wheel_type: LORIN",
         "# wheel_name: V14",
         "# firmware: 2.3.7",
         "# capture_start: 2025_01_15_10_30_00",

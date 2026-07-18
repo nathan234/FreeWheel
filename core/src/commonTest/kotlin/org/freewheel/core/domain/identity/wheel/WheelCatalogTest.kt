@@ -90,11 +90,11 @@ class WheelCatalogTest {
     @Test
     fun matchesByModelString() {
         val entries = listOf(
-            entry("a", WheelType.INMOTION_V2, listOf("V12"), 60.0),
+            entry("a", WheelType.LORIN, listOf("V12"), 60.0),
         )
         val matched = matchIn(
             entries,
-            wheelType = WheelType.INMOTION_V2,
+            wheelType = WheelType.LORIN,
             identity = WheelIdentity(model = "V12 Pro"),
         )
         assertNotNull(matched)
@@ -161,7 +161,7 @@ class WheelCatalogTest {
     @Test
     fun filtersByWheelType() {
         val entries = listOf(
-            entry("v12", WheelType.INMOTION_V2, listOf("V12"), 60.0),
+            entry("v12", WheelType.LORIN, listOf("V12"), 60.0),
         )
         val matched = matchIn(
             entries,

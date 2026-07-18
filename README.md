@@ -103,7 +103,7 @@ subgraph CORE["KMP Shared Core · commonMain"]
     end
 
     subgraph PROTO["Protocol Decoders"]
-        DEC["Kingsong · Gotway · Veteran<br/>Ninebot · NinebotZ · InMotion<br/>InMotionV2 · LeaperkimCan<br/>+ Unpackers · AutoDetect"]:::core
+        DEC["Kingsong · Gotway · Veteran<br/>Ninebot · NinebotZ · InMotion<br/>Lorin · LeaperkimCan<br/>+ Unpackers · AutoDetect"]:::core
     end
 
     subgraph DOMAIN["Domain"]

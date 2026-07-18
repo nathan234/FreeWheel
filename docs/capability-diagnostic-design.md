@@ -30,7 +30,7 @@ Two complementary systems:
  * disappearing while the user is interacting with them.
  *
  * [isResolved] means the minimum identification needed to determine command
- * support has been received (e.g., mVer for Veteran, model + protoVer for IM2).
+ * support has been received (e.g., mVer for Veteran, model + protoVer for Lorin).
  * It does NOT mean all metadata (serial, BMS, etc.) is available.
  */
 data class CapabilitySet(
@@ -46,7 +46,7 @@ data class CapabilitySet(
     /** Firmware version string. */
     val firmwareVersion: String = "",
 
-    /** Decoder-specific firmware level (e.g., mVer for Veteran, protoVer for IM2). */
+    /** Decoder-specific firmware level (e.g., mVer for Veteran, protoVer for Lorin). */
     val firmwareLevel: Int = 0,
 
     /** Whether capability resolution is complete. See class doc. */
@@ -148,7 +148,7 @@ override fun buildCommand(command: WheelCommand): List<WheelCommand> {
 
 This eliminates the duplicated `if (ver < 3) return emptyList()` guards scattered throughout `buildCommand()`. The version check happens once at the top; the `when` branches only handle byte construction.
 
-**For decoders with model-based gating** (InMotionV2Decoder), the map key can be a `Pair<SettingsCommandId, Model>` or the decoder can maintain multiple maps merged at resolution time:
+**For decoders with model-based gating** (LorinDecoder), the map key can be a `Pair<SettingsCommandId, Model>` or the decoder can maintain multiple maps merged at resolution time:
 
 ```kotlin
 companion object {
@@ -210,7 +210,7 @@ override fun getCapabilities(): CapabilitySet = CapabilitySet(
 
 ### 3.3 WheelSettingsConfig Migration
 
-The current `WheelSettingsConfig.sections()` maintains separate functions per wheel type and model (e.g., `inmotionV2Sections()`, `inmotionP6Sections()`). This approach doesn't scale — every new model variant requires a new section function, and model-specific controls end up duplicated across functions.
+The current `WheelSettingsConfig.sections()` maintains separate functions per wheel type and model (e.g., `lorinSections()`, `inmotionP6Sections()`). This approach doesn't scale — every new model variant requires a new section function, and model-specific controls end up duplicated across functions.
 
 **New approach**: One superset section list per `WheelType`. The superset contains every control that *any* model of that type might support. Capabilities are the sole filter.
 
@@ -228,7 +228,7 @@ object WheelSettingsConfig {
             WheelType.LEAPERKIM -> leaperkimSections()
             WheelType.NINEBOT_Z -> ninebotZSections()
             WheelType.INMOTION -> inmotionSections()
-            WheelType.INMOTION_V2 -> inmotionV2SupersetSections()
+            WheelType.LORIN -> lorinSupersetSections()
             else -> emptyList()
         }
         if (capabilities == null || !capabilities.isResolved) return superset
@@ -595,14 +595,14 @@ This keeps user data private while still feeding the test suite. The fixture fil
 3. Add `getCapabilities()` to `WheelDecoder` interface with default implementation
 4. Add `CAPABILITY_MAP` and implement `getCapabilities()` in `VeteranDecoder` (mVer gating)
 5. Refactor `VeteranDecoder.buildCommand()` to use `CAPABILITY_MAP` for the version gate instead of per-branch `if (ver < 3)` checks
-6. Add capability maps and implement `getCapabilities()` in `InMotionV2Decoder` (model + protoVer gating via merged maps)
+6. Add capability maps and implement `getCapabilities()` in `LorinDecoder` (model + protoVer gating via merged maps)
 7. Add static capability maps for remaining decoders (Gotway, Kingsong, NinebotZ, Leaperkim, InMotion)
 8. Add `capabilities: CapabilitySet` to `WcmState` and derive `StateFlow<CapabilitySet>` on WCM
 9. Update reducer to refresh capabilities on successful decode (monotonic set union with previous)
-10. Write tests: `CapabilitySetTest.kt`, `VeteranCapabilityMapTest.kt`, `InMotionV2CapabilityMapTest.kt`
+10. Write tests: `CapabilitySetTest.kt`, `VeteranCapabilityMapTest.kt`, `LorinCapabilityMapTest.kt`
 
 ### Phase 2: Capability-Filtered Settings UI
-1. Create `inmotionV2SupersetSections()` merging all InMotion V2/P6 controls into one list
+1. Create `lorinSupersetSections()` merging all InMotion V2/P6 controls into one list
 2. Update `WheelSettingsConfig.sections()` to accept `CapabilitySet?` and filter the superset
 3. Remove `inmotionP6Sections()` and the `model` parameter from `sections()`
 4. Update Android `WheelSettingsScreen.kt` to pass capabilities
@@ -617,7 +617,7 @@ This keeps user data private while still feeding the test suite. The fixture fil
 3. Implement `ConnectionEventLog`
 4. Implement `UnknownFrameTracker`
 5. Add `unknownFrameSignature` to `DecodedData`
-6. **Audit VeteranDecoder and InMotionV2Decoder for unhandled frame types** and add `unknownFrameSignature` reporting to their decode paths (at minimum these two, to ensure Phase 4 reports have content)
+6. **Audit VeteranDecoder and LorinDecoder for unhandled frame types** and add `unknownFrameSignature` reporting to their decode paths (at minimum these two, to ensure Phase 4 reports have content)
 7. Wire `BlePacketHistory` into WCM as an internally-owned instance (fed in `executeEffects()`, independent of `captureCallback`)
 8. Wire `ConnectionEventLog` into WCM via `WcmEffect.LogEvent`
 9. Wire `UnknownFrameTracker` into WCM (accumulate from `DecodedData.unknownFrameSignature`)
@@ -640,7 +640,7 @@ This keeps user data private while still feeding the test suite. The fixture fil
 
 **Why a capability map instead of parallel `getCapabilities()` logic?** The VeteranDecoder had `if (ver < 3) return emptyList()` repeated 16 times in `buildCommand()`. A separate `getCapabilities()` with the same checks would create a second source of truth that could silently diverge. The static `CAPABILITY_MAP` is declared once and consumed by both methods. Adding a new command requires one map entry, not two code paths.
 
-**Why a superset section list instead of model-specific functions?** The old `inmotionP6Sections()` duplicated most of `inmotionV2Sections()`. Every new InMotion model would need another near-duplicate function. A single superset with capability filtering scales to any number of model variants without code duplication, and ensures Android and iOS always get identical sections from the same KMP code.
+**Why a superset section list instead of model-specific functions?** The old `inmotionP6Sections()` duplicated most of `lorinSections()`. Every new InMotion model would need another near-duplicate function. A single superset with capability filtering scales to any number of model variants without code duplication, and ensures Android and iOS always get identical sections from the same KMP code.
 
 **Why `controlOverrides` with full `ControlSpec` instead of `ParameterOverride`?** A `ParameterOverride` with nullable fields (`min?`, `max?`, `step?`, `options?`) is ambiguous — which fields apply to which control types? Applying an override to a sealed class hierarchy requires type-checking every variant. Full `ControlSpec` replacement is type-safe, unambiguous, and handles the case where a model needs a different control type entirely (e.g., a Slider that should be a Picker on certain firmware).
 
@@ -680,7 +680,7 @@ This keeps user data private while still feeding the test suite. The fixture fil
 |------|---------|
 | `domain/CapabilitySetTest.kt` | CapabilitySet behavior, monotonic expansion |
 | `domain/VeteranCapabilityMapTest.kt` | Veteran mVer → capability set mapping |
-| `domain/InMotionV2CapabilityMapTest.kt` | IM2 model/protoVer → capability set mapping |
+| `domain/LorinCapabilityMapTest.kt` | Lorin model/protoVer → capability set mapping |
 | `diagnostic/BlePacketHistoryTest.kt` | Two-tier buffer behavior, snapshot dedup |
 | `diagnostic/ConnectionEventLogTest.kt` | Event log behavior |
 | `diagnostic/UnknownFrameTrackerTest.kt` | Tracker dedup and counting |
@@ -694,7 +694,7 @@ This keeps user data private while still feeding the test suite. The fixture fil
 | `protocol/WheelDecoder.kt` | Add `getCapabilities()` default method |
 | `protocol/WheelDecoder.kt` (DecodedData) | Add `unknownFrameSignature` field |
 | `protocol/VeteranDecoder.kt` | Add `CAPABILITY_MAP`, implement `getCapabilities()`, refactor `buildCommand()` to use map |
-| `protocol/InMotionV2Decoder.kt` | Add capability maps, implement `getCapabilities()` |
+| `protocol/LorinDecoder.kt` | Add capability maps, implement `getCapabilities()` |
 | All other decoders | Add `CAPABILITY_MAP`, implement `getCapabilities()` |
 | `domain/ControlSpec.kt` | Add `isExtended` property to `SettingsCommandId` |
 | `domain/WheelSettingsConfig.kt` | Replace model-dispatch sections with superset + capability filter |

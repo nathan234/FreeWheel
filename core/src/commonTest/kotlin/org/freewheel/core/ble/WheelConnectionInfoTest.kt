@@ -60,14 +60,14 @@ class WheelConnectionInfoTest {
     }
 
     @Test
-    fun `forInMotionV2 returns Nordic UART UUIDs`() {
-        val info = WheelConnectionInfo.forInMotionV2()
+    fun `forLorin returns Nordic UART UUIDs`() {
+        val info = WheelConnectionInfo.forLorin()
 
-        assertEquals(WheelType.INMOTION_V2, info.wheelType)
-        assertEquals(BleUuids.InMotionV2.SERVICE, info.readServiceUuid)
-        assertEquals(BleUuids.InMotionV2.READ_CHARACTERISTIC, info.readCharacteristicUuid)
-        assertEquals(BleUuids.InMotionV2.SERVICE, info.writeServiceUuid)
-        assertEquals(BleUuids.InMotionV2.WRITE_CHARACTERISTIC, info.writeCharacteristicUuid)
+        assertEquals(WheelType.LORIN, info.wheelType)
+        assertEquals(BleUuids.Lorin.SERVICE, info.readServiceUuid)
+        assertEquals(BleUuids.Lorin.READ_CHARACTERISTIC, info.readCharacteristicUuid)
+        assertEquals(BleUuids.Lorin.SERVICE, info.writeServiceUuid)
+        assertEquals(BleUuids.Lorin.WRITE_CHARACTERISTIC, info.writeCharacteristicUuid)
 
         // Nordic UART service
         assertEquals("6e400001-b5a3-f393-e0a9-e50e24dcca9e", info.readServiceUuid)
@@ -90,8 +90,8 @@ class WheelConnectionInfoTest {
         assertEquals(BleUuids.NinebotZ.SERVICE, info.readServiceUuid)
         assertEquals(BleUuids.NinebotZ.READ_CHARACTERISTIC, info.readCharacteristicUuid)
 
-        // Same as InMotionV2 - both use Nordic UART
-        assertEquals(BleUuids.InMotionV2.SERVICE, info.readServiceUuid)
+        // Same as Lorin - both use Nordic UART
+        assertEquals(BleUuids.Lorin.SERVICE, info.readServiceUuid)
     }
 
     @Test
@@ -102,7 +102,7 @@ class WheelConnectionInfoTest {
         assertNotNull(WheelConnectionInfo.forType(WheelType.GOTWAY_VIRTUAL))
         assertNotNull(WheelConnectionInfo.forType(WheelType.VETERAN))
         assertNotNull(WheelConnectionInfo.forType(WheelType.INMOTION))
-        assertNotNull(WheelConnectionInfo.forType(WheelType.INMOTION_V2))
+        assertNotNull(WheelConnectionInfo.forType(WheelType.LORIN))
         assertNotNull(WheelConnectionInfo.forType(WheelType.NINEBOT))
         assertNotNull(WheelConnectionInfo.forType(WheelType.NINEBOT_Z))
 

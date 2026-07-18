@@ -20,7 +20,7 @@ assessment motivates.
 | Nosfet | Veteran BLE (model IDs 42/43) | `VeteranDecoder` |
 | Leaperkim (newer FW) | CAN-over-BLE | `LeaperkimCanDecoder` |
 | Kingsong | Kingsong BLE | `KingsongDecoder` |
-| InMotion | InMotion V1 / V2 BLE | `InMotionDecoder` / `InMotionV2Decoder` |
+| InMotion | InMotion V1 / V2 BLE | `InMotionDecoder` / `LorinDecoder` |
 | Ninebot | Ninebot / NinebotZ BLE | `NinebotDecoder` / `NinebotZDecoder` |
 
 **Extreme Bull** is a rebrand — identical Gotway protocol, same frame format, same
@@ -281,7 +281,7 @@ part of BLE communication: reassembling variable-length frames from a stream of
 | VeteranUnpacker | CRC32 + byte patterns | No | Error counters, reset tracking | Highest |
 | LeaperkimCanUnpacker | Checksum (in decoder) | 0xA5 dedup | State machine reset | High |
 | InMotionUnpacker | Checksum (in decoder) | 0xA5 dedup | Error counters, extended length | High |
-| InMotionV2Unpacker | XOR (in decoder) | 0xA5 dedup | Basic reset | Medium |
+| LorinUnpacker | XOR (in decoder) | 0xA5 dedup | Basic reset | Medium |
 | GotwayUnpacker | Footer validation | No | Garbage pattern recovery, error counters | Medium |
 | NinebotZUnpacker | CRC16 (in decoder) | No | Basic reset | Low |
 | NinebotUnpacker | CRC16 (in decoder) | No | Basic reset | Low |

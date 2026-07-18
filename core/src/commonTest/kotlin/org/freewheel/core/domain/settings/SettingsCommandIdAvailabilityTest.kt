@@ -32,9 +32,9 @@ class SettingsCommandIdAvailabilityTest {
 
     @Test
     fun `non-Veteran wheels keep PedalsMode and never expose Veteran Pedal Hardness`() {
-        // InMotionV2 reuses pedalSensitivity for a different semantic; the
+        // Lorin reuses pedalSensitivity for a different semantic; the
         // mutual-exclusion rule must not bleed across wheel types.
-        val state: WheelSettings = WheelSettings.InMotionV2(pedalSensitivity = 50)
+        val state: WheelSettings = WheelSettings.Lorin(pedalSensitivity = 50)
         assertTrue(SettingsCommandId.PEDALS_MODE.isAvailable(state), "Non-Veteran wheels keep PedalsMode")
         assertFalse(SettingsCommandId.PEDAL_HARDNESS.isAvailable(state), "PEDAL_HARDNESS is Veteran-only")
     }
@@ -44,7 +44,7 @@ class SettingsCommandIdAvailabilityTest {
         // Spot-check a representative sample so a future contributor adding a new
         // command without an isAvailable branch can't accidentally hide it.
         val veteran: WheelSettings = WheelSettings.Veteran()
-        val inmotion: WheelSettings = WheelSettings.InMotionV2()
+        val inmotion: WheelSettings = WheelSettings.Lorin()
         val none: WheelSettings = WheelSettings.None
         for (id in listOf(
             SettingsCommandId.LIGHT_MODE,

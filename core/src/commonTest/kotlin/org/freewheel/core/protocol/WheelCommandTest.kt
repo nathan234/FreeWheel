@@ -245,8 +245,8 @@ class WheelCommandTest {
     // ==================== InMotion V2 ====================
 
     @Test
-    fun `InMotionV2Decoder beep returns non-empty result`() {
-        val decoder = InMotionV2Decoder()
+    fun `LorinDecoder beep returns non-empty result`() {
+        val decoder = LorinDecoder()
         val commands = decoder.buildCommand(WheelCommand.Beep)
         assertEquals(1, commands.size)
         val cmd = commands[0] as WheelCommand.SendBytes
@@ -254,32 +254,32 @@ class WheelCommandTest {
     }
 
     @Test
-    fun `InMotionV2Decoder SetLight returns empty when model is unknown`() {
-        val decoder = InMotionV2Decoder()
+    fun `LorinDecoder SetLight returns empty when model is unknown`() {
+        val decoder = LorinDecoder()
         // Model is UNKNOWN — light command requires known model for correct sub-command
         val commandsOn = decoder.buildCommand(WheelCommand.SetLight(true))
         assertTrue(commandsOn.isEmpty(), "UNKNOWN model should not build light command")
     }
 
     @Test
-    fun `InMotionV2Decoder Calibrate returns non-empty result`() {
-        val decoder = InMotionV2Decoder()
+    fun `LorinDecoder Calibrate returns non-empty result`() {
+        val decoder = LorinDecoder()
         val commands = decoder.buildCommand(WheelCommand.Calibrate)
         assertEquals(1, commands.size)
         assertTrue((commands[0] as WheelCommand.SendBytes).data.isNotEmpty())
     }
 
     @Test
-    fun `InMotionV2Decoder PowerOff returns non-empty result`() {
-        val decoder = InMotionV2Decoder()
+    fun `LorinDecoder PowerOff returns non-empty result`() {
+        val decoder = LorinDecoder()
         val commands = decoder.buildCommand(WheelCommand.PowerOff)
         assertEquals(1, commands.size)
         assertTrue((commands[0] as WheelCommand.SendBytes).data.isNotEmpty())
     }
 
     @Test
-    fun `InMotionV2Decoder SetLock returns non-empty result`() {
-        val decoder = InMotionV2Decoder()
+    fun `LorinDecoder SetLock returns non-empty result`() {
+        val decoder = LorinDecoder()
         val commandsOn = decoder.buildCommand(WheelCommand.SetLock(true))
         assertEquals(1, commandsOn.size)
         assertTrue((commandsOn[0] as WheelCommand.SendBytes).data.isNotEmpty())
@@ -290,14 +290,14 @@ class WheelCommandTest {
     }
 
     @Test
-    fun `InMotionV2Decoder ResetTrip returns empty`() {
-        val decoder = InMotionV2Decoder()
+    fun `LorinDecoder ResetTrip returns empty`() {
+        val decoder = LorinDecoder()
         assertTrue(decoder.buildCommand(WheelCommand.ResetTrip).isEmpty())
     }
 
     @Test
-    fun `InMotionV2Decoder unsupported command returns empty list`() {
-        val decoder = InMotionV2Decoder()
+    fun `LorinDecoder unsupported command returns empty list`() {
+        val decoder = LorinDecoder()
         assertTrue(decoder.buildCommand(WheelCommand.SetMilesMode(true)).isEmpty())
     }
 

@@ -55,7 +55,7 @@ class DiagnosticSnapshotBuilderTest {
     @Test
     fun `builds snapshot with correct identity fields`() {
         val identity = WheelIdentity(
-            wheelType = WheelType.INMOTION_V2,
+            wheelType = WheelType.LORIN,
             model = "P6",
             btName = "P6-50002437",
             version = "2.0.1.4"
@@ -73,7 +73,7 @@ class DiagnosticSnapshotBuilderTest {
             identity, caps, null, config, "android", "1.2.3"
         )
 
-        assertEquals(WheelType.INMOTION_V2, snapshot.wheelType)
+        assertEquals(WheelType.LORIN, snapshot.wheelType)
         assertEquals("V14", snapshot.detectedModel)
         assertEquals("P6", snapshot.btNamePrefix)
         assertEquals("2.0.1.4", snapshot.firmwareVersion)
@@ -192,7 +192,7 @@ class DiagnosticSnapshotBuilderTest {
         val snapshot = buildTestSnapshot()
         val block = DiagnosticSnapshotBuilder.formatAsCommentBlock(snapshot)
 
-        assertTrue(block.contains("wheel_type: INMOTION_V2"))
+        assertTrue(block.contains("wheel_type: LORIN"))
         assertTrue(block.contains("detected_model: P6"))
         assertTrue(block.contains("bt_name_prefix: P6"))
         assertTrue(block.contains("capabilities_resolved: true"))
@@ -206,7 +206,7 @@ class DiagnosticSnapshotBuilderTest {
         val snapshot = buildTestSnapshot()
         val text = DiagnosticSnapshotBuilder.formatAsText(snapshot)
 
-        assertTrue(text.contains("Wheel Type: INMOTION_V2"))
+        assertTrue(text.contains("Wheel Type: LORIN"))
         assertTrue(text.contains("Detected Model: P6"))
         assertTrue(text.contains("BT Name: P6"))
         assertTrue(text.contains("Capabilities Resolved: true"))
@@ -236,15 +236,15 @@ class DiagnosticSnapshotBuilderTest {
     @Test
     fun `stop with footer writes footer lines before close`() {
         val logger = BleCaptureLogger()
-        logger.start(createTempPath(), "INMOTION_V2", "P6", "2.0.1.4", "1.0.0", 1000)
+        logger.start(createTempPath(), "LORIN", "P6", "2.0.1.4", "1.0.0", 1000)
         logger.logPacket(byteArrayOf(0x01, 0x02), BlePacketDirection.RX, 1100)
 
-        val footer = "# --- Diagnostic Info ---\n# wheel_type: INMOTION_V2\n# detected_model: P6"
+        val footer = "# --- Diagnostic Info ---\n# wheel_type: LORIN\n# detected_model: P6"
         val metadata = logger.stop(2000, footer)
 
         // Metadata should still be returned correctly
         assertEquals(1, metadata?.packetCount)
-        assertEquals("INMOTION_V2", metadata?.wheelTypeName)
+        assertEquals("LORIN", metadata?.wheelTypeName)
     }
 
     @Test
@@ -269,7 +269,7 @@ class DiagnosticSnapshotBuilderTest {
 
     private fun buildTestSnapshot(): DiagnosticSnapshot {
         val identity = WheelIdentity(
-            wheelType = WheelType.INMOTION_V2,
+            wheelType = WheelType.LORIN,
             model = "P6",
             btName = "P6-50002437",
             version = "2.0.1.4",

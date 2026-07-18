@@ -14,7 +14,7 @@ app updates when wheels add features.
 ## Motivation
 
 Every EUC manufacturer invented their own BLE protocol. After implementing seven
-decoders (KS, GW, VT, NB, NZ, IM1, IM2) plus Leaperkim CAN, the pain points are
+decoders (KS, GW, VT, NB, NZ, IM1, Lorin) plus Leaperkim CAN, the pain points are
 clear:
 
 - **Positional offsets**: Field meaning depends on byte position. Firmware changes

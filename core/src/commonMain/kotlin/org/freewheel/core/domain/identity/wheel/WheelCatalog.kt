@@ -87,10 +87,10 @@ object WheelCatalog {
         WheelCatalogEntry("inmotion-v10f", "InMotion V10F", WheelType.INMOTION, listOf("V10F"), 40.0),
         WheelCatalogEntry("inmotion-v11", "InMotion V11", WheelType.INMOTION, listOf("V11"), 45.0),
         WheelCatalogEntry("inmotion-v11y", "InMotion V11Y", WheelType.INMOTION, listOf("V11Y"), 45.0),
-        WheelCatalogEntry("inmotion-v12", "InMotion V12", WheelType.INMOTION_V2, listOf("V12", "V12 PRO"), 60.0),
-        WheelCatalogEntry("inmotion-v13", "InMotion V13 Challenger", WheelType.INMOTION_V2, listOf("V13", "V13 CHALLENGER"), 90.0),
-        WheelCatalogEntry("inmotion-v14", "InMotion V14 Adventure", WheelType.INMOTION_V2, listOf("V14", "V14 ADVENTURE"), 70.0),
-        WheelCatalogEntry("inmotion-p6", "InMotion P6", WheelType.INMOTION_V2, listOf("P6"), 95.0),
+        WheelCatalogEntry("inmotion-v12", "InMotion V12", WheelType.LORIN, listOf("V12", "V12 PRO"), 60.0),
+        WheelCatalogEntry("inmotion-v13", "InMotion V13 Challenger", WheelType.LORIN, listOf("V13", "V13 CHALLENGER"), 90.0),
+        WheelCatalogEntry("inmotion-v14", "InMotion V14 Adventure", WheelType.LORIN, listOf("V14", "V14 ADVENTURE"), 70.0),
+        WheelCatalogEntry("inmotion-p6", "InMotion P6", WheelType.LORIN, listOf("P6"), 95.0),
     )
 
     /** Wheel-type fallbacks when no per-model entry matches. */

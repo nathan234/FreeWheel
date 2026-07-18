@@ -21,7 +21,7 @@ struct WheelTypePickerSheet: View {
         .veteran,
         .leaperkim,
         .inmotion,
-        .inmotionV2,
+        .lorin,
         .ninebot,
         .ninebotZ,
     ]
@@ -91,7 +91,7 @@ struct WheelTypePickerSheet: View {
         case .veteran: return "Veteran (Sherman/Lynx/Patton)"
         case .leaperkim: return "Leaperkim CAN (newer firmware)"
         case .inmotion: return "InMotion V1 (V8/V10/V11)"
-        case .inmotionV2: return "InMotion V2 (V12+)"
+        case .lorin: return "InMotion Lorin (V12+, P6)"
         case .ninebot: return "Ninebot (legacy)"
         case .ninebotZ: return "Ninebot Z (Z10+)"
         case .gotwayVirtual, .unknown: return ""

@@ -14,7 +14,7 @@ package org.freewheel.core.protocol
  * Escape sequence: 0xA5 is used to escape special bytes (AA, A5)
  * When 0xA5 is encountered, the next byte is taken as literal data.
  */
-internal class InMotionV2Unpacker : Unpacker {
+internal class LorinUnpacker : Unpacker {
 
     private enum class State {
         UNKNOWN,

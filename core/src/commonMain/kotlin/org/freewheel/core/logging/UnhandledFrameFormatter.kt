@@ -18,7 +18,7 @@ object UnhandledFrameFormatter {
      * Format unhandled frame entries as CSV with metadata headers.
      *
      * @param entries Frames to include.
-     * @param wheelType Wheel type name (e.g., "INMOTION_V2").
+     * @param wheelType Wheel type name (e.g., "LORIN").
      * @param model Detected model (e.g., "V14").
      * @param firmware Firmware version string.
      * @param platform "android" or "ios".

@@ -34,9 +34,9 @@ class BleUuidsTest {
 
     @Test
     fun `InMotion V2 UUIDs use Nordic UART`() {
-        assertEquals("6e400001-b5a3-f393-e0a9-e50e24dcca9e", BleUuids.InMotionV2.SERVICE)
-        assertEquals("6e400002-b5a3-f393-e0a9-e50e24dcca9e", BleUuids.InMotionV2.WRITE_CHARACTERISTIC)
-        assertEquals("6e400003-b5a3-f393-e0a9-e50e24dcca9e", BleUuids.InMotionV2.READ_CHARACTERISTIC)
+        assertEquals("6e400001-b5a3-f393-e0a9-e50e24dcca9e", BleUuids.Lorin.SERVICE)
+        assertEquals("6e400002-b5a3-f393-e0a9-e50e24dcca9e", BleUuids.Lorin.WRITE_CHARACTERISTIC)
+        assertEquals("6e400003-b5a3-f393-e0a9-e50e24dcca9e", BleUuids.Lorin.READ_CHARACTERISTIC)
     }
 
     @Test
@@ -48,9 +48,9 @@ class BleUuidsTest {
 
     @Test
     fun `InMotion V2 and Ninebot Z share same Nordic UART service`() {
-        assertEquals(BleUuids.InMotionV2.SERVICE, BleUuids.NinebotZ.SERVICE)
-        assertEquals(BleUuids.InMotionV2.READ_CHARACTERISTIC, BleUuids.NinebotZ.READ_CHARACTERISTIC)
-        assertEquals(BleUuids.InMotionV2.WRITE_CHARACTERISTIC, BleUuids.NinebotZ.WRITE_CHARACTERISTIC)
+        assertEquals(BleUuids.Lorin.SERVICE, BleUuids.NinebotZ.SERVICE)
+        assertEquals(BleUuids.Lorin.READ_CHARACTERISTIC, BleUuids.NinebotZ.READ_CHARACTERISTIC)
+        assertEquals(BleUuids.Lorin.WRITE_CHARACTERISTIC, BleUuids.NinebotZ.WRITE_CHARACTERISTIC)
     }
 
     @Test
@@ -192,8 +192,8 @@ class CoreBluetoothUuidExpansionTest {
             )
         )
 
-        assertTrue(services.hasService(BleUuids.InMotionV2.SERVICE))
-        assertTrue(services.hasCharacteristic(BleUuids.InMotionV2.SERVICE, BleUuids.InMotionV2.READ_CHARACTERISTIC))
+        assertTrue(services.hasService(BleUuids.Lorin.SERVICE))
+        assertTrue(services.hasCharacteristic(BleUuids.Lorin.SERVICE, BleUuids.Lorin.READ_CHARACTERISTIC))
     }
 
     @Test

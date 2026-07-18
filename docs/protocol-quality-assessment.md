@@ -19,7 +19,7 @@ Before the comparison, it helps to understand which brands share which protocols
 | Nosfet | Veteran BLE (model IDs 42/43) | `VeteranDecoder` |
 | Leaperkim (newer FW) | CAN-over-BLE | `LeaperkimCanDecoder` |
 | Kingsong | Kingsong BLE | `KingsongDecoder` |
-| InMotion | InMotion V1 / V2 BLE | `InMotionDecoder` / `InMotionV2Decoder` |
+| InMotion | InMotion V1 / V2 BLE | `InMotionDecoder` / `LorinDecoder` |
 | Ninebot | Ninebot / NinebotZ BLE | `NinebotDecoder` / `NinebotZDecoder` |
 
 **Extreme Bull** is a rebrand — identical Gotway protocol, same frame format, same

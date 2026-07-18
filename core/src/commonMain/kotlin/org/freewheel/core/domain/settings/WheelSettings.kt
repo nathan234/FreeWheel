@@ -91,7 +91,7 @@ sealed class WheelSettings {
         val transportMode: Boolean? = null
     ) : WheelSettings()
 
-    data class InMotionV2(
+    data class Lorin(
         override val pedalsMode: Int = -1,
         val maxSpeed: Int = -1,
         val pedalTilt: Int = -1,
@@ -147,7 +147,7 @@ sealed class WheelSettings {
         val minTirePressure: Int = -1,
         val chargingCurrentAC110V: Int = -1,
         val chargingCurrentAC220V: Int = -1,
-        /** InMotionV2 model ID (e.g. 61=V11, 131=P6). Used by buildCommand for model-dependent routing. */
+        /** Lorin model ID (e.g. 61=V11, 131=P6). Used by buildCommand for model-dependent routing. */
         val modelId: Int = 0,
         /** Main board firmware version string (e.g. "1.4.123"). Used by buildCommand for version checks. */
         val mainBoardVersion: String = ""
@@ -188,7 +188,7 @@ sealed class WheelSettings {
 
 val WheelSettings.cutoutAngle: Int get() = when (this) {
     is WheelSettings.Begode -> cutoutAngle
-    is WheelSettings.InMotionV2 -> cutoutAngle
+    is WheelSettings.Lorin -> cutoutAngle
     is WheelSettings.Kingsong, is WheelSettings.Veteran, is WheelSettings.LeaperkimCan,
     is WheelSettings.InMotionV1, is WheelSettings.Ninebot, is WheelSettings.NinebotZ,
     is WheelSettings.None -> -1
@@ -197,14 +197,14 @@ val WheelSettings.cutoutAngle: Int get() = when (this) {
 val WheelSettings.maxSpeed: Int get() = when (this) {
     is WheelSettings.Begode -> tiltBackSpeed
     is WheelSettings.InMotionV1 -> maxSpeed
-    is WheelSettings.InMotionV2 -> maxSpeed
+    is WheelSettings.Lorin -> maxSpeed
     else -> -1
 }
 
 val WheelSettings.pedalTilt: Int get() = when (this) {
     is WheelSettings.LeaperkimCan -> pedalTilt
     is WheelSettings.InMotionV1 -> pedalTilt
-    is WheelSettings.InMotionV2 -> pedalTilt
+    is WheelSettings.Lorin -> pedalTilt
     is WheelSettings.Begode, is WheelSettings.Kingsong, is WheelSettings.Veteran,
     is WheelSettings.Ninebot, is WheelSettings.NinebotZ,
     is WheelSettings.None -> -1
@@ -214,7 +214,7 @@ val WheelSettings.pedalSensitivity: Int get() = when (this) {
     is WheelSettings.Veteran -> pedalSensitivity
     is WheelSettings.LeaperkimCan -> pedalSensitivity
     is WheelSettings.InMotionV1 -> pedalSensitivity
-    is WheelSettings.InMotionV2 -> pedalSensitivity
+    is WheelSettings.Lorin -> pedalSensitivity
     is WheelSettings.NinebotZ -> pedalSensitivity
     is WheelSettings.Begode, is WheelSettings.Kingsong,
     is WheelSettings.Ninebot, is WheelSettings.None -> -1
@@ -222,7 +222,7 @@ val WheelSettings.pedalSensitivity: Int get() = when (this) {
 
 val WheelSettings.speakerVolume: Int get() = when (this) {
     is WheelSettings.InMotionV1 -> speakerVolume
-    is WheelSettings.InMotionV2 -> speakerVolume
+    is WheelSettings.Lorin -> speakerVolume
     is WheelSettings.NinebotZ -> speakerVolume
     is WheelSettings.Begode, is WheelSettings.Kingsong, is WheelSettings.Veteran,
     is WheelSettings.LeaperkimCan,
@@ -230,17 +230,17 @@ val WheelSettings.speakerVolume: Int get() = when (this) {
 }
 
 val WheelSettings.beeperVolume: Int get() = (this as? WheelSettings.Begode)?.beeperVolume ?: -1
-val WheelSettings.lightBrightness: Int get() = (this as? WheelSettings.InMotionV2)?.lightBrightness ?: -1
-val WheelSettings.bermAngle: Int get() = (this as? WheelSettings.InMotionV2)?.bermAngle ?: -1
-val WheelSettings.turningSensitivity: Int get() = (this as? WheelSettings.InMotionV2)?.turningSensitivity ?: -1
-val WheelSettings.speedingBrakingAngle: Int get() = (this as? WheelSettings.InMotionV2)?.speedingBrakingAngle ?: -1
-val WheelSettings.soundWaveSensitivity: Int get() = (this as? WheelSettings.InMotionV2)?.soundWaveSensitivity ?: -1
-val WheelSettings.tailLightMode: Int get() = (this as? WheelSettings.InMotionV2)?.tailLightMode ?: -1
-val WheelSettings.turnSignalMode: Int get() = (this as? WheelSettings.InMotionV2)?.turnSignalMode ?: -1
-val WheelSettings.logoLightBrightness: Int get() = (this as? WheelSettings.InMotionV2)?.logoLightBrightness ?: -1
-val WheelSettings.lightEffectMode: Int get() = (this as? WheelSettings.InMotionV2)?.lightEffectMode ?: -1
-val WheelSettings.standbyTime: Int get() = (this as? WheelSettings.InMotionV2)?.standbyTime ?: -1
-val WheelSettings.chargeLimit: Int get() = (this as? WheelSettings.InMotionV2)?.chargeLimit ?: -1
+val WheelSettings.lightBrightness: Int get() = (this as? WheelSettings.Lorin)?.lightBrightness ?: -1
+val WheelSettings.bermAngle: Int get() = (this as? WheelSettings.Lorin)?.bermAngle ?: -1
+val WheelSettings.turningSensitivity: Int get() = (this as? WheelSettings.Lorin)?.turningSensitivity ?: -1
+val WheelSettings.speedingBrakingAngle: Int get() = (this as? WheelSettings.Lorin)?.speedingBrakingAngle ?: -1
+val WheelSettings.soundWaveSensitivity: Int get() = (this as? WheelSettings.Lorin)?.soundWaveSensitivity ?: -1
+val WheelSettings.tailLightMode: Int get() = (this as? WheelSettings.Lorin)?.tailLightMode ?: -1
+val WheelSettings.turnSignalMode: Int get() = (this as? WheelSettings.Lorin)?.turnSignalMode ?: -1
+val WheelSettings.logoLightBrightness: Int get() = (this as? WheelSettings.Lorin)?.logoLightBrightness ?: -1
+val WheelSettings.lightEffectMode: Int get() = (this as? WheelSettings.Lorin)?.lightEffectMode ?: -1
+val WheelSettings.standbyTime: Int get() = (this as? WheelSettings.Lorin)?.standbyTime ?: -1
+val WheelSettings.chargeLimit: Int get() = (this as? WheelSettings.Lorin)?.chargeLimit ?: -1
 val WheelSettings.weakMagnetism: Int get() = (this as? WheelSettings.Begode)?.weakMagnetism ?: -1
 val WheelSettings.extendedRollAngle: Int get() = (this as? WheelSettings.Begode)?.extendedRollAngle ?: -1
 val WheelSettings.powerAlarm: Int get() = (this as? WheelSettings.Begode)?.powerAlarm ?: -1
@@ -261,7 +261,7 @@ val WheelSettings.wheelDisplayUnit: Int get() = (this as? WheelSettings.Veteran)
 val WheelSettings.lockState: Int get() = when (this) {
     is WheelSettings.Kingsong -> lockState
     is WheelSettings.Veteran -> lockState
-    is WheelSettings.Begode, is WheelSettings.LeaperkimCan, is WheelSettings.InMotionV2,
+    is WheelSettings.Begode, is WheelSettings.LeaperkimCan, is WheelSettings.Lorin,
     is WheelSettings.InMotionV1, is WheelSettings.Ninebot, is WheelSettings.NinebotZ,
     is WheelSettings.None -> -1
 }
@@ -310,17 +310,17 @@ val WheelSettings.plateProtection: Boolean? get() = (this as? WheelSettings.Bego
 val WheelSettings.rideMode: Boolean? get() = when (this) {
     is WheelSettings.LeaperkimCan -> rideMode
     is WheelSettings.InMotionV1 -> rideMode
-    is WheelSettings.InMotionV2 -> rideMode
+    is WheelSettings.Lorin -> rideMode
     is WheelSettings.Begode, is WheelSettings.Kingsong, is WheelSettings.Veteran,
     is WheelSettings.Ninebot, is WheelSettings.NinebotZ,
     is WheelSettings.None -> null
 }
 
-val WheelSettings.fancierMode: Boolean? get() = (this as? WheelSettings.InMotionV2)?.fancierMode
+val WheelSettings.fancierMode: Boolean? get() = (this as? WheelSettings.Lorin)?.fancierMode
 
 val WheelSettings.mute: Boolean? get() = when (this) {
     is WheelSettings.Kingsong -> mute
-    is WheelSettings.InMotionV2 -> mute
+    is WheelSettings.Lorin -> mute
     is WheelSettings.Begode, is WheelSettings.Veteran, is WheelSettings.LeaperkimCan,
     is WheelSettings.InMotionV1, is WheelSettings.Ninebot, is WheelSettings.NinebotZ,
     is WheelSettings.None -> null
@@ -330,14 +330,14 @@ val WheelSettings.handleButton: Boolean? get() = when (this) {
     is WheelSettings.Kingsong -> handleButton
     is WheelSettings.LeaperkimCan -> handleButton
     is WheelSettings.InMotionV1 -> handleButton
-    is WheelSettings.InMotionV2 -> handleButton
+    is WheelSettings.Lorin -> handleButton
     is WheelSettings.NinebotZ -> handleButton
     is WheelSettings.Begode, is WheelSettings.Veteran,
     is WheelSettings.Ninebot, is WheelSettings.None -> null
 }
 
 val WheelSettings.drl: Boolean? get() = when (this) {
-    is WheelSettings.InMotionV2 -> drl
+    is WheelSettings.Lorin -> drl
     is WheelSettings.NinebotZ -> drl
     is WheelSettings.Begode, is WheelSettings.Kingsong, is WheelSettings.Veteran,
     is WheelSettings.LeaperkimCan, is WheelSettings.InMotionV1,
@@ -347,40 +347,40 @@ val WheelSettings.drl: Boolean? get() = when (this) {
 val WheelSettings.transportMode: Boolean? get() = when (this) {
     is WheelSettings.Veteran -> transportMode
     is WheelSettings.LeaperkimCan -> transportMode
-    is WheelSettings.InMotionV2 -> transportMode
+    is WheelSettings.Lorin -> transportMode
     is WheelSettings.Begode, is WheelSettings.Kingsong, is WheelSettings.InMotionV1,
     is WheelSettings.Ninebot, is WheelSettings.NinebotZ, is WheelSettings.None -> null
 }
 
-val WheelSettings.goHomeMode: Boolean? get() = (this as? WheelSettings.InMotionV2)?.goHomeMode
-val WheelSettings.fanQuiet: Boolean? get() = (this as? WheelSettings.InMotionV2)?.fanQuiet
-val WheelSettings.bermAngleMode: Boolean? get() = (this as? WheelSettings.InMotionV2)?.bermAngleMode
-val WheelSettings.onePedalMode: Boolean? get() = (this as? WheelSettings.InMotionV2)?.onePedalMode
-val WheelSettings.speedingBrakingMode: Boolean? get() = (this as? WheelSettings.InMotionV2)?.speedingBrakingMode
-val WheelSettings.soundWave: Boolean? get() = (this as? WheelSettings.InMotionV2)?.soundWave
-val WheelSettings.safeSpeedLimit: Boolean? get() = (this as? WheelSettings.InMotionV2)?.safeSpeedLimit
-val WheelSettings.backwardOverspeedAlert: Boolean? get() = (this as? WheelSettings.InMotionV2)?.backwardOverspeedAlert
-val WheelSettings.autoHeadlight: Boolean? get() = (this as? WheelSettings.InMotionV2)?.autoHeadlight
-val WheelSettings.lightEffect: Boolean? get() = (this as? WheelSettings.InMotionV2)?.lightEffect
-val WheelSettings.twoBatteryMode: Boolean? get() = (this as? WheelSettings.InMotionV2)?.twoBatteryMode
-val WheelSettings.lowBatterySafeMode: Boolean? get() = (this as? WheelSettings.InMotionV2)?.lowBatterySafeMode
-val WheelSettings.spinKill: Boolean? get() = (this as? WheelSettings.InMotionV2)?.spinKill
-val WheelSettings.cruise: Boolean? get() = (this as? WheelSettings.InMotionV2)?.cruise
-val WheelSettings.loadDetect: Boolean? get() = (this as? WheelSettings.InMotionV2)?.loadDetect
+val WheelSettings.goHomeMode: Boolean? get() = (this as? WheelSettings.Lorin)?.goHomeMode
+val WheelSettings.fanQuiet: Boolean? get() = (this as? WheelSettings.Lorin)?.fanQuiet
+val WheelSettings.bermAngleMode: Boolean? get() = (this as? WheelSettings.Lorin)?.bermAngleMode
+val WheelSettings.onePedalMode: Boolean? get() = (this as? WheelSettings.Lorin)?.onePedalMode
+val WheelSettings.speedingBrakingMode: Boolean? get() = (this as? WheelSettings.Lorin)?.speedingBrakingMode
+val WheelSettings.soundWave: Boolean? get() = (this as? WheelSettings.Lorin)?.soundWave
+val WheelSettings.safeSpeedLimit: Boolean? get() = (this as? WheelSettings.Lorin)?.safeSpeedLimit
+val WheelSettings.backwardOverspeedAlert: Boolean? get() = (this as? WheelSettings.Lorin)?.backwardOverspeedAlert
+val WheelSettings.autoHeadlight: Boolean? get() = (this as? WheelSettings.Lorin)?.autoHeadlight
+val WheelSettings.lightEffect: Boolean? get() = (this as? WheelSettings.Lorin)?.lightEffect
+val WheelSettings.twoBatteryMode: Boolean? get() = (this as? WheelSettings.Lorin)?.twoBatteryMode
+val WheelSettings.lowBatterySafeMode: Boolean? get() = (this as? WheelSettings.Lorin)?.lowBatterySafeMode
+val WheelSettings.spinKill: Boolean? get() = (this as? WheelSettings.Lorin)?.spinKill
+val WheelSettings.cruise: Boolean? get() = (this as? WheelSettings.Lorin)?.cruise
+val WheelSettings.loadDetect: Boolean? get() = (this as? WheelSettings.Lorin)?.loadDetect
 val WheelSettings.highSpeedMode: Boolean? get() = (this as? WheelSettings.Veteran)?.highSpeedMode
 val WheelSettings.lowVoltageMode: Boolean? get() = (this as? WheelSettings.Veteran)?.lowVoltageMode
 
 // P6-specific boolean fields
-val WheelSettings.autoScreenOff: Boolean? get() = (this as? WheelSettings.InMotionV2)?.autoScreenOff
-val WheelSettings.autoLock: Boolean? get() = (this as? WheelSettings.InMotionV2)?.autoLock
-val WheelSettings.ignoreTirePressure: Boolean? get() = (this as? WheelSettings.InMotionV2)?.ignoreTirePressure
-val WheelSettings.rideConnectSwitch: Boolean? get() = (this as? WheelSettings.InMotionV2)?.rideConnectSwitch
-val WheelSettings.rideConnectLowBattery: Boolean? get() = (this as? WheelSettings.InMotionV2)?.rideConnectLowBattery
+val WheelSettings.autoScreenOff: Boolean? get() = (this as? WheelSettings.Lorin)?.autoScreenOff
+val WheelSettings.autoLock: Boolean? get() = (this as? WheelSettings.Lorin)?.autoLock
+val WheelSettings.ignoreTirePressure: Boolean? get() = (this as? WheelSettings.Lorin)?.ignoreTirePressure
+val WheelSettings.rideConnectSwitch: Boolean? get() = (this as? WheelSettings.Lorin)?.rideConnectSwitch
+val WheelSettings.rideConnectLowBattery: Boolean? get() = (this as? WheelSettings.Lorin)?.rideConnectLowBattery
 
 // P6-specific int fields
-val WheelSettings.minTirePressure: Int get() = (this as? WheelSettings.InMotionV2)?.minTirePressure ?: -1
-val WheelSettings.chargingCurrentAC110V: Int get() = (this as? WheelSettings.InMotionV2)?.chargingCurrentAC110V ?: -1
-val WheelSettings.chargingCurrentAC220V: Int get() = (this as? WheelSettings.InMotionV2)?.chargingCurrentAC220V ?: -1
-val WheelSettings.balanceAngle: Int get() = (this as? WheelSettings.InMotionV2)?.balanceAngle ?: -1
-val WheelSettings.speedTiltbackEnabled: Boolean? get() = (this as? WheelSettings.InMotionV2)?.speedTiltbackEnabled
-val WheelSettings.speedAlarm: Int get() = (this as? WheelSettings.InMotionV2)?.speedAlarm ?: -1
+val WheelSettings.minTirePressure: Int get() = (this as? WheelSettings.Lorin)?.minTirePressure ?: -1
+val WheelSettings.chargingCurrentAC110V: Int get() = (this as? WheelSettings.Lorin)?.chargingCurrentAC110V ?: -1
+val WheelSettings.chargingCurrentAC220V: Int get() = (this as? WheelSettings.Lorin)?.chargingCurrentAC220V ?: -1
+val WheelSettings.balanceAngle: Int get() = (this as? WheelSettings.Lorin)?.balanceAngle ?: -1
+val WheelSettings.speedTiltbackEnabled: Boolean? get() = (this as? WheelSettings.Lorin)?.speedTiltbackEnabled
+val WheelSettings.speedAlarm: Int get() = (this as? WheelSettings.Lorin)?.speedAlarm ?: -1

@@ -501,10 +501,10 @@ class GotwayDecoderTest {
         assertEquals(62, (r2 as DecodeResult.Success).data.assertTelemetry().batteryLevel)
     }
 
-    // ==================== InMotionV2 Model IDs ====================
+    // ==================== Lorin Model IDs ====================
 
     @Test
-    fun `inmotionV2 all model IDs resolve correctly`() {
+    fun `lorin all model IDs resolve correctly`() {
         val expected = mapOf(
             Pair(6, 1) to "InMotion V11",
             Pair(6, 2) to "InMotion V11y",
@@ -520,30 +520,30 @@ class GotwayDecoderTest {
         )
 
         for ((ids, name) in expected) {
-            val model = InMotionV2Decoder.Model.findById(ids.first, ids.second)
+            val model = LorinDecoder.Model.findById(ids.first, ids.second)
             assertEquals(name, model.displayName, "Model for series=${ids.first}, type=${ids.second}")
         }
     }
 
     @Test
-    fun `inmotionV2 cell counts are correct`() {
-        assertEquals(20, InMotionV2Decoder.Model.V11.cellCount)
-        assertEquals(20, InMotionV2Decoder.Model.V11Y.cellCount)
-        assertEquals(24, InMotionV2Decoder.Model.V12HS.cellCount)
-        assertEquals(24, InMotionV2Decoder.Model.V12HT.cellCount)
-        assertEquals(24, InMotionV2Decoder.Model.V12PRO.cellCount)
-        assertEquals(30, InMotionV2Decoder.Model.V13.cellCount)
-        assertEquals(30, InMotionV2Decoder.Model.V13PRO.cellCount)
-        assertEquals(32, InMotionV2Decoder.Model.V14g.cellCount)
-        assertEquals(32, InMotionV2Decoder.Model.V14s.cellCount)
-        assertEquals(20, InMotionV2Decoder.Model.V12S.cellCount)
-        assertEquals(20, InMotionV2Decoder.Model.V9.cellCount)
+    fun `lorin cell counts are correct`() {
+        assertEquals(20, LorinDecoder.Model.V11.cellCount)
+        assertEquals(20, LorinDecoder.Model.V11Y.cellCount)
+        assertEquals(24, LorinDecoder.Model.V12HS.cellCount)
+        assertEquals(24, LorinDecoder.Model.V12HT.cellCount)
+        assertEquals(24, LorinDecoder.Model.V12PRO.cellCount)
+        assertEquals(30, LorinDecoder.Model.V13.cellCount)
+        assertEquals(30, LorinDecoder.Model.V13PRO.cellCount)
+        assertEquals(32, LorinDecoder.Model.V14g.cellCount)
+        assertEquals(32, LorinDecoder.Model.V14s.cellCount)
+        assertEquals(20, LorinDecoder.Model.V12S.cellCount)
+        assertEquals(20, LorinDecoder.Model.V9.cellCount)
     }
 
     @Test
-    fun `inmotionV2 unknown series returns UNKNOWN`() {
-        val model = InMotionV2Decoder.Model.findById(99, 1)
-        assertEquals(InMotionV2Decoder.Model.UNKNOWN, model)
+    fun `lorin unknown series returns UNKNOWN`() {
+        val model = LorinDecoder.Model.findById(99, 1)
+        assertEquals(LorinDecoder.Model.UNKNOWN, model)
     }
 
     // ==================== Gotway Model Field ====================

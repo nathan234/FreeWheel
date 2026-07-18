@@ -22,7 +22,7 @@ object WheelSettingsConfig {
             WheelType.LEAPERKIM -> leaperkimSections()
             WheelType.NINEBOT_Z -> ninebotZSections()
             WheelType.INMOTION -> inmotionSections()
-            WheelType.INMOTION_V2 -> inmotionV2Sections()
+            WheelType.LORIN -> lorinSections()
             WheelType.NINEBOT, WheelType.Unknown -> emptyList()
         }
 
@@ -209,7 +209,7 @@ object WheelSettingsConfig {
         ))
     )
 
-    private fun inmotionV2Sections() = listOf(
+    private fun lorinSections() = listOf(
         SettingsSection("Lighting", listOf(
             ControlSpec.Toggle("Headlight", SettingsCommandId.LIGHT_MODE),
             ControlSpec.Toggle("DRL", SettingsCommandId.DRL),

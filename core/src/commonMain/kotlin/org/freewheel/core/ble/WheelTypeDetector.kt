@@ -259,7 +259,7 @@ class WheelTypeDetector(
                 name.startsWith("V14") || name.startsWith("V9") || name.startsWith("P6") ||
                 name.startsWith("E20") || name.startsWith("E25") ||
                 name.startsWith("CLIMBER") || name.startsWith("GLIDE") ||
-                name.contains("INMOTION") -> WheelType.INMOTION_V2
+                name.contains("INMOTION") -> WheelType.LORIN
 
                 // Gotway/Begode patterns
                 name.contains("GOTWAY") ||

@@ -21,7 +21,7 @@ No EUC manufacturer publishes official BLE protocol specs. Everything below is r
 
 The most complete and up-to-date protocol documentation is the decoder source code in open-source apps:
 
-- **FreeWheel KMP decoders** (`core/src/commonMain/.../protocol/`) -- KingsongDecoder, GotwayDecoder, VeteranDecoder, NinebotDecoder, NinebotZDecoder, InMotionDecoder, InMotionV2Decoder. The most current implementations covering all major brands.
+- **FreeWheel KMP decoders** (`core/src/commonMain/.../protocol/`) -- KingsongDecoder, GotwayDecoder, VeteranDecoder, NinebotDecoder, NinebotZDecoder, InMotionDecoder, LorinDecoder. The most current implementations covering all major brands.
 - [EUC-Dash-ESP32](https://github.com/Pickelhaupt/EUC-Dash-ESP32) -- ESP32-based dashboard with KingSong protocol implementation in C/C++. Useful as an independent cross-reference.
 - [eucWatch](https://github.com/enaon/eucWatch) -- JavaScript-based protocol implementations for KingSong, InMotion, Ninebot, Begode, and Leaperkim on NRF52xx smartwatches.
 - [9BMetrics (iOS)](https://github.com/fgorina/9BMetrics) -- Open-source iOS app with Ninebot, KingSong, and Gotway protocol implementations.

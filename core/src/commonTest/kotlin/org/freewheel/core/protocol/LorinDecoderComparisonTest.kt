@@ -4,7 +4,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 /**
- * Comparison tests verifying KMP InMotionV2Decoder produces identical results
+ * Comparison tests verifying KMP LorinDecoder produces identical results
  * to the legacy InMotionAdapterV2 using real packet data from legacy tests.
  *
  * Each test cites the specific legacy test case and asserts ALL fields that
@@ -12,9 +12,9 @@ import kotlin.test.assertEquals
  *
  * Based on legacy InMotionAdapterV2Test packet data.
  */
-class InMotionV2DecoderComparisonTest {
+class LorinDecoderComparisonTest {
 
-    private val decoder = InMotionV2Decoder()
+    private val decoder = LorinDecoder()
     private val defaultDs = DecoderState()
     private val defaultConfig = DecoderConfig()
 
@@ -64,7 +64,7 @@ class InMotionV2DecoderComparisonTest {
         assertEquals(80, telemetry.imuTemp)
         assertEquals(80, telemetry.cpuTemp)
 
-        // IM2-specific
+        // Lorin-specific
         assertEquals(44.26, telemetry.torque, 0.01)
         assertEquals(1184.0, telemetry.motorPower, 0.01)
         assertEquals(55.00, telemetry.speedLimit, 0.01)
@@ -181,7 +181,7 @@ class InMotionV2DecoderComparisonTest {
         assertEquals(32, telemetry.imuTemp)
         assertEquals(33, telemetry.cpuTemp)
 
-        // IM2-specific
+        // Lorin-specific
         assertEquals(0.14, telemetry.torque, 0.01)
         assertEquals(0.0, telemetry.motorPower, 0.01)
         assertEquals(69.71, telemetry.speedLimit, 0.01)
@@ -335,7 +335,7 @@ class InMotionV2DecoderComparisonTest {
         assertEquals(23, telemetry.imuTemp)
         assertEquals(0, telemetry.cpuTemp)
 
-        // IM2-specific
+        // Lorin-specific
         assertEquals(-1.23, telemetry.torque, 0.01)
         assertEquals(0.0, telemetry.motorPower, 0.01)
         assertEquals(56.00, telemetry.speedLimit, 0.01)
@@ -387,7 +387,7 @@ class InMotionV2DecoderComparisonTest {
         assertEquals(33, telemetry.imuTemp)
         assertEquals(0, telemetry.cpuTemp)
 
-        // IM2-specific
+        // Lorin-specific
         assertEquals(74.41, telemetry.torque, 0.01)
         assertEquals(1712.0, telemetry.motorPower, 0.01)
         assertEquals(90.00, telemetry.speedLimit, 0.01)
@@ -439,7 +439,7 @@ class InMotionV2DecoderComparisonTest {
         assertEquals(32, telemetry.imuTemp)
         assertEquals(0, telemetry.cpuTemp)
 
-        // IM2-specific
+        // Lorin-specific
         assertEquals(1.53, telemetry.torque, 0.01)
         assertEquals(79.0, telemetry.motorPower, 0.01)
         assertEquals(70.00, telemetry.speedLimit, 0.01)
@@ -492,7 +492,7 @@ class InMotionV2DecoderComparisonTest {
         assertEquals(29, telemetry.imuTemp)
         assertEquals(0, telemetry.cpuTemp)
 
-        // IM2-specific
+        // Lorin-specific
         assertEquals(2.65, telemetry.torque, 0.01)
         assertEquals(0.0, telemetry.motorPower, 0.01)
         assertEquals(41.00, telemetry.speedLimit, 0.01)
@@ -545,7 +545,7 @@ class InMotionV2DecoderComparisonTest {
         assertEquals(30, telemetry.imuTemp)
         assertEquals(0, telemetry.cpuTemp)
 
-        // IM2-specific
+        // Lorin-specific
         assertEquals(-0.81, telemetry.torque, 0.01)
         assertEquals(0.0, telemetry.motorPower, 0.01)
         assertEquals(42.29, telemetry.speedLimit, 0.01)
@@ -598,7 +598,7 @@ class InMotionV2DecoderComparisonTest {
         assertEquals(27, telemetry.imuTemp)
         assertEquals(0, telemetry.cpuTemp)
 
-        // IM2-specific
+        // Lorin-specific
         assertEquals(0.00, telemetry.torque, 0.01)
         assertEquals(0.0, telemetry.motorPower, 0.01)
         assertEquals(70.00, telemetry.speedLimit, 0.01)

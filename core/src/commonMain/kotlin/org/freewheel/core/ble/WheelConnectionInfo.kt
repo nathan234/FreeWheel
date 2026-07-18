@@ -104,12 +104,12 @@ data class WheelConnectionInfo(
         /**
          * Create connection info for an InMotion V2 wheel.
          */
-        fun forInMotionV2(): WheelConnectionInfo = WheelConnectionInfo(
-            wheelType = WheelType.INMOTION_V2,
-            readServiceUuid = BleUuids.InMotionV2.SERVICE,
-            readCharacteristicUuid = BleUuids.InMotionV2.READ_CHARACTERISTIC,
-            writeServiceUuid = BleUuids.InMotionV2.SERVICE,
-            writeCharacteristicUuid = BleUuids.InMotionV2.WRITE_CHARACTERISTIC
+        fun forLorin(): WheelConnectionInfo = WheelConnectionInfo(
+            wheelType = WheelType.LORIN,
+            readServiceUuid = BleUuids.Lorin.SERVICE,
+            readCharacteristicUuid = BleUuids.Lorin.READ_CHARACTERISTIC,
+            writeServiceUuid = BleUuids.Lorin.SERVICE,
+            writeCharacteristicUuid = BleUuids.Lorin.WRITE_CHARACTERISTIC
         )
 
         /**
@@ -155,7 +155,7 @@ data class WheelConnectionInfo(
             WheelType.VETERAN -> forVeteran()
             WheelType.LEAPERKIM -> forLeaperkim()
             WheelType.INMOTION -> forInMotion()
-            WheelType.INMOTION_V2 -> forInMotionV2()
+            WheelType.LORIN -> forLorin()
             WheelType.NINEBOT -> forNinebot()
             WheelType.NINEBOT_Z -> forNinebotZ()
             WheelType.Unknown -> null

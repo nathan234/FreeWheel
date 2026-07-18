@@ -6,7 +6,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
- * Tests for [InMotionV2Unpacker].
+ * Tests for [LorinUnpacker].
  *
  * InMotion V2 frame format:
  * - Bytes 0-1: Header (AA AA)
@@ -19,9 +19,9 @@ import kotlin.test.assertTrue
  * Escape byte: 0xA5 — skip it and use the next byte as literal data.
  * Total frame size in buffer: len + 5
  */
-class InMotionV2UnpackerTest {
+class LorinUnpackerTest {
 
-    private fun feedBytes(unpacker: InMotionV2Unpacker, bytes: ByteArray): Boolean {
+    private fun feedBytes(unpacker: LorinUnpacker, bytes: ByteArray): Boolean {
         var completed = false
         for (b in bytes) {
             if (unpacker.addChar(b.toInt() and 0xFF)) {
@@ -62,7 +62,7 @@ class InMotionV2UnpackerTest {
 
     @Test
     fun completeFrame_returnsTrue() {
-        val unpacker = InMotionV2Unpacker()
+        val unpacker = LorinUnpacker()
         val frame = buildFrame(command = 0x01, data = byteArrayOf(0x10, 0x20))
         val result = feedBytes(unpacker, frame)
         assertTrue(result, "Should return true for complete V2 frame")
@@ -70,7 +70,7 @@ class InMotionV2UnpackerTest {
 
     @Test
     fun completeFrame_bufferMatchesInput() {
-        val unpacker = InMotionV2Unpacker()
+        val unpacker = LorinUnpacker()
         val data = byteArrayOf(0x10, 0x20, 0x30)
         val frame = buildFrame(flags = 0x14, command = 0x02, data = data)
         feedBytes(unpacker, frame)
@@ -89,7 +89,7 @@ class InMotionV2UnpackerTest {
 
     @Test
     fun partialFrame_returnsFalse() {
-        val unpacker = InMotionV2Unpacker()
+        val unpacker = LorinUnpacker()
         val partial = byteArrayOf(0xAA.toByte(), 0xAA.toByte(), 0x14, 0x03)
         val result = feedBytes(unpacker, partial)
         assertFalse(result, "Should return false for partial frame")
@@ -97,7 +97,7 @@ class InMotionV2UnpackerTest {
 
     @Test
     fun escapeInData_skipsA5() {
-        val unpacker = InMotionV2Unpacker()
+        val unpacker = LorinUnpacker()
         // Build a frame where one data byte is 0xAA (needs escape)
         // Wire format: AA AA [flags] [len] [cmd] A5 AA [more data] [checksum]
         val rawBytes = mutableListOf<Byte>()
@@ -122,7 +122,7 @@ class InMotionV2UnpackerTest {
 
     @Test
     fun consecutiveEscapedBytes_decodedCorrectly() {
-        val unpacker = InMotionV2Unpacker()
+        val unpacker = LorinUnpacker()
         // Frame with two consecutive escaped bytes in data: literal 0xAA followed by literal 0xA5
         // Wire: AA AA [flags] [len] [cmd] A5 AA A5 A5 [checksum]
         //                                 ^^^^^ ^^^^^ escaped 0xAA, escaped 0xA5
@@ -151,7 +151,7 @@ class InMotionV2UnpackerTest {
 
     @Test
     fun escapedA5_followedByEscapePrefix_decodedCorrectly() {
-        val unpacker = InMotionV2Unpacker()
+        val unpacker = LorinUnpacker()
         // Wire: A5 A5 A5 AA → literal 0xA5 then literal 0xAA
         // This catches the bug where oldC retains 0xA5 after decoding an escaped 0xA5
         val rawBytes = mutableListOf<Byte>()
@@ -177,7 +177,7 @@ class InMotionV2UnpackerTest {
 
     @Test
     fun escapeInFlags_handledCorrectly() {
-        val unpacker = InMotionV2Unpacker()
+        val unpacker = LorinUnpacker()
         // If flags byte were 0xAA, it would need escaping on the wire
         val rawBytes = mutableListOf<Byte>()
         rawBytes.add(0xAA.toByte()) // header
@@ -199,7 +199,7 @@ class InMotionV2UnpackerTest {
 
     @Test
     fun garbageBeforeHeader_isSkipped() {
-        val unpacker = InMotionV2Unpacker()
+        val unpacker = LorinUnpacker()
         val garbage = byteArrayOf(0x01, 0x02, 0xFF.toByte())
         feedBytes(unpacker, garbage)
 
@@ -210,7 +210,7 @@ class InMotionV2UnpackerTest {
 
     @Test
     fun reset_allowsNextFrame() {
-        val unpacker = InMotionV2Unpacker()
+        val unpacker = LorinUnpacker()
         val frame1 = buildFrame(command = 0x01)
         assertTrue(feedBytes(unpacker, frame1), "First frame should complete")
 
@@ -223,7 +223,7 @@ class InMotionV2UnpackerTest {
 
     @Test
     fun byteByByte_onlyLastByteReturnsTrue() {
-        val unpacker = InMotionV2Unpacker()
+        val unpacker = LorinUnpacker()
         val frame = buildFrame(data = byteArrayOf(0x10))
         val total = frame.size
 
@@ -241,7 +241,7 @@ class InMotionV2UnpackerTest {
 
     @Test
     fun initialFlags_frame() {
-        val unpacker = InMotionV2Unpacker()
+        val unpacker = LorinUnpacker()
         val frame = buildFrame(flags = 0x11, command = 0x02, data = byteArrayOf(0x01))
         val result = feedBytes(unpacker, frame)
         assertTrue(result, "Should complete frame with initial flags 0x11")
@@ -250,7 +250,7 @@ class InMotionV2UnpackerTest {
 
     @Test
     fun emptyData_frame() {
-        val unpacker = InMotionV2Unpacker()
+        val unpacker = LorinUnpacker()
         // len = 1 (just command, no data)
         val frame = buildFrame(command = 0x05, data = ByteArray(0))
         val result = feedBytes(unpacker, frame)

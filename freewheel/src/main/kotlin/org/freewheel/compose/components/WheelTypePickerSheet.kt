@@ -133,7 +133,7 @@ private val PICKABLE_WHEEL_TYPES = listOf(
     WheelType.VETERAN,
     WheelType.LEAPERKIM,
     WheelType.INMOTION,
-    WheelType.INMOTION_V2,
+    WheelType.LORIN,
     WheelType.NINEBOT,
     WheelType.NINEBOT_Z,
 )
@@ -149,7 +149,7 @@ private fun pickerLabel(type: WheelType): String = when (type) {
     WheelType.VETERAN -> "Veteran (Sherman/Lynx/Patton)"
     WheelType.LEAPERKIM -> "Leaperkim CAN (newer firmware)"
     WheelType.INMOTION -> "InMotion V1 (V8/V10/V11)"
-    WheelType.INMOTION_V2 -> "InMotion V2 (V12+)"
+    WheelType.LORIN -> "InMotion Lorin (V12+, P6)"
     WheelType.NINEBOT -> "Ninebot (legacy)"
     WheelType.NINEBOT_Z -> "Ninebot Z (Z10+)"
     WheelType.GOTWAY_VIRTUAL,

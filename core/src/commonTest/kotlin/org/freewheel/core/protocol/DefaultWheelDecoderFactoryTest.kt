@@ -77,10 +77,10 @@ class DefaultWheelDecoderFactoryTest {
     @Test
     fun `factory creates InMotion V2 decoder`() {
         val factory = DefaultWheelDecoderFactory()
-        val decoder = factory.createDecoder(WheelType.INMOTION_V2)
+        val decoder = factory.createDecoder(WheelType.LORIN)
         assertNotNull(decoder)
-        assertTrue(decoder is InMotionV2Decoder)
-        assertEquals(WheelType.INMOTION_V2, decoder.wheelType)
+        assertTrue(decoder is LorinDecoder)
+        assertEquals(WheelType.LORIN, decoder.wheelType)
     }
 
     @Test
@@ -102,7 +102,7 @@ class DefaultWheelDecoderFactoryTest {
         assertTrue(WheelType.NINEBOT in supported)
         assertTrue(WheelType.NINEBOT_Z in supported)
         assertTrue(WheelType.INMOTION in supported)
-        assertTrue(WheelType.INMOTION_V2 in supported)
+        assertTrue(WheelType.LORIN in supported)
     }
 
     @Test
@@ -156,6 +156,6 @@ class DefaultWheelDecoderFactoryTest {
         val supported = factory.supportedTypes()
 
         assertTrue(supported.isNotEmpty())
-        assertTrue(WheelType.INMOTION_V2 in supported)
+        assertTrue(WheelType.LORIN in supported)
     }
 }

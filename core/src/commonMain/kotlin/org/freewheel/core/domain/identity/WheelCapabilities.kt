@@ -11,7 +11,7 @@ import org.freewheel.core.domain.settings.SettingsCommandId
  * disappearing while the user is interacting with them.
  *
  * [isResolved] means the minimum identification needed to determine command
- * support has been received (e.g., mVer for Veteran, model + protoVer for IM2).
+ * support has been received (e.g., mVer for Veteran, model + protoVer for Lorin).
  * It does NOT mean all metadata (serial, BMS, etc.) is available.
  */
 data class CapabilitySet(
@@ -24,7 +24,7 @@ data class CapabilitySet(
     /** Firmware version string. */
     val firmwareVersion: String = "",
 
-    /** Decoder-specific firmware level (e.g., mVer for Veteran, protoVer for IM2). */
+    /** Decoder-specific firmware level (e.g., mVer for Veteran, protoVer for Lorin). */
     val firmwareLevel: Int = 0,
 
     /** Whether capability resolution is complete. See class doc. */

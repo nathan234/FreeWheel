@@ -23,7 +23,7 @@ class WheelTopologyMatcherTest {
         "gotway" to WheelType.GOTWAY,
         "kingsong" to WheelType.KINGSONG,
         "inmotion" to WheelType.INMOTION,
-        "inmotion_v2" to WheelType.INMOTION_V2,
+        "inmotion_v2" to WheelType.LORIN,
         "ninebot" to WheelType.NINEBOT,
         "ninebot_z" to WheelType.NINEBOT_Z,
     )

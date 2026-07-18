@@ -19,7 +19,7 @@ enum class ProtocolFamily {
     NINEBOT,
     NINEBOT_Z,
     INMOTION,
-    INMOTION_V2,
+    LORIN,
     VETERAN,
     LEAPERKIM;
 
@@ -29,7 +29,7 @@ enum class ProtocolFamily {
         NINEBOT -> WheelType.NINEBOT
         NINEBOT_Z -> WheelType.NINEBOT_Z
         INMOTION -> WheelType.INMOTION
-        INMOTION_V2 -> WheelType.INMOTION_V2
+        LORIN -> WheelType.LORIN
         VETERAN -> WheelType.VETERAN
         LEAPERKIM -> WheelType.LEAPERKIM
     }
@@ -41,7 +41,7 @@ enum class ProtocolFamily {
             WheelType.NINEBOT -> NINEBOT
             WheelType.NINEBOT_Z -> NINEBOT_Z
             WheelType.INMOTION -> INMOTION
-            WheelType.INMOTION_V2 -> INMOTION_V2
+            WheelType.LORIN -> LORIN
             WheelType.VETERAN -> VETERAN
             WheelType.LEAPERKIM -> LEAPERKIM
             WheelType.GOTWAY_VIRTUAL -> null

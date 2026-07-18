@@ -185,12 +185,12 @@ class DashboardMetricTest {
         assertTrue(DashboardMetric.PHASE_CURRENT.isAvailableFor(WheelType.GOTWAY_VIRTUAL))
         assertTrue(DashboardMetric.PHASE_CURRENT.isAvailableFor(WheelType.VETERAN))
         assertFalse(DashboardMetric.PHASE_CURRENT.isAvailableFor(WheelType.KINGSONG))
-        assertFalse(DashboardMetric.PHASE_CURRENT.isAvailableFor(WheelType.INMOTION_V2))
+        assertFalse(DashboardMetric.PHASE_CURRENT.isAvailableFor(WheelType.LORIN))
     }
 
     @Test
     fun `TORQUE is only available for InMotion V2`() {
-        assertTrue(DashboardMetric.TORQUE.isAvailableFor(WheelType.INMOTION_V2))
+        assertTrue(DashboardMetric.TORQUE.isAvailableFor(WheelType.LORIN))
         assertFalse(DashboardMetric.TORQUE.isAvailableFor(WheelType.KINGSONG))
         assertFalse(DashboardMetric.TORQUE.isAvailableFor(WheelType.GOTWAY))
     }
@@ -199,7 +199,7 @@ class DashboardMetricTest {
     fun `CPU_LOAD is only available for KingSong`() {
         assertTrue(DashboardMetric.CPU_LOAD.isAvailableFor(WheelType.KINGSONG))
         assertFalse(DashboardMetric.CPU_LOAD.isAvailableFor(WheelType.GOTWAY))
-        assertFalse(DashboardMetric.CPU_LOAD.isAvailableFor(WheelType.INMOTION_V2))
+        assertFalse(DashboardMetric.CPU_LOAD.isAvailableFor(WheelType.LORIN))
     }
 
     @Test
@@ -212,7 +212,7 @@ class DashboardMetricTest {
     fun `ANGLE is available for Veteran and InMotion`() {
         assertTrue(DashboardMetric.ANGLE.isAvailableFor(WheelType.VETERAN))
         assertTrue(DashboardMetric.ANGLE.isAvailableFor(WheelType.INMOTION))
-        assertTrue(DashboardMetric.ANGLE.isAvailableFor(WheelType.INMOTION_V2))
+        assertTrue(DashboardMetric.ANGLE.isAvailableFor(WheelType.LORIN))
         assertFalse(DashboardMetric.ANGLE.isAvailableFor(WheelType.KINGSONG))
     }
 

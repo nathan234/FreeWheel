@@ -156,7 +156,7 @@ class DashboardLayoutTest {
     @Test
     fun `filteredFor preserves sections`() {
         val layout = DashboardLayout.create(sections = emptySet())
-        val filtered = layout.filteredFor(WheelType.INMOTION_V2)
+        val filtered = layout.filteredFor(WheelType.LORIN)
         assertFalse(filtered.showWheelSettings)
         assertFalse(filtered.showWheelInfo)
     }
@@ -187,12 +187,12 @@ class DashboardLayoutTest {
     }
 
     @Test
-    fun `filteredFor with IM2 keeps IM2-specific metrics`() {
+    fun `filteredFor with Lorin keeps Lorin-specific metrics`() {
         val layout = DashboardLayout.createLenient(
             tiles = listOf(DashboardMetric.SPEED, DashboardMetric.BATTERY),
             stats = listOf(DashboardMetric.CPU_TEMP, DashboardMetric.IMU_TEMP, DashboardMetric.SPEED_LIMIT)
         )
-        val filtered = layout.filteredFor(WheelType.INMOTION_V2)
+        val filtered = layout.filteredFor(WheelType.LORIN)
         assertEquals(layout.tiles, filtered.tiles)
         assertEquals(layout.stats, filtered.stats)
     }

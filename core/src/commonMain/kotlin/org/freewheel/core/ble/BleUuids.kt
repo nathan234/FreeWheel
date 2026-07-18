@@ -60,7 +60,7 @@ object BleUuids {
 
     // ==================== InMotion V2 (Nordic UART) ====================
 
-    object InMotionV2 {
+    object Lorin {
         const val SERVICE = "6e400001-b5a3-f393-e0a9-e50e24dcca9e"
         const val WRITE_CHARACTERISTIC = "6e400002-b5a3-f393-e0a9-e50e24dcca9e"
         const val READ_CHARACTERISTIC = "6e400003-b5a3-f393-e0a9-e50e24dcca9e"

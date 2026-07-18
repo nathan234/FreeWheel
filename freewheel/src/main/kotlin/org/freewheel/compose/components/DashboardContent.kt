@@ -565,6 +565,6 @@ private fun PreviewCompactLayout() {
 private fun PreviewDiagnosticLayout() {
     PreviewDashboard(
         layout = DashboardPresets.all().first { it.id == "diagnostic" }.layout,
-        wheelType = WheelType.INMOTION_V2
+        wheelType = WheelType.LORIN
     )
 }

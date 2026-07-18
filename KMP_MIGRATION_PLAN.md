@@ -39,7 +39,7 @@ This document tracks the migration of FreeWheel's core functionality to Kotlin M
 | VeteranDecoder | (inline) | ✅ | ✅ |
 | KingsongDecoder | (inline) | ✅ | ✅ |
 | InMotionDecoder | InMotionUnpacker | ✅ | ✅ |
-| InMotionV2Decoder | InMotionV2Unpacker | ✅ | ✅ |
+| LorinDecoder | LorinUnpacker | ✅ | ✅ |
 | NinebotDecoder | NinebotUnpacker | ✅ | ✅ |
 | NinebotZDecoder | (inline) | ✅ | ✅ |
 | AutoDetectDecoder | (delegates) | ✅ | ✅ |

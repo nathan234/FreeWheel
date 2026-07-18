@@ -196,11 +196,11 @@ class DecoderLifecycleTest {
             "Should retry V after reset (counter cleared)")
     }
 
-    // ==================== InMotionV2Decoder Lifecycle ====================
+    // ==================== LorinDecoder Lifecycle ====================
 
     @Test
-    fun `InMotionV2 getKeepAliveCommand sends REAL_TIME_INFO primarily with init retries on 4th tick`() {
-        val decoder = InMotionV2Decoder()
+    fun `Lorin getKeepAliveCommand sends REAL_TIME_INFO primarily with init retries on 4th tick`() {
+        val decoder = LorinDecoder()
 
         // First 3 ticks should send REAL_TIME_INFO (DEFAULT flag 0x14)
         for (i in 1..3) {
@@ -220,11 +220,11 @@ class DecoderLifecycleTest {
     }
 
     @Test
-    fun `InMotionV2 getKeepAliveCommand retries serial after model detected`() {
-        val decoder = InMotionV2Decoder()
+    fun `Lorin getKeepAliveCommand retries serial after model detected`() {
+        val decoder = LorinDecoder()
 
         // Feed a car type response to set isModelDetected = true
-        val carTypeFrame = buildIM2Frame(0x11, 0x02, byteArrayOf(0x01, 0x00, 0x08, 0x01, 0x00, 0x00))
+        val carTypeFrame = buildLorinFrame(0x11, 0x02, byteArrayOf(0x01, 0x00, 0x08, 0x01, 0x00, 0x00))
         decoder.decode(carTypeFrame, defaultDs, defaultConfig)
 
         // Advance to 4th tick to trigger init retry
@@ -239,25 +239,25 @@ class DecoderLifecycleTest {
     }
 
     @Test
-    fun `InMotionV2 getKeepAliveCommand returns REAL_TIME_INFO when fully initialized`() {
-        val decoder = InMotionV2Decoder()
+    fun `Lorin getKeepAliveCommand returns REAL_TIME_INFO when fully initialized`() {
+        val decoder = LorinDecoder()
 
         // Step 1: Feed car type response
-        val carTypeFrame = buildIM2Frame(0x11, 0x02, byteArrayOf(0x01, 0x00, 0x08, 0x01, 0x00, 0x00))
+        val carTypeFrame = buildLorinFrame(0x11, 0x02, byteArrayOf(0x01, 0x00, 0x08, 0x01, 0x00, 0x00))
         decoder.decode(carTypeFrame, defaultDs, defaultConfig)
 
         // Step 2: Feed serial response (sub-type 0x02, 16 serial chars)
         // Command is MAIN_INFO (0x02); data[0]=0x02 is the sub-type for serial
         val serialData = ByteArray(17) { 0x41 } // "AAAA..." (17 bytes: 0x02 prefix + 16 serial chars)
         serialData[0] = 0x02
-        val serialFrame = buildIM2Frame(0x11, 0x02, serialData)
+        val serialFrame = buildLorinFrame(0x11, 0x02, serialData)
         decoder.decode(serialFrame, defaultDs, defaultConfig)
 
         // Step 3: Feed version response (sub-type 0x06, 24+ bytes of version data)
         // Command is MAIN_INFO (0x02); data[0]=0x06 is the sub-type for versions
         val versionData = ByteArray(25)
         versionData[0] = 0x06
-        val versionFrame = buildIM2Frame(0x11, 0x02, versionData)
+        val versionFrame = buildLorinFrame(0x11, 0x02, versionData)
         decoder.decode(versionFrame, defaultDs, defaultConfig)
 
         val command = decoder.getKeepAliveCommand()
@@ -270,8 +270,8 @@ class DecoderLifecycleTest {
     }
 
     @Test
-    fun `InMotionV2 getInitCommands returns 10 staged commands`() {
-        val decoder = InMotionV2Decoder()
+    fun `Lorin getInitCommands returns 10 staged commands`() {
+        val decoder = LorinDecoder()
         val commands = decoder.getInitCommands()
 
         assertEquals(10, commands.size, "Should emit 10 init commands (5 standard + 3 P6 extended + 2 BMS serial)")
@@ -298,21 +298,21 @@ class DecoderLifecycleTest {
     }
 
     @Test
-    fun `InMotionV2 isReady requires model detected and version populated`() {
-        val decoder = InMotionV2Decoder()
+    fun `Lorin isReady requires model detected and version populated`() {
+        val decoder = LorinDecoder()
         assertFalse(decoder.isReady(), "Should not be ready initially")
 
         // Feed car type — model detected but version empty
-        val carTypeFrame = buildIM2Frame(0x11, 0x02, byteArrayOf(0x01, 0x00, 0x08, 0x01, 0x00, 0x00))
+        val carTypeFrame = buildLorinFrame(0x11, 0x02, byteArrayOf(0x01, 0x00, 0x08, 0x01, 0x00, 0x00))
         decoder.decode(carTypeFrame, defaultDs, defaultConfig)
         assertFalse(decoder.isReady(), "Should not be ready without version")
     }
 
     /**
-     * Build a raw InMotionV2 frame with proper escape sequences and checksum.
-     * This replicates InMotionV2Decoder.buildMessage() logic for test purposes.
+     * Build a raw Lorin frame with proper escape sequences and checksum.
+     * This replicates LorinDecoder.buildMessage() logic for test purposes.
      */
-    private fun buildIM2Frame(flags: Int, command: Int, data: ByteArray): ByteArray {
+    private fun buildLorinFrame(flags: Int, command: Int, data: ByteArray): ByteArray {
         val buffer = mutableListOf<Byte>()
         buffer.add(flags.toByte())
         buffer.add((data.size + 1).toByte())

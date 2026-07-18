@@ -23,8 +23,8 @@ enum class WheelType {
     /** InMotion wheels V1 protocol (e.g., V8, V10, V11) */
     INMOTION,
 
-    /** InMotion wheels V2 protocol (e.g., V12, V13, V14) */
-    INMOTION_V2,
+    /** InMotion Lorin protocol (e.g., V11, V12, V13, V14, P6); formerly named INMOTION_V2 */
+    LORIN,
 
     /** Leaperkim/Nosfet wheels legacy protocol (e.g., Sherman, Lynx, Apex) */
     VETERAN,
@@ -40,7 +40,7 @@ enum class WheelType {
         KINGSONG -> "KingSong"
         GOTWAY, GOTWAY_VIRTUAL -> "Begode"
         NINEBOT, NINEBOT_Z -> "Ninebot"
-        INMOTION, INMOTION_V2 -> "InMotion"
+        INMOTION, LORIN -> "InMotion"
         VETERAN -> ""
         LEAPERKIM -> "Leaperkim"
         Unknown -> ""
@@ -52,6 +52,7 @@ enum class WheelType {
          * Returns [Unknown] if no match is found.
          */
         fun fromString(name: String): WheelType {
+            if (name.equals("INMOTION_V2", ignoreCase = true)) return LORIN
             return entries.find { it.name.equals(name, ignoreCase = true) } ?: Unknown
         }
     }

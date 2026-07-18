@@ -104,8 +104,8 @@ class WheelSettingsConfigTest {
     }
 
     @Test
-    fun `InMotionV2 has 12 sections`() {
-        val sections = WheelSettingsConfig.sections(WheelType.INMOTION_V2)
+    fun `Lorin has 12 sections`() {
+        val sections = WheelSettingsConfig.sections(WheelType.LORIN)
         assertEquals(12, sections.size)
         assertEquals("Lighting", sections[0].title)
         assertEquals("Ride", sections[1].title)
@@ -277,8 +277,8 @@ class WheelSettingsConfigTest {
     }
 
     @Test
-    fun `InMotionV2 has Thermal section with Fan and Fan Quiet toggles`() {
-        val thermal = WheelSettingsConfig.sections(WheelType.INMOTION_V2)[5]
+    fun `Lorin has Thermal section with Fan and Fan Quiet toggles`() {
+        val thermal = WheelSettingsConfig.sections(WheelType.LORIN)[5]
         assertEquals("Thermal", thermal.title)
         assertEquals(2, thermal.controls.size)
 
@@ -292,8 +292,8 @@ class WheelSettingsConfigTest {
     }
 
     @Test
-    fun `InMotionV2 Dangerous has Lock toggle, Calibrate, Power Off`() {
-        val dangerous = WheelSettingsConfig.sections(WheelType.INMOTION_V2)[11]
+    fun `Lorin Dangerous has Lock toggle, Calibrate, Power Off`() {
+        val dangerous = WheelSettingsConfig.sections(WheelType.LORIN)[11]
         assertEquals("Dangerous Actions", dangerous.title)
         assertEquals(3, dangerous.controls.size)
 
@@ -354,8 +354,8 @@ class WheelSettingsConfigTest {
     }
 
     @Test
-    fun `InMotionV2 Ride has 13 controls including 8 toggles and 5 sliders`() {
-        val ride = WheelSettingsConfig.sections(WheelType.INMOTION_V2)[1]
+    fun `Lorin Ride has 13 controls including 8 toggles and 5 sliders`() {
+        val ride = WheelSettingsConfig.sections(WheelType.LORIN)[1]
         assertEquals(13, ride.controls.size)
 
         val toggles = ride.controls.filterIsInstance<ControlSpec.Toggle>()
@@ -650,11 +650,11 @@ class WheelSettingsConfigTest {
         assertEquals("Type 1", ledMode.options[1])
     }
 
-    // ==================== InMotionV2 Audio ====================
+    // ==================== Lorin Audio ====================
 
     @Test
-    fun `InMotionV2 Audio has Speaker Volume, Mute, Sound Wave, Sound Wave Sensitivity`() {
-        val audio = WheelSettingsConfig.sections(WheelType.INMOTION_V2)[4]
+    fun `Lorin Audio has Speaker Volume, Mute, Sound Wave, Sound Wave Sensitivity`() {
+        val audio = WheelSettingsConfig.sections(WheelType.LORIN)[4]
         assertEquals("Audio", audio.title)
         assertEquals(4, audio.controls.size)
 
@@ -676,11 +676,11 @@ class WheelSettingsConfigTest {
         assertEquals(SettingsCommandId.SOUND_WAVE, soundWaveSens.visibleWhen)
     }
 
-    // ==================== InMotionV2 Lighting ====================
+    // ==================== Lorin Lighting ====================
 
     @Test
-    fun `InMotionV2 Lighting has 8 controls including extended lighting features`() {
-        val lighting = WheelSettingsConfig.sections(WheelType.INMOTION_V2)[0]
+    fun `Lorin Lighting has 8 controls including extended lighting features`() {
+        val lighting = WheelSettingsConfig.sections(WheelType.LORIN)[0]
         assertEquals(8, lighting.controls.size)
 
         // Original 3 controls

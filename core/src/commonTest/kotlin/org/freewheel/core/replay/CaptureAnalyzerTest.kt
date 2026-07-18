@@ -407,7 +407,7 @@ class CaptureAnalyzerTest {
     @Test
     fun diffStatesDetectsIdentityChanges() {
         val old = DecoderState()
-        val new = DecoderState(identity = org.freewheel.core.domain.identity.WheelIdentity(model = "V14", version = "2.3.7", wheelType = WheelType.INMOTION_V2))
+        val new = DecoderState(identity = org.freewheel.core.domain.identity.WheelIdentity(model = "V14", version = "2.3.7", wheelType = WheelType.LORIN))
 
         val changes = diffStates(old, new)
         val fields = changes.map { it.field }.toSet()

@@ -55,9 +55,9 @@ class WheelTypeDetectorTest {
 
         assertTrue(result is WheelTypeDetector.DetectionResult.Detected)
         val detected = result as WheelTypeDetector.DetectionResult.Detected
-        assertEquals(WheelType.INMOTION_V2, detected.wheelType)
-        assertEquals(BleUuids.InMotionV2.SERVICE, detected.readServiceUuid)
-        assertEquals(BleUuids.InMotionV2.READ_CHARACTERISTIC, detected.readCharacteristicUuid)
+        assertEquals(WheelType.LORIN, detected.wheelType)
+        assertEquals(BleUuids.Lorin.SERVICE, detected.readServiceUuid)
+        assertEquals(BleUuids.Lorin.READ_CHARACTERISTIC, detected.readCharacteristicUuid)
         assertEquals(WheelTypeDetector.Confidence.HIGH, detected.confidence)
     }
 
@@ -454,12 +454,12 @@ class WheelTypeDetectorTest {
 
     @Test
     fun `forType returns correct info for InMotion V2`() {
-        val info = WheelConnectionInfo.forType(WheelType.INMOTION_V2)
+        val info = WheelConnectionInfo.forType(WheelType.LORIN)
 
         assertNotNull(info)
-        assertEquals(WheelType.INMOTION_V2, info.wheelType)
-        assertEquals(BleUuids.InMotionV2.SERVICE, info.readServiceUuid)
-        assertEquals(BleUuids.InMotionV2.READ_CHARACTERISTIC, info.readCharacteristicUuid)
+        assertEquals(WheelType.LORIN, info.wheelType)
+        assertEquals(BleUuids.Lorin.SERVICE, info.readServiceUuid)
+        assertEquals(BleUuids.Lorin.READ_CHARACTERISTIC, info.readCharacteristicUuid)
     }
 
     @Test
@@ -530,8 +530,8 @@ class WheelTypeDetectorTest {
 
         assertTrue(result is WheelTypeDetector.DetectionResult.Detected)
         val detected = result as WheelTypeDetector.DetectionResult.Detected
-        assertEquals(WheelType.INMOTION_V2, detected.wheelType)
-        assertEquals(BleUuids.InMotionV2.SERVICE, detected.readServiceUuid)
+        assertEquals(WheelType.LORIN, detected.wheelType)
+        assertEquals(BleUuids.Lorin.SERVICE, detected.readServiceUuid)
         assertEquals(WheelTypeDetector.Confidence.HIGH, detected.confidence)
     }
 
@@ -551,8 +551,8 @@ class WheelTypeDetectorTest {
             val result = detector.detect(services, name)
             assertTrue(
                 result is WheelTypeDetector.DetectionResult.Detected &&
-                    result.wheelType == WheelType.INMOTION_V2,
-                "Expected INMOTION_V2 for name '$name' but got $result"
+                    result.wheelType == WheelType.LORIN,
+                "Expected LORIN for name '$name' but got $result"
             )
         }
     }
@@ -572,7 +572,7 @@ class WheelTypeDetectorTest {
 
         assertTrue(result is WheelTypeDetector.DetectionResult.Detected)
         val detected = result as WheelTypeDetector.DetectionResult.Detected
-        assertEquals(WheelType.INMOTION_V2, detected.wheelType)
+        assertEquals(WheelType.LORIN, detected.wheelType)
     }
 
     @Test
@@ -690,14 +690,14 @@ class WheelTypeDetectorTest {
     @Test
     fun `detect InMotion V2 from real P6 device name`() {
         // Real name from DarknessBot device list screenshot
-        assertDetectedAs("P6-60032721", WheelType.INMOTION_V2)
+        assertDetectedAs("P6-60032721", WheelType.LORIN)
     }
 
     @Test
     fun `detect InMotion V2 from new model names`() {
         val imNames = listOf("E20-123", "E25-123", "CLIMBER-456", "GLIDE-789")
         for (name in imNames) {
-            assertDetectedAs(name, WheelType.INMOTION_V2)
+            assertDetectedAs(name, WheelType.LORIN)
         }
     }
 
@@ -705,8 +705,8 @@ class WheelTypeDetectorTest {
     fun `InMotion V2 P6 uses Nordic UART UUIDs`() {
         val result = detector.detect(ffe0Services, "P6-60032721")
         val detected = result as WheelTypeDetector.DetectionResult.Detected
-        assertEquals(BleUuids.InMotionV2.SERVICE, detected.readServiceUuid)
-        assertEquals(BleUuids.InMotionV2.READ_CHARACTERISTIC, detected.readCharacteristicUuid)
+        assertEquals(BleUuids.Lorin.SERVICE, detected.readServiceUuid)
+        assertEquals(BleUuids.Lorin.READ_CHARACTERISTIC, detected.readCharacteristicUuid)
     }
 
     // ==================== deriveTypeFromName ====================
@@ -771,9 +771,9 @@ class WheelTypeDetectorTest {
         val imNames = listOf("V11Y-001", "V12HS", "P6-60032721", "INMOTION-P6")
         for (name in imNames) {
             assertEquals(
-                WheelType.INMOTION_V2,
+                WheelType.LORIN,
                 WheelTypeDetector.deriveTypeFromName(name),
-                "Expected INMOTION_V2 for '$name'"
+                "Expected LORIN for '$name'"
             )
         }
     }
@@ -842,7 +842,7 @@ class WheelTypeDetectorTest {
         // V-series InMotion names must not be hijacked by widened Kingsong matching.
         for (name in listOf("V11Y-001", "V12HS", "V13", "V14")) {
             assertEquals(
-                WheelType.INMOTION_V2,
+                WheelType.LORIN,
                 WheelTypeDetector.deriveTypeFromName(name),
                 "InMotion '$name' must not regress to KINGSONG",
             )
@@ -975,7 +975,7 @@ class WheelTypeDetectorTest {
             "gotway" to WheelType.GOTWAY,
             "kingsong" to WheelType.KINGSONG,
             "inmotion" to WheelType.INMOTION,
-            "inmotion_v2" to WheelType.INMOTION_V2,
+            "inmotion_v2" to WheelType.LORIN,
             "ninebot" to WheelType.NINEBOT,
             "ninebot_z" to WheelType.NINEBOT_Z,
         )
@@ -1047,7 +1047,7 @@ class WheelTypeDetectorTest {
         val result = detector.detect(services)
 
         val detected = result as WheelTypeDetector.DetectionResult.Detected
-        assertEquals(WheelType.INMOTION_V2, detected.wheelType)
+        assertEquals(WheelType.LORIN, detected.wheelType)
     }
 
     @Test
@@ -1123,7 +1123,7 @@ class WheelTypeDetectorTest {
             DiscoveredService(BleUuids.Gotway.SERVICE, listOf(BleUuids.Gotway.READ_CHARACTERISTIC))
         ))
 
-        // Name → INMOTION_V2 is not in the candidate set {NINEBOT, KINGSONG}.
+        // Name → LORIN is not in the candidate set {NINEBOT, KINGSONG}.
         val result = syntheticDetector.detect(services, "V11Y-001")
 
         assertTrue(

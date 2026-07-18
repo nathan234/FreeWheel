@@ -63,7 +63,7 @@ class BleCaptureLoggerTest {
         val startMs = 10_000L
         val endMs = 70_000L // 60 seconds
 
-        logger.start(createTempPath(), "INMOTION_V2", "P6", "2.0.1.4", "1.0.0", startMs)
+        logger.start(createTempPath(), "LORIN", "P6", "2.0.1.4", "1.0.0", startMs)
         val metadata = logger.stop(endMs)
 
         assertNotNull(metadata)
@@ -149,7 +149,7 @@ class BleCaptureLoggerTest {
     @Test
     fun `mixed packets and markers counted correctly`() {
         val logger = BleCaptureLogger()
-        logger.start(createTempPath(), "INMOTION_V2", "P6", "2.0.1.4", "1.0.0", 0)
+        logger.start(createTempPath(), "LORIN", "P6", "2.0.1.4", "1.0.0", 0)
 
         logger.logPacket(byteArrayOf(0xAA.toByte(), 0x55), BlePacketDirection.RX, 100)
         logger.insertMarker("toggled light", 150)

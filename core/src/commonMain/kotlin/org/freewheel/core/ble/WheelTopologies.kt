@@ -118,7 +118,7 @@ object WheelTopologies {
         ),
         // [3] inmotion_v2 #1
         WheelTopology(
-            adapter = "inmotion_v2", wheelType = WheelType.INMOTION_V2,
+            adapter = "inmotion_v2", wheelType = WheelType.LORIN,
             services = setOf(
                 service(GENERIC_ACCESS, s("2a00"), s("2a01"), s("2a04"), s("2aa6")),
                 service(GENERIC_ATTRIBUTE, s("2a05")),
@@ -127,7 +127,7 @@ object WheelTopologies {
         ),
         // [4] inmotion_v2 #2
         WheelTopology(
-            adapter = "inmotion_v2", wheelType = WheelType.INMOTION_V2,
+            adapter = "inmotion_v2", wheelType = WheelType.LORIN,
             services = setOf(
                 service(GENERIC_ACCESS, s("2a00"), s("2a01"), s("2a04"), s("2aa6")),
                 service(GENERIC_ATTRIBUTE, s("2a05")),
@@ -138,7 +138,7 @@ object WheelTopologies {
         ),
         // [5] inmotion_v2 #3 (1801 has no characteristics)
         WheelTopology(
-            adapter = "inmotion_v2", wheelType = WheelType.INMOTION_V2,
+            adapter = "inmotion_v2", wheelType = WheelType.LORIN,
             services = setOf(
                 service(GENERIC_ACCESS, s("2a00"), s("2a01"), s("2a04"), s("2aa6")),
                 service(GENERIC_ATTRIBUTE),
@@ -265,7 +265,7 @@ object WheelTopologies {
         ),
         // [3] inmotion_v2
         WheelTopology(
-            adapter = "inmotion_v2", wheelType = WheelType.INMOTION_V2,
+            adapter = "inmotion_v2", wheelType = WheelType.LORIN,
             services = setOf(
                 service(GENERIC_ACCESS, s("2a00"), s("2a01"), s("2a04"), s("2aa6")),
                 service(GENERIC_ATTRIBUTE),

@@ -13,7 +13,7 @@ import kotlin.test.assertTrue
 import org.freewheel.core.protocol.DecodeResult
 
 /**
- * Tests for InMotionDecoder (V1 protocol) and InMotionV2Decoder.
+ * Tests for InMotionDecoder (V1 protocol) and LorinDecoder.
  */
 class InMotionDecoderTest {
 
@@ -53,8 +53,8 @@ class InMotionDecoderTest {
     }
 
     @Test
-    fun `InMotionV2Unpacker handles header correctly`() {
-        val unpacker = InMotionV2Unpacker()
+    fun `LorinUnpacker handles header correctly`() {
+        val unpacker = LorinUnpacker()
 
         // Send AA AA header
         assertFalse(unpacker.addChar(0xAA))
@@ -66,8 +66,8 @@ class InMotionDecoderTest {
     }
 
     @Test
-    fun `InMotionV2Unpacker handles escape bytes`() {
-        val unpacker = InMotionV2Unpacker()
+    fun `LorinUnpacker handles escape bytes`() {
+        val unpacker = LorinUnpacker()
 
         // Start frame
         unpacker.addChar(0xAA)
@@ -316,22 +316,22 @@ class InMotionDecoderTest {
     }
 
     @Test
-    fun `InMotionV2Decoder initialization`() {
-        val decoder = InMotionV2Decoder()
-        assertEquals(WheelType.INMOTION_V2, decoder.wheelType)
+    fun `LorinDecoder initialization`() {
+        val decoder = LorinDecoder()
+        assertEquals(WheelType.LORIN, decoder.wheelType)
         assertFalse(decoder.isReady())
     }
 
     @Test
-    fun `InMotionV2Decoder reset clears state`() {
-        val decoder = InMotionV2Decoder()
+    fun `LorinDecoder reset clears state`() {
+        val decoder = LorinDecoder()
         decoder.reset()
         assertFalse(decoder.isReady())
     }
 
     @Test
-    fun `InMotionV2Decoder getInitCommands returns valid commands`() {
-        val decoder = InMotionV2Decoder()
+    fun `LorinDecoder getInitCommands returns valid commands`() {
+        val decoder = LorinDecoder()
         val commands = decoder.getInitCommands()
 
         assertTrue(commands.isNotEmpty())
@@ -341,8 +341,8 @@ class InMotionDecoderTest {
     }
 
     @Test
-    fun `InMotionV2Decoder getKeepAliveCommand returns valid command`() {
-        val decoder = InMotionV2Decoder()
+    fun `LorinDecoder getKeepAliveCommand returns valid command`() {
+        val decoder = LorinDecoder()
         val command = decoder.getKeepAliveCommand()
 
         assertTrue(command is WheelCommand.SendBytes)
@@ -417,49 +417,49 @@ class InMotionDecoderTest {
     }
 
     @Test
-    fun `InMotionV2Decoder Model findById returns correct model`() {
-        val v11 = InMotionV2Decoder.Model.findById(6, 1)
-        assertEquals(InMotionV2Decoder.Model.V11, v11)
+    fun `LorinDecoder Model findById returns correct model`() {
+        val v11 = LorinDecoder.Model.findById(6, 1)
+        assertEquals(LorinDecoder.Model.V11, v11)
 
-        val v12hs = InMotionV2Decoder.Model.findById(7, 1)
-        assertEquals(InMotionV2Decoder.Model.V12HS, v12hs)
+        val v12hs = LorinDecoder.Model.findById(7, 1)
+        assertEquals(LorinDecoder.Model.V12HS, v12hs)
 
-        val v13 = InMotionV2Decoder.Model.findById(8, 1)
-        assertEquals(InMotionV2Decoder.Model.V13, v13)
+        val v13 = LorinDecoder.Model.findById(8, 1)
+        assertEquals(LorinDecoder.Model.V13, v13)
 
-        val unknown = InMotionV2Decoder.Model.findById(99, 99)
-        assertEquals(InMotionV2Decoder.Model.UNKNOWN, unknown)
+        val unknown = LorinDecoder.Model.findById(99, 99)
+        assertEquals(LorinDecoder.Model.UNKNOWN, unknown)
     }
 
     @Test
-    fun `InMotionV2Decoder static message builders work`() {
-        val carTypeMsg = InMotionV2Decoder.getCarTypeMessage()
+    fun `LorinDecoder static message builders work`() {
+        val carTypeMsg = LorinDecoder.getCarTypeMessage()
         assertTrue(carTypeMsg.isNotEmpty())
         assertEquals(0xAA.toByte(), carTypeMsg[0])
         assertEquals(0xAA.toByte(), carTypeMsg[1])
 
-        val serialMsg = InMotionV2Decoder.getSerialNumberMessage()
+        val serialMsg = LorinDecoder.getSerialNumberMessage()
         assertTrue(serialMsg.isNotEmpty())
 
-        val versionsMsg = InMotionV2Decoder.getVersionsMessage()
+        val versionsMsg = LorinDecoder.getVersionsMessage()
         assertTrue(versionsMsg.isNotEmpty())
 
-        val settingsMsg = InMotionV2Decoder.getCurrentSettingsMessage()
+        val settingsMsg = LorinDecoder.getCurrentSettingsMessage()
         assertTrue(settingsMsg.isNotEmpty())
 
-        val realTimeMsg = InMotionV2Decoder.getRealTimeDataMessage()
+        val realTimeMsg = LorinDecoder.getRealTimeDataMessage()
         assertTrue(realTimeMsg.isNotEmpty())
 
-        val statsMsg = InMotionV2Decoder.getStatisticsMessage()
+        val statsMsg = LorinDecoder.getStatisticsMessage()
         assertTrue(statsMsg.isNotEmpty())
 
-        val lightOnMsg = InMotionV2Decoder.setLightMessage(true)
+        val lightOnMsg = LorinDecoder.setLightMessage(true)
         assertTrue(lightOnMsg.isNotEmpty())
 
-        val lockMsg = InMotionV2Decoder.setLockMessage(true)
+        val lockMsg = LorinDecoder.setLockMessage(true)
         assertTrue(lockMsg.isNotEmpty())
 
-        val beepMsg = InMotionV2Decoder.playBeepMessage()
+        val beepMsg = LorinDecoder.playBeepMessage()
         assertTrue(beepMsg.isNotEmpty())
     }
 
@@ -518,8 +518,8 @@ class InMotionDecoderTest {
     }
 
     @Test
-    fun `InMotionV2Decoder keepAliveIntervalMs is correct`() {
-        val decoder = InMotionV2Decoder()
+    fun `LorinDecoder keepAliveIntervalMs is correct`() {
+        val decoder = LorinDecoder()
         assertEquals(250L, decoder.keepAliveIntervalMs)
     }
 }

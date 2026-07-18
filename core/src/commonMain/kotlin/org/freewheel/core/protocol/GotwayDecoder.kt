@@ -859,7 +859,7 @@ class GotwayDecoder : WheelDecoder {
                 )
             }
             is WheelCommand.SetPedalTilt -> {
-                // executeCommand multiplies slider value by 10 (IM2 convention: 1/10 degree)
+                // executeCommand multiplies slider value by 10 (Lorin convention: 1/10 degree)
                 // Gotway uses raw 0-9 values, so divide back by 10
                 val param = byteArrayOf((((command.angle / 10) % 10) + 0x30).toByte())
                 listOf(

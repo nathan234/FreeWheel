@@ -68,7 +68,7 @@ class WheelConnectionManagerTransportProfileTest {
             WheelConnectionInfo.forGotway(),
             WheelConnectionInfo.forVeteran(),
             WheelConnectionInfo.forInMotion(),
-            WheelConnectionInfo.forInMotionV2(),
+            WheelConnectionInfo.forLorin(),
             WheelConnectionInfo.forNinebot(),
             WheelConnectionInfo.forNinebotZ(),
             WheelConnectionInfo.forLeaperkim(),
