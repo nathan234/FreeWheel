@@ -1,0 +1,153 @@
+# euc-protocols (experiment)
+
+Rust port of the FreeWheel KMP protocol decoders, starting with the
+Gotway/Begode decoder. This is the "test the thesis cheaply" experiment for a
+possible long-term move of the protocol engine to Rust: port one
+well-understood decoder plus its full test suite, and see what the Rust shape
+of the decoder architecture feels like — before any FFI or app integration.
+
+## What's here
+
+| Rust | Ported from |
+|------|-------------|
+| `src/gotway.rs` | `core/.../protocol/GotwayDecoder.kt` (+ the `decodeFrames` loop from `DecodeLoop.kt`) |
+| `src/unpacker.rs` | `core/.../protocol/GotwayUnpacker.kt` |
+| `src/catalog.rs` | `core/.../domain/profile/BegodeModelCatalog.kt` (all 61 entries) |
+| `src/types.rs` | `WheelDecoder.kt` result types + `TelemetryState`, `WheelIdentity`, `SmartBms`/`BmsSnapshot`, `WheelSettings.Begode`, `DecoderConfig` |
+| `src/byte_utils.rs` | `ByteUtils.kt` (BE reads) + JVM-exact rounding helpers |
+| `tests/gotway_test.rs` | `GotwayDecoderTest.kt` — 80 tests, same frames/hex vectors/expected values |
+
+All firmware variants are covered: Begode (GW/JL), ExtremeBull (JN),
+Freestyl3r (CF), SmirnoV/Alexovik (BF), including the model catalog matching,
+firmware-signature fallback, info-request retry ladder, settings echo
+suppression, four-pack BMS accumulation, and the truePWM/trueVoltage/
+trueCurrent latching semantics.
+
+## Design
+
+Sans-io, like the Kotlin decoder but with the boundary made explicit:
+
+```rust
+let mut decoder = GotwayDecoder::new();
+// per BLE notification:
+match decoder.decode(&bytes, &current_state, &config) {
+    DecodeResult::Success(delta) => { /* merge delta, send delta.commands */ }
+    DecodeResult::Buffering => {}
+    DecodeResult::Unhandled { reason, .. } => { /* log */ }
+}
+```
+
+The crate owns no BLE, threads, or clocks. Command timing (`SendDelayed`)
+is expressed as data; the caller schedules it.
+
+## Parity notes (things that would silently diverge without care)
+
+- **Rounding**: Kotlin `roundToInt()` is JVM `Math.round` — `floor(x + 0.5)`,
+  round-half-toward-+inf. Rust's `f64::round()` rounds half away from zero,
+  which differs on negative ties (speed can be negative with
+  `gotwayNegative=1`). `byte_utils::round_to_i32/round_to_i64` replicate the
+  JVM rule.
+- **f32 temperature math**: the MPU6050/6500 formulas are computed in Kotlin
+  `Float`; the port keeps f32 so e.g. raw 99 → exactly 3682.
+- **Signed BE reads**: `signedShortFromBytesBE` sign-extends byte 0 only;
+  ported bit-for-bit rather than via `i16::from_be_bytes` to keep the
+  out-of-bounds-returns-0 contract.
+- **Battery % before voltage scaling**: percent is computed from the raw
+  frame voltage, then the display voltage is scaled — order matters.
+- **`hasNewData` timing**: computed *before* latching `trueVoltage` /
+  `trueCurrent` (first 0x01/0x07 frame reports `false`).
+
+## Running
+
+```bash
+cargo test                  # 80 tests, all ported from GotwayDecoderTest.kt (no deps)
+cargo test --features ffi   # same + the UniFFI session-layer test
+```
+
+## FFI layer (`--features ffi`)
+
+The pure crate stays dependency-free; the `ffi` feature adds UniFFI 0.29 and
+`src/ffi.rs`, a session object that resolves the boundary design questions:
+
+- `GotwaySession` **owns** `DecoderState` + `DecoderConfig` inside Rust
+  (behind a `Mutex`, mirroring the Kotlin decoder's `Lock`). The host feeds
+  `decode(bytes)` and gets the delta back; `current_state()` returns the
+  accumulated state on demand. No per-call state marshaling host → Rust.
+- Domain types carry `#[cfg_attr(feature = "ffi", derive(uniffi::Record/Enum))]`
+  — single source of truth, no mirrored DTO layer.
+
+Generate bindings (already checked into `bindings/` for inspection):
+
+```bash
+cargo build --features ffi
+cargo run --features "ffi uniffi/cli" --bin uniffi-bindgen -- \
+  generate --library target/debug/libeuc_protocols.dylib \
+  --language swift --language kotlin --out-dir bindings
+```
+
+## iOS integration (verified on device 2026-07-25)
+
+The iOS app consumes this crate as a **local Swift package** (`Package.swift`
+here): a binary target wrapping `EucProtocols.xcframework` plus a source
+target at `swift/EucProtocols/euc_protocols.swift`. The package gives the
+Rust types their own `EucProtocols` module — compiling the generated Swift
+directly into the app target shadows the KMP `FreeWheelCore` types
+(`WheelIdentity`, `BmsState`, ...) and breaks the app.
+
+After changing Rust code, refresh all three artifacts:
+
+```bash
+cargo build --release --features ffi --target aarch64-apple-ios
+cargo build --release --features ffi --target aarch64-apple-ios-sim
+xcodebuild -create-xcframework \
+  -library target/aarch64-apple-ios/release/libeuc_protocols.a -headers xcframework-staging/headers \
+  -library target/aarch64-apple-ios-sim/release/libeuc_protocols.a -headers xcframework-staging/headers \
+  -output EucProtocols.xcframework   # rm -rf EucProtocols.xcframework first
+cp bindings/euc_protocols.swift swift/EucProtocols/euc_protocols.swift  # after regenerating bindings
+```
+
+(`xcframework-staging/headers/` holds `euc_protocolsFFI.h` + the modulemap
+renamed to `module.modulemap`.)
+
+Generated surface (~3.2k lines each side):
+
+```swift
+// Swift — real enums with associated values, Vec<u8> → Data
+public enum DecodeResult {
+    case success(DecodedData)
+    case buffering
+    case unhandled(reason: UnhandledReason, frameData: Data)
+}
+func decode(data: Data) -> DecodeResult
+```
+
+```kotlin
+// Kotlin — sealed classes, Vec<u8> → ByteArray (JNA-backed calls)
+sealed class DecodeResult {
+    data class Success(val v1: DecodedData) : DecodeResult()
+    object Buffering : DecodeResult()
+    data class Unhandled(val reason: UnhandledReason, val frameData: ByteArray) : DecodeResult()
+}
+fun decode(data: ByteArray): DecodeResult
+```
+
+## Deliberate deviations
+
+- Only the `WheelSettings::Begode` variant and the Gotway-relevant
+  `WheelCommand` variants exist; other decoders would extend these enums.
+- `BmsSnapshot` carries only the fields the Gotway decoder writes.
+- No `Lock`: the decoder is `&mut self`; thread-safety is the caller's
+  concern (wrap in a mutex at the integration layer if needed).
+- Clippy's `large_enum_variant` on `DecodeResult`/`FrameOutcome` is left
+  as-is to mirror the Kotlin sealed-class shape; a production crate would
+  `Box` the large payloads.
+
+## Not evaluated yet (next steps if the experiment continues)
+
+- Consuming the generated bindings from a real Xcode / Gradle build
+  (cross-compilation targets, XCFramework packaging, the Gobley JNI
+  alternative on Android).
+- A second decoder (Veteran) to see how much of `types.rs` generalizes.
+- `no_std` feasibility for the ESP32 reference-protocol work (currently uses
+  `std` for String/Vec/OnceLock/Mutex — all replaceable with `alloc` +
+  `once_cell`, with the FFI layer staying std-only).

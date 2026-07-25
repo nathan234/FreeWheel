@@ -360,6 +360,10 @@ class WheelManager: ObservableObject {
     private let wheelCommandCacheStore = WheelCommandCacheStore(store: UserDefaultsKeyValueStore(defaults: .standard))
     private let decoderConfigStore = DecoderConfigStore(store: UserDefaultsKeyValueStore(defaults: .standard))
 
+    // Experimental Rust shadow decoder — recreated on every decoder-config
+    // push so it always mirrors the config the KMP decoder is running with.
+    private var rustShadow: RustShadowDecoder?
+
     // Initializer-only counterpart to appSettingsStore. @Published property
     // initializers run before init() body and cannot reference `self`, so the
     // instance store isn't available yet. Both wrap the same NSUserDefaults
@@ -670,6 +674,10 @@ class WheelManager: ObservableObject {
         replaySpeedObserver?.close(); replaySpeedObserver = nil
 
         if isCapturing { stopCapture() }
+        rustShadow = nil
+        if let cm = connectionManager {
+            WheelConnectionManagerHelper.shared.setCaptureCallback(manager: cm, callback: nil)
+        }
         if isLogging {
             if let metadata = rideLogger.stopLogging(currentDistance: telemetry?.totalDistanceKm ?? 0) {
                 rideStore.addRide(metadata)
@@ -1480,6 +1488,27 @@ class WheelManager: ObservableObject {
             wheelPassword: decoderConfigStore.getWheelPassword()
         )
         WheelConnectionManagerHelper.shared.updateDecoderConfig(manager: cm, config: config)
+
+        // Rust shadow decoder (experiment): fresh session with the same config
+        // the KMP decoder just received. Parity snapshots go to Diagnostics.
+        rustShadow = RustShadowDecoder(kmpConfig: config) { [weak self] in
+            self?.telemetry
+        }
+        if !isCapturing {
+            installShadowCaptureCallback(cm)
+        }
+    }
+
+    /// Resident capture callback that feeds the Rust shadow decoder. The
+    /// packet-capture feature temporarily replaces this callback with its own
+    /// (which also feeds the shadow) and reinstalls it on stopCapture().
+    private func installShadowCaptureCallback(_ cm: WheelConnectionManager) {
+        WheelConnectionManagerHelper.shared.setCaptureCallback(manager: cm) { [weak self] data, directionStr, _ in
+            guard directionStr == "RX" else { return }
+            Task { @MainActor in
+                self?.rustShadow?.feedRx(data)
+            }
+        }
     }
 
     // MARK: - Unit Sync (handled by settings observer)
@@ -2336,6 +2365,7 @@ class WheelManager: ObservableObject {
                     self.captureTxCount += 1
                 } else {
                     self.captureRxCount += 1
+                    self.rustShadow?.feedRx(data)
                 }
             }
         }
@@ -2354,7 +2384,8 @@ class WheelManager: ObservableObject {
 
     func stopCapture() {
         if let cm = connectionManager {
-            WheelConnectionManagerHelper.shared.setCaptureCallback(manager: cm, callback: nil)
+            // Restore the resident Rust-shadow callback instead of clearing.
+            installShadowCaptureCallback(cm)
         }
         let nowMs = Int64(Date().timeIntervalSince1970 * 1000)
         let footer = buildDiagnosticFooter()

@@ -62,3 +62,9 @@ iosApp/**/Secrets.xcconfig
 
 # Ride Replay (web CSV viewer — not yet part of the main repo)
 ride-replay/
+
+# Rust build output and SPM user data
+rust/**/target/
+.swiftpm/
+# The Android-era bin/ rule above would swallow Cargo binary targets
+!rust/**/src/bin/

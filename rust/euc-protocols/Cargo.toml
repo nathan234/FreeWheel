@@ -1,0 +1,19 @@
+[package]
+name = "euc-protocols"
+version = "0.1.0"
+edition = "2021"
+description = "Sans-io EUC protocol decoders ported from the FreeWheel KMP core (experiment)"
+
+[lib]
+crate-type = ["lib", "cdylib", "staticlib"]
+
+[dependencies]
+uniffi = { version = "0.29", optional = true }
+
+[features]
+ffi = ["dep:uniffi"]
+
+[[bin]]
+name = "uniffi-bindgen"
+path = "src/bin/uniffi-bindgen.rs"
+required-features = ["ffi", "uniffi/cli"]
