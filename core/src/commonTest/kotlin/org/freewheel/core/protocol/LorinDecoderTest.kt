@@ -24,7 +24,7 @@ import kotlin.test.assertTrue
  * - V13PRO (series 8, type 2)
  * - V14g (series 9, type 1)
  * - V14s (series 9, type 2)
- * - V9 (series 12, type 1)
+ * - E25 (manufacturer-internal V9 series, series 12, type 1)
  * - V12S (series 11, type 1)
  */
 class LorinDecoderTest {
@@ -83,10 +83,12 @@ class LorinDecoderTest {
     }
 
     @Test
-    fun `Model findById returns V9 for series 12 type 1`() {
+    fun `Model findById returns E25 for series 12 type 1`() {
         val model = LorinDecoder.Model.findById(12, 1)
-        assertEquals(LorinDecoder.Model.V9, model)
-        assertEquals("InMotion V9", model.displayName)
+        assertEquals(LorinDecoder.Model.E25, model)
+        assertEquals("InMotion E25", model.displayName)
+        assertEquals(20, model.cellCount)
+        assertEquals(2, model.batteryCount)
     }
 
     @Test
@@ -107,6 +109,84 @@ class LorinDecoderTest {
     fun `Model findById returns UNKNOWN for invalid id`() {
         val model = LorinDecoder.Model.findById(99, 99)
         assertEquals(LorinDecoder.Model.UNKNOWN, model)
+    }
+
+    @Test
+    fun `generic battery summary populates both Lorin BMS packs`() {
+        decoder.decode(buildCarTypeFrame(6, 1), defaultDecoderState, defaultConfig)
+        val payload = ByteArray(18).apply {
+            putLe16(0, 8_400)
+            putLe16(2, -250)
+            this[4] = (-15).toByte() // Manufacturer schema adds 40 C.
+            this[5] = 0x07
+            this[6] = 0x12
+
+            putLe16(7, 8_300)
+            putLe16(9, 125)
+            this[11] = (-10).toByte()
+            this[12] = 0x03
+            this[13] = 0x40
+
+            putLe16(14, 16_700) // Aggregate charge voltage/current follow both packs.
+            putLe16(16, -125)
+        }
+
+        val result = decoder.decode(
+            buildLorinFrame(0x14, 0x85, payload),
+            defaultDecoderState,
+            defaultConfig
+        )
+
+        assertTrue(result is DecodeResult.Success)
+        assertTrue("BATTERY_SUMMARY" in result.data.frameTypes)
+        val bms = result.data.assertBms()
+        val pack1 = assertNotNull(bms.bms1)
+        val pack2 = assertNotNull(bms.bms2)
+        assertEquals(84.0, pack1.voltage)
+        assertEquals(-2.5, pack1.current)
+        assertEquals(25.0, pack1.temp1)
+        assertEquals(0x1207, pack1.status)
+        assertEquals(20, pack1.cellNum)
+        assertEquals(83.0, pack2.voltage)
+        assertEquals(1.25, pack2.current)
+        assertEquals(30.0, pack2.temp1)
+        assertEquals(0x4003, pack2.status)
+        assertEquals(20, pack2.cellNum)
+    }
+
+    @Test
+    fun `E25 battery summary uses separate manufacturer current layout`() {
+        decoder.decode(buildCarTypeFrame(12, 1), defaultDecoderState, defaultConfig)
+        val payload = ByteArray(14).apply {
+            putLe16(0, 7_700)
+            putLe16(2, 100)
+            putLe16(4, 350)
+            this[6] = 0x47
+
+            putLe16(7, 7_650)
+            putLe16(9, 200)
+            putLe16(11, 50)
+            this[13] = 0x83.toByte()
+        }
+
+        val result = decoder.decode(
+            buildLorinFrame(0x14, 0x85, payload),
+            defaultDecoderState,
+            defaultConfig
+        )
+
+        assertTrue(result is DecodeResult.Success)
+        val bms = result.data.assertBms()
+        val pack1 = assertNotNull(bms.bms1)
+        val pack2 = assertNotNull(bms.bms2)
+        assertEquals(77.0, pack1.voltage)
+        assertEquals(2.5, pack1.current)
+        assertEquals(0x47, pack1.status)
+        assertEquals(20, pack1.cellNum)
+        assertEquals(76.5, pack2.voltage)
+        assertEquals(-1.5, pack2.current)
+        assertEquals(0x83, pack2.status)
+        assertEquals(20, pack2.cellNum)
     }
 
     // ==================== V11 Full Data Test ====================
@@ -430,11 +510,12 @@ class LorinDecoderTest {
         assertEquals(81, telemetry.batteryLevel, "Battery should be 81%")
     }
 
-    // ==================== V9 Test ====================
+    // ==================== E25 Test ====================
 
     @Test
-    fun `decode V9 full data matches legacy expected values`() {
-        // From InMotionAdapterV2Test: decode with v9 full data 1
+    fun `decode E25 full data matches manufacturer V9-series capture`() {
+        // The manufacturer app calls series 12/type 1 "V9 series" internally,
+        // but exposes the shipping product name as E25.
         val wheelType = "aaaa11088201020c0101010095".hexToByteArray()
         val serialNumber = "aaaa11178202413134323139353041303030343635460000000000fd".hexToByteArray()
         val versions = "aaaa11388206222800040719000802212600080101000902230a0004010a0002012401000102010001012501000102010001012f0500050101000000b8".hexToByteArray()
@@ -453,7 +534,7 @@ class LorinDecoderTest {
         val telemetry = ds.telemetry
         val identity = ds.identity
 
-        assertEquals("InMotion V9", identity.model)
+        assertEquals("InMotion E25", identity.model)
         assertEquals("A1421950A000465F", identity.serialNumber)
         assertEquals("Main:1.8.38 Drv:7.4.40 BLE:1.4.10", identity.version)
 
@@ -1029,32 +1110,39 @@ class LorinDecoderTest {
     }
 
     @Test
-    fun `V9 settings parsing matches V11Y layout`() {
-        // V9 uses the same extended layout as V11Y
+    fun `E25 settings use the dedicated manufacturer layout`() {
         val wheelType = "aaaa11088201020c0101010095".hexToByteArray()
 
-        val payload = ByteArray(36)
+        val payload = ByteArray(42)
         payload[0] = 0x20
-        // maxSpeed: 35 km/h → 3500 = 0x0DAC LE
-        payload[1] = 0x0C.toByte()  // using 3500 = 0xDAC, low byte=0xAC... 0xAC is OK, not 0xA5
-        // Actually 3500 = 0x0DAC. Low byte = 0xAC. That's fine.
-        // But let me use a simpler value: 45 km/h → 4500 = 0x1194
-        payload[1] = 0x94.toByte()
-        payload[2] = 0x11
-        // pedalTilt: 0
-        payload[9] = 0x00
-        payload[10] = 0x00
-        // offroad=true, fancier=false → 0x01
-        payload[11] = 0x01
-        // comfSens=30, classSens=60
-        payload[12] = 30
-        payload[13] = 60
-        // data[31]: bit 0=1 (not mute), bit 2=1 (drl), bit 4=1 (handleBtn disabled) → 0x15
-        payload[31] = 0x15
-        // data[32]: bit 4=1 (transport) → 0x10
-        payload[32] = 0x10
-        // data[33]: bit 2=0 (goHome=false)
-        payload[33] = 0x00
+        // E25 schema starts after the subtype byte. The first eight bytes are
+        // sound-pack and light-effect IDs, not max speed.
+        payload[1] = 0x78
+        payload[5] = 0x56
+        // limitSpeed at schema +8: 45 km/h → 4500 = 0x1194 LE
+        payload[9] = 0x94.toByte()
+        payload[10] = 0x11
+        // warning levels prove these bytes are not mistaken for tilt/mode fields.
+        payload[11] = 0xB8.toByte(); payload[12] = 0x0B // 30 km/h
+        payload[13] = 0xA0.toByte(); payload[14] = 0x0F // 40 km/h
+        // pitchAngleZero at schema +14: 1.5 degrees.
+        payload[15] = 15
+        // standbyTime at schema +16.
+        payload[17] = 30
+        // driveMode low nibble=1 (off-road), ridingMode high nibble=0.
+        payload[19] = 0x01
+        payload[20] = 30 // comfortable sensitivity
+        payload[21] = 60 // classic sensitivity
+        payload[22] = 80 // volume
+        payload[23] = 3  // light effect mode
+        payload[27] = 72 // sound-wave sensitivity
+        // State bytes begin at schema +38. Bits 0=sound, 2=lifted,
+        // 4=locked, 6=transport, 7=load detect.
+        payload[39] = 0xC5.toByte()
+        // bit 1=low-battery mode, 2=sound wave, 5=auto screen off.
+        payload[40] = 0x26
+        // E25 extension byte: DRL and automatic headlight.
+        payload[41] = 0x18
 
         val settingsFrame = buildSettingsFrame(payload)
 
@@ -1065,20 +1153,29 @@ class LorinDecoderTest {
         if (r1 is DecodeResult.Success) ds = r1.data.decoderStateFrom(ds)
 
         val r2 = decoder.decode(settingsFrame, ds, defaultConfig)
-        assertTrue(r2 is DecodeResult.Success, "V9 settings should be parsed")
+        assertTrue(r2 is DecodeResult.Success, "E25 settings should be parsed")
         ds = (r2 as DecodeResult.Success).data.decoderStateFrom(ds)
         val settings2 = ds.settings as WheelSettings.Lorin
 
         assertEquals(45, settings2.maxSpeed, "Max speed should be 45 km/h")
-        assertEquals(0, settings2.pedalTilt, "Pedal tilt should be 0")
+        assertEquals(1, settings2.pedalTilt, "Pedal tilt should use E25 pitchAngleZero")
         assertEquals(true, settings2.rideMode, "Ride mode should be true (offroad)")
         assertEquals(false, settings2.fancierMode, "Fancier mode should be false")
         assertEquals(60, settings2.pedalSensitivity, "Sensitivity should be 60 (classSens since offroad)")
-        assertEquals(false, settings2.mute, "Mute should be false (bit 0=1)")
-        assertEquals(true, settings2.drl, "DRL should be true")
-        assertEquals(false, settings2.handleButton, "Handle button should be false (bit 4=1, inverted)")
+        assertEquals(80, settings2.speakerVolume)
+        assertEquals(30, settings2.standbyTime)
+        assertEquals(3, settings2.lightEffectMode)
+        assertEquals(72, settings2.soundWaveSensitivity)
+        assertEquals(false, settings2.mute, "Sound-state bit is enabled")
+        assertEquals(false, settings2.handleButton, "Lifted-state bit disables the handle button")
         assertEquals(true, settings2.transportMode, "Transport mode should be true")
-        assertEquals(false, settings2.goHomeMode, "Go home mode should be false")
+        assertEquals(true, settings2.loadDetect)
+        assertEquals(true, settings2.lowBatterySafeMode)
+        assertEquals(true, settings2.soundWave)
+        assertEquals(true, settings2.autoScreenOff)
+        assertEquals(true, settings2.drl)
+        assertEquals(true, settings2.autoHeadlight)
+        assertNull(settings2.goHomeMode, "E25 schema does not expose V11Y go-home mode")
     }
 
     @Test
@@ -1276,6 +1373,11 @@ class LorinDecoderTest {
         return output.toByteArray()
     }
 
+    private fun ByteArray.putLe16(offset: Int, value: Int) {
+        this[offset] = (value and 0xFF).toByte()
+        this[offset + 1] = ((value shr 8) and 0xFF).toByte()
+    }
+
     // ==================== Model-Dependent Command Tests ====================
 
     /**
@@ -1450,8 +1552,8 @@ class LorinDecoderTest {
     }
 
     @Test
-    fun `SetLight on V9 sends two enable bytes`() {
-        val d = decoderForModel(12, 1) // V9
+    fun `SetLight on E25 sends two enable bytes`() {
+        val d = decoderForModel(12, 1) // E25
         val result = d.buildCommand(WheelCommand.SetLight(true))
         assertTrue(result.isNotEmpty())
         val expected = LorinDecoder.buildMessage(
@@ -1473,16 +1575,16 @@ class LorinDecoderTest {
         assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
     }
 
-    // --- Pedal sensitivity (V9 byte order swap) ---
+    // --- Pedal sensitivity (E25 byte order swap) ---
 
     @Test
-    fun `SetPedalSensitivity on V9 swaps byte order`() {
-        val d = decoderForModel(12, 1) // V9
+    fun `SetPedalSensitivity on E25 swaps byte order`() {
+        val d = decoderForModel(12, 1) // E25
         val result = d.buildCommand(WheelCommand.SetPedalSensitivity(50))
         assertTrue(result.isNotEmpty())
         val expected = LorinDecoder.buildMessage(
             LorinDecoder.Flag.DEFAULT, LorinDecoder.Command.CONTROL,
-            byteArrayOf(0x25, 0x64, 50) // V9: 100 (0x64) first, then value
+            byteArrayOf(0x25, 0x64, 50) // E25: 100 (0x64) first, then value
         )
         assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
     }
@@ -1499,11 +1601,11 @@ class LorinDecoderTest {
         assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
     }
 
-    // --- DRL (V9 uses different sub-cmd) ---
+    // --- DRL (E25 uses different sub-cmd) ---
 
     @Test
-    fun `SetDrl on V9 uses sub-cmd 0x44`() {
-        val d = decoderForModel(12, 1) // V9
+    fun `SetDrl on E25 uses sub-cmd 0x44`() {
+        val d = decoderForModel(12, 1) // E25
         val result = d.buildCommand(WheelCommand.SetDrl(true))
         assertTrue(result.isNotEmpty())
         val expected = LorinDecoder.buildMessage(
@@ -1557,11 +1659,11 @@ class LorinDecoderTest {
         assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
     }
 
-    // --- Split riding modes (V9/V12 vs others) ---
+    // --- Split riding modes (E25/V12 vs others) ---
 
     @Test
-    fun `SetSplitRidingModes on V9 uses sub-cmd 0x42`() {
-        val d = decoderForModel(12, 1) // V9
+    fun `SetSplitRidingModes on E25 uses sub-cmd 0x42`() {
+        val d = decoderForModel(12, 1) // E25
         val result = d.buildCommand(WheelCommand.SetSplitRidingModes(true))
         assertTrue(result.isNotEmpty())
         val expected = LorinDecoder.buildMessage(
@@ -1583,7 +1685,7 @@ class LorinDecoderTest {
         assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
     }
 
-    // --- Split riding modes settings (V9/V12 vs others) ---
+    // --- Split riding modes settings (E25/V12 vs others) ---
 
     @Test
     fun `SetSplitRidingModesSettings on V12 uses sub-cmd 0x40`() {
@@ -1672,11 +1774,11 @@ class LorinDecoderTest {
         assertTrue(result.isEmpty())
     }
 
-    // --- Speed alarms (V9/V12 only) ---
+    // --- Speed alarms (E25/V12 only) ---
 
     @Test
-    fun `SetSpeedAlarms on V9 uses sub-cmd 0x3E`() {
-        val d = decoderForModel(12, 1) // V9
+    fun `SetSpeedAlarms on E25 uses sub-cmd 0x3E`() {
+        val d = decoderForModel(12, 1) // E25
         val result = d.buildCommand(WheelCommand.SetSpeedAlarms(30, 40))
         assertTrue(result.isNotEmpty())
         val a1 = (30 * 100).toShort()
@@ -1750,7 +1852,7 @@ class LorinDecoderTest {
         assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
     }
 
-    // ==================== P6 Command Routing (shares V9 protocol) ====================
+    // ==================== P6 Command Routing (shares E25 command variants) ====================
 
     @Test
     fun `P6 headlight returns empty - no manual headlight toggle`() {
@@ -1853,32 +1955,32 @@ class LorinDecoderTest {
     }
 
     @Test
-    fun `P6 speed alarms enabled (V9-like)`() {
+    fun `P6 speed alarms enabled (E25-like)`() {
         val d = decoderForModel(13, 1) // P6
         val result = d.buildCommand(WheelCommand.SetSpeedAlarms(30, 40))
-        assertTrue(result.isNotEmpty()) // P6 should support speed alarms like V9
+        assertTrue(result.isNotEmpty()) // P6 supports the same speed-alarm route as E25.
     }
 
     @Test
-    fun `P6 split riding modes uses V9 sub-command 0x42`() {
+    fun `P6 split riding modes uses E25 sub-command 0x42`() {
         val d = decoderForModel(13, 1) // P6
         val result = d.buildCommand(WheelCommand.SetSplitRidingModes(true))
         assertTrue(result.isNotEmpty())
         val expected = LorinDecoder.buildMessage(
             LorinDecoder.Flag.DEFAULT, LorinDecoder.Command.CONTROL,
-            byteArrayOf(0x42, 0x01) // V9/V12 sub-cmd
+            byteArrayOf(0x42, 0x01) // E25/V12 sub-cmd
         )
         assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
     }
 
     @Test
-    fun `P6 split riding modes settings uses V9 sub-command 0x40`() {
+    fun `P6 split riding modes settings uses E25 sub-command 0x40`() {
         val d = decoderForModel(13, 1) // P6
         val result = d.buildCommand(WheelCommand.SetSplitRidingModesSettings(80, 60))
         assertTrue(result.isNotEmpty())
         val expected = LorinDecoder.buildMessage(
             LorinDecoder.Flag.DEFAULT, LorinDecoder.Command.CONTROL,
-            byteArrayOf(0x40, 0x50, 0x3C) // V9/V12 sub-cmd, 80, 60
+            byteArrayOf(0x40, 0x50, 0x3C) // E25/V12 sub-cmd, 80, 60
         )
         assertTrue((result[0] as WheelCommand.SendBytes).data.contentEquals(expected))
     }

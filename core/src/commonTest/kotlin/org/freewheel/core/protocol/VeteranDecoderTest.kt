@@ -1,6 +1,7 @@
 package org.freewheel.core.protocol
 
 import org.freewheel.core.domain.settings.WheelSettings
+import org.freewheel.core.domain.settings.SettingsCommandId
 import org.freewheel.core.domain.identity.WheelType
 import org.freewheel.core.domain.settings.accelerationLimit
 import org.freewheel.core.domain.settings.batteryTempMode
@@ -239,15 +240,14 @@ class VeteranDecoderTest {
     }
 
     @Test
-    fun `unpacker accepts new payload field values`() {
+    fun `unpacker rejects invalid legacy structural sentinels`() {
         val freshDecoder = VeteranDecoder()
         val frame = buildVeteranFrame()
         frame[22] = 0x01
         frame[23] = 0x02
         frame[30] = 0x08
         val result = freshDecoder.decode(frame, DecoderState(), config)
-        assertTrue(result is DecodeResult.Success, "Payload fields must not be mistaken for framing sentinels")
-        assertEquals(0x0102, result.data.assertTelemetry().chargingStatus)
+        assertTrue(result is DecodeResult.Buffering)
     }
 
     @Test
@@ -1058,15 +1058,18 @@ class VeteranDecoderTest {
     }
 
     @Test
-    fun `pedalsMode is populated from frame`() {
-        // Byte 30 is the firmware-version high byte; byte 31 is pedals mode.
-        val freshDecoder = VeteranDecoder()
-        val frame = buildVeteranFrame()
-        frame[30] = 0x00
-        frame[31] = 0x02
-        val result = freshDecoder.decode(frame, DecoderState(), config)
-        assertTrue(result is DecodeResult.Success)
-        assertEquals(2, (result as DecodeResult.Success).data.assertSettings().pedalsMode)
+    fun `ride mode wire values map to app hard medium soft order`() {
+        val expectedByWire = mapOf(1 to 2, 2 to 1, 3 to 0)
+
+        expectedByWire.forEach { (wireValue, expectedMode) ->
+            val result = decodeSingleFrame(pedalsMode = wireValue, ver = 5000)
+            assertTrue(result is DecodeResult.Success)
+            assertEquals(
+                expectedMode,
+                result.data.assertSettings().pedalsMode,
+                "wire mode $wireValue",
+            )
+        }
     }
 
     @Test
@@ -1159,11 +1162,10 @@ class VeteranDecoderTest {
     // ==================== Pedals Mode Parsing ====================
 
     @Test
-    fun `pedalsMode zero passes through`() {
-        // Byte 30 = 0x00, byte 31 = 0x00 → 16-bit read = 0 (hard)
+    fun `ride mode zero is unknown`() {
         val result = decodeSingleFrame(pedalsMode = 0, ver = 5000)
         assertTrue(result is DecodeResult.Success)
-        assertEquals(0, (result as DecodeResult.Success).data.assertSettings().pedalsMode)
+        assertEquals(-1, (result as DecodeResult.Success).data.assertSettings().pedalsMode)
     }
 
     @Test
@@ -1188,10 +1190,15 @@ class VeteranDecoderTest {
     private fun buildExtendedFrame(
         voltage: Int = 9686,
         ver: Int = 5000,
+        versionHighByte: Int = 0,
         subType: Int = 0,
         extraSize: Int = 40
     ): ByteArray {
-        val base = buildVeteranFrame(voltage = voltage, ver = ver)
+        val base = buildVeteranFrame(
+            voltage = voltage,
+            ver = ver,
+            versionHighByte = versionHighByte,
+        )
         // Unpacker: len = byte[3]. CRC over bytes 0..(len-1). CRC at offset len.
         // Total buffer = len + 4. We need sub-type at byte 46 plus extra data.
         // len must be > 38 to trigger CRC checking.
@@ -1232,12 +1239,19 @@ class VeteranDecoderTest {
     private fun decodeExtendedFrame(
         voltage: Int = 9686,
         ver: Int = 5000,
+        versionHighByte: Int = 0,
         subType: Int = 0,
         extraSize: Int = 40,
         frameModifier: (ByteArray) -> Unit = {}
     ): DecodeResult {
         val freshDecoder = VeteranDecoder()
-        val frame = buildExtendedFrame(voltage = voltage, ver = ver, subType = subType, extraSize = extraSize)
+        val frame = buildExtendedFrame(
+            voltage = voltage,
+            ver = ver,
+            versionHighByte = versionHighByte,
+            subType = subType,
+            extraSize = extraSize,
+        )
 
         // Apply modifications before CRC
         // We need to rebuild CRC after modification
@@ -1490,6 +1504,27 @@ class VeteranDecoderTest {
     }
 
     @Test
+    fun `Nosfet sub-type 8 parses brake pressure at byte 65 only`() {
+        val result = decodeExtendedFrame(
+            ver = 43_254,
+            versionHighByte = 0x07,
+            subType = 8,
+        ) { frame ->
+            frame[65] = 112.toByte()
+            frame[66] = 70.toByte()
+            frame[68] = 80.toByte()
+            frame[69] = 121.toByte()
+        }
+
+        assertTrue(result is DecodeResult.Success)
+        val settings = result.data.assertSettings()
+        assertEquals(112, settings.brakePressureAlarm)
+        assertEquals(145, settings.chargeVoltageBase, "Nosfet byte 65 must not overwrite charge base")
+        assertEquals(-1, settings.dynamicAssist)
+        assertEquals(-1, settings.accelerationLimit)
+    }
+
+    @Test
     fun `sub-type 8 unsupported fields stay at defaults`() {
         val result = decodeExtendedFrame(subType = 8) { frame ->
             frame[52] = 0x80.toByte() // stopSpeed = not supported
@@ -1585,6 +1620,17 @@ class VeteranDecoderTest {
         val frame = buildVeteranFrame(ver = ver)
         d.decode(frame, DecoderState(), config)
         return DecoderWithState(d, stateWithVer(ver / 1000))
+    }
+
+    private fun decoderWithNosfetVersion(lowVersion: Int = 43_254): DecoderWithState {
+        val d = VeteranDecoder()
+        val frame = buildVeteranFrame(
+            ver = lowVersion,
+            versionHighByte = 0x07,
+            pedalsMode = 0x80,
+        )
+        d.decode(frame, DecoderState(), config)
+        return DecoderWithState(d, stateWithVer(43))
     }
 
     @Test
@@ -1775,6 +1821,31 @@ class VeteranDecoderTest {
         assertEquals(110.toByte(), data[29]) // value at position 29
     }
 
+
+    @Test
+    fun `Nosfet brake pressure alarm uses command 0x1E and position 25`() {
+        val nosfetDecoder = decoderWithNosfetVersion()
+        val commands = nosfetDecoder.buildCommand(WheelCommand.SetBrakePressureAlarm(110))
+
+        assertEquals(1, commands.size)
+        val data = (commands.single() as WheelCommand.SendBytes).data
+        assertEquals(0x1E.toByte(), data[4])
+        assertEquals(0x02.toByte(), data[6])
+        assertEquals(110.toByte(), data[25])
+        assertEquals(30, data.size, "26-byte payload plus CRC")
+    }
+
+    @Test
+    fun `Nosfet does not expose unsupported dynamic assist or acceleration commands`() {
+        val nosfetDecoder = decoderWithNosfetVersion()
+
+        assertTrue(nosfetDecoder.buildCommand(WheelCommand.SetDynamicAssist(75)).isEmpty())
+        assertTrue(nosfetDecoder.buildCommand(WheelCommand.SetAccelerationLimit(75)).isEmpty())
+        assertFalse(nosfetDecoder.decoder.getCapabilities().supports(SettingsCommandId.DYNAMIC_ASSIST))
+        assertFalse(nosfetDecoder.decoder.getCapabilities().supports(SettingsCommandId.ACCELERATION_LIMIT))
+        assertTrue(nosfetDecoder.decoder.getCapabilities().supports(SettingsCommandId.BRAKE_PRESSURE_ALARM))
+    }
+
     @Test
     fun `set dynamic assist command`() {
         val freshDecoder = decoderWithVer(5000)
@@ -1940,8 +2011,8 @@ class VeteranDecoderTest {
         assertEquals(0x70.toByte(), data[3])
         // Command byte: 0x19 (time sync 0x12 + 7)
         assertEquals(0x19.toByte(), data[4])
-        // Lock command at byte 17: 0 = lock
-        assertEquals(0x00.toByte(), data[17])
+        // Manufacturer app: action 1 = lock, action 0 = unlock.
+        assertEquals(0x01.toByte(), data[17])
         // Total = 21 payload + 4 CRC = 25
         assertEquals(25, data.size)
         // Valid CRC32
@@ -1955,12 +2026,12 @@ class VeteranDecoderTest {
     }
 
     @Test
-    fun `SetVeteranLock unlock sends command byte 1`() {
+    fun `SetVeteranLock unlock sends command byte 0`() {
         val freshDecoder = decoderWithVer(5000)
         val commands = freshDecoder.buildCommand(WheelCommand.SetVeteranLock(locked = false, password = "000000"))
         assertEquals(1, commands.size)
         val data = (commands[0] as WheelCommand.SendBytes).data
-        assertEquals(0x01.toByte(), data[17]) // 1 = unlock
+        assertEquals(0x00.toByte(), data[17]) // 0 = unlock
     }
 
     @Test
@@ -2489,5 +2560,20 @@ class LookupSocTest {
         // New format: LdAp (0x64)
         assertEquals(0x64.toByte(), newData[1])
         assertEquals(0x14.toByte(), newData[4]) // cmd byte
+        assertEquals(20, oldData.size, "16-byte manufacturer payload plus one CRC")
+        assertEquals(20, newData.size, "16-byte manufacturer payload plus one CRC")
+        assertVeteranCrc(oldData)
+        assertVeteranCrc(newData)
+    }
+
+
+    private fun assertVeteranCrc(data: ByteArray) {
+        val payloadSize = data.size - 4
+        val expected = veteranCrc32(data, 0, payloadSize)
+        val actual = ((data[payloadSize].toLong() and 0xFF) shl 24) or
+            ((data[payloadSize + 1].toLong() and 0xFF) shl 16) or
+            ((data[payloadSize + 2].toLong() and 0xFF) shl 8) or
+            (data[payloadSize + 3].toLong() and 0xFF)
+        assertEquals(expected, actual)
     }
 }

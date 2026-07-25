@@ -207,6 +207,21 @@ class DecoderConfigStoreTest {
     }
 
     @Test
+    fun `reset calibration on fresh install does not create a phantom override`() {
+        val (store, _) = newStore()
+        val address = "AA:BB:CC:DD:EE:FF"
+
+        store.resetCalibration(address)
+
+        val resolved = store.getResolvedCalibration(address, WheelIdentity())
+        assertEquals(
+            WheelCalibrationSource.DEFAULT,
+            resolved.sourceFor(WheelCalibrationField.CUSTOM_BATTERY_PERCENT),
+        )
+        assertFalse(resolved.hasUserOverrides)
+    }
+
+    @Test
     fun `model catalog supplies effective Begode calibration with provenance`() {
         val (store, _) = newStore()
         val resolved = store.getResolvedCalibration(
@@ -299,6 +314,21 @@ class DecoderConfigStoreTest {
             WheelCalibrationSource.LEGACY_GLOBAL,
             resolved.sourceFor(WheelCalibrationField.CUSTOM_BATTERY_PERCENT),
         )
+    }
+
+    @Test
+    fun `Nosfet model metadata is resolved without altering decoder calibration`() {
+        val (store, _) = newStore()
+        val resolved = store.getResolvedCalibration(
+            address = "AA:BB:CC:DD:EE:FF",
+            identity = WheelIdentity(wheelType = WheelType.VETERAN, model = "Nosfet Xeno"),
+        )
+
+        assertEquals("Nosfet Xeno", resolved.modelProfile?.displayName)
+        assertEquals(126.0, resolved.modelProfile?.fullVoltageV)
+        assertEquals(30, resolved.modelProfile?.seriesCellCount)
+        assertEquals(WheelSocSource.MODEL_CLASS_FALLBACK, resolved.modelProfile?.socSource)
+        assertEquals(WheelCalibration(), resolved.calibration)
     }
 
     @Test

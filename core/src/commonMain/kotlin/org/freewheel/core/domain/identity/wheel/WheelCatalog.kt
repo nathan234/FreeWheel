@@ -80,7 +80,7 @@ object WheelCatalog {
         WheelCatalogEntry("kingsong-s19", "KingSong S19", WheelType.KINGSONG, listOf("S19", "KS S19", "KS-S19"), 55.0),
         WheelCatalogEntry("kingsong-s22", "KingSong S22", WheelType.KINGSONG, listOf("S22", "S22 PRO", "KS S22", "KS-S22"), 70.0),
         WheelCatalogEntry("kingsong-s16", "KingSong S16", WheelType.KINGSONG, listOf("S16", "S16 PRO", "KS S16", "KS-S16"), 75.0),
-        WheelCatalogEntry("kingsong-f18", "KingSong F18", WheelType.KINGSONG, listOf("F18", "KS F18", "KS-F18", "KINGSONG F18"), 88.0),
+        WheelCatalogEntry("kingsong-f18", "KingSong F18", WheelType.KINGSONG, listOf("F18P", "KS-F18P", "F18", "KS F18", "KS-F18", "KINGSONG F18"), 108.0),
         WheelCatalogEntry("kingsong-f22-pro", "KingSong F22 Pro", WheelType.KINGSONG, listOf("F22 PRO", "F22", "KS F22", "KS-F22"), 80.0),
 
         // InMotion
@@ -90,6 +90,7 @@ object WheelCatalog {
         WheelCatalogEntry("inmotion-v12", "InMotion V12", WheelType.LORIN, listOf("V12", "V12 PRO"), 60.0),
         WheelCatalogEntry("inmotion-v13", "InMotion V13 Challenger", WheelType.LORIN, listOf("V13", "V13 CHALLENGER"), 90.0),
         WheelCatalogEntry("inmotion-v14", "InMotion V14 Adventure", WheelType.LORIN, listOf("V14", "V14 ADVENTURE"), 70.0),
+        WheelCatalogEntry("inmotion-e25", "InMotion E25", WheelType.LORIN, listOf("E25", "INMOTION E25"), 45.0),
         WheelCatalogEntry("inmotion-p6", "InMotion P6", WheelType.LORIN, listOf("P6"), 95.0),
     )
 

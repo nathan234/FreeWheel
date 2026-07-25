@@ -734,6 +734,34 @@ class KingsongDecoderTest {
     // ==================== BMS Data (0xF1) Tests ====================
 
     @Test
+    fun `F18P manufacturer capture decodes both 36-cell extended BMS packs`() {
+        val pack1 = "aa550100000000000000000000000077f1d05a5a00249e0ea30ea10ea10ea20ea20ea20ea20ea20ea10ea10e9e0e9c0e9f0ea20e9f0e9f0ea00ea10ea40ea20ea50ea50ea40ea50ea50ea50ea20ea10ea10ea40ea40ea00ea40ea30ea30e08540b5e0b540b540b680b00005e0b0000f5ffae34e10100e8030700e803ffa100a600b2025a03646c00000000".hexToByteArray()
+        val pack2 = "aa550100000000000000000000000077f2d05a5a0024a10ea20ea10ea20ea20ea20ea20ea10ea10ea10ea10ea10ea00ea10ea00ea00ea00ea00ea10ea20ea20ea10ea00ea10ea20ea00ea10ea20ea10ea00e9f0ea00ea10e9f0e9f0e9f0e08540b5e0b5e0b5e0b720b00005e0b0000f4ffaa34e00100e8030700e803ffa900a900cc02f902656e00000000".hexToByteArray()
+
+        decoder.reset()
+        var state = defaultState
+        val nameResult = decoder.decode(buildKsNamePacket("KS-F18P-001"), state, defaultConfig)
+        state = (nameResult as DecodeResult.Success).data.decoderStateFrom(state)
+
+        val pack1Result = decoder.decode(pack1, state, defaultConfig)
+        assertTrue(pack1Result is DecodeResult.Success)
+        state = (pack1Result as DecodeResult.Success).data.decoderStateFrom(state)
+
+        val pack2Result = decoder.decode(pack2, state, defaultConfig)
+        assertTrue(pack2Result is DecodeResult.Success)
+        state = (pack2Result as DecodeResult.Success).data.decoderStateFrom(state)
+
+        val bms1 = assertNotNull(state.bms.bms1)
+        val bms2 = assertNotNull(state.bms.bms2)
+        assertEquals(36, bms1.cellNum)
+        assertEquals(36, bms2.cellNum)
+        assertEquals(3.742, bms1.cells[0], 0.001)
+        assertEquals(3.745, bms2.cells[0], 0.001)
+        assertEquals(3.740, bms1.minCell, 0.001)
+        assertEquals(3.745, bms2.maxCell, 0.001)
+    }
+
+    @Test
     fun `BMS pNum 0x00 sets voltage and current`() {
         decoder.reset()
         // BMS voltage=8400 -> 84.00V, current=500 -> 5.00A

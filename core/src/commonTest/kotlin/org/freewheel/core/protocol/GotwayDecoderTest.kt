@@ -516,7 +516,7 @@ class GotwayDecoderTest {
             Pair(9, 1) to "InMotion V14 50GB",
             Pair(9, 2) to "InMotion V14 50S",
             Pair(11, 1) to "InMotion V12S",
-            Pair(12, 1) to "InMotion V9"
+            Pair(12, 1) to "InMotion E25"
         )
 
         for ((ids, name) in expected) {
@@ -537,7 +537,7 @@ class GotwayDecoderTest {
         assertEquals(32, LorinDecoder.Model.V14g.cellCount)
         assertEquals(32, LorinDecoder.Model.V14s.cellCount)
         assertEquals(20, LorinDecoder.Model.V12S.cellCount)
-        assertEquals(20, LorinDecoder.Model.V9.cellCount)
+        assertEquals(20, LorinDecoder.Model.E25.cellCount)
     }
 
     @Test
@@ -1278,6 +1278,34 @@ class GotwayDecoderTest {
     }
 
     @Test
+    fun `frame 0x01 context routes status to each of four BMS packs`() {
+        val freshDecoder = GotwayDecoder()
+        var state = DecoderState()
+
+        for (context in 0..3) {
+            val result = freshDecoder.decode(
+                buildExtendedFrame(
+                    batVoltage = 6700,
+                    context = context,
+                    bmsCurrent = (context + 1) * 10,
+                    semiVoltage = (context + 1) * 100,
+                ),
+                state,
+                config,
+            )
+            assertTrue(result is DecodeResult.Success)
+            state = result.data.decoderStateFrom(state)
+        }
+
+        val packs = listOf(state.bms.bms1, state.bms.bms2, state.bms.bms3, state.bms.bms4)
+        packs.forEachIndexed { index, bms ->
+            assertNotNull(bms, "context $index must publish a distinct BMS pack")
+            assertEquals((index + 1).toDouble(), bms.current, 0.001)
+            assertEquals((index + 1) * 10.0, bms.semiVoltage1, 0.001)
+        }
+    }
+
+    @Test
     fun `subsequent frame 0x00 does NOT overwrite voltage after frame 0x01 received`() {
         val freshDecoder = GotwayDecoder()
         initDecoder(freshDecoder)
@@ -1446,9 +1474,50 @@ class GotwayDecoderTest {
         val telemetry = decoded.assertTelemetry()
 
         assertEquals(500, telemetry.phaseCurrent)
-        assertEquals(0, telemetry.current, "Status bits must not be multiplied into battery current")
+        assertEquals(250, telemetry.current, "Legacy wheels estimate battery current from phase current")
         assertEquals(36.0 / 150.0, telemetry.calculatedPwm, 0.001)
         assertEquals(2400, telemetry.output)
+    }
+
+    @Test
+    fun `legacy standard firmware estimates signed battery current before frame 0x07`() {
+        val freshDecoder = GotwayDecoder()
+        val positive = freshDecoder.decode(
+            buildLiveDataFrame(voltage = 6000, speed = 1000, phaseCurrent = 1000),
+            DecoderState(),
+            config.copy(gotwayNegative = 1),
+        ) as DecodeResult.Success
+        assertEquals(500, positive.data.assertTelemetry().current)
+
+        freshDecoder.reset()
+        val negative = freshDecoder.decode(
+            buildLiveDataFrame(voltage = 6000, speed = 1000, phaseCurrent = -1000),
+            DecoderState(),
+            config.copy(gotwayNegative = 1),
+        ) as DecodeResult.Success
+        assertEquals(-250, negative.data.assertTelemetry().current)
+        assertEquals(-15_000, negative.data.assertTelemetry().power)
+    }
+
+    @Test
+    fun `per-wheel PWM overrides take precedence over matched model profile`() {
+        val freshDecoder = GotwayDecoder()
+        freshDecoder.decode("GW2035101".encodeToByteArray(), DecoderState(), config)
+        freshDecoder.decode("NAME:Blitz".encodeToByteArray(), DecoderState(), config)
+
+        val result = freshDecoder.decode(
+            buildLiveDataFrame(voltage = 6720, speed = 1000),
+            DecoderState(),
+            config.copy(
+                gotwayVoltage = -1,
+                rotationSpeed = 1200,
+                rotationVoltage = 1680,
+                powerFactor = 80,
+            ),
+        )
+
+        assertTrue(result is DecodeResult.Success)
+        assertEquals(0.46875, result.data.assertTelemetry().calculatedPwm, 0.0001)
     }
 
     @Test
@@ -2356,14 +2425,29 @@ class GotwayDecoderTest {
      * Build a frame 0x01 (extended data) with the given BMS battery voltage.
      * Layout: header(2) + padding(4) + batVoltage(2 bytes BE at offset 6) + ... + frameType=0x01 at byte 18
      */
-    private fun buildExtendedFrame(batVoltage: Int): ByteArray {
+    private fun buildExtendedFrame(
+        batVoltage: Int,
+        context: Int = 0,
+        bmsCurrent: Int = 0,
+        temp1: Int = 0,
+        temp2: Int = 0,
+        semiVoltage: Int = 0,
+    ): ByteArray {
         val header = byteArrayOf(0x55, 0xAA.toByte())
         val payload = ByteArray(18)
         // batVoltage at offset 6-7 in the full frame = offset 4-5 in payload
         payload[4] = ((batVoltage shr 8) and 0xFF).toByte()
         payload[5] = (batVoltage and 0xFF).toByte()
+        payload[6] = ((bmsCurrent shr 8) and 0xFF).toByte()
+        payload[7] = (bmsCurrent and 0xFF).toByte()
+        payload[8] = ((temp1 shr 8) and 0xFF).toByte()
+        payload[9] = (temp1 and 0xFF).toByte()
+        payload[10] = ((temp2 shr 8) and 0xFF).toByte()
+        payload[11] = (temp2 and 0xFF).toByte()
+        payload[12] = ((semiVoltage shr 8) and 0xFF).toByte()
+        payload[13] = (semiVoltage and 0xFF).toByte()
         payload[16] = 0x01  // frame type at byte 18
-        payload[17] = 0x18  // padding
+        payload[17] = context.toByte()
         return header + payload + byteArrayOf(0x5A, 0x5A, 0x5A, 0x5A)
     }
 

@@ -511,10 +511,10 @@ class LorinDecoderComparisonTest {
         assertEquals(6.13, telemetry.roll, 0.01)
     }
 
-    // ==================== V9 Full Data ====================
+    // ==================== E25 Full Data ====================
 
     @Test
-    fun `V9 full data matches legacy`() {
+    fun `E25 full data matches legacy capture`() {
         // From InMotionAdapterV2Test: decode with v9 full data 1
         decoder.reset()
         val ds = feedPackets(
@@ -531,7 +531,7 @@ class LorinDecoderComparisonTest {
 
         // Identity
         assertEquals("A1421950A000465F", identity.serialNumber)
-        assertEquals("InMotion V9", identity.model)
+        assertEquals("InMotion E25", identity.model)
         assertEquals("Main:1.8.38 Drv:7.4.40 BLE:1.4.10", identity.version)
 
         // Core telemetry

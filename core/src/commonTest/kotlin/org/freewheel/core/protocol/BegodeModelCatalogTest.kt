@@ -44,4 +44,27 @@ class BegodeModelCatalogTest {
         assertEquals(BegodeVoltageClass.V42, BegodeModelCatalog.match("Mten mini", "")?.voltageClass)
         assertEquals(BegodeVoltageClass.V210, BegodeModelCatalog.match("RACE", "")?.voltageClass)
     }
+
+    @Test
+    fun `legacy firmware signatures resolve Hero and Msuper X voltage variants`() {
+        assertEquals(
+            "Hero C30",
+            BegodeModelCatalog.match("", "GW2002201")?.displayName,
+        )
+        assertEquals(
+            BegodeVoltageClass.V84,
+            BegodeModelCatalog.match("", "CF1931001")?.voltageClass,
+        )
+        assertEquals(
+            BegodeVoltageClass.V100_8,
+            BegodeModelCatalog.match("", "GW1932001")?.voltageClass,
+        )
+    }
+
+    @Test
+    fun `legacy named voltage variants do not fall back to 84 volts`() {
+        assertEquals(BegodeVoltageClass.V67_2, BegodeModelCatalog.match("Tesla (67 V)", "")?.voltageClass)
+        assertEquals(BegodeVoltageClass.V100_8, BegodeModelCatalog.match("Monster V3 (100 V)", "")?.voltageClass)
+        assertEquals(BegodeVoltageClass.V84, BegodeModelCatalog.match("Nikola", "")?.voltageClass)
+    }
 }

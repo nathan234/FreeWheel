@@ -14,9 +14,8 @@ import kotlin.test.assertTrue
  * - Bytes 4+: Data payload
  * - Last 4 bytes: CRC32 (for newer firmware, len > 38)
  *
- * Payload fields are not framing sentinels. New wheel firmware may assign new
- * values to them, so only the header, declared length, and CRC establish frame
- * validity.
+ * Legacy no-CRC frames use three structural sentinels inherited from the
+ * manufacturer-compatible WheelLog decoder. CRC frames retain CRC validation.
  */
 class VeteranUnpackerTest {
 
@@ -60,17 +59,34 @@ class VeteranUnpackerTest {
     }
 
     @Test
-    fun stats_payloadFieldChanges_doNotRejectFrame() {
+    fun legacyFrame_invalidChargeModeSentinels_areRejected() {
         val unpacker = VeteranUnpacker()
         val frame = buildValidFrame(36)
         frame[22] = 0x01.toByte()
-        frame[23] = 0x04.toByte()
-        frame[30] = 0x08.toByte()
 
         val result = feedBytes(unpacker, frame)
-        assertTrue(result, "Changing payload fields must not invalidate framing")
-        assertEquals(0, unpacker.stats.errorResets)
-        assertEquals(0, unpacker.stats.bytesDiscarded)
+        assertFalse(result)
+        assertEquals(1, unpacker.stats.errorResets)
+    }
+
+    @Test
+    fun legacyFrame_invalidChargeModeLowByte_isRejected() {
+        val unpacker = VeteranUnpacker()
+        val frame = buildValidFrame(36)
+        frame[23] = 0x04.toByte()
+
+        assertFalse(feedBytes(unpacker, frame))
+        assertEquals(1, unpacker.stats.errorResets)
+    }
+
+    @Test
+    fun legacyFrame_invalidFirmwareHighByte_isRejected() {
+        val unpacker = VeteranUnpacker()
+        val frame = buildValidFrame(36)
+        frame[30] = 0x08.toByte()
+
+        assertFalse(feedBytes(unpacker, frame))
+        assertEquals(1, unpacker.stats.errorResets)
     }
 
     @Test

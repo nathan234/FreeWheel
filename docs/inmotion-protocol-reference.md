@@ -25,8 +25,8 @@ Covers all Lorin-family EUCs.
 | V13PRO | 8 | 2 | 82 | 120 km/h | 30 |
 | V14g | 9 | 1 | 91 | 120 km/h | 32 |
 | V14s | 9 | 2 | 92 | 120 km/h | 32 |
-| V9 | 12 | 1 | 121 | 120 km/h | 20 |
-| P6 | 13 | 1 | 131 | 150 km/h | 32 |
+| E25 (internally V9 series) | 12 | 1 | 121 | 120 km/h protocol limit | 20 |
+| P6 | 13 | 1 | 131 | 150 km/h | 56 |
 
 ## Real-Time Data Layouts
 
@@ -93,7 +93,7 @@ All models share a common telemetry structure with model-specific byte offsets a
 | V12 | 60 | V12HS, V12HT, V12PRO |
 | V13 | 77 | V13, V13PRO |
 | V14 | 78 | V14g, V14s |
-| EXTENDED | 78 | V11Y, V9, V12S, P6 |
+| EXTENDED | 78 | V11Y, E25, V12S, P6 |
 
 ## Settings by Model
 
@@ -113,8 +113,8 @@ All models share a common telemetry structure with model-specific byte offsets a
 | Max speed | 0x21 | [0x21, lo, hi] | Short LE × 100 |
 | Transport mode | 0x32 | [0x32, 0/1] | |
 | DRL | 0x2D | [0x2D, 0/1] | V11Y/V12/V13/V14 |
-| DRL (alt) | 0x44 | [0x44, 0/1] | V9/P6 |
-| Go-home mode | 0x37 | [0x37, 0/1] | V11Y/V9/V12S |
+| DRL (alt) | 0x44 | [0x44, 0/1] | E25 (P6 uses 0x4E) |
+| Go-home mode | 0x37 | [0x37, 0/1] | V11Y/E25/V12S |
 | Fancier mode | 0x24 | [0x24, 0/1] | |
 | Mute | 0x2C | [0x2C, !val] | Inverted |
 | Light brightness | 0x2B | [0x2B, val] | |
@@ -216,11 +216,23 @@ These command IDs are known from the reverse engineering but not yet wired in th
 |-------|-------|---------------|
 | V11/V11Y | 20 | 1 |
 | V12 family | 24 | 1 |
-| V13/V13PRO | 30 | 1 |
+| V13/V13PRO | 30 | 2 |
 | V14g/V14s | 32 | Up to 4 |
-| V9 | 20 | 1 |
+| E25 | 20 | 2 |
 | V12S | 20 | 1 |
-| P6 | 32 | 1 |
+| P6 | 56 | 1 |
+
+### General Battery Summary (`flag 0x14`, command `0x05`)
+
+The response contains two independent pack summaries. Standard Lorin packs are seven
+bytes each: `Uint16LE voltage`, `Int16LE current`, `Int8 temperature` (add 40 °C), and
+two status bytes. Two additional signed 16-bit aggregate charging fields follow the
+standard pair, for 18 bytes total.
+
+E25 uses its manufacturer-specific 14-byte layout: each seven-byte pack contains
+`Uint16LE voltage`, separate `Int16LE chargeCurrent` and `Int16LE dischargeCurrent`, and
+one status byte. FreeWheel normalizes this to positive discharge current with
+`dischargeCurrent - chargeCurrent`.
 
 ### BMS Commands (FullBMSFeature models: V11Y, V13, V14)
 
@@ -290,6 +302,9 @@ These smaller wheels use the Lorin protocol but with reduced feature sets:
 | V6 | 20 | Minimal (no fan, no DRL) |
 | E10 | 20 | Same as V6 |
 | E20 | 20 | Same as V6 |
-| E25 | 30 | Dual battery, full BMS, USB mode |
+| E25 | Dedicated 42-byte payload | Dual battery, dedicated status packing, USB mode |
 
-E25 adds: `maxChargeBatteryLevel`, `maxDcOutputBatteryLevel`, `usbMode`, `drlState`, `autoLightState`, `lightBrightness`, `autoLightLowThr`, `autoLightHighThr`, `autoLightBrightnessState`, `autoScreenOff`
+The manufacturer schema adds fields including `maxChargeBatteryLevel`,
+`maxDcOutputBatteryLevel`, `usbMode`, `drlState`, `autoLightState`, `lightBrightness`,
+automatic-light thresholds/brightness, and `autoScreenOff`. FreeWheel currently surfaces
+the subset represented by `WheelSettings.Lorin`.

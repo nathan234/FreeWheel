@@ -32,25 +32,33 @@ ground truth. Every model-derived calibration should record its source and confi
 | Calibration provenance | The Begode model catalog is now shared outside the decoder. `ResolvedWheelCalibration` merges detected pack voltage and no-load/PWM references with scoped overrides and records each field as model catalog, user override, legacy global, or app default. Explicit 42 V and 210 V classes cover every voltage currently represented by the catalog. |
 | Profile and calibration UI | Android and iOS Wheel Settings now begin with an app-owned Profile & Calibration surface. It combines detected identity with effective calibration, labels model defaults versus overrides, explains that values are not wheel firmware, and resets overrides without sending a wheel command. |
 | Decoder configuration ownership | `DecoderConfig` now contains only values actually consumed by protocol code. Display-unit flags and unused battery-capacity/empty-cell fields were removed; capacity and cell endpoints remain app-owned profile metadata until a validated range or SOC model consumes them. |
+| Begode legacy current | Wheels that predate battery-current frame `0x07` now use EUC World's speed-adjusted phase-current estimate instead of reporting zero current and power indefinitely. |
+| Begode model and multi-pack routing | Additional firmware-matchable models now carry explicit voltage classes, and manufacturer frame dispatch routes `0x01` contexts 0-3 to four independent BMS accumulators. User no-load/PWM overrides take precedence over catalog defaults. |
+| Veteran command/readback parity | Manufacturer action bytes now drive lock/unlock in the correct direction, ride-mode readback is translated from wire values 1-3 to app values 2-0, event-log requests carry exactly one CRC32, and classic no-CRC frames retain structural validation. |
+| Leaperkim/Nosfet divergence | Nosfet brake-alarm offsets and command ID are separate from Leaperkim's map. Unsupported Leaperkim-only dynamic-assist and acceleration controls are no longer advertised for Nosfet. |
+| Lorin E25 | Manufacturer-internal series 12/type 1 is identified as the shipping E25. Dedicated manufacturer telemetry, settings, and dual-battery-summary layouts replace the prior generic V9 assumptions. |
+| KingSong F18 | `KS-F18P` identity, 36S/151.2 V SOC selection, catalog routing, and both 36-cell BMS packs are covered by archived manufacturer-compatible notification replay. |
+| InMotion protocol acknowledgements | V1 password authentication now checks the acknowledgement result, and remote-control acknowledgements re-arm slow settings readback. Lorin command `0x05` battery summaries populate both BMS packs using the manufacturer layouts. |
 
 ## Confirmed Accuracy Gaps
 
 | Priority | Area | Finding | Evidence / next action |
 |---|---|---|---|
-| P1 | InMotion E25 | Advertised-name routing exists, but model identification, telemetry offsets, and settings offsets are not capture-backed. | Obtain model-response and notification captures from the shipping E25. |
-| P2 | Begode multi-pack status | Cell frames support four BMS packs, while frame `0x01` status contexts still collapse into two accumulators. | Capture frame `0x01` from a four-pack wheel and identify the byte-19 context before mapping packs 3/4. |
 | P2 | Leaperkim Oryx SOC | Oryx uses a model-class piecewise-linear 176 V fallback rather than a manufacturer table. | Obtain a manufacturer-app table or voltage/SOC observations across a discharge. |
-| P2 | InMotion V2 battery summary | The general battery real-time response is accepted but discarded; only extended per-pack BMS responses are retained. | Compare a capture with the manufacturer app and EUC World before assigning fields. |
+| P2 | Nosfet Aeon/Xeno SOC | Aeon and the provisional manufacturer-version 504→Xeno mapping have no primary SOC table in the archived references. | Retain explicit model-class fallback provenance and replace it only when manufacturer evidence is available. |
+| P2 | E25/F18 hardware validation | Manufacturer schemas and archived notifications establish the parsing boundary, but neither target has been exercised by FreeWheel on the physical wheel. | Validate E25 controls on hardware and replay a fresh F18 ride capture before treating every setting as confirmed. |
 
 ## Known Accurate or Corroborated Areas
 
-- Leaperkim and Nosfet recognized models use manufacturer-derived SOC tables. Patton S,
-  Nosfet Aero, and Nosfet Xeno use the corroborated 126 V Patton-class table.
+- Leaperkim and Nosfet profiles distinguish manufacturer tables from model-class
+  fallbacks. The embedded Leaperkim tables are manufacturer-backed; the archived Nosfet
+  APK does not embed its downloaded per-model tables, so Apex, Aero, Aeon, and Xeno remain
+  explicitly labeled voltage-class fallbacks.
 - Begode model-derived voltage class and no-load-speed defaults take precedence over the
   old generic fallback, with an explicit per-wheel override still available.
 - Begode BMS cell frames accumulate up to four packs and calculate statistics from valid
   positive cells.
-- KingSong F22/F22P and other newer voltage classes have explicit model mappings.
+- KingSong F18/F18P, F22/F22P, and other newer voltage classes have explicit model mappings.
 - InMotion P6 consumed SOC and output rate use distinct offsets.
 
 ## Settings Ownership
@@ -97,9 +105,10 @@ become wheel controls unless the value is actually written to wheel firmware.
 
 ## Remaining Boundary Work
 
-- Catalog-backed provenance currently covers Begode calibration. Manufacturer-derived
-  Leaperkim/Nosfet SOC tables and known KingSong/InMotion voltage classes are accurate in
-  their decoders but are not yet represented in the app-owned wheel profile.
+- Catalog-backed calibration provenance covers Begode. Veteran-family profile metadata now
+  exposes manufacturer-table versus model-class-fallback SOC provenance, while KingSong and
+  InMotion voltage classes are still decoder-owned rather than fully represented in the
+  app-owned wheel profile.
 - Battery capacity and empty-cell voltage remain stored profile metadata but are deliberately
   not exposed as effective decoder settings until a validated range or SOC model uses them.
 
@@ -109,6 +118,7 @@ application settings.
 
 ## Recommended Sequence
 
-1. Extend profile provenance across Leaperkim/Nosfet, KingSong, and InMotion without
+1. Extend profile provenance across KingSong and InMotion without
    duplicating decoder model tables.
-2. Continue capture-backed work for E25, Begode four-pack status, and Oryx SOC.
+2. Hardware-validate E25 and F18, and replace the Oryx/Aeon/Xeno fallback SOC curves when
+   manufacturer tables become available.

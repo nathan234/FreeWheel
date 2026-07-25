@@ -20,12 +20,13 @@ import kotlinx.datetime.toLocalDateTime
 import kotlinx.datetime.offsetAt
 
 /**
- * Looks up SOC exactly as the Leaperkim and Nosfet apps do.
+ * Looks up SOC using the step-table behavior in the manufacturer-family apps.
  *
  * A table has 100 voltage entries. Values at or below the first entry map to 0%, values
  * at or above the last entry map to 100%, and voltages between entries map to the upper
- * entry's index. In other words, the manufacturer apps use a ceiling/step lookup rather
- * than interpolation.
+ * entry's index. The embedded Leaperkim tables use this ceiling/step lookup rather than
+ * interpolation; Nosfet models reuse the matching voltage-class table when no archived
+ * manufacturer table is available.
  */
 internal fun lookupSoc(voltage: Int, table: IntArray): Int {
     if (voltage <= table[0]) return 0
@@ -130,6 +131,21 @@ internal class VeteranUnpacker : Unpacker {
         when (state) {
             State.COLLECTING -> {
                 val bsize = buffer.size()
+
+                // Classic Veteran frames do not carry a CRC. Preserve the three
+                // manufacturer-compatible structural sentinels used by WheelLog so
+                // random bytes cannot be accepted solely because their length matches.
+                val invalidLegacySentinel =
+                    (bsize == 22 && byte != 0) ||
+                        (bsize == 23 && (byte and 0xFE) != 0) ||
+                        (bsize == 30 && byte != 0 && byte != 0x07)
+                if (!usingCrc && len <= 38 && invalidLegacySentinel) {
+                    _errorResets++
+                    _bytesDiscarded += buffer.size() + 1
+                    state = State.DONE
+                    reset()
+                    return false
+                }
 
                 buffer.write(byte)
 
@@ -326,7 +342,12 @@ class VeteranDecoder : WheelDecoder {
 
         // Byte 31 is the pedals/ride mode. Nosfet sends 0x80 when unsupported.
         val pedalsRaw = buff[31].toInt() and 0xFF
-        val pedalsMode = if (pedalsRaw in 0..2) pedalsRaw else -1
+        val pedalsMode = when (pedalsRaw) {
+            1 -> 2 // wire soft -> app soft
+            2 -> 1 // wire medium -> app medium
+            3 -> 0 // wire hard -> app hard
+            else -> -1
+        }
         val pitchAngle = ByteUtils.signedShortFromBytesBE(buff, 32)
         val hwPwm = ByteUtils.shortFromBytesBE(buff, 34)
         // Battery temp mode: bitmask where 111=normal, 100/101/110=high-temp zone.
@@ -500,6 +521,7 @@ class VeteranDecoder : WheelDecoder {
             return raw != 0
         }
 
+        val nosfet = isNosfetModel()
         return SubTypeData(
             pedalHardness = readUnsigned(50),         // byte 50: pedal hardness 0-100
             stopSpeed = readUnsigned(52),             // byte 52: stop speed (raw, +10 encoding)
@@ -512,10 +534,10 @@ class VeteranDecoder : WheelDecoder {
             highSpeedMode = readBool(61),              // byte 61: high speed mode
             keyTone = readUnsigned(63),                // byte 63: key tone 0-100%
             maxChargeVol = readUnsigned(64),           // byte 64: max charge voltage (0-120)
-            chargeVoltageBase = readUnsigned(65)?.let { if (it == 0) 145 else it }, // byte 65: base voltage for charge limit
-            dynamicAssist = readUnsigned(66),          // byte 66: dynamic assist 0-100%
-            accelerationLimit = readUnsigned(68),      // byte 68: acceleration limit 0-100%
-            brakePressureAlarm = readUnsigned(69),     // byte 69: brake pressure alarm (80-125%)
+            chargeVoltageBase = if (nosfet) null else readUnsigned(65)?.let { if (it == 0) 145 else it },
+            dynamicAssist = if (nosfet) null else readUnsigned(66),
+            accelerationLimit = if (nosfet) null else readUnsigned(68),
+            brakePressureAlarm = readUnsigned(if (nosfet) 65 else 69),
         )
     }
 
@@ -625,13 +647,13 @@ class VeteranDecoder : WheelDecoder {
             3 -> VeteranSocTables.SHERMAN_100V // Sherman S (same 100.8V chemistry)
             4 -> VeteranSocTables.PATTON_126V
             7 -> VeteranSocTables.PATTON_126V // Patton S (same 126V chemistry/pack config)
-            43 -> VeteranSocTables.PATTON_126V // Nosfet Aero (official Nosfet 5020 table)
-            45 -> VeteranSocTables.PATTON_126V // Nosfet Xeno (126V/30S; same class as Patton S)
+            43 -> VeteranSocTables.PATTON_126V // Nosfet Aero: 126V model-class fallback
+            45 -> VeteranSocTables.PATTON_126V // Nosfet Xeno: provisional 126V model-class fallback
             5 -> VeteranSocTables.LYNX_151V
             6 -> VeteranSocTables.LYNX_151V // Sherman L (same 151.2V chemistry)
             9 -> VeteranSocTables.LYNX_151V // Lynx S (same 151.2V chemistry)
-            42 -> VeteranSocTables.LYNX_151V // Nosfet Apex (same 151.2V, same pack config)
-            44 -> VeteranSocTables.LYNX_151V // Nosfet Aeon (same 151.2V, 36S)
+            42 -> VeteranSocTables.LYNX_151V // Nosfet Apex: 151.2V model-class fallback
+            44 -> VeteranSocTables.LYNX_151V // Nosfet Aeon: 151.2V model-class fallback
             else -> null // Oryx and unknown models use the model-class fallback
         }
     }
@@ -702,11 +724,21 @@ class VeteranDecoder : WheelDecoder {
 
     override fun getCapabilities(): CapabilitySet {
         if (mVer == 0) return CapabilitySet()
-        return CAPABILITY_MAP.resolveAt(
+        val resolved = CAPABILITY_MAP.resolveAt(
             firmwareLevel = mVer,
             detectedModel = getModelName(),
             firmwareVersion = version
         )
+        return if (isNosfetModel()) {
+            resolved.copy(
+                supportedCommands = resolved.supportedCommands - setOf(
+                    SettingsCommandId.DYNAMIC_ASSIST,
+                    SettingsCommandId.ACCELERATION_LIMIT,
+                ),
+            )
+        } else {
+            resolved
+        }
     }
 
     override fun getUnpackerStats(): UnpackerStats = unpacker.stats
@@ -753,9 +785,9 @@ class VeteranDecoder : WheelDecoder {
      * Format: [LdAp header] [0x19] [0x00 0x05] [datetime 7B] [oldPwd 3B BE] [action] [newPwd 3B BE] + CRC32
      * - Command byte 0x19 = time sync (0x12) + 7
      * - Both passwords are parsed as integers and encoded big-endian in 3 bytes
-     * - Action bytes (Leaperkim app v1.4.8 LockSettingActivity):
-     *     0  = lock           (oldPwd = current, newPwd = "")
-     *     1  = unlock         (oldPwd = current, newPwd = "")
+     * - Action bytes (Leaperkim app v1.4.8 HomepageFragment):
+     *     0  = unlock         (oldPwd = current, newPwd = "")
+     *     1  = lock           (oldPwd = current, newPwd = "")
      *     2  = auto-lock off  (oldPwd = current, newPwd = "")
      *     3  = auto-lock on   (oldPwd = current, newPwd = "")
      *     11 = set/modify/clear password
@@ -1137,8 +1169,8 @@ class VeteranDecoder : WheelDecoder {
                 }
             }
             is WheelCommand.SetVeteranLock -> {
-                // Action 0 = lock, 1 = unlock. No new password — pass "" through.
-                val action = if (command.locked) 0 else 1
+                // Manufacturer app sends action 1 to lock and action 0 to unlock.
+                val action = if (command.locked) 1 else 0
                 listOf(WheelCommand.SendBytes(buildPwdCommand(action, command.password, "")))
             }
             is WheelCommand.SetVeteranPassword -> {
@@ -1160,8 +1192,8 @@ class VeteranDecoder : WheelDecoder {
             is WheelCommand.RequestEventLog -> {
                 receivingLog = true
                 listOf(
-                    WheelCommand.SendBytes(appendCrc32(buildReadLogPayload(old = true))),
-                    WheelCommand.SendBytes(appendCrc32(buildReadLogPayload(old = false)))
+                    WheelCommand.SendBytes(buildReadLogPayload(old = true)),
+                    WheelCommand.SendBytes(buildReadLogPayload(old = false))
                 )
             }
             is WheelCommand.SetScreenBacklight -> {
@@ -1186,7 +1218,12 @@ class VeteranDecoder : WheelDecoder {
             }
             is WheelCommand.SetBrakePressureAlarm -> {
                 if (!isSupportedAt(SettingsCommandId.BRAKE_PRESSURE_ALARM, ver)) return emptyList()
-                listOf(WheelCommand.SendBytes(buildVeteranCommandNew(0x22, 29, command.value, byte6 = 0x02)))
+                val cmd = if (isNosfetModel()) {
+                    buildVeteranCommandNew(0x1E, 25, command.value, byte6 = 0x02)
+                } else {
+                    buildVeteranCommandNew(0x22, 29, command.value, byte6 = 0x02)
+                }
+                listOf(WheelCommand.SendBytes(cmd))
             }
             is WheelCommand.SetLateralCutoffAngle -> {
                 if (!isSupportedAt(SettingsCommandId.LATERAL_CUTOFF_ANGLE, ver)) return emptyList()
@@ -1200,10 +1237,12 @@ class VeteranDecoder : WheelDecoder {
                 listOf(WheelCommand.SendBytes(buildVeteranCommandNew(0x15, 16, 0x01, byte6 = 0x02)))
             }
             is WheelCommand.SetDynamicAssist -> {
+                if (isNosfetModel()) return emptyList()
                 if (!isSupportedAt(SettingsCommandId.DYNAMIC_ASSIST, ver)) return emptyList()
                 listOf(WheelCommand.SendBytes(buildVeteranCommandNew(0x1F, 26, command.value, byte6 = 0x02)))
             }
             is WheelCommand.SetAccelerationLimit -> {
+                if (isNosfetModel()) return emptyList()
                 if (!isSupportedAt(SettingsCommandId.ACCELERATION_LIMIT, ver)) return emptyList()
                 listOf(WheelCommand.SendBytes(buildVeteranCommandNew(0x21, 28, command.value, byte6 = 0x02)))
             }

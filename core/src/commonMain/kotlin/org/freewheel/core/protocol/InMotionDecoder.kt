@@ -126,8 +126,12 @@ class InMotionDecoder : WheelDecoder {
             }
 
             IDValue.PinCode -> {
-                passwordAcknowledged = true
-                FrameResult(frameType = typeName)
+                val accepted = canMessage.data.firstOrNull() == 1.toByte()
+                passwordAcknowledged = accepted
+                FrameResult(
+                    news = if (accepted) null else "Wheel password rejected",
+                    frameType = typeName
+                )
             }
 
             IDValue.Calibration -> {
@@ -179,7 +183,14 @@ class InMotionDecoder : WheelDecoder {
                 FrameResult(news = news, frameType = typeName)
             }
 
-            IDValue.NoOp, IDValue.RemoteControl, IDValue.PlaySound -> {
+            IDValue.RemoteControl -> {
+                // LED and other remote-control writes share this response ID.
+                // Refresh slow data so the UI reflects the wheel's authoritative state.
+                needSlowData = true
+                FrameResult(frameType = typeName)
+            }
+
+            IDValue.NoOp, IDValue.PlaySound -> {
                 FrameResult(frameType = typeName)
             }
         })

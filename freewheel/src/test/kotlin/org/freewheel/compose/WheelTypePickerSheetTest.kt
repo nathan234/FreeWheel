@@ -67,7 +67,7 @@ class WheelTypePickerSheetTest {
             "Veteran",
             "Leaperkim",
             "InMotion V1",
-            "InMotion V2",
+            "InMotion Lorin",
             "Ninebot (legacy)",
             "Ninebot Z",
         )

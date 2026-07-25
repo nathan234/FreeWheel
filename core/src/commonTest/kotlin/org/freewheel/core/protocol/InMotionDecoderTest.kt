@@ -158,7 +158,9 @@ class InMotionDecoderTest {
             (decoder.getKeepAliveCommand() as WheelCommand.SendBytes).data
         )
         val result = decoder.decode(
-            InMotionDecoder.CANMessage.getPassword("654321").writeBuffer(),
+            InMotionDecoder.CANMessage.getPassword("654321").apply {
+                data = byteArrayOf(1, 0, 0, 0, 0, 0, 0, 0)
+            }.writeBuffer(),
             DecoderState(),
             config
         )
@@ -168,6 +170,25 @@ class InMotionDecoderTest {
             InMotionDecoder.CANMessage.getSlowData().writeBuffer(),
             (decoder.getKeepAliveCommand() as WheelCommand.SendBytes).data,
             "A PIN response should immediately advance to slow discovery"
+        )
+    }
+
+    @Test
+    fun `InMotionDecoder failed password acknowledgement does not authorize session`() {
+        val decoder = InMotionDecoder()
+        decoder.updateConfig(config.copy(wheelPassword = "654321"))
+
+        decoder.getKeepAliveCommand() // first password attempt
+        val failedAck = InMotionDecoder.CANMessage.getPassword("654321").apply {
+            data = ByteArray(8) // response byte 0 means the PIN was rejected
+        }
+        val result = decoder.decode(failedAck.writeBuffer(), DecoderState(), config)
+        assertTrue(result is DecodeResult.Success)
+
+        assertContentEquals(
+            InMotionDecoder.CANMessage.getPassword("654321").writeBuffer(),
+            (decoder.getKeepAliveCommand() as WheelCommand.SendBytes).data,
+            "A rejected PIN must keep authentication active"
         )
     }
 
@@ -302,13 +323,46 @@ class InMotionDecoderTest {
         )
     }
 
+    @Test
+    fun `InMotionDecoder remote-control acknowledgement re-arms slow settings refresh`() {
+        val decoder = InMotionDecoder()
+        acknowledgePassword(decoder)
+        val slowResponse = InMotionDecoder.CANMessage.standardMessage().apply {
+            id = InMotionDecoder.IDValue.GetSlowInfo.value
+            len = 0xFE
+            format = 1
+            data = byteArrayOf(108, 0, 0, 0, 0, 0, 0, 0)
+            exData = ByteArray(108).also { data ->
+                data[104] = 6
+                data[107] = 8
+            }
+        }
+        decoder.decode(slowResponse.writeBuffer(), DecoderState(), config)
+        assertContentEquals(
+            InMotionDecoder.CANMessage.standardMessage().writeBuffer(),
+            (decoder.getKeepAliveCommand() as WheelCommand.SendBytes).data
+        )
+
+        val ledAck = InMotionDecoder.CANMessage.setLed(true)
+        val result = decoder.decode(ledAck.writeBuffer(), DecoderState(), config)
+        assertTrue(result is DecodeResult.Success)
+
+        assertContentEquals(
+            InMotionDecoder.CANMessage.getSlowData().writeBuffer(),
+            (decoder.getKeepAliveCommand() as WheelCommand.SendBytes).data,
+            "A remote-control acknowledgement should refresh authoritative LED state"
+        )
+    }
+
     private fun acknowledgePassword(decoder: InMotionDecoder, password: String = "000000") {
         assertContentEquals(
             InMotionDecoder.CANMessage.getPassword(password).writeBuffer(),
             (decoder.getKeepAliveCommand() as WheelCommand.SendBytes).data
         )
         val result = decoder.decode(
-            InMotionDecoder.CANMessage.getPassword(password).writeBuffer(),
+            InMotionDecoder.CANMessage.getPassword(password).apply {
+                data = byteArrayOf(1, 0, 0, 0, 0, 0, 0, 0)
+            }.writeBuffer(),
             DecoderState(),
             config
         )

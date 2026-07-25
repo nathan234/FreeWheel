@@ -19,7 +19,7 @@ import kotlin.math.roundToInt
  * - V12HS, V12HT, V12PRO, V12S
  * - V13, V13PRO
  * - V14g, V14s
- * - V9
+ * - E25 (manufacturer-internal V9 series)
  *
  * Frame format:
  * - Header: AA AA
@@ -84,7 +84,7 @@ class LorinDecoder : WheelDecoder {
         V14s(92, "InMotion V14 50S", 120, 32, batteryCount = 4),
         E20(101, "InMotion E20", 20, 20),
         V12S(111, "InMotion V12S", 120, 20),
-        V9(121, "InMotion V9", 120, 20),
+        E25(121, "InMotion E25", 120, 20, batteryCount = 2),
         P6(131, "InMotion P6", 150, 56),
         UNKNOWN(0, "InMotion Unknown", 100, 20);
 
@@ -254,7 +254,7 @@ class LorinDecoder : WheelDecoder {
                 when (message.command) {
                     Command.SETTINGS -> processSettings(message, currentState)
                     Command.DIAGNOSTIC -> processDiagnostic(message, currentState)
-                    Command.BATTERY_REAL_TIME_INFO -> processBatteryRealTimeInfo(message, currentState)
+                    Command.BATTERY_REAL_TIME_INFO -> processBatteryRealTimeInfo(message)
                     Command.TOTAL_STATS -> processTotalStats(message, currentState)
                     Command.REAL_TIME_INFO -> processRealTimeInfo(message, currentState)
                     Command.CONTROL -> FrameResult(hasNewData = false, frameType = "CONTROL_ACK")
@@ -490,7 +490,8 @@ class LorinDecoder : WheelDecoder {
             Model.V14g, Model.V14s -> parseSettingsV14(message.data, currentState)
             Model.E20 -> parseSettingsE20(message.data, currentState)
             Model.P6 -> parseSettingsP6(message.data, currentState)
-            Model.V9, Model.V12S -> parseSettingsExtended(message.data, currentState)
+            Model.E25 -> parseSettingsE25(message.data, currentState)
+            Model.V12S -> parseSettingsExtended(message.data, currentState)
             Model.UNKNOWN -> null
         }
     }
@@ -513,10 +514,46 @@ class LorinDecoder : WheelDecoder {
 
     /**
      * Process battery real-time info (flag 0x14, command 0x05).
-     * General battery summary — not per-cell BMS data.
+     * General battery summary — not per-cell BMS data. InMotion's manufacturer
+     * app defines a shared 18-byte layout and a dedicated 14-byte E25 layout.
      */
-    private fun processBatteryRealTimeInfo(message: Message, currentState: DecoderState): FrameResult? {
-        return null // General battery info; per-cell BMS uses extended protocol
+    private fun processBatteryRealTimeInfo(message: Message): FrameResult? {
+        val data = message.data
+        if (model == Model.E25) {
+            if (data.size < E25_BATTERY_SUMMARY_SIZE) return null
+            updateE25BatterySummary(bms1, data, 0)
+            updateE25BatterySummary(bms2, data, E25_SINGLE_BATTERY_SIZE)
+        } else {
+            if (data.size < GENERIC_BATTERY_SUMMARY_SIZE) return null
+            updateGenericBatterySummary(bms1, data, 0)
+            updateGenericBatterySummary(bms2, data, GENERIC_SINGLE_BATTERY_SIZE)
+        }
+
+        return FrameResult(
+            hasNewData = false,
+            frameType = "BATTERY_SUMMARY"
+        )
+    }
+
+    /** Shared Lorin single-pack layout: U16 voltage, I16 current, I8 temp, 16 status bits. */
+    private fun updateGenericBatterySummary(bms: SmartBms, data: ByteArray, offset: Int) {
+        bms.voltage = ByteUtils.shortFromBytesLE(data, offset) * 0.01
+        bms.current = ByteUtils.signedShortFromBytesLE(data, offset + 2) * 0.01
+        bms.temp1 = data[offset + 4].toInt() + 40.0
+        bms.status = (data[offset + 5].toInt() and 0xFF) or
+            ((data[offset + 6].toInt() and 0xFF) shl 8)
+        bms.cellNum = model.cellCount.coerceAtMost(SmartBms.MAX_CELLS)
+    }
+
+    /** E25 single-pack layout: U16 voltage, I16 charge, I16 discharge, U8 status. */
+    private fun updateE25BatterySummary(bms: SmartBms, data: ByteArray, offset: Int) {
+        bms.voltage = ByteUtils.shortFromBytesLE(data, offset) * 0.01
+        val chargeCurrent = ByteUtils.signedShortFromBytesLE(data, offset + 2)
+        val dischargeCurrent = ByteUtils.signedShortFromBytesLE(data, offset + 4)
+        // SmartBms uses positive current for discharge and negative for charge.
+        bms.current = (dischargeCurrent - chargeCurrent) * 0.01
+        bms.status = data[offset + 6].toInt() and 0xFF
+        bms.cellNum = model.cellCount.coerceAtMost(SmartBms.MAX_CELLS)
     }
 
     // ==================== BMS Parsing (Extended Protocol) ====================
@@ -652,7 +689,7 @@ class LorinDecoder : WheelDecoder {
             name.startsWith("V14") && name.contains("50S") -> Model.V14s
             name.startsWith("V14") -> Model.V14g
             name.startsWith("E20") -> Model.E20
-            name.startsWith("V9") -> Model.V9
+            name.startsWith("E25") || name.startsWith("V9") -> Model.E25
             name.startsWith("P6") -> Model.P6
             else -> null
         }
@@ -671,7 +708,7 @@ class LorinDecoder : WheelDecoder {
                 if (protoVer < 2) parseRealTimeInfoV11Old(message.data, currentState)
                 else parseByLayout(Layouts.V11_1_4, message.data, currentState)
             }
-            Model.V11Y, Model.V9, Model.V12S -> parseByLayout(Layouts.EXTENDED, message.data, currentState)
+            Model.V11Y, Model.E25, Model.V12S -> parseByLayout(Layouts.EXTENDED, message.data, currentState)
             Model.P6 -> parseByLayout(Layouts.P6, message.data, currentState)
             Model.V12HS, Model.V12HT, Model.V12PRO -> parseByLayout(Layouts.V12, message.data, currentState)
             Model.V13, Model.V13PRO -> parseByLayout(Layouts.V13, message.data, currentState)
@@ -814,7 +851,7 @@ class LorinDecoder : WheelDecoder {
             batLevelType = BatLevelType.DUAL_SHORT_AVG,
             liftedByteOffset = 2
         )
-        /** V11Y, V9, V12S — same offsets as V14 but standard lifted byte. */
+        /** V11Y, E25, V12S — same offsets as V14 but standard lifted byte. */
         val EXTENDED = RealTimeLayout(
             minSize = 78, voltage = 0, current = 2, speed = 8, torque = 12, pwm = 14,
             batPower = 16, motPower = 18, pitchAngle = 20, rollAngle = 22,
@@ -1152,7 +1189,7 @@ class LorinDecoder : WheelDecoder {
     }
 
     /**
-     * Parse settings for V11Y/V9/V12S layout (shared).
+     * Parse settings for V11Y/V12S layout (shared).
      * Same as V13/V14 plus handleButton, goHome.
      */
     private fun parseSettingsExtended(data: ByteArray, currentState: DecoderState): FrameResult? {
@@ -1192,6 +1229,80 @@ class LorinDecoder : WheelDecoder {
                 handleButton = handleBtn,
                 transportMode = transpMode,
                 goHomeMode = goHome
+            ),
+            hasNewData = false,
+            frameType = "SETTINGS"
+        )
+    }
+
+    /**
+     * Parse E25 settings using the dedicated schema from InMotion's app.
+     *
+     * InMotion calls this product the "V9 series" internally (series 12/type 1),
+     * but its settings payload is not the V11Y/V12S extended layout. The first
+     * eight bytes after the subtype are 32-bit sound-pack and light-effect IDs;
+     * treating them as limit speed and tilt corrupts every setting that follows.
+     */
+    private fun parseSettingsE25(data: ByteArray, currentState: DecoderState): FrameResult? {
+        val i = 1 // data[0] is the settings subtype echo (0x20)
+        if (data.size < i + 41) return null
+
+        val maxSpd = ByteUtils.shortFromBytesLE(data, i + 8) / 100
+        val warningLevel2 = ByteUtils.shortFromBytesLE(data, i + 12) / 100
+        val pedalTilt = ByteUtils.signedShortFromBytesLE(data, i + 14) / 10
+        val standbyMinutes = ByteUtils.shortFromBytesLE(data, i + 16)
+
+        val mode = data[i + 18].toInt() and 0xFF
+        val offroad = (mode and 0x0F) != 0
+        val fancier = ((mode shr 4) and 0x0F) != 0
+        val comfortableSensitivity = data[i + 19].toInt() and 0xFF
+        val classicSensitivity = data[i + 20].toInt() and 0xFF
+        val sensitivity = if (offroad) classicSensitivity else comfortableSensitivity
+
+        val volume = data[i + 21].toInt() and 0xFF
+        val lightEffectMode = data[i + 22].toInt() and 0xFF
+        val soundWaveSensitivity = data[i + 26].toInt() and 0xFF
+
+        // Manufacturer schema: state byte A packs sound/lift/lock/transport/load.
+        val stateA = data[i + 38].toInt() and 0xFF
+        val soundEnabled = (stateA and 0x01) != 0
+        val liftedEnabled = (stateA and 0x04) != 0
+        val transportMode = (stateA and 0x40) != 0
+        val loadDetect = (stateA and 0x80) != 0
+
+        // State byte B packs low-battery, sound-wave, USB, screen and range modes.
+        val stateB = data[i + 39].toInt() and 0xFF
+        val lowBatteryMode = (stateB and 0x02) != 0
+        val soundWave = (stateB and 0x04) != 0
+        val autoScreenOff = (stateB and 0x20) != 0
+
+        // E25 extension byte: bit 3 = daytime running light, bit 4 = auto light.
+        val e25State = data[i + 40].toInt() and 0xFF
+        val drl = (e25State and 0x08) != 0
+        val autoHeadlight = (e25State and 0x10) != 0
+
+        val lorin = currentState.settings as? WheelSettings.Lorin ?: WheelSettings.Lorin()
+        return FrameResult(
+            settings = lorin.copy(
+                maxSpeed = maxSpd,
+                speedAlarm = warningLevel2,
+                pedalTilt = pedalTilt,
+                pedalSensitivity = sensitivity,
+                rideMode = offroad,
+                fancierMode = fancier,
+                speakerVolume = volume,
+                mute = !soundEnabled,
+                handleButton = !liftedEnabled,
+                drl = drl,
+                autoHeadlight = autoHeadlight,
+                transportMode = transportMode,
+                loadDetect = loadDetect,
+                lowBatterySafeMode = lowBatteryMode,
+                soundWave = soundWave,
+                soundWaveSensitivity = soundWaveSensitivity,
+                lightEffectMode = lightEffectMode,
+                standbyTime = standbyMinutes,
+                autoScreenOff = autoScreenOff
             ),
             hasNewData = false,
             frameType = "SETTINGS"
@@ -1313,7 +1424,7 @@ class LorinDecoder : WheelDecoder {
      * Build mode string from state data.
      *
      * @param liftedByteOffset byte offset from [index] where the lifted-state bit lives.
-     *   Standard (V11, V12, V13, V11Y, V9, V12S) = 1; V14 = 2.
+     *   Standard (V11, V12, V13, V11Y, E25, V12S) = 1; V14 = 2.
      */
     private fun buildModeString(data: ByteArray, index: Int, liftedByteOffset: Int = 1): String {
         if (data.size <= index + liftedByteOffset) return ""
@@ -1453,7 +1564,7 @@ class LorinDecoder : WheelDecoder {
                         remove(SettingsCommandId.FANCIER_MODE)
                         putAll(P6_COMMANDS)
                     }
-                    Model.V9 -> { /* base commands only */ }
+                    Model.E25 -> { /* base commands only */ }
                     Model.E20, Model.UNKNOWN -> Unit
                 }
             }
@@ -1466,12 +1577,10 @@ class LorinDecoder : WheelDecoder {
     }
 
     // Model grouping helpers (used by event-loop methods)
-    private val isV9Like get() = model == Model.V9 || model == Model.P6
     private val isV11Family get() = model == Model.V11 || model == Model.V11Y
     private val isV12Family get() = model == Model.V12HS || model == Model.V12HT || model == Model.V12PRO || model == Model.V12S
     private val isV13Family get() = model == Model.V13 || model == Model.V13PRO
     private val isV14Family get() = model == Model.V14g || model == Model.V14s
-    private val isV9OrV12 get() = isV9Like || isV12Family
 
     /**
      * Check if main board firmware version is at least major.minor.
@@ -1500,7 +1609,7 @@ class LorinDecoder : WheelDecoder {
         val isV12Family = model == Model.V12HS || model == Model.V12HT || model == Model.V12PRO || model == Model.V12S
         val isV13Family = model == Model.V13 || model == Model.V13PRO
         val isV14Family = model == Model.V14g || model == Model.V14s
-        val isV9OrV12 = model == Model.V9 || model == Model.P6 || isV12Family
+        val isE25OrV12 = model == Model.E25 || model == Model.P6 || isV12Family
         return when (command) {
             is WheelCommand.Beep -> playBeepMessage(0x18)
 
@@ -1534,7 +1643,7 @@ class LorinDecoder : WheelDecoder {
             is WheelCommand.SetPedalSensitivity -> {
                 val s = (command.sensitivity.coerceIn(0, 100) and 0xFF).toByte()
                 when (model) {
-                    Model.V9 -> controlMsg(0x25, 0x64, s)
+                    Model.E25 -> controlMsg(0x25, 0x64, s)
                     Model.E20, Model.P6, Model.V11, Model.V11Y, Model.V12HS, Model.V12HT, Model.V12PRO,
                     Model.V12S, Model.V13, Model.V13PRO, Model.V14g, Model.V14s ->
                         controlMsg(0x25, s, 0x64)
@@ -1550,7 +1659,7 @@ class LorinDecoder : WheelDecoder {
                     Model.V14g, Model.V14s -> buildMessage(Flag.EXTENDED, Command.MAIN_INFO,
                         byteArrayOf(0x21, 0x60, 0x21, lo, hi, 0x00, 0x00))
                     Model.V11, Model.V11Y, Model.V12HS, Model.V12HT, Model.V12PRO, Model.V12S,
-                    Model.V13, Model.V13PRO, Model.E20, Model.V9, Model.P6 -> controlMsg(0x21, lo, hi)
+                    Model.V13, Model.V13PRO, Model.E20, Model.E25, Model.P6 -> controlMsg(0x21, lo, hi)
                     Model.UNKNOWN -> null
                 }
             }
@@ -1561,7 +1670,7 @@ class LorinDecoder : WheelDecoder {
             is WheelCommand.SetDrl -> {
                 val subCmd: Byte = when (model) {
                     Model.P6 -> 0x4e  // P6 DRL (logo light) toggle
-                    Model.V9 -> 0x44  // V9 DRL
+                    Model.E25 -> 0x44  // E25 DRL
                     Model.V11, Model.V11Y, Model.V12HS, Model.V12HT, Model.V12PRO, Model.V12S,
                     Model.V13, Model.V13PRO, Model.V14g, Model.V14s -> 0x2D
                     Model.E20 -> return null
@@ -1633,8 +1742,8 @@ class LorinDecoder : WheelDecoder {
                 controlMsg(0x45, boolByte(command.enabled))
 
             is WheelCommand.SetSpeedAlarms -> {
-                // V9/V12 only
-                if (!isV9OrV12) return null
+                // E25/V12 only
+                if (!isE25OrV12) return null
                 val a1 = (command.alarm1 * 100).toShort()
                 val a2 = (command.alarm2 * 100).toShort()
                 controlMsg(0x3E, leShortLo(a1), leShortHi(a1), leShortLo(a2), leShortHi(a2))
@@ -1642,7 +1751,7 @@ class LorinDecoder : WheelDecoder {
 
             is WheelCommand.SetSplitRidingModes -> {
                 val subCmd: Byte = when (model) {
-                    Model.V9, Model.P6, Model.V12HS, Model.V12HT, Model.V12PRO, Model.V12S -> 0x42
+                    Model.E25, Model.P6, Model.V12HS, Model.V12HT, Model.V12PRO, Model.V12S -> 0x42
                     Model.V11, Model.V11Y, Model.V13, Model.V13PRO, Model.V14g, Model.V14s -> 0x3E
                     Model.E20 -> return null
                     Model.UNKNOWN -> return null
@@ -1652,7 +1761,7 @@ class LorinDecoder : WheelDecoder {
 
             is WheelCommand.SetSplitRidingModesSettings -> {
                 val subCmd: Byte = when (model) {
-                    Model.V9, Model.P6, Model.V12HS, Model.V12HT, Model.V12PRO, Model.V12S -> 0x40
+                    Model.E25, Model.P6, Model.V12HS, Model.V12HT, Model.V12PRO, Model.V12S -> 0x40
                     Model.V11, Model.V11Y, Model.V13, Model.V13PRO, Model.V14g, Model.V14s -> 0x3F
                     Model.E20 -> return null
                     Model.UNKNOWN -> return null
@@ -1759,7 +1868,7 @@ class LorinDecoder : WheelDecoder {
         return when (model) {
             Model.P6 -> null // P6 has no manual headlight toggle (auto-only)
             Model.V12HS, Model.V12HT, Model.V12PRO, Model.V12S -> controlMsg(0x50, enable, 0x00)
-            Model.V9 -> controlMsg(0x50, enable, enable)
+            Model.E25 -> controlMsg(0x50, enable, enable)
             Model.V11, Model.V11Y -> {
                 if (!isFirmwareAtLeast(firmware, 1, 4)) controlMsg(0x40, enable)
                 else controlMsg(0x50, enable)
@@ -1816,7 +1925,7 @@ class LorinDecoder : WheelDecoder {
                     buildMessage(Flag.EXTENDED, Command.MAIN_INFO, byteArrayOf(0x21, 0x07))
                 )
                 Model.V11, Model.V11Y, Model.V12HS, Model.V12HT, Model.V12PRO, Model.V12S,
-                Model.V13, Model.V13PRO, Model.V14g, Model.V14s, Model.E20, Model.V9,
+                Model.V13, Model.V13PRO, Model.V14g, Model.V14s, Model.E20, Model.E25,
                 Model.UNKNOWN -> WheelCommand.SendBytes(
                     buildMessage(Flag.DEFAULT, Command.REAL_TIME_INFO, byteArrayOf())
                 )
@@ -1884,6 +1993,11 @@ class LorinDecoder : WheelDecoder {
     // ==================== Message Building ====================
 
     companion object {
+        private const val GENERIC_SINGLE_BATTERY_SIZE = 7
+        private const val GENERIC_BATTERY_SUMMARY_SIZE = 18
+        private const val E25_SINGLE_BATTERY_SIZE = 7
+        private const val E25_BATTERY_SUMMARY_SIZE = 14
+
         internal fun isFirmwareAtLeast(version: String, major: Int, minor: Int): Boolean {
             val parts = version.split(".")
             if (parts.size < 2) return false

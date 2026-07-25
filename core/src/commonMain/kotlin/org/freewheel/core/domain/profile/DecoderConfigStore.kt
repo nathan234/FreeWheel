@@ -71,7 +71,6 @@ class DecoderConfigStore(private val store: KeyValueStore) {
         calibrationKeyByField.forEach { (field, key) ->
             if (address.isNotBlank() && store.contains(scoped(address, key))) {
                 val isResetGuard = field == WheelCalibrationField.CUSTOM_BATTERY_PERCENT &&
-                    store.contains(PreferenceKeys.CUSTOM_PERCENTS) &&
                     calibration.customBatteryPercentEnabled == PreferenceDefaults.CUSTOM_PERCENTS
                 if (!isResetGuard) sources[field] = WheelCalibrationSource.USER_OVERRIDE
             }
@@ -90,6 +89,14 @@ class DecoderConfigStore(private val store: KeyValueStore) {
                 .mapNotNull { candidate -> BegodeModelCatalog.match(candidate, identity.version) }
                 .firstOrNull()
                 ?: BegodeModelCatalog.match("", identity.version)
+        } else {
+            null
+        }
+        val veteranProfile = if (identity.wheelType == WheelType.VETERAN) {
+            sequenceOf(identity.model, identity.name, identity.btName)
+                .filter { it.isNotBlank() }
+                .mapNotNull(VeteranModelCatalog::matchName)
+                .firstOrNull()
         } else {
             null
         }
@@ -134,7 +141,8 @@ class DecoderConfigStore(private val store: KeyValueStore) {
         return ResolvedWheelCalibration(
             calibration = calibration,
             sources = sources,
-            matchedModelName = profile?.displayName,
+            matchedModelName = profile?.displayName ?: veteranProfile?.displayName,
+            modelProfile = veteranProfile,
         )
     }
 

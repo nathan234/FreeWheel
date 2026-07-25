@@ -71,6 +71,27 @@ class WheelCatalogTest {
         assertNull(matched)
     }
 
+    @Test
+    fun shippingF18pNameMatchesKingSongF18CatalogEntry() {
+        val matched = WheelCatalog.match(
+            wheelType = WheelType.KINGSONG,
+            identity = WheelIdentity(btName = "KS-F18P-001"),
+        )
+        assertNotNull(matched)
+        assertEquals("kingsong-f18", matched.id)
+        assertEquals(108.0, matched.topSpeedKmh)
+    }
+
+    @Test
+    fun E25NameMatchesLorinCatalogEntry() {
+        val matched = WheelCatalog.match(
+            wheelType = WheelType.LORIN,
+            identity = WheelIdentity(btName = "E25-A1421"),
+        )
+        assertNotNull(matched)
+        assertEquals("inmotion-e25", matched.id)
+    }
+
     // -- Matcher behaviour (uses internal matchIn with controlled entries) -
 
     @Test

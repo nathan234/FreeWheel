@@ -123,6 +123,7 @@ data class ResolvedWheelCalibration(
     val calibration: WheelCalibration,
     val sources: Map<WheelCalibrationField, WheelCalibrationSource>,
     val matchedModelName: String? = null,
+    val modelProfile: VeteranModelProfile? = null,
 ) {
     val hasUserOverrides: Boolean
         get() = sources.values.any { it == WheelCalibrationSource.USER_OVERRIDE }

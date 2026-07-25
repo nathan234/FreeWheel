@@ -35,6 +35,7 @@ Tests: `GotwayDecoderTest.kt` · `GotwayDecoderComparisonTest.kt` · `GotwayUnpa
 ### Frame Parsing
 - [x] Frame 0x00: live telemetry (speed, voltage, current, temperature, distance)
 - [x] Frame 0x01: extended data (true voltage, BMS temps)
+- [x] Frame 0x01 manufacturer contexts 0-3 route summary/status data to BMS packs 1-4
 - [x] Frame 0x02/0x03/0x05/0x06: BMS cell voltages for packs 1-4
 - [x] Accumulate cell count and statistics independently for each BMS pack
 - [x] Frame 0x04: total distance, settings, alerts
@@ -52,6 +53,8 @@ Tests: `GotwayDecoderTest.kt` · `GotwayDecoderComparisonTest.kt` · `GotwayUnpa
 - [x] Battery percent (standard and "better" curves)
 - [x] SmartBMS cell stats (min, max, diff, avg)
 - [x] Firmware-specific frame 0x00 bytes 14-15: status on standard GW/JL/JN firmware, PWM on CF firmware; standard firmware uses frame 0x07 current and a model-speed PWM fallback
+- [x] Pre-frame-0x07 wheels estimate battery current from phase current and speed using the corroborated EUC World formula
+- [x] Explicit user no-load speed, reference voltage, and power-factor overrides take precedence over model catalog values
 
 ### Commands
 - [x] Beep, light, pedals mode, miles mode, roll angle
@@ -62,7 +65,7 @@ Tests: `GotwayDecoderTest.kt` · `GotwayDecoderComparisonTest.kt` · `GotwayUnpa
 - [x] Suppress stale frame-0x04 settings echoes for 2 frames after simple writes and 5 after multi-step LED/max-speed writes
 
 ### Known Gaps
-- [ ] **[P2]** Frame 0x01 contains firmware-reported battery/BMS status fields that EUC World exposes (including pack flags and additional pack contexts); FreeWheel currently retains voltage, current, temperatures, and half-pack voltages only. The meaning of byte 19 for these extended frames still needs a capture before mapping it to packs 3/4.
+- [ ] **[P3]** Frame 0x01 contains additional manufacturer status flags beyond the voltage, current, temperatures, half-pack voltage, and pack context fields FreeWheel retains.
 
 ---
 
@@ -74,6 +77,7 @@ Tests: `KingsongDecoderTest.kt` · `KingsongDecoderComparisonTest.kt`
 ### Init & Identity
 - [x] Send 0x9B (name), 0x63 (serial, 100ms delay), 0x98 (alarms, 200ms delay) on connect
 - [x] Name/model extraction from 0xBB frame
+- [x] Shipping `KS-F18P` name maps to the KingSong F18 identity/catalog entry
 - [x] Version extraction from name string (last segment)
 - [x] Serial number extraction from 0xB3 frame
 
@@ -89,6 +93,7 @@ Tests: `KingsongDecoderTest.kt` · `KingsongDecoderComparisonTest.kt`
 - [x] Frame 0xE1/0xE2: BMS serial
 - [x] Frame 0xE5/0xE6: BMS firmware
 - [x] Frame 0xD0: extended BMS (F-series)
+- [x] Archived F18 notifications replay both independent 36-cell F1/F2+D0 BMS packs
 - [x] Frame 0xA2: ride mode change confirmation
 - [x] Frame 0xC9: battery temperature + charge flag
 - [x] Frame 0x46: password login result
@@ -101,6 +106,7 @@ Tests: `KingsongDecoderTest.kt` · `KingsongDecoderComparisonTest.kt`
 - [x] KS-18L distance scaling (0.83x)
 - [x] Battery percent for 42.5V/51V/55.25V/67V/84V/100V/126V/151V/157V/176V wheels
 - [x] Newer pack identification (KS-X 10S, KS-S9 12S, KS-N 13S, KS-F22 37S, KS-F22P 42S)
+- [x] KS-F18P 36S/151.2 V SOC selection
 - [x] Custom battery percent curves
 
 ### Commands
@@ -140,12 +146,14 @@ Tests: `VeteranDecoderTest.kt` · `VeteranDecoderComparisonTest.kt`
 - [x] SmartBMS data for mVer >= 5 (cell voltages, temps, current)
 - [x] BMS cell stat calculation per model
 - [x] Timeout-based unpacker reset (100ms)
+- [x] Classic no-CRC frames retain manufacturer-compatible structural sentinel validation
 
 ### Telemetry
 - [x] Battery percent curves per model (100V/126V/151V/176V)
 - [x] Custom battery percent option
 - [x] veteranNegative polarity (same as gotwayNegative)
 - [x] PWM and current calculation from hwPwm and phaseCurrent
+- [x] Ride-mode wire values 1=soft, 2=medium, 3=hard map to app modes 2, 1, 0
 
 ### Commands
 - [x] Beep ("b" for old, binary CRC32 frame for v3+)
@@ -160,6 +168,9 @@ Tests: `VeteranDecoderTest.kt` · `VeteranDecoderComparisonTest.kt`
 - [x] Key tone (binary CRC32 frame, 0-100%)
 - [x] Power off (binary CRC32 frame)
 - [x] Reset trip ("CLEARMETER")
+- [x] Password-prefixed lock/unlock uses manufacturer actions 1=lock and 0=unlock
+- [x] Event-log read requests append CRC32 exactly once
+- [x] Nosfet brake-pressure alarm uses command 0x1E/byte 65; Leaperkim uses 0x22/byte 69
 
 ### Sub-type Extended Data (mVer >= 5)
 - [x] Sub-type 0/4: roll angle
@@ -168,11 +179,13 @@ Tests: `VeteranDecoderTest.kt` · `VeteranDecoderComparisonTest.kt`
 - [x] Sub-type 8: control settings readback (pedal hardness, transport mode, volume, low voltage mode, high speed mode, key tone; 0x80 = not supported sentinel)
 
 ### Known Gaps
-- [x] ~~**[P1]** Nosfet Aero SOC fallback~~: mVer 43 uses the official Nosfet 5020
-  voltage table, which matches the Patton-class 126 V table.
+- [x] ~~**[P1]** Nosfet Aero SOC fallback~~: mVer 43 uses the Patton-class 126 V curve,
+  explicitly labeled as a model-class fallback because the archived Nosfet APK does not
+  embed its downloaded SOC table.
 - [x] ~~**[P2]** Dual-format commands~~: LdAp command format added. Old (LkAp) format still sent for basic commands; new format used for extended settings.
-- [ ] **[P2]** Lock command: requires time-based password prefix (`genPwdCmd` in official app). Currently returns empty.
+- [x] ~~**[P2]** Lock command~~: time-based password-prefixed LdAp command implemented and aligned with manufacturer lock/unlock action bytes.
 - [ ] **[P2]** Oryx (mVer 8) SOC table: no official table available (not in Leaperkim app v1.4.8). Uses piecewise-linear fallback.
+- [ ] **[P2]** Nosfet Aeon and Xeno SOC use explicit model-class fallbacks. The archived references do not corroborate an official Xeno/504 voltage table.
 - [x] ~~**[P3]** Fall protection angle~~: parsed from sub-type 2 (byte 47) and surfaced in WheelState.
 - [x] ~~**[P3]** Time sync on connect~~: sends time sync commands on first valid frame.
 - [x] Sub-types 1/5 cell voltages (cells 1-15), 2/6 cells 16-30, and 3/7 remaining
@@ -264,8 +277,9 @@ Tests: `InMotionDecoderTest.kt` · `InMotionDecoderComparisonTest.kt` · `InMoti
 
 ### Known Gaps
 - [x] Password authentication retries a configured six-digit PIN up to six times before
-  continuing discovery, and advances immediately on acknowledgement.
+  continuing discovery, advances only on a positive acknowledgement, and reports rejection.
 - [x] ~~**[P2]** Slow data discovery and settings refresh~~: keep-alive requests slow info until the model resolves, switches to fast telemetry after a valid response, and re-arms slow readback after setting acknowledgements.
+- [x] Remote-control acknowledgements (including LED writes) also re-arm slow settings readback.
 - [ ] **[P3]** Full model-specific speed calculation factors (20+ V1 models with different factors)
 
 ---
@@ -278,14 +292,15 @@ Tests: `LorinDecoderTest.kt` · `LorinUnpackerTest.kt`
 ### Init & Identity
 - [x] Send car type (0x01), serial (0x02), versions (0x06), settings, stats on connect
 - [x] Keep-alive state machine: model → serial → version → real-time data
-- [x] V11, V11Y, V12HS/HT/PRO/S, V13/PRO, V14g/s, V9, P6, and E20 model routing
-- [x] E25 advertised-name routing to the InMotion V2/Lorin decoder family
+- [x] V11, V11Y, V12HS/HT/PRO/S, V13/PRO, V14g/s, P6, E20, and E25 model routing
+- [x] E25 advertised-name and manufacturer series 12/type 1 routing
 
 ### Frame Parsing
 - [x] Message verification with XOR checksum
 - [x] Escape sequence handling (0xA5 prefix for 0xAA/0xA5 bytes)
 - [x] Real-time info per model (including dedicated E20 layout and P6 extended 0x87 data)
-- [x] Settings parsing per model (including dedicated E20 offsets)
+- [x] Settings parsing per model (including dedicated E20 and E25 manufacturer offsets)
+- [x] General command-0x05 dual-pack battery summaries, including the dedicated E25 current layout
 - [x] Total stats (total distance)
 - [x] Extended per-pack BMS status and cell-voltage responses
 - [x] Diagnostic data
@@ -306,18 +321,16 @@ Tests: `LorinDecoderTest.kt` · `LorinUnpackerTest.kt`
 - [x] Extended lateral tilt, standby time
 - [x] Split riding modes (enable + settings), speed alarms
 - [x] Motor sound sensitivity, screen auto-off, auto headlight
-- [x] Model-dependent command routing (V9/V11/V12/V13/V14 branching)
+- [x] Model-dependent command routing (E25/V11/V12/V13/V14 branching)
 - [x] Firmware-version-dependent fan/headlight sub-commands (V11 fw ≥1.4 vs <1.4)
 - [x] V14 max speed uses EXTENDED flag (0x16) with different payload structure
-- [x] V9 pedal sensitivity byte order swap (100,value vs value,100)
-- [x] V9 DRL uses sub-cmd 0x44 (others use 0x2D)
-- [x] V9/V12 split riding modes sub-cmd 0x42 (others use 0x3E)
+- [x] E25 pedal sensitivity byte order swap (100,value vs value,100)
+- [x] E25 DRL uses sub-cmd 0x44 (others use 0x2D)
+- [x] E25/V12 split riding modes sub-cmd 0x42 (others use 0x3E)
 
 ### Known Gaps
 - [x] V14 battery IDs 0x24-0x27 accumulate and publish independently as BMS packs 1-4.
-- [ ] **[P1]** E25 is a shipping Lorin-protocol target, but telemetry/settings need an E25 model-response and notification capture. V18 appears only as dormant official-app protocol code and is not treated as a shipping support target.
-- [ ] **[P2]** General battery real-time info (`flag 0x14`, command `0x05`) is currently
-  discarded; determine its authoritative fields from a capture before mapping them.
+- [ ] **[P2]** E25 parsing is manufacturer-schema-backed but still needs physical-wheel validation, especially control readback and dangerous commands.
 - [ ] **[P2]** Multi-stage shutdown (legacy sends 0x81 first, waits for ACK, then sends 0x82 — KMP sends single 0x81)
 - [x] ~~**[P2]** Battery real-time info request in keep-alive loop~~: BMS polling added to keep-alive via `bmsPollCounter` cycle.
 - [ ] **[P3]** Light state debounce (legacy has `lightSwitchCounter` with 3-frame debounce)

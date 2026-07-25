@@ -6,6 +6,7 @@ import org.freewheel.core.domain.identity.WheelIdentity
 import org.freewheel.core.domain.profile.BegodeModelCatalog
 import org.freewheel.core.domain.profile.BegodeModelProfile
 import org.freewheel.core.domain.settings.SettingsCommandId
+import org.freewheel.core.domain.settings.PreferenceDefaults
 import org.freewheel.core.domain.telemetry.SmartBms
 import org.freewheel.core.domain.settings.WheelSettings
 import org.freewheel.core.domain.identity.WheelType
@@ -261,8 +262,8 @@ class GotwayDecoder : WheelDecoder {
             val bmsSnapshot = BmsState(
                 bms1 = bms1.toSnapshot(),
                 bms2 = bms2.toSnapshot(),
-                bms3 = bms3.toSnapshot().takeIf { it.cellNum > 0 || it.voltage > 0.0 },
-                bms4 = bms4.toSnapshot().takeIf { it.cellNum > 0 || it.voltage > 0.0 },
+                bms3 = bms3.toSnapshot().takeIf { it.hasBegodePackData() },
+                bms4 = bms4.toSnapshot().takeIf { it.hasBegodePackData() },
             )
             DecodeResult.Success(DecodedData(
                 telemetry = successData?.telemetry,
@@ -400,7 +401,7 @@ class GotwayDecoder : WheelDecoder {
             isAlexovikFW && trueCurrent -> alexovikCurrent
             trueCurrent -> tel.current
             fwProt == "Freestyl3r" -> (calculatedPwm * phaseCurrent).roundToInt()
-            else -> tel.current
+            else -> estimateBatteryCurrent(speed, phaseCurrent)
         }
         val power = ((current / 100.0) * voltage).roundToInt()
 
@@ -456,19 +457,20 @@ class GotwayDecoder : WheelDecoder {
         trueVoltage = true
         val batVoltage = ByteUtils.shortFromBytesBE(buff, 6)
         val bmsNum = buff[19].toInt() and 0xFF
-        val bms = if (bmsNum < 2) bms1 else bms2
+        val bms = when (bmsNum) {
+            0 -> bms1
+            1 -> bms2
+            2 -> bms3
+            3 -> bms4
+            else -> null
+        }
 
-        val bmsCurrentVal = ByteUtils.signedShortFromBytesBE(buff, 8)
-        bms.current = bmsCurrentVal / 10.0
-
-        if (bmsNum % 2 == 0) {
+        if (bms != null) {
+            val bmsCurrentVal = ByteUtils.signedShortFromBytesBE(buff, 8)
+            bms.current = bmsCurrentVal / 10.0
             bms.temp1 = ByteUtils.signedShortFromBytesBE(buff, 10).toDouble()
             bms.temp2 = ByteUtils.signedShortFromBytesBE(buff, 12).toDouble()
             bms.semiVoltage1 = ByteUtils.signedShortFromBytesBE(buff, 14) / 10.0
-        } else {
-            bms.temp3 = ByteUtils.signedShortFromBytesBE(buff, 10).toDouble()
-            bms.temp4 = ByteUtils.signedShortFromBytesBE(buff, 12).toDouble()
-            bms.semiVoltage2 = ByteUtils.signedShortFromBytesBE(buff, 14) / 10.0
         }
         return FrameResult(
             telemetry = tel.copy(
@@ -672,22 +674,41 @@ class GotwayDecoder : WheelDecoder {
         val speedKmh = abs(speed) / 100.0
         if (speedKmh == 0.0 || voltage <= 0) return 0.0
 
-        modelProfile?.let { profile ->
-            val noLoadSpeed = profile.noLoadSpeedKmh
-            if (noLoadSpeed != null && profile.fullVoltageV > 0.0) {
-                val voltageFraction = (voltage / 100.0) / profile.fullVoltageV
-                val availableSpeed = noLoadSpeed * voltageFraction
-                if (availableSpeed > 0.0) return speedKmh / availableSpeed
-            }
-        }
+        val profile = modelProfile
+        val hasSpeedOverride = config.rotationSpeed != PreferenceDefaults.ROTATION_SPEED
+        val hasVoltageOverride = config.rotationVoltage != PreferenceDefaults.ROTATION_VOLTAGE
+        val hasPowerFactorOverride = config.powerFactor != PreferenceDefaults.POWER_FACTOR
 
-        val referenceSpeedKmh = config.rotationSpeed / 10.0
-        val referenceVoltageV = config.rotationVoltage / 10.0
-        val powerFactor = config.powerFactor / 100.0
+        val referenceSpeedKmh = when {
+            hasSpeedOverride -> config.rotationSpeed / 10.0
+            profile?.noLoadSpeedKmh != null -> profile.noLoadSpeedKmh
+            else -> config.rotationSpeed / 10.0
+        }
+        val referenceVoltageV = when {
+            hasVoltageOverride -> config.rotationVoltage / 10.0
+            profile != null -> profile.fullVoltageV
+            else -> config.rotationVoltage / 10.0
+        }
+        val powerFactor = when {
+            hasPowerFactorOverride -> config.powerFactor / 100.0
+            profile?.noLoadSpeedKmh != null -> 1.0
+            else -> config.powerFactor / 100.0
+        }
         if (referenceSpeedKmh <= 0.0 || referenceVoltageV <= 0.0 || powerFactor <= 0.0) return 0.0
         val availableSpeed = referenceSpeedKmh * ((voltage / 100.0) / referenceVoltageV) * powerFactor
         return if (availableSpeed > 0.0) speedKmh / availableSpeed else 0.0
     }
+
+    /** EUC World fallback for wheels that never emit frame 0x07 battery current. */
+    private fun estimateBatteryCurrent(speed: Int, phaseCurrent: Int): Int {
+        val speedKmh = abs(speed) / 100.0
+        val estimate = phaseCurrent * (0.14 + speedKmh / 100.0)
+        return (if (phaseCurrent < 0) estimate * 0.5 else estimate).roundToInt()
+    }
+
+    private fun org.freewheel.core.domain.telemetry.BmsSnapshot.hasBegodePackData(): Boolean =
+        cellNum > 0 || voltage > 0.0 || current != 0.0 ||
+            semiVoltage1 != 0.0 || semiVoltage2 != 0.0
 
     private fun scaleVoltage(voltage: Int, config: DecoderConfig): Double {
         val scaler = when (config.gotwayVoltage) {
