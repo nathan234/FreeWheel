@@ -415,12 +415,105 @@ impl Default for BegodeSettings {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "ffi", derive(uniffi::Record))]
+pub struct VeteranSettings {
+    pub pedals_mode: i32,
+    pub light_mode: i32,
+    pub tilt_back_speed: i32,
+    pub alert_speed: i32,
+    pub auto_off_time: i32,
+    pub lock_state: i32,
+    pub high_speed_mode: Option<bool>,
+    pub low_voltage_mode: Option<bool>,
+    pub voltage_correction: i32,
+    pub transport_mode: Option<bool>,
+    pub key_tone: i32,
+    pub pedal_sensitivity: i32,
+    pub stop_speed: i32,
+    pub pwm_limit: i32,
+    pub screen_backlight: i32,
+    pub max_charge_voltage: i32,
+    pub brake_pressure_alarm: i32,
+    pub lateral_cutoff_angle: i32,
+    pub dynamic_assist: i32,
+    pub acceleration_limit: i32,
+    pub charge_voltage_base: i32,
+    pub wheel_display_unit: i32,
+    pub battery_temp_mode: i32,
+    /// Firmware major version (e.g. 3, 4, 43). Used by build_command for capability checks.
+    pub m_ver: i32,
+}
+
+impl Default for VeteranSettings {
+    fn default() -> Self {
+        VeteranSettings {
+            pedals_mode: -1,
+            light_mode: -1,
+            tilt_back_speed: 0,
+            alert_speed: 0,
+            auto_off_time: 0,
+            lock_state: -1,
+            high_speed_mode: None,
+            low_voltage_mode: None,
+            voltage_correction: -1,
+            transport_mode: None,
+            key_tone: -1,
+            pedal_sensitivity: -1,
+            stop_speed: -1,
+            pwm_limit: -1,
+            screen_backlight: -1,
+            max_charge_voltage: -1,
+            brake_pressure_alarm: -1,
+            lateral_cutoff_angle: -1,
+            dynamic_assist: -1,
+            acceleration_limit: -1,
+            charge_voltage_base: 145,
+            wheel_display_unit: -1,
+            battery_temp_mode: 0,
+            m_ver: 0,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Default)]
 #[cfg_attr(feature = "ffi", derive(uniffi::Enum))]
 pub enum WheelSettings {
     #[default]
     None,
     Begode(BegodeSettings),
+    Veteran(VeteranSettings),
+}
+
+// ---------------------------------------------------------------------------
+// Event log (Veteran/Leaperkim)
+// ---------------------------------------------------------------------------
+
+/// A single event log entry from the wheel's internal error/event history.
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "ffi", derive(uniffi::Record))]
+pub struct EventLogEntry {
+    pub index: i32,
+    pub total_count: i32,
+    pub content_code: i32,
+    pub timestamp: i64,
+    pub extras: Vec<i64>,
+    pub text: String,
+    pub extra_bytes: Vec<u8>,
+}
+
+impl Default for EventLogEntry {
+    fn default() -> Self {
+        EventLogEntry {
+            index: 0,
+            total_count: -1,
+            content_code: 0,
+            timestamp: 0,
+            extras: Vec::new(),
+            text: String::new(),
+            extra_bytes: Vec::new(),
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -497,6 +590,32 @@ pub enum WheelCommand {
     SetPowerAlarm(i32),
     SetPlateProtection(bool),
     SetMaxSpeed(i32),
+    // --- Veteran/Leaperkim ---
+    SetAlarmSpeed { speed: i32, num: i32 },
+    SetTransportMode(bool),
+    SetSpeakerVolume(i32),
+    SetHighSpeedMode(bool),
+    SetLowVoltageMode(bool),
+    SetKeyTone(i32),
+    PowerOff,
+    ResetTrip,
+    SetScreenBacklight(i32),
+    SetStopSpeed(i32),
+    SetVeteranPwmLimit(i32),
+    SetVoltageCorrection(i32),
+    SetMaxChargeVoltage(i32),
+    SetBrakePressureAlarm(i32),
+    SetLateralCutoffAngle(i32),
+    SetDynamicAssist(i32),
+    SetAccelerationLimit(i32),
+    /// Continuous Veteran pedal-hardness slider (0..100), routed through cmd 0x0F.
+    SetPedalHardness(i32),
+    SetVeteranLock { locked: bool, password: String },
+    SetVeteranPassword { new_password: String },
+    ModifyVeteranPassword { old_password: String, new_password: String },
+    ClearVeteranPassword { password: String },
+    SetVeteranAutoLock { enabled: bool, password: String },
+    RequestEventLog,
 }
 
 // ---------------------------------------------------------------------------
@@ -514,6 +633,8 @@ pub struct DecodedData {
     pub has_new_data: bool,
     pub news: Option<String>,
     pub frame_types: Vec<String>,
+    /// Event log entries decoded from this frame (Veteran/Leaperkim).
+    pub log_entries: Vec<EventLogEntry>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -575,6 +696,25 @@ pub enum SettingsCommandId {
     MaxSpeed,
     AlarmMode,
     WheelDisplayUnit,
+    // --- Veteran/Leaperkim ---
+    Lock,
+    ResetTrip,
+    AlarmSpeed1,
+    TransportMode,
+    HighSpeedMode,
+    LowVoltageMode,
+    KeyTone,
+    ScreenBacklight,
+    StopSpeed,
+    VeteranPwmLimit,
+    VoltageCorrection,
+    MaxChargeVoltage,
+    BrakePressureAlarm,
+    LateralCutoffAngle,
+    DynamicAssist,
+    AccelerationLimit,
+    PedalHardness,
+    PowerOff,
 }
 
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -584,4 +724,10 @@ pub struct CapabilitySet {
     pub detected_model: String,
     pub firmware_version: String,
     pub is_resolved: bool,
+}
+
+impl CapabilitySet {
+    pub fn supports(&self, command_id: SettingsCommandId) -> bool {
+        self.supported_commands.contains(&command_id)
+    }
 }

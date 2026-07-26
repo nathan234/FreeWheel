@@ -10,6 +10,7 @@ use crate::byte_utils::{
     signed_short_from_bytes_be, KM_TO_MILES_MULTIPLIER,
 };
 use crate::catalog::{match_profile, BegodeModelProfile};
+use crate::decode_loop::{FrameOutcome, FrameResult};
 use crate::types::{
     resolve_wheel_identity, BegodeSettings, BmsSnapshot, BmsState, CapabilitySet, DecodeResult,
     DecodedData, DecoderConfig, DecoderState, SettingsCommandId, SmartBms, TelemetryState,
@@ -35,22 +36,6 @@ const FRAME_BMS_CELLS_3: i32 = 0x05;
 const FRAME_BMS_CELLS_4: i32 = 0x06;
 const FRAME_CURRENT_TEMP: i32 = 0x07;
 const FRAME_SETTINGS: i32 = 0xFF;
-
-/// Result of processing a single unpacked frame (port of `FrameResult`).
-#[derive(Debug, Clone, Default)]
-struct FrameResult {
-    telemetry: Option<TelemetryState>,
-    identity: Option<WheelIdentity>,
-    settings: Option<WheelSettings>,
-    has_new_data: bool,
-    news: Option<String>,
-    frame_type: Option<&'static str>,
-}
-
-enum FrameOutcome {
-    Processed(FrameResult),
-    Unrecognized(String),
-}
 
 pub struct GotwayDecoder {
     unpacker: GotwayUnpacker,
@@ -308,6 +293,7 @@ impl GotwayDecoder {
                 has_new_data: final_has_new_data,
                 news,
                 frame_types,
+                log_entries: Vec::new(),
             })
         } else {
             loop_result
@@ -375,6 +361,7 @@ impl GotwayDecoder {
                 has_new_data,
                 news,
                 frame_types,
+                log_entries: Vec::new(),
             })
         } else if had_complete_frame {
             let (buf, hint) = first_unhandled.unwrap_or((Vec::new(), String::new()));
@@ -1179,7 +1166,8 @@ impl GotwayDecoder {
                     ]
                 }
             }
-            WheelCommand::SendBytes(_) | WheelCommand::SendDelayed(_, _) => Vec::new(),
+            // Kotlin: `else -> emptyList()` — commands other decoders handle
+            _ => Vec::new(),
         }
     }
 
@@ -1195,9 +1183,10 @@ impl GotwayDecoder {
 }
 
 fn begode_settings(settings: &WheelSettings) -> BegodeSettings {
+    // Kotlin: `currentState.settings as? WheelSettings.Begode ?: WheelSettings.Begode()`
     match settings {
         WheelSettings::Begode(s) => s.clone(),
-        WheelSettings::None => BegodeSettings::default(),
+        _ => BegodeSettings::default(),
     }
 }
 

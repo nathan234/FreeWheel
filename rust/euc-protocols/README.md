@@ -10,12 +10,22 @@ of the decoder architecture feels like — before any FFI or app integration.
 
 | Rust | Ported from |
 |------|-------------|
-| `src/gotway.rs` | `core/.../protocol/GotwayDecoder.kt` (+ the `decodeFrames` loop from `DecodeLoop.kt`) |
+| `src/gotway.rs` | `core/.../protocol/GotwayDecoder.kt` |
+| `src/veteran.rs` | `core/.../protocol/VeteranDecoder.kt` (incl. `VeteranUnpacker` with CRC latch + event-log parsing + password commands) |
 | `src/unpacker.rs` | `core/.../protocol/GotwayUnpacker.kt` |
+| `src/decode_loop.rs` | `DecodeLoop.kt` frame contract (`FrameResult`/`FrameOutcome`; each decoder keeps its own byte loop) |
 | `src/catalog.rs` | `core/.../domain/profile/BegodeModelCatalog.kt` (all 61 entries) |
-| `src/types.rs` | `WheelDecoder.kt` result types + `TelemetryState`, `WheelIdentity`, `SmartBms`/`BmsSnapshot`, `WheelSettings.Begode`, `DecoderConfig` |
-| `src/byte_utils.rs` | `ByteUtils.kt` (BE reads) + JVM-exact rounding helpers |
+| `src/soc_tables.rs` | `VeteranSocTables.kt` (300 values, generated mechanically from the Kotlin source) |
+| `src/checksums.rs` | `ProtocolChecksums.kt` (Veteran CRC32) |
+| `src/types.rs` | `WheelDecoder.kt` result types + `TelemetryState`, `WheelIdentity`, `SmartBms`/`BmsSnapshot`, `WheelSettings.{Begode,Veteran}`, `EventLogEntry`, `DecoderConfig` |
+| `src/byte_utils.rs` | `ByteUtils.kt` (BE/revBE reads) + JVM-exact rounding helpers |
 | `tests/gotway_test.rs` | `GotwayDecoderTest.kt` — 80 tests, same frames/hex vectors/expected values |
+| `tests/veteran_test.rs` | `VeteranDecoderTest.kt` + `LookupSocTest` + `VeteranUnpackerTest.kt` — 87 tests, incl. real Nosfet Aero/Apex capture frames |
+
+**Sans-io deviation (Veteran):** the Kotlin decoder reads the system clock for
+time-sync and password commands. The Rust port takes wall-clock components via
+`VeteranDecoder::set_wall_clock` — the integration layer supplies the time,
+the crate never reads a clock (defaults to zeroed fields until set).
 
 All firmware variants are covered: Begode (GW/JL), ExtremeBull (JN),
 Freestyl3r (CF), SmirnoV/Alexovik (BF), including the model catalog matching,

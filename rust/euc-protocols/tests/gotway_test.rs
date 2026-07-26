@@ -41,7 +41,7 @@ fn idn(data: &DecodedData) -> &euc_protocols::WheelIdentity {
 fn beg(data: &DecodedData) -> &BegodeSettings {
     match data.settings.as_ref().expect("settings expected") {
         WheelSettings::Begode(s) => s,
-        WheelSettings::None => panic!("expected Begode settings"),
+        other => panic!("expected Begode settings, got {other:?}"),
     }
 }
 

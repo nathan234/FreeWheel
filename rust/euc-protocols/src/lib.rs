@@ -11,11 +11,15 @@
 
 pub mod byte_utils;
 pub mod catalog;
+pub mod checksums;
+pub(crate) mod decode_loop;
 #[cfg(feature = "ffi")]
 pub mod ffi;
 pub mod gotway;
+pub mod soc_tables;
 pub mod types;
 pub mod unpacker;
+pub mod veteran;
 
 #[cfg(feature = "ffi")]
 uniffi::setup_scaffolding!();
@@ -23,6 +27,7 @@ uniffi::setup_scaffolding!();
 pub use gotway::GotwayDecoder;
 pub use types::{
     BegodeSettings, BmsSnapshot, BmsState, CapabilitySet, DecodeResult, DecodedData,
-    DecoderConfig, DecoderState, SettingsCommandId, TelemetryState, WheelCommand, WheelIdentity,
-    WheelSettings, WheelType,
+    DecoderConfig, DecoderState, EventLogEntry, SettingsCommandId, TelemetryState,
+    VeteranSettings, WheelCommand, WheelIdentity, WheelSettings, WheelType,
 };
+pub use veteran::{VeteranDecoder, WallClock};
