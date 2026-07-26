@@ -77,22 +77,30 @@ cargo test --features ffi   # same + the UniFFI session-layer tests
 ## Formal verification (Kani)
 
 The parity tests prove agreement with the Kotlin decoder on known inputs;
-the Kani harnesses (`#[cfg(kani)] mod verification` in `veteran.rs` /
-`unpacker.rs`) prove robustness over **all** inputs up to a bound — a
-guarantee no test suite can give for radio-facing parsers:
+the Kani harnesses (`#[cfg(kani)] mod verification` in `veteran.rs`) prove
+robustness over **all** inputs up to a bound — a guarantee no test suite can
+give for radio-facing parsers. Panic-freedom here covers index bounds,
+arithmetic overflow, and slice errors — a corrupted BLE payload cannot crash
+the decoder.
 
 ```bash
-cargo kani --harness lookup_soc_bounds            # SOC ∈ [0,100] ∀ voltage, all tables (~1s)
-cargo kani --harness battery_percent_bounds       # battery ∈ [0,100] ∀ mVer × u16 voltage (~12s)
-cargo kani --harness sub_type_parsing_never_panics # ∀ 90-byte buffer (~1s)
-cargo kani --harness bms_accumulation_never_panics # ∀ page × buffer, cells stay in-array (~5min)
-cargo kani --harness log_entries_never_panic       # ∀ page × 96-byte buffer (slow: UTF-8 scan)
-cargo kani --harness unpacker_never_panics         # Veteran: ∀ 44-byte radio stream
-cargo kani --harness gotway_unpacker_never_panics  # Gotway: ∀ 28-byte radio stream
+cargo kani --harness lookup_soc_bounds              # SOC ∈ [0,100] ∀ voltage, all tables (~1s)
+cargo kani --harness battery_percent_bounds         # battery ∈ [0,100] ∀ mVer × u16 voltage (~12s)
+cargo kani --harness sub_type_parsing_never_panics  # ∀ 90-byte buffer (~1s)
+cargo kani --harness bms_accumulation_never_panics  # ∀ page × buffer, cells stay in-array (~5min)
+cargo kani --harness log_basic_extended_never_panic # sub-types 0/4/32, ∀ 90-byte buffer (~6s)
+cargo kani -Z stubbing --harness log_detailed_never_panics  # sub-type 33, ∀ buffer (~13s)
 ```
 
-Panic-freedom here covers index bounds, arithmetic overflow, and slice
-errors — i.e. a corrupted BLE link cannot crash the decoder.
+`log_detailed` stubs `decode_log_text`: `from_utf8_lossy` is total (it never
+panics), but validating UTF-8 over symbolic bytes is intractable for a model
+checker and isn't part of the index-safety surface under proof.
+
+**Not model-checked:** the two frame unpackers. They are `Vec`-manipulating
+state machines whose symbolic state space is intractable for CBMC even at a
+16-byte window, so their panic surface (fixed `buffer[0..=5]` indexing in the
+garbage-recovery paths) is covered by the 168 parity tests plus real capture
+replays instead — thousands of valid, truncated, and garbage frames.
 
 ## FFI layer (`--features ffi`)
 
