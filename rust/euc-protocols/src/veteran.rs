@@ -28,6 +28,7 @@ use crate::byte_utils::bytes_to_hex;
 /// Wall-clock components injected by the host for time-stamped commands.
 /// `year` is the full year (e.g. 2026); the wire encodes `year - 2000`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "ffi", derive(uniffi::Record))]
 pub struct WallClock {
     pub year: i32,
     pub month: i32,

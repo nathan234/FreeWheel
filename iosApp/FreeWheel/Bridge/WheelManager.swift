@@ -1506,10 +1506,12 @@ class WheelManager: ObservableObject {
         WheelConnectionManagerHelper.shared.setCaptureCallback(manager: cm) { [weak self] data, directionStr, _ in
             guard directionStr == "RX" else { return }
             Task { @MainActor in
-                // The Rust shadow currently ports only the Gotway decoder —
-                // feeding it Veteran/other traffic would log bogus divergences.
-                guard let self, self.identity.wheelType == .gotway else { return }
-                self.rustShadow?.feedRx(data)
+                // Only wheel types with a Rust port — feeding others would
+                // log bogus divergences.
+                guard let self else { return }
+                let wheelType = self.identity.wheelType
+                guard wheelType == .gotway || wheelType == .veteran else { return }
+                self.rustShadow?.feedRx(data, wheelType: wheelType)
             }
         }
     }
@@ -2368,8 +2370,9 @@ class WheelManager: ObservableObject {
                     self.captureTxCount += 1
                 } else {
                     self.captureRxCount += 1
-                    if self.identity.wheelType == .gotway {
-                        self.rustShadow?.feedRx(data)
+                    let wheelType = self.identity.wheelType
+                    if wheelType == .gotway || wheelType == .veteran {
+                        self.rustShadow?.feedRx(data, wheelType: wheelType)
                     }
                 }
             }

@@ -732,6 +732,26 @@ internal interface UniffiForeignFutureCompleteVoid : com.sun.jna.Callback {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 // For large crates we prevent `MethodTooLargeException` (see #2340)
 // N.B. the name of the extension is very misleading, since it is 
 // rather `InterfaceTooLargeException`, caused by too many methods 
@@ -763,7 +783,25 @@ fun uniffi_euc_protocols_checksum_method_gotwaysession_reset(
 ): Short
 fun uniffi_euc_protocols_checksum_method_gotwaysession_update_config(
 ): Short
+fun uniffi_euc_protocols_checksum_method_veteransession_build_command(
+): Short
+fun uniffi_euc_protocols_checksum_method_veteransession_capabilities(
+): Short
+fun uniffi_euc_protocols_checksum_method_veteransession_current_state(
+): Short
+fun uniffi_euc_protocols_checksum_method_veteransession_decode(
+): Short
+fun uniffi_euc_protocols_checksum_method_veteransession_is_ready(
+): Short
+fun uniffi_euc_protocols_checksum_method_veteransession_reset(
+): Short
+fun uniffi_euc_protocols_checksum_method_veteransession_set_wall_clock(
+): Short
+fun uniffi_euc_protocols_checksum_method_veteransession_update_config(
+): Short
 fun uniffi_euc_protocols_checksum_constructor_gotwaysession_new(
+): Short
+fun uniffi_euc_protocols_checksum_constructor_veteransession_new(
 ): Short
 fun ffi_euc_protocols_uniffi_contract_version(
 ): Int
@@ -835,6 +873,28 @@ fun uniffi_euc_protocols_fn_method_gotwaysession_is_ready(`ptr`: Pointer,uniffi_
 fun uniffi_euc_protocols_fn_method_gotwaysession_reset(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
 ): Unit
 fun uniffi_euc_protocols_fn_method_gotwaysession_update_config(`ptr`: Pointer,`config`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+): Unit
+fun uniffi_euc_protocols_fn_clone_veteransession(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+): Pointer
+fun uniffi_euc_protocols_fn_free_veteransession(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+): Unit
+fun uniffi_euc_protocols_fn_constructor_veteransession_new(`config`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+): Pointer
+fun uniffi_euc_protocols_fn_method_veteransession_build_command(`ptr`: Pointer,`command`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+): RustBuffer.ByValue
+fun uniffi_euc_protocols_fn_method_veteransession_capabilities(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+): RustBuffer.ByValue
+fun uniffi_euc_protocols_fn_method_veteransession_current_state(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+): RustBuffer.ByValue
+fun uniffi_euc_protocols_fn_method_veteransession_decode(`ptr`: Pointer,`data`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+): RustBuffer.ByValue
+fun uniffi_euc_protocols_fn_method_veteransession_is_ready(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+): Byte
+fun uniffi_euc_protocols_fn_method_veteransession_reset(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+): Unit
+fun uniffi_euc_protocols_fn_method_veteransession_set_wall_clock(`ptr`: Pointer,`clock`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+): Unit
+fun uniffi_euc_protocols_fn_method_veteransession_update_config(`ptr`: Pointer,`config`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Unit
 fun ffi_euc_protocols_rustbuffer_alloc(`size`: Long,uniffi_out_err: UniffiRustCallStatus, 
 ): RustBuffer.ByValue
@@ -986,7 +1046,34 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_euc_protocols_checksum_method_gotwaysession_update_config() != 33464.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if (lib.uniffi_euc_protocols_checksum_method_veteransession_build_command() != 42416.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_euc_protocols_checksum_method_veteransession_capabilities() != 46641.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_euc_protocols_checksum_method_veteransession_current_state() != 64604.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_euc_protocols_checksum_method_veteransession_decode() != 27217.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_euc_protocols_checksum_method_veteransession_is_ready() != 5829.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_euc_protocols_checksum_method_veteransession_reset() != 10335.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_euc_protocols_checksum_method_veteransession_set_wall_clock() != 19856.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_euc_protocols_checksum_method_veteransession_update_config() != 23068.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_euc_protocols_checksum_constructor_gotwaysession_new() != 50807.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_euc_protocols_checksum_constructor_veteransession_new() != 29016.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
 }
@@ -1707,6 +1794,390 @@ public object FfiConverterTypeGotwaySession: FfiConverter<GotwaySession, Pointer
 }
 
 
+// This template implements a class for working with a Rust struct via a Pointer/Arc<T>
+// to the live Rust struct on the other side of the FFI.
+//
+// Each instance implements core operations for working with the Rust `Arc<T>` and the
+// Kotlin Pointer to work with the live Rust struct on the other side of the FFI.
+//
+// There's some subtlety here, because we have to be careful not to operate on a Rust
+// struct after it has been dropped, and because we must expose a public API for freeing
+// theq Kotlin wrapper object in lieu of reliable finalizers. The core requirements are:
+//
+//   * Each instance holds an opaque pointer to the underlying Rust struct.
+//     Method calls need to read this pointer from the object's state and pass it in to
+//     the Rust FFI.
+//
+//   * When an instance is no longer needed, its pointer should be passed to a
+//     special destructor function provided by the Rust FFI, which will drop the
+//     underlying Rust struct.
+//
+//   * Given an instance, calling code is expected to call the special
+//     `destroy` method in order to free it after use, either by calling it explicitly
+//     or by using a higher-level helper like the `use` method. Failing to do so risks
+//     leaking the underlying Rust struct.
+//
+//   * We can't assume that calling code will do the right thing, and must be prepared
+//     to handle Kotlin method calls executing concurrently with or even after a call to
+//     `destroy`, and to handle multiple (possibly concurrent!) calls to `destroy`.
+//
+//   * We must never allow Rust code to operate on the underlying Rust struct after
+//     the destructor has been called, and must never call the destructor more than once.
+//     Doing so may trigger memory unsafety.
+//
+//   * To mitigate many of the risks of leaking memory and use-after-free unsafety, a `Cleaner`
+//     is implemented to call the destructor when the Kotlin object becomes unreachable.
+//     This is done in a background thread. This is not a panacea, and client code should be aware that
+//      1. the thread may starve if some there are objects that have poorly performing
+//     `drop` methods or do significant work in their `drop` methods.
+//      2. the thread is shared across the whole library. This can be tuned by using `android_cleaner = true`,
+//         or `android = true` in the [`kotlin` section of the `uniffi.toml` file](https://mozilla.github.io/uniffi-rs/kotlin/configuration.html).
+//
+// If we try to implement this with mutual exclusion on access to the pointer, there is the
+// possibility of a race between a method call and a concurrent call to `destroy`:
+//
+//    * Thread A starts a method call, reads the value of the pointer, but is interrupted
+//      before it can pass the pointer over the FFI to Rust.
+//    * Thread B calls `destroy` and frees the underlying Rust struct.
+//    * Thread A resumes, passing the already-read pointer value to Rust and triggering
+//      a use-after-free.
+//
+// One possible solution would be to use a `ReadWriteLock`, with each method call taking
+// a read lock (and thus allowed to run concurrently) and the special `destroy` method
+// taking a write lock (and thus blocking on live method calls). However, we aim not to
+// generate methods with any hidden blocking semantics, and a `destroy` method that might
+// block if called incorrectly seems to meet that bar.
+//
+// So, we achieve our goals by giving each instance an associated `AtomicLong` counter to track
+// the number of in-flight method calls, and an `AtomicBoolean` flag to indicate whether `destroy`
+// has been called. These are updated according to the following rules:
+//
+//    * The initial value of the counter is 1, indicating a live object with no in-flight calls.
+//      The initial value for the flag is false.
+//
+//    * At the start of each method call, we atomically check the counter.
+//      If it is 0 then the underlying Rust struct has already been destroyed and the call is aborted.
+//      If it is nonzero them we atomically increment it by 1 and proceed with the method call.
+//
+//    * At the end of each method call, we atomically decrement and check the counter.
+//      If it has reached zero then we destroy the underlying Rust struct.
+//
+//    * When `destroy` is called, we atomically flip the flag from false to true.
+//      If the flag was already true we silently fail.
+//      Otherwise we atomically decrement and check the counter.
+//      If it has reached zero then we destroy the underlying Rust struct.
+//
+// Astute readers may observe that this all sounds very similar to the way that Rust's `Arc<T>` works,
+// and indeed it is, with the addition of a flag to guard against multiple calls to `destroy`.
+//
+// The overall effect is that the underlying Rust struct is destroyed only when `destroy` has been
+// called *and* all in-flight method calls have completed, avoiding violating any of the expectations
+// of the underlying Rust code.
+//
+// This makes a cleaner a better alternative to _not_ calling `destroy()` as
+// and when the object is finished with, but the abstraction is not perfect: if the Rust object's `drop`
+// method is slow, and/or there are many objects to cleanup, and it's on a low end Android device, then the cleaner
+// thread may be starved, and the app will leak memory.
+//
+// In this case, `destroy`ing manually may be a better solution.
+//
+// The cleaner can live side by side with the manual calling of `destroy`. In the order of responsiveness, uniffi objects
+// with Rust peers are reclaimed:
+//
+// 1. By calling the `destroy` method of the object, which calls `rustObject.free()`. If that doesn't happen:
+// 2. When the object becomes unreachable, AND the Cleaner thread gets to call `rustObject.free()`. If the thread is starved then:
+// 3. The memory is reclaimed when the process terminates.
+//
+// [1] https://stackoverflow.com/questions/24376768/can-java-finalize-an-object-when-it-is-still-in-scope/24380219
+//
+
+
+/**
+ * One BLE connection's worth of Veteran/Leaperkim decoding state.
+ */
+public interface VeteranSessionInterface {
+    
+    /**
+     * Translate a high-level command into protocol bytes + delays.
+     */
+    fun `buildCommand`(`command`: WheelCommand): List<WheelCommand>
+    
+    fun `capabilities`(): CapabilitySet
+    
+    /**
+     * Accumulated state (telemetry, identity, BMS, settings) for this session.
+     */
+    fun `currentState`(): DecoderState
+    
+    /**
+     * Feed one BLE notification. Returns the delta; the session has already
+     * merged it into its own state.
+     */
+    fun `decode`(`data`: kotlin.ByteArray): DecodeResult
+    
+    fun `isReady`(): kotlin.Boolean
+    
+    /**
+     * Reset decoder + accumulated state (disconnect / wheel switch).
+     */
+    fun `reset`()
+    
+    /**
+     * Supply the current wall-clock. The crate is sans-io and never reads a
+     * clock; the host provides it for time-sync/password command timestamps.
+     */
+    fun `setWallClock`(`clock`: WallClock)
+    
+    /**
+     * Replace the decoder configuration (pref changes mid-connection).
+     */
+    fun `updateConfig`(`config`: DecoderConfig)
+    
+    companion object
+}
+
+/**
+ * One BLE connection's worth of Veteran/Leaperkim decoding state.
+ */
+open class VeteranSession: Disposable, AutoCloseable, VeteranSessionInterface
+{
+
+    constructor(pointer: Pointer) {
+        this.pointer = pointer
+        this.cleanable = UniffiLib.CLEANER.register(this, UniffiCleanAction(pointer))
+    }
+
+    /**
+     * This constructor can be used to instantiate a fake object. Only used for tests. Any
+     * attempt to actually use an object constructed this way will fail as there is no
+     * connected Rust object.
+     */
+    @Suppress("UNUSED_PARAMETER")
+    constructor(noPointer: NoPointer) {
+        this.pointer = null
+        this.cleanable = UniffiLib.CLEANER.register(this, UniffiCleanAction(pointer))
+    }
+    constructor(`config`: DecoderConfig) :
+        this(
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_euc_protocols_fn_constructor_veteransession_new(
+        FfiConverterTypeDecoderConfig.lower(`config`),_status)
+}
+    )
+
+    protected val pointer: Pointer?
+    protected val cleanable: UniffiCleaner.Cleanable
+
+    private val wasDestroyed = AtomicBoolean(false)
+    private val callCounter = AtomicLong(1)
+
+    override fun destroy() {
+        // Only allow a single call to this method.
+        // TODO: maybe we should log a warning if called more than once?
+        if (this.wasDestroyed.compareAndSet(false, true)) {
+            // This decrement always matches the initial count of 1 given at creation time.
+            if (this.callCounter.decrementAndGet() == 0L) {
+                cleanable.clean()
+            }
+        }
+    }
+
+    @Synchronized
+    override fun close() {
+        this.destroy()
+    }
+
+    internal inline fun <R> callWithPointer(block: (ptr: Pointer) -> R): R {
+        // Check and increment the call counter, to keep the object alive.
+        // This needs a compare-and-set retry loop in case of concurrent updates.
+        do {
+            val c = this.callCounter.get()
+            if (c == 0L) {
+                throw IllegalStateException("${this.javaClass.simpleName} object has already been destroyed")
+            }
+            if (c == Long.MAX_VALUE) {
+                throw IllegalStateException("${this.javaClass.simpleName} call counter would overflow")
+            }
+        } while (! this.callCounter.compareAndSet(c, c + 1L))
+        // Now we can safely do the method call without the pointer being freed concurrently.
+        try {
+            return block(this.uniffiClonePointer())
+        } finally {
+            // This decrement always matches the increment we performed above.
+            if (this.callCounter.decrementAndGet() == 0L) {
+                cleanable.clean()
+            }
+        }
+    }
+
+    // Use a static inner class instead of a closure so as not to accidentally
+    // capture `this` as part of the cleanable's action.
+    private class UniffiCleanAction(private val pointer: Pointer?) : Runnable {
+        override fun run() {
+            pointer?.let { ptr ->
+                uniffiRustCall { status ->
+                    UniffiLib.INSTANCE.uniffi_euc_protocols_fn_free_veteransession(ptr, status)
+                }
+            }
+        }
+    }
+
+    fun uniffiClonePointer(): Pointer {
+        return uniffiRustCall() { status ->
+            UniffiLib.INSTANCE.uniffi_euc_protocols_fn_clone_veteransession(pointer!!, status)
+        }
+    }
+
+    
+    /**
+     * Translate a high-level command into protocol bytes + delays.
+     */override fun `buildCommand`(`command`: WheelCommand): List<WheelCommand> {
+            return FfiConverterSequenceTypeWheelCommand.lift(
+    callWithPointer {
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_euc_protocols_fn_method_veteransession_build_command(
+        it, FfiConverterTypeWheelCommand.lower(`command`),_status)
+}
+    }
+    )
+    }
+    
+
+    override fun `capabilities`(): CapabilitySet {
+            return FfiConverterTypeCapabilitySet.lift(
+    callWithPointer {
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_euc_protocols_fn_method_veteransession_capabilities(
+        it, _status)
+}
+    }
+    )
+    }
+    
+
+    
+    /**
+     * Accumulated state (telemetry, identity, BMS, settings) for this session.
+     */override fun `currentState`(): DecoderState {
+            return FfiConverterTypeDecoderState.lift(
+    callWithPointer {
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_euc_protocols_fn_method_veteransession_current_state(
+        it, _status)
+}
+    }
+    )
+    }
+    
+
+    
+    /**
+     * Feed one BLE notification. Returns the delta; the session has already
+     * merged it into its own state.
+     */override fun `decode`(`data`: kotlin.ByteArray): DecodeResult {
+            return FfiConverterTypeDecodeResult.lift(
+    callWithPointer {
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_euc_protocols_fn_method_veteransession_decode(
+        it, FfiConverterByteArray.lower(`data`),_status)
+}
+    }
+    )
+    }
+    
+
+    override fun `isReady`(): kotlin.Boolean {
+            return FfiConverterBoolean.lift(
+    callWithPointer {
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_euc_protocols_fn_method_veteransession_is_ready(
+        it, _status)
+}
+    }
+    )
+    }
+    
+
+    
+    /**
+     * Reset decoder + accumulated state (disconnect / wheel switch).
+     */override fun `reset`()
+        = 
+    callWithPointer {
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_euc_protocols_fn_method_veteransession_reset(
+        it, _status)
+}
+    }
+    
+    
+
+    
+    /**
+     * Supply the current wall-clock. The crate is sans-io and never reads a
+     * clock; the host provides it for time-sync/password command timestamps.
+     */override fun `setWallClock`(`clock`: WallClock)
+        = 
+    callWithPointer {
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_euc_protocols_fn_method_veteransession_set_wall_clock(
+        it, FfiConverterTypeWallClock.lower(`clock`),_status)
+}
+    }
+    
+    
+
+    
+    /**
+     * Replace the decoder configuration (pref changes mid-connection).
+     */override fun `updateConfig`(`config`: DecoderConfig)
+        = 
+    callWithPointer {
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_euc_protocols_fn_method_veteransession_update_config(
+        it, FfiConverterTypeDecoderConfig.lower(`config`),_status)
+}
+    }
+    
+    
+
+    
+
+    
+    
+    companion object
+    
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeVeteranSession: FfiConverter<VeteranSession, Pointer> {
+
+    override fun lower(value: VeteranSession): Pointer {
+        return value.uniffiClonePointer()
+    }
+
+    override fun lift(value: Pointer): VeteranSession {
+        return VeteranSession(value)
+    }
+
+    override fun read(buf: ByteBuffer): VeteranSession {
+        // The Rust code always writes pointers as 8 bytes, and will
+        // fail to compile if they don't fit.
+        return lift(Pointer(buf.getLong()))
+    }
+
+    override fun allocationSize(value: VeteranSession) = 8UL
+
+    override fun write(value: VeteranSession, buf: ByteBuffer) {
+        // The Rust code always expects pointers written as 8 bytes,
+        // and will fail to compile if they don't fit.
+        buf.putLong(Pointer.nativeValue(lower(value)))
+    }
+}
+
+
 
 data class BegodeSettings (
     var `pedalsMode`: kotlin.Int, 
@@ -1964,7 +2435,11 @@ data class DecodedData (
     var `commands`: List<WheelCommand>, 
     var `hasNewData`: kotlin.Boolean, 
     var `news`: kotlin.String?, 
-    var `frameTypes`: List<kotlin.String>
+    var `frameTypes`: List<kotlin.String>, 
+    /**
+     * Event log entries decoded from this frame (Veteran/Leaperkim).
+     */
+    var `logEntries`: List<EventLogEntry>
 ) {
     
     companion object
@@ -1984,6 +2459,7 @@ public object FfiConverterTypeDecodedData: FfiConverterRustBuffer<DecodedData> {
             FfiConverterBoolean.read(buf),
             FfiConverterOptionalString.read(buf),
             FfiConverterSequenceString.read(buf),
+            FfiConverterSequenceTypeEventLogEntry.read(buf),
         )
     }
 
@@ -1995,7 +2471,8 @@ public object FfiConverterTypeDecodedData: FfiConverterRustBuffer<DecodedData> {
             FfiConverterSequenceTypeWheelCommand.allocationSize(value.`commands`) +
             FfiConverterBoolean.allocationSize(value.`hasNewData`) +
             FfiConverterOptionalString.allocationSize(value.`news`) +
-            FfiConverterSequenceString.allocationSize(value.`frameTypes`)
+            FfiConverterSequenceString.allocationSize(value.`frameTypes`) +
+            FfiConverterSequenceTypeEventLogEntry.allocationSize(value.`logEntries`)
     )
 
     override fun write(value: DecodedData, buf: ByteBuffer) {
@@ -2007,6 +2484,7 @@ public object FfiConverterTypeDecodedData: FfiConverterRustBuffer<DecodedData> {
             FfiConverterBoolean.write(value.`hasNewData`, buf)
             FfiConverterOptionalString.write(value.`news`, buf)
             FfiConverterSequenceString.write(value.`frameTypes`, buf)
+            FfiConverterSequenceTypeEventLogEntry.write(value.`logEntries`, buf)
     }
 }
 
@@ -2115,6 +2593,61 @@ public object FfiConverterTypeDecoderState: FfiConverterRustBuffer<DecoderState>
             FfiConverterTypeWheelIdentity.write(value.`identity`, buf)
             FfiConverterTypeBmsState.write(value.`bms`, buf)
             FfiConverterTypeWheelSettings.write(value.`settings`, buf)
+    }
+}
+
+
+
+/**
+ * A single event log entry from the wheel's internal error/event history.
+ */
+data class EventLogEntry (
+    var `index`: kotlin.Int, 
+    var `totalCount`: kotlin.Int, 
+    var `contentCode`: kotlin.Int, 
+    var `timestamp`: kotlin.Long, 
+    var `extras`: List<kotlin.Long>, 
+    var `text`: kotlin.String, 
+    var `extraBytes`: kotlin.ByteArray
+) {
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeEventLogEntry: FfiConverterRustBuffer<EventLogEntry> {
+    override fun read(buf: ByteBuffer): EventLogEntry {
+        return EventLogEntry(
+            FfiConverterInt.read(buf),
+            FfiConverterInt.read(buf),
+            FfiConverterInt.read(buf),
+            FfiConverterLong.read(buf),
+            FfiConverterSequenceLong.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterByteArray.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: EventLogEntry) = (
+            FfiConverterInt.allocationSize(value.`index`) +
+            FfiConverterInt.allocationSize(value.`totalCount`) +
+            FfiConverterInt.allocationSize(value.`contentCode`) +
+            FfiConverterLong.allocationSize(value.`timestamp`) +
+            FfiConverterSequenceLong.allocationSize(value.`extras`) +
+            FfiConverterString.allocationSize(value.`text`) +
+            FfiConverterByteArray.allocationSize(value.`extraBytes`)
+    )
+
+    override fun write(value: EventLogEntry, buf: ByteBuffer) {
+            FfiConverterInt.write(value.`index`, buf)
+            FfiConverterInt.write(value.`totalCount`, buf)
+            FfiConverterInt.write(value.`contentCode`, buf)
+            FfiConverterLong.write(value.`timestamp`, buf)
+            FfiConverterSequenceLong.write(value.`extras`, buf)
+            FfiConverterString.write(value.`text`, buf)
+            FfiConverterByteArray.write(value.`extraBytes`, buf)
     }
 }
 
@@ -2292,6 +2825,185 @@ public object FfiConverterTypeTelemetryState: FfiConverterRustBuffer<TelemetrySt
 
 
 
+data class VeteranSettings (
+    var `pedalsMode`: kotlin.Int, 
+    var `lightMode`: kotlin.Int, 
+    var `tiltBackSpeed`: kotlin.Int, 
+    var `alertSpeed`: kotlin.Int, 
+    var `autoOffTime`: kotlin.Int, 
+    var `lockState`: kotlin.Int, 
+    var `highSpeedMode`: kotlin.Boolean?, 
+    var `lowVoltageMode`: kotlin.Boolean?, 
+    var `voltageCorrection`: kotlin.Int, 
+    var `transportMode`: kotlin.Boolean?, 
+    var `keyTone`: kotlin.Int, 
+    var `pedalSensitivity`: kotlin.Int, 
+    var `stopSpeed`: kotlin.Int, 
+    var `pwmLimit`: kotlin.Int, 
+    var `screenBacklight`: kotlin.Int, 
+    var `maxChargeVoltage`: kotlin.Int, 
+    var `brakePressureAlarm`: kotlin.Int, 
+    var `lateralCutoffAngle`: kotlin.Int, 
+    var `dynamicAssist`: kotlin.Int, 
+    var `accelerationLimit`: kotlin.Int, 
+    var `chargeVoltageBase`: kotlin.Int, 
+    var `wheelDisplayUnit`: kotlin.Int, 
+    var `batteryTempMode`: kotlin.Int, 
+    /**
+     * Firmware major version (e.g. 3, 4, 43). Used by build_command for capability checks.
+     */
+    var `mVer`: kotlin.Int
+) {
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeVeteranSettings: FfiConverterRustBuffer<VeteranSettings> {
+    override fun read(buf: ByteBuffer): VeteranSettings {
+        return VeteranSettings(
+            FfiConverterInt.read(buf),
+            FfiConverterInt.read(buf),
+            FfiConverterInt.read(buf),
+            FfiConverterInt.read(buf),
+            FfiConverterInt.read(buf),
+            FfiConverterInt.read(buf),
+            FfiConverterOptionalBoolean.read(buf),
+            FfiConverterOptionalBoolean.read(buf),
+            FfiConverterInt.read(buf),
+            FfiConverterOptionalBoolean.read(buf),
+            FfiConverterInt.read(buf),
+            FfiConverterInt.read(buf),
+            FfiConverterInt.read(buf),
+            FfiConverterInt.read(buf),
+            FfiConverterInt.read(buf),
+            FfiConverterInt.read(buf),
+            FfiConverterInt.read(buf),
+            FfiConverterInt.read(buf),
+            FfiConverterInt.read(buf),
+            FfiConverterInt.read(buf),
+            FfiConverterInt.read(buf),
+            FfiConverterInt.read(buf),
+            FfiConverterInt.read(buf),
+            FfiConverterInt.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: VeteranSettings) = (
+            FfiConverterInt.allocationSize(value.`pedalsMode`) +
+            FfiConverterInt.allocationSize(value.`lightMode`) +
+            FfiConverterInt.allocationSize(value.`tiltBackSpeed`) +
+            FfiConverterInt.allocationSize(value.`alertSpeed`) +
+            FfiConverterInt.allocationSize(value.`autoOffTime`) +
+            FfiConverterInt.allocationSize(value.`lockState`) +
+            FfiConverterOptionalBoolean.allocationSize(value.`highSpeedMode`) +
+            FfiConverterOptionalBoolean.allocationSize(value.`lowVoltageMode`) +
+            FfiConverterInt.allocationSize(value.`voltageCorrection`) +
+            FfiConverterOptionalBoolean.allocationSize(value.`transportMode`) +
+            FfiConverterInt.allocationSize(value.`keyTone`) +
+            FfiConverterInt.allocationSize(value.`pedalSensitivity`) +
+            FfiConverterInt.allocationSize(value.`stopSpeed`) +
+            FfiConverterInt.allocationSize(value.`pwmLimit`) +
+            FfiConverterInt.allocationSize(value.`screenBacklight`) +
+            FfiConverterInt.allocationSize(value.`maxChargeVoltage`) +
+            FfiConverterInt.allocationSize(value.`brakePressureAlarm`) +
+            FfiConverterInt.allocationSize(value.`lateralCutoffAngle`) +
+            FfiConverterInt.allocationSize(value.`dynamicAssist`) +
+            FfiConverterInt.allocationSize(value.`accelerationLimit`) +
+            FfiConverterInt.allocationSize(value.`chargeVoltageBase`) +
+            FfiConverterInt.allocationSize(value.`wheelDisplayUnit`) +
+            FfiConverterInt.allocationSize(value.`batteryTempMode`) +
+            FfiConverterInt.allocationSize(value.`mVer`)
+    )
+
+    override fun write(value: VeteranSettings, buf: ByteBuffer) {
+            FfiConverterInt.write(value.`pedalsMode`, buf)
+            FfiConverterInt.write(value.`lightMode`, buf)
+            FfiConverterInt.write(value.`tiltBackSpeed`, buf)
+            FfiConverterInt.write(value.`alertSpeed`, buf)
+            FfiConverterInt.write(value.`autoOffTime`, buf)
+            FfiConverterInt.write(value.`lockState`, buf)
+            FfiConverterOptionalBoolean.write(value.`highSpeedMode`, buf)
+            FfiConverterOptionalBoolean.write(value.`lowVoltageMode`, buf)
+            FfiConverterInt.write(value.`voltageCorrection`, buf)
+            FfiConverterOptionalBoolean.write(value.`transportMode`, buf)
+            FfiConverterInt.write(value.`keyTone`, buf)
+            FfiConverterInt.write(value.`pedalSensitivity`, buf)
+            FfiConverterInt.write(value.`stopSpeed`, buf)
+            FfiConverterInt.write(value.`pwmLimit`, buf)
+            FfiConverterInt.write(value.`screenBacklight`, buf)
+            FfiConverterInt.write(value.`maxChargeVoltage`, buf)
+            FfiConverterInt.write(value.`brakePressureAlarm`, buf)
+            FfiConverterInt.write(value.`lateralCutoffAngle`, buf)
+            FfiConverterInt.write(value.`dynamicAssist`, buf)
+            FfiConverterInt.write(value.`accelerationLimit`, buf)
+            FfiConverterInt.write(value.`chargeVoltageBase`, buf)
+            FfiConverterInt.write(value.`wheelDisplayUnit`, buf)
+            FfiConverterInt.write(value.`batteryTempMode`, buf)
+            FfiConverterInt.write(value.`mVer`, buf)
+    }
+}
+
+
+
+/**
+ * Wall-clock components injected by the host for time-stamped commands.
+ * `year` is the full year (e.g. 2026); the wire encodes `year - 2000`.
+ */
+data class WallClock (
+    var `year`: kotlin.Int, 
+    var `month`: kotlin.Int, 
+    var `day`: kotlin.Int, 
+    var `hour`: kotlin.Int, 
+    var `minute`: kotlin.Int, 
+    var `second`: kotlin.Int, 
+    var `tzOffsetHours`: kotlin.Int
+) {
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeWallClock: FfiConverterRustBuffer<WallClock> {
+    override fun read(buf: ByteBuffer): WallClock {
+        return WallClock(
+            FfiConverterInt.read(buf),
+            FfiConverterInt.read(buf),
+            FfiConverterInt.read(buf),
+            FfiConverterInt.read(buf),
+            FfiConverterInt.read(buf),
+            FfiConverterInt.read(buf),
+            FfiConverterInt.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: WallClock) = (
+            FfiConverterInt.allocationSize(value.`year`) +
+            FfiConverterInt.allocationSize(value.`month`) +
+            FfiConverterInt.allocationSize(value.`day`) +
+            FfiConverterInt.allocationSize(value.`hour`) +
+            FfiConverterInt.allocationSize(value.`minute`) +
+            FfiConverterInt.allocationSize(value.`second`) +
+            FfiConverterInt.allocationSize(value.`tzOffsetHours`)
+    )
+
+    override fun write(value: WallClock, buf: ByteBuffer) {
+            FfiConverterInt.write(value.`year`, buf)
+            FfiConverterInt.write(value.`month`, buf)
+            FfiConverterInt.write(value.`day`, buf)
+            FfiConverterInt.write(value.`hour`, buf)
+            FfiConverterInt.write(value.`minute`, buf)
+            FfiConverterInt.write(value.`second`, buf)
+            FfiConverterInt.write(value.`tzOffsetHours`, buf)
+    }
+}
+
+
+
 data class WheelIdentity (
     var `wheelType`: WheelType, 
     var `name`: kotlin.String, 
@@ -2456,7 +3168,25 @@ enum class SettingsCommandId {
     CALIBRATE,
     MAX_SPEED,
     ALARM_MODE,
-    WHEEL_DISPLAY_UNIT;
+    WHEEL_DISPLAY_UNIT,
+    LOCK,
+    RESET_TRIP,
+    ALARM_SPEED1,
+    TRANSPORT_MODE,
+    HIGH_SPEED_MODE,
+    LOW_VOLTAGE_MODE,
+    KEY_TONE,
+    SCREEN_BACKLIGHT,
+    STOP_SPEED,
+    VETERAN_PWM_LIMIT,
+    VOLTAGE_CORRECTION,
+    MAX_CHARGE_VOLTAGE,
+    BRAKE_PRESSURE_ALARM,
+    LATERAL_CUTOFF_ANGLE,
+    DYNAMIC_ASSIST,
+    ACCELERATION_LIMIT,
+    PEDAL_HARDNESS,
+    POWER_OFF;
     companion object
 }
 
@@ -2631,6 +3361,127 @@ sealed class WheelCommand {
         companion object
     }
     
+    data class SetAlarmSpeed(
+        val `speed`: kotlin.Int, 
+        val `num`: kotlin.Int) : WheelCommand() {
+        companion object
+    }
+    
+    data class SetTransportMode(
+        val v1: kotlin.Boolean) : WheelCommand() {
+        companion object
+    }
+    
+    data class SetSpeakerVolume(
+        val v1: kotlin.Int) : WheelCommand() {
+        companion object
+    }
+    
+    data class SetHighSpeedMode(
+        val v1: kotlin.Boolean) : WheelCommand() {
+        companion object
+    }
+    
+    data class SetLowVoltageMode(
+        val v1: kotlin.Boolean) : WheelCommand() {
+        companion object
+    }
+    
+    data class SetKeyTone(
+        val v1: kotlin.Int) : WheelCommand() {
+        companion object
+    }
+    
+    object PowerOff : WheelCommand()
+    
+    
+    object ResetTrip : WheelCommand()
+    
+    
+    data class SetScreenBacklight(
+        val v1: kotlin.Int) : WheelCommand() {
+        companion object
+    }
+    
+    data class SetStopSpeed(
+        val v1: kotlin.Int) : WheelCommand() {
+        companion object
+    }
+    
+    data class SetVeteranPwmLimit(
+        val v1: kotlin.Int) : WheelCommand() {
+        companion object
+    }
+    
+    data class SetVoltageCorrection(
+        val v1: kotlin.Int) : WheelCommand() {
+        companion object
+    }
+    
+    data class SetMaxChargeVoltage(
+        val v1: kotlin.Int) : WheelCommand() {
+        companion object
+    }
+    
+    data class SetBrakePressureAlarm(
+        val v1: kotlin.Int) : WheelCommand() {
+        companion object
+    }
+    
+    data class SetLateralCutoffAngle(
+        val v1: kotlin.Int) : WheelCommand() {
+        companion object
+    }
+    
+    data class SetDynamicAssist(
+        val v1: kotlin.Int) : WheelCommand() {
+        companion object
+    }
+    
+    data class SetAccelerationLimit(
+        val v1: kotlin.Int) : WheelCommand() {
+        companion object
+    }
+    
+    /**
+     * Continuous Veteran pedal-hardness slider (0..100), routed through cmd 0x0F.
+     */
+    data class SetPedalHardness(
+        val v1: kotlin.Int) : WheelCommand() {
+        companion object
+    }
+    
+    data class SetVeteranLock(
+        val `locked`: kotlin.Boolean, 
+        val `password`: kotlin.String) : WheelCommand() {
+        companion object
+    }
+    
+    data class SetVeteranPassword(
+        val `newPassword`: kotlin.String) : WheelCommand() {
+        companion object
+    }
+    
+    data class ModifyVeteranPassword(
+        val `oldPassword`: kotlin.String, 
+        val `newPassword`: kotlin.String) : WheelCommand() {
+        companion object
+    }
+    
+    data class ClearVeteranPassword(
+        val `password`: kotlin.String) : WheelCommand() {
+        companion object
+    }
+    
+    data class SetVeteranAutoLock(
+        val `enabled`: kotlin.Boolean, 
+        val `password`: kotlin.String) : WheelCommand() {
+        companion object
+    }
+    
+    object RequestEventLog : WheelCommand()
+    
+    
 
     
     companion object
@@ -2699,6 +3550,76 @@ public object FfiConverterTypeWheelCommand : FfiConverterRustBuffer<WheelCommand
             20 -> WheelCommand.SetMaxSpeed(
                 FfiConverterInt.read(buf),
                 )
+            21 -> WheelCommand.SetAlarmSpeed(
+                FfiConverterInt.read(buf),
+                FfiConverterInt.read(buf),
+                )
+            22 -> WheelCommand.SetTransportMode(
+                FfiConverterBoolean.read(buf),
+                )
+            23 -> WheelCommand.SetSpeakerVolume(
+                FfiConverterInt.read(buf),
+                )
+            24 -> WheelCommand.SetHighSpeedMode(
+                FfiConverterBoolean.read(buf),
+                )
+            25 -> WheelCommand.SetLowVoltageMode(
+                FfiConverterBoolean.read(buf),
+                )
+            26 -> WheelCommand.SetKeyTone(
+                FfiConverterInt.read(buf),
+                )
+            27 -> WheelCommand.PowerOff
+            28 -> WheelCommand.ResetTrip
+            29 -> WheelCommand.SetScreenBacklight(
+                FfiConverterInt.read(buf),
+                )
+            30 -> WheelCommand.SetStopSpeed(
+                FfiConverterInt.read(buf),
+                )
+            31 -> WheelCommand.SetVeteranPwmLimit(
+                FfiConverterInt.read(buf),
+                )
+            32 -> WheelCommand.SetVoltageCorrection(
+                FfiConverterInt.read(buf),
+                )
+            33 -> WheelCommand.SetMaxChargeVoltage(
+                FfiConverterInt.read(buf),
+                )
+            34 -> WheelCommand.SetBrakePressureAlarm(
+                FfiConverterInt.read(buf),
+                )
+            35 -> WheelCommand.SetLateralCutoffAngle(
+                FfiConverterInt.read(buf),
+                )
+            36 -> WheelCommand.SetDynamicAssist(
+                FfiConverterInt.read(buf),
+                )
+            37 -> WheelCommand.SetAccelerationLimit(
+                FfiConverterInt.read(buf),
+                )
+            38 -> WheelCommand.SetPedalHardness(
+                FfiConverterInt.read(buf),
+                )
+            39 -> WheelCommand.SetVeteranLock(
+                FfiConverterBoolean.read(buf),
+                FfiConverterString.read(buf),
+                )
+            40 -> WheelCommand.SetVeteranPassword(
+                FfiConverterString.read(buf),
+                )
+            41 -> WheelCommand.ModifyVeteranPassword(
+                FfiConverterString.read(buf),
+                FfiConverterString.read(buf),
+                )
+            42 -> WheelCommand.ClearVeteranPassword(
+                FfiConverterString.read(buf),
+                )
+            43 -> WheelCommand.SetVeteranAutoLock(
+                FfiConverterBoolean.read(buf),
+                FfiConverterString.read(buf),
+                )
+            44 -> WheelCommand.RequestEventLog
             else -> throw RuntimeException("invalid enum value, something is very wrong!!")
         }
     }
@@ -2843,6 +3764,175 @@ public object FfiConverterTypeWheelCommand : FfiConverterRustBuffer<WheelCommand
                 + FfiConverterInt.allocationSize(value.v1)
             )
         }
+        is WheelCommand.SetAlarmSpeed -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterInt.allocationSize(value.`speed`)
+                + FfiConverterInt.allocationSize(value.`num`)
+            )
+        }
+        is WheelCommand.SetTransportMode -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterBoolean.allocationSize(value.v1)
+            )
+        }
+        is WheelCommand.SetSpeakerVolume -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterInt.allocationSize(value.v1)
+            )
+        }
+        is WheelCommand.SetHighSpeedMode -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterBoolean.allocationSize(value.v1)
+            )
+        }
+        is WheelCommand.SetLowVoltageMode -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterBoolean.allocationSize(value.v1)
+            )
+        }
+        is WheelCommand.SetKeyTone -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterInt.allocationSize(value.v1)
+            )
+        }
+        is WheelCommand.PowerOff -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+            )
+        }
+        is WheelCommand.ResetTrip -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+            )
+        }
+        is WheelCommand.SetScreenBacklight -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterInt.allocationSize(value.v1)
+            )
+        }
+        is WheelCommand.SetStopSpeed -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterInt.allocationSize(value.v1)
+            )
+        }
+        is WheelCommand.SetVeteranPwmLimit -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterInt.allocationSize(value.v1)
+            )
+        }
+        is WheelCommand.SetVoltageCorrection -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterInt.allocationSize(value.v1)
+            )
+        }
+        is WheelCommand.SetMaxChargeVoltage -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterInt.allocationSize(value.v1)
+            )
+        }
+        is WheelCommand.SetBrakePressureAlarm -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterInt.allocationSize(value.v1)
+            )
+        }
+        is WheelCommand.SetLateralCutoffAngle -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterInt.allocationSize(value.v1)
+            )
+        }
+        is WheelCommand.SetDynamicAssist -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterInt.allocationSize(value.v1)
+            )
+        }
+        is WheelCommand.SetAccelerationLimit -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterInt.allocationSize(value.v1)
+            )
+        }
+        is WheelCommand.SetPedalHardness -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterInt.allocationSize(value.v1)
+            )
+        }
+        is WheelCommand.SetVeteranLock -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterBoolean.allocationSize(value.`locked`)
+                + FfiConverterString.allocationSize(value.`password`)
+            )
+        }
+        is WheelCommand.SetVeteranPassword -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterString.allocationSize(value.`newPassword`)
+            )
+        }
+        is WheelCommand.ModifyVeteranPassword -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterString.allocationSize(value.`oldPassword`)
+                + FfiConverterString.allocationSize(value.`newPassword`)
+            )
+        }
+        is WheelCommand.ClearVeteranPassword -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterString.allocationSize(value.`password`)
+            )
+        }
+        is WheelCommand.SetVeteranAutoLock -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterBoolean.allocationSize(value.`enabled`)
+                + FfiConverterString.allocationSize(value.`password`)
+            )
+        }
+        is WheelCommand.RequestEventLog -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+            )
+        }
     }
 
     override fun write(value: WheelCommand, buf: ByteBuffer) {
@@ -2946,6 +4036,127 @@ public object FfiConverterTypeWheelCommand : FfiConverterRustBuffer<WheelCommand
                 FfiConverterInt.write(value.v1, buf)
                 Unit
             }
+            is WheelCommand.SetAlarmSpeed -> {
+                buf.putInt(21)
+                FfiConverterInt.write(value.`speed`, buf)
+                FfiConverterInt.write(value.`num`, buf)
+                Unit
+            }
+            is WheelCommand.SetTransportMode -> {
+                buf.putInt(22)
+                FfiConverterBoolean.write(value.v1, buf)
+                Unit
+            }
+            is WheelCommand.SetSpeakerVolume -> {
+                buf.putInt(23)
+                FfiConverterInt.write(value.v1, buf)
+                Unit
+            }
+            is WheelCommand.SetHighSpeedMode -> {
+                buf.putInt(24)
+                FfiConverterBoolean.write(value.v1, buf)
+                Unit
+            }
+            is WheelCommand.SetLowVoltageMode -> {
+                buf.putInt(25)
+                FfiConverterBoolean.write(value.v1, buf)
+                Unit
+            }
+            is WheelCommand.SetKeyTone -> {
+                buf.putInt(26)
+                FfiConverterInt.write(value.v1, buf)
+                Unit
+            }
+            is WheelCommand.PowerOff -> {
+                buf.putInt(27)
+                Unit
+            }
+            is WheelCommand.ResetTrip -> {
+                buf.putInt(28)
+                Unit
+            }
+            is WheelCommand.SetScreenBacklight -> {
+                buf.putInt(29)
+                FfiConverterInt.write(value.v1, buf)
+                Unit
+            }
+            is WheelCommand.SetStopSpeed -> {
+                buf.putInt(30)
+                FfiConverterInt.write(value.v1, buf)
+                Unit
+            }
+            is WheelCommand.SetVeteranPwmLimit -> {
+                buf.putInt(31)
+                FfiConverterInt.write(value.v1, buf)
+                Unit
+            }
+            is WheelCommand.SetVoltageCorrection -> {
+                buf.putInt(32)
+                FfiConverterInt.write(value.v1, buf)
+                Unit
+            }
+            is WheelCommand.SetMaxChargeVoltage -> {
+                buf.putInt(33)
+                FfiConverterInt.write(value.v1, buf)
+                Unit
+            }
+            is WheelCommand.SetBrakePressureAlarm -> {
+                buf.putInt(34)
+                FfiConverterInt.write(value.v1, buf)
+                Unit
+            }
+            is WheelCommand.SetLateralCutoffAngle -> {
+                buf.putInt(35)
+                FfiConverterInt.write(value.v1, buf)
+                Unit
+            }
+            is WheelCommand.SetDynamicAssist -> {
+                buf.putInt(36)
+                FfiConverterInt.write(value.v1, buf)
+                Unit
+            }
+            is WheelCommand.SetAccelerationLimit -> {
+                buf.putInt(37)
+                FfiConverterInt.write(value.v1, buf)
+                Unit
+            }
+            is WheelCommand.SetPedalHardness -> {
+                buf.putInt(38)
+                FfiConverterInt.write(value.v1, buf)
+                Unit
+            }
+            is WheelCommand.SetVeteranLock -> {
+                buf.putInt(39)
+                FfiConverterBoolean.write(value.`locked`, buf)
+                FfiConverterString.write(value.`password`, buf)
+                Unit
+            }
+            is WheelCommand.SetVeteranPassword -> {
+                buf.putInt(40)
+                FfiConverterString.write(value.`newPassword`, buf)
+                Unit
+            }
+            is WheelCommand.ModifyVeteranPassword -> {
+                buf.putInt(41)
+                FfiConverterString.write(value.`oldPassword`, buf)
+                FfiConverterString.write(value.`newPassword`, buf)
+                Unit
+            }
+            is WheelCommand.ClearVeteranPassword -> {
+                buf.putInt(42)
+                FfiConverterString.write(value.`password`, buf)
+                Unit
+            }
+            is WheelCommand.SetVeteranAutoLock -> {
+                buf.putInt(43)
+                FfiConverterBoolean.write(value.`enabled`, buf)
+                FfiConverterString.write(value.`password`, buf)
+                Unit
+            }
+            is WheelCommand.RequestEventLog -> {
+                buf.putInt(44)
+                Unit
+            }
         }.let { /* this makes the `when` an expression, which ensures it is exhaustive */ }
     }
 }
@@ -2964,6 +4175,11 @@ sealed class WheelSettings {
         companion object
     }
     
+    data class Veteran(
+        val v1: VeteranSettings) : WheelSettings() {
+        companion object
+    }
+    
 
     
     companion object
@@ -2978,6 +4194,9 @@ public object FfiConverterTypeWheelSettings : FfiConverterRustBuffer<WheelSettin
             1 -> WheelSettings.None
             2 -> WheelSettings.Begode(
                 FfiConverterTypeBegodeSettings.read(buf),
+                )
+            3 -> WheelSettings.Veteran(
+                FfiConverterTypeVeteranSettings.read(buf),
                 )
             else -> throw RuntimeException("invalid enum value, something is very wrong!!")
         }
@@ -2997,6 +4216,13 @@ public object FfiConverterTypeWheelSettings : FfiConverterRustBuffer<WheelSettin
                 + FfiConverterTypeBegodeSettings.allocationSize(value.v1)
             )
         }
+        is WheelSettings.Veteran -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterTypeVeteranSettings.allocationSize(value.v1)
+            )
+        }
     }
 
     override fun write(value: WheelSettings, buf: ByteBuffer) {
@@ -3008,6 +4234,11 @@ public object FfiConverterTypeWheelSettings : FfiConverterRustBuffer<WheelSettin
             is WheelSettings.Begode -> {
                 buf.putInt(2)
                 FfiConverterTypeBegodeSettings.write(value.v1, buf)
+                Unit
+            }
+            is WheelSettings.Veteran -> {
+                buf.putInt(3)
+                FfiConverterTypeVeteranSettings.write(value.v1, buf)
                 Unit
             }
         }.let { /* this makes the `when` an expression, which ensures it is exhaustive */ }
@@ -3284,6 +4515,34 @@ public object FfiConverterOptionalTypeWheelSettings: FfiConverterRustBuffer<Whee
 /**
  * @suppress
  */
+public object FfiConverterSequenceLong: FfiConverterRustBuffer<List<kotlin.Long>> {
+    override fun read(buf: ByteBuffer): List<kotlin.Long> {
+        val len = buf.getInt()
+        return List<kotlin.Long>(len) {
+            FfiConverterLong.read(buf)
+        }
+    }
+
+    override fun allocationSize(value: List<kotlin.Long>): ULong {
+        val sizeForLength = 4UL
+        val sizeForItems = value.map { FfiConverterLong.allocationSize(it) }.sum()
+        return sizeForLength + sizeForItems
+    }
+
+    override fun write(value: List<kotlin.Long>, buf: ByteBuffer) {
+        buf.putInt(value.size)
+        value.iterator().forEach {
+            FfiConverterLong.write(it, buf)
+        }
+    }
+}
+
+
+
+
+/**
+ * @suppress
+ */
 public object FfiConverterSequenceDouble: FfiConverterRustBuffer<List<kotlin.Double>> {
     override fun read(buf: ByteBuffer): List<kotlin.Double> {
         val len = buf.getInt()
@@ -3330,6 +4589,34 @@ public object FfiConverterSequenceString: FfiConverterRustBuffer<List<kotlin.Str
         buf.putInt(value.size)
         value.iterator().forEach {
             FfiConverterString.write(it, buf)
+        }
+    }
+}
+
+
+
+
+/**
+ * @suppress
+ */
+public object FfiConverterSequenceTypeEventLogEntry: FfiConverterRustBuffer<List<EventLogEntry>> {
+    override fun read(buf: ByteBuffer): List<EventLogEntry> {
+        val len = buf.getInt()
+        return List<EventLogEntry>(len) {
+            FfiConverterTypeEventLogEntry.read(buf)
+        }
+    }
+
+    override fun allocationSize(value: List<EventLogEntry>): ULong {
+        val sizeForLength = 4UL
+        val sizeForItems = value.map { FfiConverterTypeEventLogEntry.allocationSize(it) }.sum()
+        return sizeForLength + sizeForItems
+    }
+
+    override fun write(value: List<EventLogEntry>, buf: ByteBuffer) {
+        buf.putInt(value.size)
+        value.iterator().forEach {
+            FfiConverterTypeEventLogEntry.write(it, buf)
         }
     }
 }

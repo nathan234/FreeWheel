@@ -783,6 +783,246 @@ public func FfiConverterTypeGotwaySession_lower(_ value: GotwaySession) -> Unsaf
 
 
 
+
+
+/**
+ * One BLE connection's worth of Veteran/Leaperkim decoding state.
+ */
+public protocol VeteranSessionProtocol: AnyObject, Sendable {
+    
+    /**
+     * Translate a high-level command into protocol bytes + delays.
+     */
+    func buildCommand(command: WheelCommand)  -> [WheelCommand]
+    
+    func capabilities()  -> CapabilitySet
+    
+    /**
+     * Accumulated state (telemetry, identity, BMS, settings) for this session.
+     */
+    func currentState()  -> DecoderState
+    
+    /**
+     * Feed one BLE notification. Returns the delta; the session has already
+     * merged it into its own state.
+     */
+    func decode(data: Data)  -> DecodeResult
+    
+    func isReady()  -> Bool
+    
+    /**
+     * Reset decoder + accumulated state (disconnect / wheel switch).
+     */
+    func reset() 
+    
+    /**
+     * Supply the current wall-clock. The crate is sans-io and never reads a
+     * clock; the host provides it for time-sync/password command timestamps.
+     */
+    func setWallClock(clock: WallClock) 
+    
+    /**
+     * Replace the decoder configuration (pref changes mid-connection).
+     */
+    func updateConfig(config: DecoderConfig) 
+    
+}
+/**
+ * One BLE connection's worth of Veteran/Leaperkim decoding state.
+ */
+open class VeteranSession: VeteranSessionProtocol, @unchecked Sendable {
+    fileprivate let pointer: UnsafeMutableRawPointer!
+
+    /// Used to instantiate a [FFIObject] without an actual pointer, for fakes in tests, mostly.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public struct NoPointer {
+        public init() {}
+    }
+
+    // TODO: We'd like this to be `private` but for Swifty reasons,
+    // we can't implement `FfiConverter` without making this `required` and we can't
+    // make it `required` without making it `public`.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    required public init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
+        self.pointer = pointer
+    }
+
+    // This constructor can be used to instantiate a fake object.
+    // - Parameter noPointer: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    //
+    // - Warning:
+    //     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing [Pointer] the FFI lower functions will crash.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public init(noPointer: NoPointer) {
+        self.pointer = nil
+    }
+
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public func uniffiClonePointer() -> UnsafeMutableRawPointer {
+        return try! rustCall { uniffi_euc_protocols_fn_clone_veteransession(self.pointer, $0) }
+    }
+public convenience init(config: DecoderConfig) {
+    let pointer =
+        try! rustCall() {
+    uniffi_euc_protocols_fn_constructor_veteransession_new(
+        FfiConverterTypeDecoderConfig_lower(config),$0
+    )
+}
+    self.init(unsafeFromRawPointer: pointer)
+}
+
+    deinit {
+        guard let pointer = pointer else {
+            return
+        }
+
+        try! rustCall { uniffi_euc_protocols_fn_free_veteransession(pointer, $0) }
+    }
+
+    
+
+    
+    /**
+     * Translate a high-level command into protocol bytes + delays.
+     */
+open func buildCommand(command: WheelCommand) -> [WheelCommand]  {
+    return try!  FfiConverterSequenceTypeWheelCommand.lift(try! rustCall() {
+    uniffi_euc_protocols_fn_method_veteransession_build_command(self.uniffiClonePointer(),
+        FfiConverterTypeWheelCommand_lower(command),$0
+    )
+})
+}
+    
+open func capabilities() -> CapabilitySet  {
+    return try!  FfiConverterTypeCapabilitySet_lift(try! rustCall() {
+    uniffi_euc_protocols_fn_method_veteransession_capabilities(self.uniffiClonePointer(),$0
+    )
+})
+}
+    
+    /**
+     * Accumulated state (telemetry, identity, BMS, settings) for this session.
+     */
+open func currentState() -> DecoderState  {
+    return try!  FfiConverterTypeDecoderState_lift(try! rustCall() {
+    uniffi_euc_protocols_fn_method_veteransession_current_state(self.uniffiClonePointer(),$0
+    )
+})
+}
+    
+    /**
+     * Feed one BLE notification. Returns the delta; the session has already
+     * merged it into its own state.
+     */
+open func decode(data: Data) -> DecodeResult  {
+    return try!  FfiConverterTypeDecodeResult_lift(try! rustCall() {
+    uniffi_euc_protocols_fn_method_veteransession_decode(self.uniffiClonePointer(),
+        FfiConverterData.lower(data),$0
+    )
+})
+}
+    
+open func isReady() -> Bool  {
+    return try!  FfiConverterBool.lift(try! rustCall() {
+    uniffi_euc_protocols_fn_method_veteransession_is_ready(self.uniffiClonePointer(),$0
+    )
+})
+}
+    
+    /**
+     * Reset decoder + accumulated state (disconnect / wheel switch).
+     */
+open func reset()  {try! rustCall() {
+    uniffi_euc_protocols_fn_method_veteransession_reset(self.uniffiClonePointer(),$0
+    )
+}
+}
+    
+    /**
+     * Supply the current wall-clock. The crate is sans-io and never reads a
+     * clock; the host provides it for time-sync/password command timestamps.
+     */
+open func setWallClock(clock: WallClock)  {try! rustCall() {
+    uniffi_euc_protocols_fn_method_veteransession_set_wall_clock(self.uniffiClonePointer(),
+        FfiConverterTypeWallClock_lower(clock),$0
+    )
+}
+}
+    
+    /**
+     * Replace the decoder configuration (pref changes mid-connection).
+     */
+open func updateConfig(config: DecoderConfig)  {try! rustCall() {
+    uniffi_euc_protocols_fn_method_veteransession_update_config(self.uniffiClonePointer(),
+        FfiConverterTypeDecoderConfig_lower(config),$0
+    )
+}
+}
+    
+
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeVeteranSession: FfiConverter {
+
+    typealias FfiType = UnsafeMutableRawPointer
+    typealias SwiftType = VeteranSession
+
+    public static func lift(_ pointer: UnsafeMutableRawPointer) throws -> VeteranSession {
+        return VeteranSession(unsafeFromRawPointer: pointer)
+    }
+
+    public static func lower(_ value: VeteranSession) -> UnsafeMutableRawPointer {
+        return value.uniffiClonePointer()
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> VeteranSession {
+        let v: UInt64 = try readInt(&buf)
+        // The Rust code won't compile if a pointer won't fit in a UInt64.
+        // We have to go via `UInt` because that's the thing that's the size of a pointer.
+        let ptr = UnsafeMutableRawPointer(bitPattern: UInt(truncatingIfNeeded: v))
+        if (ptr == nil) {
+            throw UniffiInternalError.unexpectedNullPointer
+        }
+        return try lift(ptr!)
+    }
+
+    public static func write(_ value: VeteranSession, into buf: inout [UInt8]) {
+        // This fiddling is because `Int` is the thing that's the same size as a pointer.
+        // The Rust code won't compile if a pointer won't fit in a `UInt64`.
+        writeInt(&buf, UInt64(bitPattern: Int64(Int(bitPattern: lower(value)))))
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeVeteranSession_lift(_ pointer: UnsafeMutableRawPointer) throws -> VeteranSession {
+    return try FfiConverterTypeVeteranSession.lift(pointer)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeVeteranSession_lower(_ value: VeteranSession) -> UnsafeMutableRawPointer {
+    return FfiConverterTypeVeteranSession.lower(value)
+}
+
+
+
+
 public struct BegodeSettings {
     public var pedalsMode: Int32
     public var speedAlarms: Int32
@@ -1308,10 +1548,17 @@ public struct DecodedData {
     public var hasNewData: Bool
     public var news: String?
     public var frameTypes: [String]
+    /**
+     * Event log entries decoded from this frame (Veteran/Leaperkim).
+     */
+    public var logEntries: [EventLogEntry]
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(telemetry: TelemetryState?, identity: WheelIdentity?, bms: BmsState?, settings: WheelSettings?, commands: [WheelCommand], hasNewData: Bool, news: String?, frameTypes: [String]) {
+    public init(telemetry: TelemetryState?, identity: WheelIdentity?, bms: BmsState?, settings: WheelSettings?, commands: [WheelCommand], hasNewData: Bool, news: String?, frameTypes: [String], 
+        /**
+         * Event log entries decoded from this frame (Veteran/Leaperkim).
+         */logEntries: [EventLogEntry]) {
         self.telemetry = telemetry
         self.identity = identity
         self.bms = bms
@@ -1320,6 +1567,7 @@ public struct DecodedData {
         self.hasNewData = hasNewData
         self.news = news
         self.frameTypes = frameTypes
+        self.logEntries = logEntries
     }
 }
 
@@ -1354,6 +1602,9 @@ extension DecodedData: Equatable, Hashable {
         if lhs.frameTypes != rhs.frameTypes {
             return false
         }
+        if lhs.logEntries != rhs.logEntries {
+            return false
+        }
         return true
     }
 
@@ -1366,6 +1617,7 @@ extension DecodedData: Equatable, Hashable {
         hasher.combine(hasNewData)
         hasher.combine(news)
         hasher.combine(frameTypes)
+        hasher.combine(logEntries)
     }
 }
 
@@ -1385,7 +1637,8 @@ public struct FfiConverterTypeDecodedData: FfiConverterRustBuffer {
                 commands: FfiConverterSequenceTypeWheelCommand.read(from: &buf), 
                 hasNewData: FfiConverterBool.read(from: &buf), 
                 news: FfiConverterOptionString.read(from: &buf), 
-                frameTypes: FfiConverterSequenceString.read(from: &buf)
+                frameTypes: FfiConverterSequenceString.read(from: &buf), 
+                logEntries: FfiConverterSequenceTypeEventLogEntry.read(from: &buf)
         )
     }
 
@@ -1398,6 +1651,7 @@ public struct FfiConverterTypeDecodedData: FfiConverterRustBuffer {
         FfiConverterBool.write(value.hasNewData, into: &buf)
         FfiConverterOptionString.write(value.news, into: &buf)
         FfiConverterSequenceString.write(value.frameTypes, into: &buf)
+        FfiConverterSequenceTypeEventLogEntry.write(value.logEntries, into: &buf)
     }
 }
 
@@ -1642,6 +1896,119 @@ public func FfiConverterTypeDecoderState_lift(_ buf: RustBuffer) throws -> Decod
 #endif
 public func FfiConverterTypeDecoderState_lower(_ value: DecoderState) -> RustBuffer {
     return FfiConverterTypeDecoderState.lower(value)
+}
+
+
+/**
+ * A single event log entry from the wheel's internal error/event history.
+ */
+public struct EventLogEntry {
+    public var index: Int32
+    public var totalCount: Int32
+    public var contentCode: Int32
+    public var timestamp: Int64
+    public var extras: [Int64]
+    public var text: String
+    public var extraBytes: Data
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(index: Int32, totalCount: Int32, contentCode: Int32, timestamp: Int64, extras: [Int64], text: String, extraBytes: Data) {
+        self.index = index
+        self.totalCount = totalCount
+        self.contentCode = contentCode
+        self.timestamp = timestamp
+        self.extras = extras
+        self.text = text
+        self.extraBytes = extraBytes
+    }
+}
+
+#if compiler(>=6)
+extension EventLogEntry: Sendable {}
+#endif
+
+
+extension EventLogEntry: Equatable, Hashable {
+    public static func ==(lhs: EventLogEntry, rhs: EventLogEntry) -> Bool {
+        if lhs.index != rhs.index {
+            return false
+        }
+        if lhs.totalCount != rhs.totalCount {
+            return false
+        }
+        if lhs.contentCode != rhs.contentCode {
+            return false
+        }
+        if lhs.timestamp != rhs.timestamp {
+            return false
+        }
+        if lhs.extras != rhs.extras {
+            return false
+        }
+        if lhs.text != rhs.text {
+            return false
+        }
+        if lhs.extraBytes != rhs.extraBytes {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(index)
+        hasher.combine(totalCount)
+        hasher.combine(contentCode)
+        hasher.combine(timestamp)
+        hasher.combine(extras)
+        hasher.combine(text)
+        hasher.combine(extraBytes)
+    }
+}
+
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeEventLogEntry: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> EventLogEntry {
+        return
+            try EventLogEntry(
+                index: FfiConverterInt32.read(from: &buf), 
+                totalCount: FfiConverterInt32.read(from: &buf), 
+                contentCode: FfiConverterInt32.read(from: &buf), 
+                timestamp: FfiConverterInt64.read(from: &buf), 
+                extras: FfiConverterSequenceInt64.read(from: &buf), 
+                text: FfiConverterString.read(from: &buf), 
+                extraBytes: FfiConverterData.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: EventLogEntry, into buf: inout [UInt8]) {
+        FfiConverterInt32.write(value.index, into: &buf)
+        FfiConverterInt32.write(value.totalCount, into: &buf)
+        FfiConverterInt32.write(value.contentCode, into: &buf)
+        FfiConverterInt64.write(value.timestamp, into: &buf)
+        FfiConverterSequenceInt64.write(value.extras, into: &buf)
+        FfiConverterString.write(value.text, into: &buf)
+        FfiConverterData.write(value.extraBytes, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeEventLogEntry_lift(_ buf: RustBuffer) throws -> EventLogEntry {
+    return try FfiConverterTypeEventLogEntry.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeEventLogEntry_lower(_ value: EventLogEntry) -> RustBuffer {
+    return FfiConverterTypeEventLogEntry.lower(value)
 }
 
 
@@ -1995,6 +2362,372 @@ public func FfiConverterTypeTelemetryState_lower(_ value: TelemetryState) -> Rus
 }
 
 
+public struct VeteranSettings {
+    public var pedalsMode: Int32
+    public var lightMode: Int32
+    public var tiltBackSpeed: Int32
+    public var alertSpeed: Int32
+    public var autoOffTime: Int32
+    public var lockState: Int32
+    public var highSpeedMode: Bool?
+    public var lowVoltageMode: Bool?
+    public var voltageCorrection: Int32
+    public var transportMode: Bool?
+    public var keyTone: Int32
+    public var pedalSensitivity: Int32
+    public var stopSpeed: Int32
+    public var pwmLimit: Int32
+    public var screenBacklight: Int32
+    public var maxChargeVoltage: Int32
+    public var brakePressureAlarm: Int32
+    public var lateralCutoffAngle: Int32
+    public var dynamicAssist: Int32
+    public var accelerationLimit: Int32
+    public var chargeVoltageBase: Int32
+    public var wheelDisplayUnit: Int32
+    public var batteryTempMode: Int32
+    /**
+     * Firmware major version (e.g. 3, 4, 43). Used by build_command for capability checks.
+     */
+    public var mVer: Int32
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(pedalsMode: Int32, lightMode: Int32, tiltBackSpeed: Int32, alertSpeed: Int32, autoOffTime: Int32, lockState: Int32, highSpeedMode: Bool?, lowVoltageMode: Bool?, voltageCorrection: Int32, transportMode: Bool?, keyTone: Int32, pedalSensitivity: Int32, stopSpeed: Int32, pwmLimit: Int32, screenBacklight: Int32, maxChargeVoltage: Int32, brakePressureAlarm: Int32, lateralCutoffAngle: Int32, dynamicAssist: Int32, accelerationLimit: Int32, chargeVoltageBase: Int32, wheelDisplayUnit: Int32, batteryTempMode: Int32, 
+        /**
+         * Firmware major version (e.g. 3, 4, 43). Used by build_command for capability checks.
+         */mVer: Int32) {
+        self.pedalsMode = pedalsMode
+        self.lightMode = lightMode
+        self.tiltBackSpeed = tiltBackSpeed
+        self.alertSpeed = alertSpeed
+        self.autoOffTime = autoOffTime
+        self.lockState = lockState
+        self.highSpeedMode = highSpeedMode
+        self.lowVoltageMode = lowVoltageMode
+        self.voltageCorrection = voltageCorrection
+        self.transportMode = transportMode
+        self.keyTone = keyTone
+        self.pedalSensitivity = pedalSensitivity
+        self.stopSpeed = stopSpeed
+        self.pwmLimit = pwmLimit
+        self.screenBacklight = screenBacklight
+        self.maxChargeVoltage = maxChargeVoltage
+        self.brakePressureAlarm = brakePressureAlarm
+        self.lateralCutoffAngle = lateralCutoffAngle
+        self.dynamicAssist = dynamicAssist
+        self.accelerationLimit = accelerationLimit
+        self.chargeVoltageBase = chargeVoltageBase
+        self.wheelDisplayUnit = wheelDisplayUnit
+        self.batteryTempMode = batteryTempMode
+        self.mVer = mVer
+    }
+}
+
+#if compiler(>=6)
+extension VeteranSettings: Sendable {}
+#endif
+
+
+extension VeteranSettings: Equatable, Hashable {
+    public static func ==(lhs: VeteranSettings, rhs: VeteranSettings) -> Bool {
+        if lhs.pedalsMode != rhs.pedalsMode {
+            return false
+        }
+        if lhs.lightMode != rhs.lightMode {
+            return false
+        }
+        if lhs.tiltBackSpeed != rhs.tiltBackSpeed {
+            return false
+        }
+        if lhs.alertSpeed != rhs.alertSpeed {
+            return false
+        }
+        if lhs.autoOffTime != rhs.autoOffTime {
+            return false
+        }
+        if lhs.lockState != rhs.lockState {
+            return false
+        }
+        if lhs.highSpeedMode != rhs.highSpeedMode {
+            return false
+        }
+        if lhs.lowVoltageMode != rhs.lowVoltageMode {
+            return false
+        }
+        if lhs.voltageCorrection != rhs.voltageCorrection {
+            return false
+        }
+        if lhs.transportMode != rhs.transportMode {
+            return false
+        }
+        if lhs.keyTone != rhs.keyTone {
+            return false
+        }
+        if lhs.pedalSensitivity != rhs.pedalSensitivity {
+            return false
+        }
+        if lhs.stopSpeed != rhs.stopSpeed {
+            return false
+        }
+        if lhs.pwmLimit != rhs.pwmLimit {
+            return false
+        }
+        if lhs.screenBacklight != rhs.screenBacklight {
+            return false
+        }
+        if lhs.maxChargeVoltage != rhs.maxChargeVoltage {
+            return false
+        }
+        if lhs.brakePressureAlarm != rhs.brakePressureAlarm {
+            return false
+        }
+        if lhs.lateralCutoffAngle != rhs.lateralCutoffAngle {
+            return false
+        }
+        if lhs.dynamicAssist != rhs.dynamicAssist {
+            return false
+        }
+        if lhs.accelerationLimit != rhs.accelerationLimit {
+            return false
+        }
+        if lhs.chargeVoltageBase != rhs.chargeVoltageBase {
+            return false
+        }
+        if lhs.wheelDisplayUnit != rhs.wheelDisplayUnit {
+            return false
+        }
+        if lhs.batteryTempMode != rhs.batteryTempMode {
+            return false
+        }
+        if lhs.mVer != rhs.mVer {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(pedalsMode)
+        hasher.combine(lightMode)
+        hasher.combine(tiltBackSpeed)
+        hasher.combine(alertSpeed)
+        hasher.combine(autoOffTime)
+        hasher.combine(lockState)
+        hasher.combine(highSpeedMode)
+        hasher.combine(lowVoltageMode)
+        hasher.combine(voltageCorrection)
+        hasher.combine(transportMode)
+        hasher.combine(keyTone)
+        hasher.combine(pedalSensitivity)
+        hasher.combine(stopSpeed)
+        hasher.combine(pwmLimit)
+        hasher.combine(screenBacklight)
+        hasher.combine(maxChargeVoltage)
+        hasher.combine(brakePressureAlarm)
+        hasher.combine(lateralCutoffAngle)
+        hasher.combine(dynamicAssist)
+        hasher.combine(accelerationLimit)
+        hasher.combine(chargeVoltageBase)
+        hasher.combine(wheelDisplayUnit)
+        hasher.combine(batteryTempMode)
+        hasher.combine(mVer)
+    }
+}
+
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeVeteranSettings: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> VeteranSettings {
+        return
+            try VeteranSettings(
+                pedalsMode: FfiConverterInt32.read(from: &buf), 
+                lightMode: FfiConverterInt32.read(from: &buf), 
+                tiltBackSpeed: FfiConverterInt32.read(from: &buf), 
+                alertSpeed: FfiConverterInt32.read(from: &buf), 
+                autoOffTime: FfiConverterInt32.read(from: &buf), 
+                lockState: FfiConverterInt32.read(from: &buf), 
+                highSpeedMode: FfiConverterOptionBool.read(from: &buf), 
+                lowVoltageMode: FfiConverterOptionBool.read(from: &buf), 
+                voltageCorrection: FfiConverterInt32.read(from: &buf), 
+                transportMode: FfiConverterOptionBool.read(from: &buf), 
+                keyTone: FfiConverterInt32.read(from: &buf), 
+                pedalSensitivity: FfiConverterInt32.read(from: &buf), 
+                stopSpeed: FfiConverterInt32.read(from: &buf), 
+                pwmLimit: FfiConverterInt32.read(from: &buf), 
+                screenBacklight: FfiConverterInt32.read(from: &buf), 
+                maxChargeVoltage: FfiConverterInt32.read(from: &buf), 
+                brakePressureAlarm: FfiConverterInt32.read(from: &buf), 
+                lateralCutoffAngle: FfiConverterInt32.read(from: &buf), 
+                dynamicAssist: FfiConverterInt32.read(from: &buf), 
+                accelerationLimit: FfiConverterInt32.read(from: &buf), 
+                chargeVoltageBase: FfiConverterInt32.read(from: &buf), 
+                wheelDisplayUnit: FfiConverterInt32.read(from: &buf), 
+                batteryTempMode: FfiConverterInt32.read(from: &buf), 
+                mVer: FfiConverterInt32.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: VeteranSettings, into buf: inout [UInt8]) {
+        FfiConverterInt32.write(value.pedalsMode, into: &buf)
+        FfiConverterInt32.write(value.lightMode, into: &buf)
+        FfiConverterInt32.write(value.tiltBackSpeed, into: &buf)
+        FfiConverterInt32.write(value.alertSpeed, into: &buf)
+        FfiConverterInt32.write(value.autoOffTime, into: &buf)
+        FfiConverterInt32.write(value.lockState, into: &buf)
+        FfiConverterOptionBool.write(value.highSpeedMode, into: &buf)
+        FfiConverterOptionBool.write(value.lowVoltageMode, into: &buf)
+        FfiConverterInt32.write(value.voltageCorrection, into: &buf)
+        FfiConverterOptionBool.write(value.transportMode, into: &buf)
+        FfiConverterInt32.write(value.keyTone, into: &buf)
+        FfiConverterInt32.write(value.pedalSensitivity, into: &buf)
+        FfiConverterInt32.write(value.stopSpeed, into: &buf)
+        FfiConverterInt32.write(value.pwmLimit, into: &buf)
+        FfiConverterInt32.write(value.screenBacklight, into: &buf)
+        FfiConverterInt32.write(value.maxChargeVoltage, into: &buf)
+        FfiConverterInt32.write(value.brakePressureAlarm, into: &buf)
+        FfiConverterInt32.write(value.lateralCutoffAngle, into: &buf)
+        FfiConverterInt32.write(value.dynamicAssist, into: &buf)
+        FfiConverterInt32.write(value.accelerationLimit, into: &buf)
+        FfiConverterInt32.write(value.chargeVoltageBase, into: &buf)
+        FfiConverterInt32.write(value.wheelDisplayUnit, into: &buf)
+        FfiConverterInt32.write(value.batteryTempMode, into: &buf)
+        FfiConverterInt32.write(value.mVer, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeVeteranSettings_lift(_ buf: RustBuffer) throws -> VeteranSettings {
+    return try FfiConverterTypeVeteranSettings.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeVeteranSettings_lower(_ value: VeteranSettings) -> RustBuffer {
+    return FfiConverterTypeVeteranSettings.lower(value)
+}
+
+
+/**
+ * Wall-clock components injected by the host for time-stamped commands.
+ * `year` is the full year (e.g. 2026); the wire encodes `year - 2000`.
+ */
+public struct WallClock {
+    public var year: Int32
+    public var month: Int32
+    public var day: Int32
+    public var hour: Int32
+    public var minute: Int32
+    public var second: Int32
+    public var tzOffsetHours: Int32
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(year: Int32, month: Int32, day: Int32, hour: Int32, minute: Int32, second: Int32, tzOffsetHours: Int32) {
+        self.year = year
+        self.month = month
+        self.day = day
+        self.hour = hour
+        self.minute = minute
+        self.second = second
+        self.tzOffsetHours = tzOffsetHours
+    }
+}
+
+#if compiler(>=6)
+extension WallClock: Sendable {}
+#endif
+
+
+extension WallClock: Equatable, Hashable {
+    public static func ==(lhs: WallClock, rhs: WallClock) -> Bool {
+        if lhs.year != rhs.year {
+            return false
+        }
+        if lhs.month != rhs.month {
+            return false
+        }
+        if lhs.day != rhs.day {
+            return false
+        }
+        if lhs.hour != rhs.hour {
+            return false
+        }
+        if lhs.minute != rhs.minute {
+            return false
+        }
+        if lhs.second != rhs.second {
+            return false
+        }
+        if lhs.tzOffsetHours != rhs.tzOffsetHours {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(year)
+        hasher.combine(month)
+        hasher.combine(day)
+        hasher.combine(hour)
+        hasher.combine(minute)
+        hasher.combine(second)
+        hasher.combine(tzOffsetHours)
+    }
+}
+
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeWallClock: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> WallClock {
+        return
+            try WallClock(
+                year: FfiConverterInt32.read(from: &buf), 
+                month: FfiConverterInt32.read(from: &buf), 
+                day: FfiConverterInt32.read(from: &buf), 
+                hour: FfiConverterInt32.read(from: &buf), 
+                minute: FfiConverterInt32.read(from: &buf), 
+                second: FfiConverterInt32.read(from: &buf), 
+                tzOffsetHours: FfiConverterInt32.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: WallClock, into buf: inout [UInt8]) {
+        FfiConverterInt32.write(value.year, into: &buf)
+        FfiConverterInt32.write(value.month, into: &buf)
+        FfiConverterInt32.write(value.day, into: &buf)
+        FfiConverterInt32.write(value.hour, into: &buf)
+        FfiConverterInt32.write(value.minute, into: &buf)
+        FfiConverterInt32.write(value.second, into: &buf)
+        FfiConverterInt32.write(value.tzOffsetHours, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeWallClock_lift(_ buf: RustBuffer) throws -> WallClock {
+    return try FfiConverterTypeWallClock.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeWallClock_lower(_ value: WallClock) -> RustBuffer {
+    return FfiConverterTypeWallClock.lower(value)
+}
+
+
 public struct WheelIdentity {
     public var wheelType: WheelType
     public var name: String
@@ -2222,6 +2955,24 @@ public enum SettingsCommandId {
     case maxSpeed
     case alarmMode
     case wheelDisplayUnit
+    case lock
+    case resetTrip
+    case alarmSpeed1
+    case transportMode
+    case highSpeedMode
+    case lowVoltageMode
+    case keyTone
+    case screenBacklight
+    case stopSpeed
+    case veteranPwmLimit
+    case voltageCorrection
+    case maxChargeVoltage
+    case brakePressureAlarm
+    case lateralCutoffAngle
+    case dynamicAssist
+    case accelerationLimit
+    case pedalHardness
+    case powerOff
 }
 
 
@@ -2268,6 +3019,42 @@ public struct FfiConverterTypeSettingsCommandId: FfiConverterRustBuffer {
         case 14: return .alarmMode
         
         case 15: return .wheelDisplayUnit
+        
+        case 16: return .lock
+        
+        case 17: return .resetTrip
+        
+        case 18: return .alarmSpeed1
+        
+        case 19: return .transportMode
+        
+        case 20: return .highSpeedMode
+        
+        case 21: return .lowVoltageMode
+        
+        case 22: return .keyTone
+        
+        case 23: return .screenBacklight
+        
+        case 24: return .stopSpeed
+        
+        case 25: return .veteranPwmLimit
+        
+        case 26: return .voltageCorrection
+        
+        case 27: return .maxChargeVoltage
+        
+        case 28: return .brakePressureAlarm
+        
+        case 29: return .lateralCutoffAngle
+        
+        case 30: return .dynamicAssist
+        
+        case 31: return .accelerationLimit
+        
+        case 32: return .pedalHardness
+        
+        case 33: return .powerOff
         
         default: throw UniffiInternalError.unexpectedEnumCase
         }
@@ -2335,6 +3122,78 @@ public struct FfiConverterTypeSettingsCommandId: FfiConverterRustBuffer {
         
         case .wheelDisplayUnit:
             writeInt(&buf, Int32(15))
+        
+        
+        case .lock:
+            writeInt(&buf, Int32(16))
+        
+        
+        case .resetTrip:
+            writeInt(&buf, Int32(17))
+        
+        
+        case .alarmSpeed1:
+            writeInt(&buf, Int32(18))
+        
+        
+        case .transportMode:
+            writeInt(&buf, Int32(19))
+        
+        
+        case .highSpeedMode:
+            writeInt(&buf, Int32(20))
+        
+        
+        case .lowVoltageMode:
+            writeInt(&buf, Int32(21))
+        
+        
+        case .keyTone:
+            writeInt(&buf, Int32(22))
+        
+        
+        case .screenBacklight:
+            writeInt(&buf, Int32(23))
+        
+        
+        case .stopSpeed:
+            writeInt(&buf, Int32(24))
+        
+        
+        case .veteranPwmLimit:
+            writeInt(&buf, Int32(25))
+        
+        
+        case .voltageCorrection:
+            writeInt(&buf, Int32(26))
+        
+        
+        case .maxChargeVoltage:
+            writeInt(&buf, Int32(27))
+        
+        
+        case .brakePressureAlarm:
+            writeInt(&buf, Int32(28))
+        
+        
+        case .lateralCutoffAngle:
+            writeInt(&buf, Int32(29))
+        
+        
+        case .dynamicAssist:
+            writeInt(&buf, Int32(30))
+        
+        
+        case .accelerationLimit:
+            writeInt(&buf, Int32(31))
+        
+        
+        case .pedalHardness:
+            writeInt(&buf, Int32(32))
+        
+        
+        case .powerOff:
+            writeInt(&buf, Int32(33))
         
         }
     }
@@ -2472,6 +3331,54 @@ public enum WheelCommand {
     )
     case setMaxSpeed(Int32
     )
+    case setAlarmSpeed(speed: Int32, num: Int32
+    )
+    case setTransportMode(Bool
+    )
+    case setSpeakerVolume(Int32
+    )
+    case setHighSpeedMode(Bool
+    )
+    case setLowVoltageMode(Bool
+    )
+    case setKeyTone(Int32
+    )
+    case powerOff
+    case resetTrip
+    case setScreenBacklight(Int32
+    )
+    case setStopSpeed(Int32
+    )
+    case setVeteranPwmLimit(Int32
+    )
+    case setVoltageCorrection(Int32
+    )
+    case setMaxChargeVoltage(Int32
+    )
+    case setBrakePressureAlarm(Int32
+    )
+    case setLateralCutoffAngle(Int32
+    )
+    case setDynamicAssist(Int32
+    )
+    case setAccelerationLimit(Int32
+    )
+    /**
+     * Continuous Veteran pedal-hardness slider (0..100), routed through cmd 0x0F.
+     */
+    case setPedalHardness(Int32
+    )
+    case setVeteranLock(locked: Bool, password: String
+    )
+    case setVeteranPassword(newPassword: String
+    )
+    case modifyVeteranPassword(oldPassword: String, newPassword: String
+    )
+    case clearVeteranPassword(password: String
+    )
+    case setVeteranAutoLock(enabled: Bool, password: String
+    )
+    case requestEventLog
 }
 
 
@@ -2546,6 +3453,75 @@ public struct FfiConverterTypeWheelCommand: FfiConverterRustBuffer {
         
         case 20: return .setMaxSpeed(try FfiConverterInt32.read(from: &buf)
         )
+        
+        case 21: return .setAlarmSpeed(speed: try FfiConverterInt32.read(from: &buf), num: try FfiConverterInt32.read(from: &buf)
+        )
+        
+        case 22: return .setTransportMode(try FfiConverterBool.read(from: &buf)
+        )
+        
+        case 23: return .setSpeakerVolume(try FfiConverterInt32.read(from: &buf)
+        )
+        
+        case 24: return .setHighSpeedMode(try FfiConverterBool.read(from: &buf)
+        )
+        
+        case 25: return .setLowVoltageMode(try FfiConverterBool.read(from: &buf)
+        )
+        
+        case 26: return .setKeyTone(try FfiConverterInt32.read(from: &buf)
+        )
+        
+        case 27: return .powerOff
+        
+        case 28: return .resetTrip
+        
+        case 29: return .setScreenBacklight(try FfiConverterInt32.read(from: &buf)
+        )
+        
+        case 30: return .setStopSpeed(try FfiConverterInt32.read(from: &buf)
+        )
+        
+        case 31: return .setVeteranPwmLimit(try FfiConverterInt32.read(from: &buf)
+        )
+        
+        case 32: return .setVoltageCorrection(try FfiConverterInt32.read(from: &buf)
+        )
+        
+        case 33: return .setMaxChargeVoltage(try FfiConverterInt32.read(from: &buf)
+        )
+        
+        case 34: return .setBrakePressureAlarm(try FfiConverterInt32.read(from: &buf)
+        )
+        
+        case 35: return .setLateralCutoffAngle(try FfiConverterInt32.read(from: &buf)
+        )
+        
+        case 36: return .setDynamicAssist(try FfiConverterInt32.read(from: &buf)
+        )
+        
+        case 37: return .setAccelerationLimit(try FfiConverterInt32.read(from: &buf)
+        )
+        
+        case 38: return .setPedalHardness(try FfiConverterInt32.read(from: &buf)
+        )
+        
+        case 39: return .setVeteranLock(locked: try FfiConverterBool.read(from: &buf), password: try FfiConverterString.read(from: &buf)
+        )
+        
+        case 40: return .setVeteranPassword(newPassword: try FfiConverterString.read(from: &buf)
+        )
+        
+        case 41: return .modifyVeteranPassword(oldPassword: try FfiConverterString.read(from: &buf), newPassword: try FfiConverterString.read(from: &buf)
+        )
+        
+        case 42: return .clearVeteranPassword(password: try FfiConverterString.read(from: &buf)
+        )
+        
+        case 43: return .setVeteranAutoLock(enabled: try FfiConverterBool.read(from: &buf), password: try FfiConverterString.read(from: &buf)
+        )
+        
+        case 44: return .requestEventLog
         
         default: throw UniffiInternalError.unexpectedEnumCase
         }
@@ -2653,6 +3629,127 @@ public struct FfiConverterTypeWheelCommand: FfiConverterRustBuffer {
             writeInt(&buf, Int32(20))
             FfiConverterInt32.write(v1, into: &buf)
             
+        
+        case let .setAlarmSpeed(speed,num):
+            writeInt(&buf, Int32(21))
+            FfiConverterInt32.write(speed, into: &buf)
+            FfiConverterInt32.write(num, into: &buf)
+            
+        
+        case let .setTransportMode(v1):
+            writeInt(&buf, Int32(22))
+            FfiConverterBool.write(v1, into: &buf)
+            
+        
+        case let .setSpeakerVolume(v1):
+            writeInt(&buf, Int32(23))
+            FfiConverterInt32.write(v1, into: &buf)
+            
+        
+        case let .setHighSpeedMode(v1):
+            writeInt(&buf, Int32(24))
+            FfiConverterBool.write(v1, into: &buf)
+            
+        
+        case let .setLowVoltageMode(v1):
+            writeInt(&buf, Int32(25))
+            FfiConverterBool.write(v1, into: &buf)
+            
+        
+        case let .setKeyTone(v1):
+            writeInt(&buf, Int32(26))
+            FfiConverterInt32.write(v1, into: &buf)
+            
+        
+        case .powerOff:
+            writeInt(&buf, Int32(27))
+        
+        
+        case .resetTrip:
+            writeInt(&buf, Int32(28))
+        
+        
+        case let .setScreenBacklight(v1):
+            writeInt(&buf, Int32(29))
+            FfiConverterInt32.write(v1, into: &buf)
+            
+        
+        case let .setStopSpeed(v1):
+            writeInt(&buf, Int32(30))
+            FfiConverterInt32.write(v1, into: &buf)
+            
+        
+        case let .setVeteranPwmLimit(v1):
+            writeInt(&buf, Int32(31))
+            FfiConverterInt32.write(v1, into: &buf)
+            
+        
+        case let .setVoltageCorrection(v1):
+            writeInt(&buf, Int32(32))
+            FfiConverterInt32.write(v1, into: &buf)
+            
+        
+        case let .setMaxChargeVoltage(v1):
+            writeInt(&buf, Int32(33))
+            FfiConverterInt32.write(v1, into: &buf)
+            
+        
+        case let .setBrakePressureAlarm(v1):
+            writeInt(&buf, Int32(34))
+            FfiConverterInt32.write(v1, into: &buf)
+            
+        
+        case let .setLateralCutoffAngle(v1):
+            writeInt(&buf, Int32(35))
+            FfiConverterInt32.write(v1, into: &buf)
+            
+        
+        case let .setDynamicAssist(v1):
+            writeInt(&buf, Int32(36))
+            FfiConverterInt32.write(v1, into: &buf)
+            
+        
+        case let .setAccelerationLimit(v1):
+            writeInt(&buf, Int32(37))
+            FfiConverterInt32.write(v1, into: &buf)
+            
+        
+        case let .setPedalHardness(v1):
+            writeInt(&buf, Int32(38))
+            FfiConverterInt32.write(v1, into: &buf)
+            
+        
+        case let .setVeteranLock(locked,password):
+            writeInt(&buf, Int32(39))
+            FfiConverterBool.write(locked, into: &buf)
+            FfiConverterString.write(password, into: &buf)
+            
+        
+        case let .setVeteranPassword(newPassword):
+            writeInt(&buf, Int32(40))
+            FfiConverterString.write(newPassword, into: &buf)
+            
+        
+        case let .modifyVeteranPassword(oldPassword,newPassword):
+            writeInt(&buf, Int32(41))
+            FfiConverterString.write(oldPassword, into: &buf)
+            FfiConverterString.write(newPassword, into: &buf)
+            
+        
+        case let .clearVeteranPassword(password):
+            writeInt(&buf, Int32(42))
+            FfiConverterString.write(password, into: &buf)
+            
+        
+        case let .setVeteranAutoLock(enabled,password):
+            writeInt(&buf, Int32(43))
+            FfiConverterBool.write(enabled, into: &buf)
+            FfiConverterString.write(password, into: &buf)
+            
+        
+        case .requestEventLog:
+            writeInt(&buf, Int32(44))
+        
         }
     }
 }
@@ -2688,6 +3785,8 @@ public enum WheelSettings {
     case none
     case begode(BegodeSettings
     )
+    case veteran(VeteranSettings
+    )
 }
 
 
@@ -2710,6 +3809,9 @@ public struct FfiConverterTypeWheelSettings: FfiConverterRustBuffer {
         case 2: return .begode(try FfiConverterTypeBegodeSettings.read(from: &buf)
         )
         
+        case 3: return .veteran(try FfiConverterTypeVeteranSettings.read(from: &buf)
+        )
+        
         default: throw UniffiInternalError.unexpectedEnumCase
         }
     }
@@ -2725,6 +3827,11 @@ public struct FfiConverterTypeWheelSettings: FfiConverterRustBuffer {
         case let .begode(v1):
             writeInt(&buf, Int32(2))
             FfiConverterTypeBegodeSettings.write(v1, into: &buf)
+            
+        
+        case let .veteran(v1):
+            writeInt(&buf, Int32(3))
+            FfiConverterTypeVeteranSettings.write(v1, into: &buf)
             
         }
     }
@@ -3050,6 +4157,31 @@ fileprivate struct FfiConverterOptionTypeWheelSettings: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterSequenceInt64: FfiConverterRustBuffer {
+    typealias SwiftType = [Int64]
+
+    public static func write(_ value: [Int64], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterInt64.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [Int64] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [Int64]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterInt64.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterSequenceDouble: FfiConverterRustBuffer {
     typealias SwiftType = [Double]
 
@@ -3092,6 +4224,31 @@ fileprivate struct FfiConverterSequenceString: FfiConverterRustBuffer {
         seq.reserveCapacity(Int(len))
         for _ in 0 ..< len {
             seq.append(try FfiConverterString.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypeEventLogEntry: FfiConverterRustBuffer {
+    typealias SwiftType = [EventLogEntry]
+
+    public static func write(_ value: [EventLogEntry], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeEventLogEntry.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [EventLogEntry] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [EventLogEntry]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeEventLogEntry.read(from: &buf))
         }
         return seq
     }
@@ -3186,7 +4343,34 @@ private let initializationResult: InitializationResult = {
     if (uniffi_euc_protocols_checksum_method_gotwaysession_update_config() != 33464) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_euc_protocols_checksum_method_veteransession_build_command() != 42416) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_euc_protocols_checksum_method_veteransession_capabilities() != 46641) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_euc_protocols_checksum_method_veteransession_current_state() != 64604) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_euc_protocols_checksum_method_veteransession_decode() != 27217) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_euc_protocols_checksum_method_veteransession_is_ready() != 5829) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_euc_protocols_checksum_method_veteransession_reset() != 10335) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_euc_protocols_checksum_method_veteransession_set_wall_clock() != 19856) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_euc_protocols_checksum_method_veteransession_update_config() != 23068) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_euc_protocols_checksum_constructor_gotwaysession_new() != 50807) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_euc_protocols_checksum_constructor_veteransession_new() != 29016) {
         return InitializationResult.apiChecksumMismatch
     }
 
