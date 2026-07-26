@@ -123,3 +123,25 @@ impl GotwayUnpacker {
         false
     }
 }
+
+/// Kani proof harness (run with `cargo kani --harness gotway_unpacker_never_panics`).
+#[cfg(kani)]
+mod verification {
+    use super::*;
+
+    /// The Gotway unpacker never panics on an arbitrary radio byte stream.
+    /// 28 bytes covers a full 24-byte frame plus resync bytes, exercising
+    /// both garbage-pattern recovery paths.
+    #[kani::proof]
+    #[kani::unwind(32)]
+    fn gotway_unpacker_never_panics() {
+        let data: [u8; 28] = kani::any();
+        let mut unpacker = GotwayUnpacker::default();
+        for &byte in &data {
+            if unpacker.add_char(byte as i32) {
+                let _ = unpacker.get_buffer();
+                unpacker.reset();
+            }
+        }
+    }
+}

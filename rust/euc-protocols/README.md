@@ -70,9 +70,29 @@ is expressed as data; the caller schedules it.
 ## Running
 
 ```bash
-cargo test                  # 80 tests, all ported from GotwayDecoderTest.kt (no deps)
-cargo test --features ffi   # same + the UniFFI session-layer test
+cargo test                  # 168 parity tests ported from the Kotlin suites (no deps)
+cargo test --features ffi   # same + the UniFFI session-layer tests
 ```
+
+## Formal verification (Kani)
+
+The parity tests prove agreement with the Kotlin decoder on known inputs;
+the Kani harnesses (`#[cfg(kani)] mod verification` in `veteran.rs` /
+`unpacker.rs`) prove robustness over **all** inputs up to a bound — a
+guarantee no test suite can give for radio-facing parsers:
+
+```bash
+cargo kani --harness lookup_soc_bounds            # SOC ∈ [0,100] ∀ voltage, all tables (~1s)
+cargo kani --harness battery_percent_bounds       # battery ∈ [0,100] ∀ mVer × u16 voltage (~12s)
+cargo kani --harness sub_type_parsing_never_panics # ∀ 90-byte buffer (~1s)
+cargo kani --harness bms_accumulation_never_panics # ∀ page × buffer, cells stay in-array (~5min)
+cargo kani --harness log_entries_never_panic       # ∀ page × 96-byte buffer (slow: UTF-8 scan)
+cargo kani --harness unpacker_never_panics         # Veteran: ∀ 44-byte radio stream
+cargo kani --harness gotway_unpacker_never_panics  # Gotway: ∀ 28-byte radio stream
+```
+
+Panic-freedom here covers index bounds, arithmetic overflow, and slice
+errors — i.e. a corrupted BLE link cannot crash the decoder.
 
 ## FFI layer (`--features ffi`)
 

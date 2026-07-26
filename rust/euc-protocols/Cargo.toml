@@ -16,4 +16,3 @@ ffi = ["dep:uniffi"]
 [[bin]]
 name = "uniffi-bindgen"
 path = "src/bin/uniffi-bindgen.rs"
-required-features = ["ffi", "uniffi/cli"]

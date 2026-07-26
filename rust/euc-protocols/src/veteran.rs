@@ -1564,6 +1564,100 @@ fn parse_log_extended(buff: &[u8]) -> Vec<EventLogEntry> {
     entries
 }
 
+/// Kani proof harnesses (run with `cargo kani --harness <name>`).
+///
+/// The parity tests prove agreement with the Kotlin decoder on known inputs;
+/// these prove *robustness over all inputs up to a bound*: the parsing layer
+/// never panics (no out-of-bounds indexing, no arithmetic overflow) for any
+/// byte pattern the radio could deliver, and functional invariants like
+/// SOC ∈ [0, 100] hold for every possible voltage.
+#[cfg(kani)]
+mod verification {
+    use super::*;
+
+    /// SOC lookup is total: any voltage maps into 0..=100 without panicking,
+    /// for every shipped table.
+    #[kani::proof]
+    #[kani::unwind(12)]
+    fn lookup_soc_bounds() {
+        let voltage: i32 = kani::any();
+        for table in [
+            &crate::soc_tables::SHERMAN_100V,
+            &crate::soc_tables::PATTON_126V,
+            &crate::soc_tables::LYNX_151V,
+        ] {
+            let soc = lookup_soc(voltage, table);
+            assert!((0..=100).contains(&soc));
+        }
+    }
+
+    /// Battery percent stays in 0..=100 for every model id and every 16-bit
+    /// wire voltage (the frame field is an unsigned short).
+    #[kani::proof]
+    #[kani::unwind(12)]
+    fn battery_percent_bounds() {
+        let mut decoder = VeteranDecoder::new();
+        decoder.m_ver = kani::any();
+        let voltage: i32 = kani::any();
+        kani::assume((0..=0xFFFF).contains(&voltage));
+        let soc = decoder.calculate_battery_percent(voltage);
+        assert!((0..=100).contains(&soc));
+    }
+
+    /// The unpacker never panics on an arbitrary radio byte stream. 44 bytes
+    /// is enough to assemble a complete legacy frame (len ≤ 40) including the
+    /// CRC-checked path (len 39..=40).
+    #[kani::proof]
+    #[kani::unwind(48)]
+    fn unpacker_never_panics() {
+        let data: [u8; 44] = kani::any();
+        let mut unpacker = VeteranUnpacker::default();
+        unpacker.prepare_for_chunk(&data);
+        for &byte in &data {
+            if unpacker.add_char(byte as i32) {
+                let _ = unpacker.get_buffer();
+                unpacker.reset();
+            }
+        }
+    }
+
+    /// Sub-type parsing (roll / lock / battery-override / control settings)
+    /// never panics for any buffer contents at the maximum extended size.
+    #[kani::proof]
+    #[kani::unwind(4)]
+    fn sub_type_parsing_never_panics() {
+        let buff: [u8; 90] = kani::any();
+        let mut decoder = VeteranDecoder::new();
+        decoder.manufacturer_model_version = kani::any();
+        decoder.m_ver = kani::any();
+        let _ = decoder.parse_sub_type_data(&buff);
+        let _ = decoder.parse_control_settings(&buff);
+    }
+
+    /// BMS accumulation never panics or writes out of the 56-cell array for
+    /// any page number and buffer contents. Unwind must cover the 56-cell
+    /// stats recalculation loop.
+    #[kani::proof]
+    #[kani::unwind(60)]
+    fn bms_accumulation_never_panics() {
+        let buff: [u8; 90] = kani::any();
+        let mut decoder = VeteranDecoder::new();
+        decoder.m_ver = kani::any();
+        decoder.process_bms_data(&buff);
+    }
+
+    /// Event-log parsing never panics for any page number and buffer contents
+    /// (covers the packed bit fields, the extras loop, and the text scan).
+    #[kani::proof]
+    #[kani::unwind(48)]
+    fn log_entries_never_panic() {
+        let buff: [u8; 96] = kani::any();
+        let p_num: i32 = kani::any();
+        let decoder = VeteranDecoder::new();
+        let _ = decoder.parse_log_entries(&buff, p_num);
+    }
+}
+
 /// Sub-type 33: 1 detailed entry with packed count/index, timestamp, extras, text.
 fn parse_log_detailed(buff: &[u8]) -> Vec<EventLogEntry> {
     if buff.len() <= 60 {
