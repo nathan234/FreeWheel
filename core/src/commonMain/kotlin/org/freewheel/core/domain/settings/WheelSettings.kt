@@ -43,6 +43,8 @@ sealed class WheelSettings {
         override val pedalsMode: Int = -1,
         override val lightMode: Int = -1,
         override val ledMode: Int = -1,
+        /** Headlight strobe (0x55 readback): 0=normal, 1=strobe. Distinct from [lightMode]. */
+        val strobeMode: Int = -1,
         val mute: Boolean? = null,
         val handleButton: Boolean? = null,
         val ksAlarm1Speed: Int = -1,

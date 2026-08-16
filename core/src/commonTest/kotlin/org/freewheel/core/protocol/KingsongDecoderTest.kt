@@ -1257,12 +1257,13 @@ class KingsongDecoderTest {
     fun `speed limit frame 0xF6 parses energy Wh`() {
         decoder.reset()
         val data = ByteArray(14)
-        // Energy at bytes 6-9 (data[4-7]), LE 32-bit
+        // Energy at bytes 6-9 (data[4-7]), word-swapped 32-bit like odometer/trip:
+        // official app reads W1(b6,b7,b8,b9) = b7<<24 | b6<<16 | b9<<8 | b8
         val energy = 12345
-        data[4] = (energy and 0xFF).toByte()
-        data[5] = ((energy shr 8) and 0xFF).toByte()
-        data[6] = ((energy shr 16) and 0xFF).toByte()
-        data[7] = ((energy shr 24) and 0xFF).toByte()
+        data[4] = ((energy shr 16) and 0xFF).toByte()
+        data[5] = ((energy shr 24) and 0xFF).toByte()
+        data[6] = (energy and 0xFF).toByte()
+        data[7] = ((energy shr 8) and 0xFF).toByte()
         val packet = buildKsFrame(0xF6, data)
 
         val result = decoder.decode(packet, defaultState, defaultConfig)
@@ -1619,8 +1620,9 @@ class KingsongDecoderTest {
     fun `battery temp 0xC9 parses temperature and charging`() {
         decoder.reset()
         val data = ByteArray(14)
-        // temperature at bytes 4-5 → data[2-3]
-        val temp = 3500
+        // temperature at bytes 4-5 → data[2-3]: whole °C on the wire
+        // (official app clamps to [-20, 100] and displays raw)
+        val temp = 45
         data[2] = (temp and 0xFF).toByte()
         data[3] = ((temp shr 8) and 0xFF).toByte()
         // charge flag at byte 15 bit4 → data[13]
@@ -1630,7 +1632,7 @@ class KingsongDecoderTest {
         val result = decoder.decode(packet, defaultState, defaultConfig)
         assertTrue(result is DecodeResult.Success)
         val decoded = (result as DecodeResult.Success).data
-        assertEquals(3500, decoded.assertTelemetry().temperature2, "Battery temp should be 3500")
+        assertEquals(4500, decoded.assertTelemetry().temperature2, "45°C should store as 4500 (×100 internal)")
         assertEquals(1, decoded.assertTelemetry().chargingStatus, "Charging flag should be 1")
     }
 
@@ -1711,7 +1713,9 @@ class KingsongDecoderTest {
         val result = decoder.decode(packet, defaultState, defaultConfig)
         assertTrue(result is DecodeResult.Success)
         val decoded = (result as DecodeResult.Success).data
-        assertEquals(1, decoded.assertSettings().lightMode, "Normal headlight mode should map to lightMode 1 (on)")
+        val settings = decoded.assertSettings() as WheelSettings.Kingsong
+        assertEquals(0, settings.strobeMode, "Normal headlight mode should map to strobeMode 0")
+        assertEquals(-1, settings.lightMode, "Strobe readback must not touch lightMode")
     }
 
     @Test
@@ -1724,7 +1728,10 @@ class KingsongDecoderTest {
         val result = decoder.decode(packet, defaultState, defaultConfig)
         assertTrue(result is DecodeResult.Success)
         val decoded = (result as DecodeResult.Success).data
-        assertEquals(2, decoded.assertSettings().lightMode, "Strobe headlight mode should map to lightMode 2")
+        val settings = decoded.assertSettings() as WheelSettings.Kingsong
+        assertEquals(1, settings.strobeMode, "Strobe headlight mode should map to strobeMode 1")
+        assertEquals(-1, settings.lightMode,
+            "Strobe must not overload lightMode (2 means auto; SetMute echoes lightMode to the wheel)")
     }
 
     @Test

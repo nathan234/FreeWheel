@@ -355,7 +355,8 @@ class KingsongDecoder : WheelDecoder {
         val raw = data[4].toInt() and 0xFF
         val bmsSoc = if (raw in 1..101) raw - 1 else -1
 
-        val totalEnergyWh = ByteUtils.intFromBytesLE(data, 6).toLong()
+        // Word-swapped 32-bit like odometer/trip (official app W1(b6,b7,b8,b9)), not plain LE
+        val totalEnergyWh = ByteUtils.getInt4R(data, 6).toLong()
         val totalOnTime = ByteUtils.getInt2R(data, 12)
         val faultCode = ByteUtils.getInt2R(data, 14)
         val error = if (faultCode != 0) "Fault code: $faultCode" else ""
@@ -596,7 +597,9 @@ class KingsongDecoder : WheelDecoder {
      * byte[15] bit4 = charge flag → chargingStatus
      */
     private fun processBatteryTemp(data: ByteArray, tel: TelemetryState): KsFrameOutput {
-        val batteryTemp = ByteUtils.getInt2R(data, 4)
+        // 0xC9 reports whole °C (official app clamps to [-20, 100] and displays raw),
+        // unlike the 0xB9 temp2 path which is centi-degrees. Scale to ×100 internal.
+        val batteryTemp = ByteUtils.getInt2R(data, 4) * 100
         val charging = if ((data[15].toInt() and 0x10) != 0) 1 else 0
         return KsFrameOutput(
             telemetry = tel.copy(temperature2 = batteryTemp, chargingStatus = charging)
@@ -626,9 +629,11 @@ class KingsongDecoder : WheelDecoder {
      * byte[2]=0 → normal, byte[2]=1 → strobe.
      */
     private fun processHeadlightMode(data: ByteArray, ks: WheelSettings.Kingsong): KsFrameOutput {
+        // Strobe is a separate setting from light on/off/auto (official app keeps
+        // setHeadlightmode distinct from setBluemode). Writing it into lightMode
+        // corrupted commands that echo lightMode back to the wheel (e.g. SetMute).
         val strobe = (data[2].toInt() and 0xFF) == 1
-        // Map: 0=normal (on), 1=strobe → lightMode: 1=on, 2=strobe
-        return KsFrameOutput(settings = ks.copy(lightMode = if (strobe) 2 else 1))
+        return KsFrameOutput(settings = ks.copy(strobeMode = if (strobe) 1 else 0))
     }
 
     /**

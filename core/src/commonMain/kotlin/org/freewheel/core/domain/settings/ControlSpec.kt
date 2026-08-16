@@ -138,8 +138,9 @@ enum class SettingsCommandId {
         BALANCE_ANGLE -> settings.balanceAngle.takeIf { it != -1 }
         MIN_TIRE_PRESSURE -> settings.minTirePressure.takeIf { it >= 0 }
         CHARGING_CURRENT -> settings.chargingCurrentAC220V.takeIf { it >= 0 }
+        STROBE_MODE -> (settings as? WheelSettings.Kingsong)?.strobeMode?.takeIf { it >= 0 }
         // No int readback: bool-only, action-only, or no readback field
-        LED, STROBE_MODE, TAIL_LIGHT, DRL, HANDLE_BUTTON, BRAKE_ASSIST,
+        LED, TAIL_LIGHT, DRL, HANDLE_BUTTON, BRAKE_ASSIST,
         RIDE_MODE, GO_HOME_MODE, FANCIER_MODE, TRANSPORT_MODE,
         LIMITED_MODE, LIMITED_SPEED,
         ALARM_ENABLED_1, ALARM_ENABLED_2, ALARM_ENABLED_3,
