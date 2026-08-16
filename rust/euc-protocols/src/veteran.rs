@@ -550,15 +550,23 @@ impl VeteranDecoder {
             phase_current *= veteran_negative;
         }
 
-        // Calculate current and power
+        // Calculate current and power. The official Leaperkim/Nosfet apps read output
+        // (true PWM, 0.01% units) from bytes 34-35 unconditionally and derive
+        // current = phaseCurrent * output/10000, power = current * voltage. The speed
+        // formula is kept only as a fallback for original-Sherman firmware (m_ver 0/1),
+        // which may not populate those bytes — EUC World and legacy WheelLog both
+        // fall back similarly (nonzero-output and ver >= 2 gates respectively).
         let calculated_pwm: f64;
         let output: i32;
-        if config.hw_pwm_enabled {
+        if config.hw_pwm_enabled || self.m_ver >= 2 {
             output = hw_pwm;
             calculated_pwm = hw_pwm as f64 / 10000.0;
         } else {
+            // The x100 scale of internal speed and voltage cancels; power_factor is a
+            // percent and must be scaled to a fraction (legacy WheelData.calculatePwm).
             let rot_ratio = config.rotation_speed as f64 / config.rotation_voltage as f64;
-            let denominator = rot_ratio * voltage as f64 * config.power_factor as f64;
+            let power_factor = config.power_factor as f64 / 100.0;
+            let denominator = rot_ratio * voltage as f64 * power_factor;
             calculated_pwm = if denominator != 0.0 {
                 speed as f64 / denominator
             } else {

@@ -373,16 +373,24 @@ class VeteranDecoder : WheelDecoder {
             phaseCurrent *= veteranNegative
         }
 
-        // Calculate current and power
+        // Calculate current and power. The official Leaperkim/Nosfet apps read output
+        // (true PWM, 0.01% units) from bytes 34-35 unconditionally and derive
+        // current = phaseCurrent * output/10000, power = current * voltage. The speed
+        // formula is kept only as a fallback for original-Sherman firmware (mVer 0/1),
+        // which may not populate those bytes — EUC World and legacy WheelLog both
+        // fall back similarly (nonzero-output and ver >= 2 gates respectively).
         val calculatedPwm: Double
         val output: Int
-        if (config.hwPwmEnabled) {
+        if (config.hwPwmEnabled || mVer >= 2) {
             output = hwPwm
             calculatedPwm = hwPwm / 10000.0
         } else {
+            // The ×100 scale of internal speed and voltage cancels; powerFactor is a
+            // percent and must be scaled to a fraction (legacy WheelData.calculatePwm).
             val rotRatio = config.rotationSpeed.toDouble() / config.rotationVoltage
-            calculatedPwm = if (rotRatio * voltage * config.powerFactor != 0.0)
-                speed.toDouble() / (rotRatio * voltage * config.powerFactor)
+            val powerFactor = config.powerFactor / 100.0
+            calculatedPwm = if (rotRatio * voltage * powerFactor != 0.0)
+                speed.toDouble() / (rotRatio * voltage * powerFactor)
             else 0.0
             output = (calculatedPwm * 10000).roundToInt()
         }

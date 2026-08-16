@@ -454,6 +454,39 @@ fn hw_pwm_is_used_when_hw_pwm_enabled() {
     assert!((tel(&decoded).calculated_pwm - 0.5).abs() < 0.001);
 }
 
+#[test]
+fn hw_pwm_is_forced_for_m_ver_2_and_later() {
+    // Legacy WheelLog force-enables hwPwm for getVer() >= 2 (Abrams and newer,
+    // including all Nosfet models). The formula path is Sherman-only.
+    let decoded = success(decode_single_frame_cfg(
+        VetFrame {
+            hw_pwm: 3000,
+            speed: 100,
+            ..Default::default() // ver 5000 -> m_ver 5 (Lynx)
+        },
+        &config(), // hw_pwm_enabled: false
+    ));
+    assert_eq!(3000, tel(&decoded).output);
+    assert!((tel(&decoded).calculated_pwm - 0.3).abs() < 0.001);
+}
+
+#[test]
+fn formula_pwm_matches_legacy_wheellog_units() {
+    // Legacy: calculatedPwm = speedDouble / (rotSpeed/rotVoltage * voltageDouble * pf)
+    // 10 km/h at 96.86V with defaults (50 km/h @ 84V, pf 0.9):
+    // 10 / (0.5952... * 96.86 * 0.9) ~= 0.19272
+    let decoded = success(decode_single_frame_cfg(
+        VetFrame {
+            speed: 100,
+            ver: 1000, // m_ver 1: original Sherman, formula path
+            ..Default::default()
+        },
+        &config(),
+    ));
+    let expected = 10.0 / ((500.0 / 840.0) * 96.86 * 0.9);
+    assert!((tel(&decoded).calculated_pwm - expected).abs() < 0.0001);
+}
+
 // ==================== Model Detection ====================
 
 #[test]

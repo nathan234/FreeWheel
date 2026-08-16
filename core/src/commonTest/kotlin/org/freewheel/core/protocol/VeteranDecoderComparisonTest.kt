@@ -532,13 +532,56 @@ class VeteranDecoderComparisonTest {
         )
         // speed (after polarity with gotwayNegative=0) = abs(100*10) = 1000
         // rotRatio = 500.0 / 840 = 0.5952...
-        // calculatedPwm = 1000.0 / (0.5952... * 9686 * 100) = 1000 / 576547.6... ≈ 0.001734
+        // powerFactor 100% scales to 1.0 (legacy WheelData.calculatePwm divides by 100)
+        // calculatedPwm = 1000.0 / (0.5952... * 9686 * 1.0) = 1000 / 5765.47... ≈ 0.1734
         val rotRatio = 500.0 / 840
-        val expectedPwm = 1000.0 / (rotRatio * voltage * 100)
+        val expectedPwm = 1000.0 / (rotRatio * voltage * 1.0)
         val expectedOutput = (expectedPwm * 10000).roundToInt()
         assertEquals(expectedOutput, state.output,
             "Output should use formula-based PWM, not hardware value 3000")
         assertTrue(state.output != 3000, "Should NOT use hardware PWM")
+    }
+
+    @Test
+    fun `formula PWM matches legacy WheelLog units`() {
+        // Legacy: calculatedPwm = speedDouble / (rotSpeed/rotVoltage * voltageDouble * pf)
+        // 10 km/h at 96.86V with defaults (50 km/h @ 84V, pf 0.9):
+        // 10 / (0.5952... * 96.86 * 0.9) = 10 / 51.889... ≈ 0.19272
+        val cfg = defaultConfig.copy(
+            hwPwmEnabled = false,
+            rotationSpeed = 500,
+            rotationVoltage = 840,
+            powerFactor = 90
+        )
+        val state = decodeVeteranFrameWithPwm(
+            rawHwPwm = 0,
+            rawSpeed = 100,
+            rawPhaseCurrent = 0,
+            rawVoltage = 9686,
+            config = cfg
+        )
+        val expected = 10.0 / ((500.0 / 840) * 96.86 * 0.9)
+        assertEquals(expected, state.calculatedPwm, 0.0001)
+    }
+
+    @Test
+    fun `mVer 2 and later always uses hardware PWM even with hwPwmEnabled false`() {
+        // Legacy WheelLog force-enables hwPwm for getVer() >= 2 (Abrams and newer,
+        // including all Nosfet models). The formula path is Sherman-only.
+        val cfg = defaultConfig.copy(hwPwmEnabled = false)
+        val vetDecoder = VeteranDecoder()
+        val frame = buildVeteranFrame(
+            rawVoltage = 9686,
+            rawSpeed = 100,
+            rawPhaseCurrent = 1000,
+            rawHwPwm = 3000,
+            mVer = 9 // Lynx S
+        )
+        val result = vetDecoder.decode(frame, defaultState, cfg)
+        assertTrue(result is DecodeResult.Success, "Veteran frame should decode")
+        val state = (result as DecodeResult.Success).data.assertTelemetry()
+        assertEquals(3000, state.output, "Output should be hardware PWM value")
+        assertEquals(0.3, state.calculatedPwm, 0.001)
     }
 
     // ==================== Helpers ====================
