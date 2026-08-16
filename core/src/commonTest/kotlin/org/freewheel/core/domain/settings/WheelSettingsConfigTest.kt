@@ -191,7 +191,7 @@ class WheelSettingsConfigTest {
         val weakMag = ride.controls[4] as ControlSpec.Slider
         assertEquals("Weak Magnetism", weakMag.label)
         assertEquals(0, weakMag.min)
-        assertEquals(6, weakMag.max)
+        assertEquals(9, weakMag.max) // official Begode app range (Config.weakMagnetism 0-9)
         assertEquals(SettingsCommandId.WEAK_MAGNETISM, weakMag.commandId)
 
         val extRoll = ride.controls[5] as ControlSpec.Slider

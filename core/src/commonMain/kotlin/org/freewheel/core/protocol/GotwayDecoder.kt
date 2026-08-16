@@ -614,8 +614,13 @@ class GotwayDecoder : WheelDecoder {
         val hasNewData = trueCurrent
         trueCurrent = true
         val batteryCurrent = ByteUtils.signedShortFromBytesBE(buff, 2)
-        val cutoutStep = ByteUtils.shortFromBytesBE(buff, 4) // 0-9 → 45-90° in 5° increments
+        // Byte 5 packs two settings nibbles (official app HomeSettingActivity, EUC World
+        // agrees): low = cutout angle step (0-9 → 45-90° in 5° increments), high = weak
+        // magnetism (0-9). Byte 4 is unused by the official app.
+        val settingsByte = buff[5].toInt() and 0xFF
+        val cutoutStep = settingsByte and 0x0F
         val cutoutAngle = if (cutoutStep in 0..9) cutoutStep * 5 + 45 else -1
+        val weakMagnetism = (settingsByte shr 4) and 0x0F
         val motorTemp = ByteUtils.signedShortFromBytesBE(buff, 6)
         var hwPWMb = ByteUtils.signedShortFromBytesBE(buff, 8)
 
@@ -648,7 +653,7 @@ class GotwayDecoder : WheelDecoder {
                 output = output,
                 calculatedPwm = calculatedPwm
             ),
-            settings = gw.copy(cutoutAngle = cutoutAngle),
+            settings = gw.copy(cutoutAngle = cutoutAngle, weakMagnetism = weakMagnetism),
             hasNewData = hasNewData
         )
     }
@@ -890,7 +895,8 @@ class GotwayDecoder : WheelDecoder {
                 )
             }
             is WheelCommand.SetWeakMagnetism -> {
-                val param = byteArrayOf(((command.level % 7) + 0x30).toByte())
+                // Official app range is 0-9 (Config.weakMagnetism digits sent via W C n)
+                val param = byteArrayOf((command.level.coerceIn(0, 9) + 0x30).toByte())
                 listOf(
                     WheelCommand.SendBytes("W".encodeToByteArray()),
                     WheelCommand.SendDelayed("C".encodeToByteArray(), 100),

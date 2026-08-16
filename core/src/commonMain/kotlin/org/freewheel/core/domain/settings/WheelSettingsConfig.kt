@@ -68,7 +68,7 @@ object WheelSettingsConfig {
             ControlSpec.Segmented("Roll Angle", listOf("Low", "Medium", "High"), SettingsCommandId.ROLL_ANGLE_MODE),
             ControlSpec.Slider("Cutout Angle", 45, 90, "\u00B0", 70, SettingsCommandId.CUTOUT_ANGLE, step = 5),
             ControlSpec.Slider("Pedal Tilt", 0, 9, "", 5, SettingsCommandId.PEDAL_TILT),
-            ControlSpec.Slider("Weak Magnetism", 0, 6, "", 0, SettingsCommandId.WEAK_MAGNETISM),
+            ControlSpec.Slider("Weak Magnetism", 0, 9, "", 0, SettingsCommandId.WEAK_MAGNETISM),
             ControlSpec.Slider("Extended Roll Angle", 0, 9, "", 5, SettingsCommandId.EXTENDED_ROLL_ANGLE)
         )),
         SettingsSection("Audio", listOf(

@@ -5,6 +5,7 @@ import org.freewheel.core.domain.settings.SettingsCommandId
 import org.freewheel.core.domain.settings.beeperVolume
 import org.freewheel.core.domain.settings.cutoutAngle
 import org.freewheel.core.domain.settings.rollAngle
+import org.freewheel.core.domain.settings.weakMagnetism
 import org.freewheel.core.domain.settings.speedAlarms
 import org.freewheel.core.protocol.DecodeResult
 import org.freewheel.core.utils.ByteUtils
@@ -1116,6 +1117,24 @@ class GotwayDecoderTest {
         assertEquals("3", (commands[2] as WheelCommand.SendDelayed).data.decodeToString()) // (60-45)/5 = 3
     }
 
+    @Test
+    fun `SetWeakMagnetism sends W C digit over full official 0-9 range`() {
+        // Official app Config.weakMagnetism is "0".."9"; level 8 must send '8', not wrap
+        val commands = decoder.buildCommand(WheelCommand.SetWeakMagnetism(8))
+        assertEquals(3, commands.size)
+        assertEquals("W", (commands[0] as WheelCommand.SendBytes).data.decodeToString())
+        assertEquals("C", (commands[1] as WheelCommand.SendDelayed).data.decodeToString())
+        assertEquals("8", (commands[2] as WheelCommand.SendDelayed).data.decodeToString())
+    }
+
+    @Test
+    fun `SetWeakMagnetism clamps out-of-range levels to 0-9`() {
+        val over = decoder.buildCommand(WheelCommand.SetWeakMagnetism(12))
+        assertEquals("9", (over[2] as WheelCommand.SendDelayed).data.decodeToString())
+        val under = decoder.buildCommand(WheelCommand.SetWeakMagnetism(-1))
+        assertEquals("0", (under[2] as WheelCommand.SendDelayed).data.decodeToString())
+    }
+
     // ==================== 0xFF Settings Frame ====================
 
     @Test
@@ -1997,6 +2016,36 @@ class GotwayDecoderTest {
         assertTrue(result is DecodeResult.Success)
         assertEquals(-1, (result as DecodeResult.Success).data.assertSettings().cutoutAngle,
             "Out-of-range step should not set cutoutAngle")
+    }
+
+    @Test
+    fun `0x07 frame byte 5 packs weak magnetism high nibble and cutout step low nibble`() {
+        val freshDecoder = GotwayDecoder()
+        initDecoder(freshDecoder)
+
+        // Official app (HomeSettingActivity): byte 5 = (weakMagnetism << 4) | cutoutStep.
+        // weakMag 2 + step 3 → 0x23; cutout must still read 60°, not fall to -1.
+        val frame = buildCurrentTempFrame(cutoutStep = 0x23)
+        val result = freshDecoder.decode(frame, DecoderState(), config)
+
+        assertTrue(result is DecodeResult.Success)
+        val settings = (result as DecodeResult.Success).data.assertSettings()
+        assertEquals(60, settings.cutoutAngle, "Low nibble 3 = 3*5 + 45 = 60°")
+        assertEquals(2, settings.weakMagnetism, "High nibble = weak magnetism level")
+    }
+
+    @Test
+    fun `0x07 frame with zero weak magnetism reads weakMagnetism 0`() {
+        val freshDecoder = GotwayDecoder()
+        initDecoder(freshDecoder)
+
+        val frame = buildCurrentTempFrame(cutoutStep = 5)
+        val result = freshDecoder.decode(frame, DecoderState(), config)
+
+        assertTrue(result is DecodeResult.Success)
+        val settings = (result as DecodeResult.Success).data.assertSettings()
+        assertEquals(70, settings.cutoutAngle)
+        assertEquals(0, settings.weakMagnetism)
     }
 
     // ==================== Beeper Volume Readback (FRAME_00 byte 17) ====================

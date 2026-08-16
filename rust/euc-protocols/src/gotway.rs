@@ -837,12 +837,17 @@ impl GotwayDecoder {
         let has_new_data = self.true_current;
         self.true_current = true;
         let battery_current = signed_short_from_bytes_be(buff, 2);
-        let cutout_step = short_from_bytes_be(buff, 4); // 0-9 → 45-90° in 5° increments
+        // Byte 5 packs two settings nibbles (official app HomeSettingActivity, EUC World
+        // agrees): low = cutout angle step (0-9 → 45-90° in 5° increments), high = weak
+        // magnetism (0-9). Byte 4 is unused by the official app.
+        let settings_byte = buff[5] as i32;
+        let cutout_step = settings_byte & 0x0F;
         let cutout_angle = if (0..=9).contains(&cutout_step) {
             cutout_step * 5 + 45
         } else {
             -1
         };
+        let weak_magnetism = (settings_byte >> 4) & 0x0F;
         let motor_temp = signed_short_from_bytes_be(buff, 6);
         let mut hw_pwm = signed_short_from_bytes_be(buff, 8);
 
@@ -881,6 +886,7 @@ impl GotwayDecoder {
             }),
             settings: Some(WheelSettings::Begode(BegodeSettings {
                 cutout_angle,
+                weak_magnetism,
                 ..gw
             })),
             has_new_data,
@@ -1114,7 +1120,8 @@ impl GotwayDecoder {
                 ]
             }
             WheelCommand::SetWeakMagnetism(level) => {
-                let param = vec![((level % 7) + 0x30) as u8];
+                // Official app range is 0-9 (Config.weakMagnetism digits sent via W C n)
+                let param = vec![((*level).clamp(0, 9) + 0x30) as u8];
                 vec![
                     WheelCommand::SendBytes(ascii("W")),
                     WheelCommand::SendDelayed(ascii("C"), 100),

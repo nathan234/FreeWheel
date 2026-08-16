@@ -1750,6 +1750,37 @@ fn frame_07_decodes_cutout_angle_steps() {
     }
 }
 
+#[test]
+fn frame_07_byte_5_packs_weak_magnetism_and_cutout_nibbles() {
+    // Official app (HomeSettingActivity): byte 5 = (weakMagnetism << 4) | cutoutStep.
+    // weakMag 2 + step 3 → 0x23; cutout must still read 60°, not fall to -1.
+    let mut decoder = GotwayDecoder::new();
+    init_decoder(&mut decoder);
+    let decoded = success(decoder.decode(
+        &build_current_temp_frame(CtFrame {
+            cutout_step: 0x23,
+            ..Default::default()
+        }),
+        &DecoderState::default(),
+        &config(),
+    ));
+    assert_eq!(60, beg(&decoded).cutout_angle);
+    assert_eq!(2, beg(&decoded).weak_magnetism);
+}
+
+#[test]
+fn set_weak_magnetism_covers_official_0_to_9_range() {
+    let mut decoder = GotwayDecoder::new();
+    // Official app Config.weakMagnetism is "0".."9"; level 8 must send '8', not wrap
+    for (level, digit) in [(8, b'8'), (12, b'9'), (-1, b'0')] {
+        let commands = decoder.build_command(&WheelCommand::SetWeakMagnetism(level));
+        let WheelCommand::SendDelayed(param, _) = &commands[2] else {
+            panic!("expected SendDelayed param");
+        };
+        assert_eq!(&[digit], param.as_slice(), "level {level}");
+    }
+}
+
 // ==================== Beeper Volume Readback (FRAME_00 byte 17) ====================
 
 #[test]
