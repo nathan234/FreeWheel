@@ -1042,19 +1042,15 @@ class VeteranDecoderTest {
 
     @Test
     fun `tiltBackSpeed is populated from frame`() {
-        // Bytes 26-27 are speed tiltback (BE), multiplied by 10 in decoder,
-        // then divided by 10 when stored as tiltBackSpeed
-        // speedTiltback = shortFromBytesBE(buff, 26) * 10
-        // state.tiltBackSpeed = speedTiltback / 10
-        // So tiltBackSpeed = shortFromBytesBE(buff, 26)
+        // Bytes 26-27 are speed tiltback (BE) in deci-km/h (official app divides
+        // by 10). Raw 450 = 45.0 km/h -> settings field 45 km/h.
         val freshDecoder = VeteranDecoder()
         val frame = buildVeteranFrame()
-        // Set bytes 26-27 to 450 (BE) -> tiltBackSpeed = 450 * 10 / 10 = 450
         frame[26] = ((450 shr 8) and 0xFF).toByte()
         frame[27] = (450 and 0xFF).toByte()
         val result = freshDecoder.decode(frame, DecoderState(), config)
         assertTrue(result is DecodeResult.Success)
-        assertEquals(450, (result as DecodeResult.Success).data.assertSettings().tiltBackSpeed)
+        assertEquals(45, (result as DecodeResult.Success).data.assertSettings().tiltBackSpeed)
     }
 
     @Test
@@ -1074,10 +1070,9 @@ class VeteranDecoderTest {
 
     @Test
     fun `alertSpeed is populated from frame`() {
-        // speedAlert = shortFromBytesBE(buff, 24) * 10
-        // alertSpeed = speedAlert / 10 = raw value
-        // Raw value 85 -> alertSpeed = 85 km/h
-        val result = decodeSingleFrame(speedAlert = 85)
+        // Bytes 24-25 are deci-km/h (official app divides by 10).
+        // Raw 850 = 85.0 km/h -> settings field 85 km/h.
+        val result = decodeSingleFrame(speedAlert = 850)
         assertTrue(result is DecodeResult.Success)
         assertEquals(85, (result as DecodeResult.Success).data.assertSettings().alertSpeed)
     }
@@ -1641,12 +1636,12 @@ class VeteranDecoderTest {
         val oldData = (commands[0] as WheelCommand.SendBytes).data
         assertEquals(0x6B.toByte(), oldData[1]) // "LkAp"
         assertEquals(0x11.toByte(), oldData[4])
-        assertEquals(60.toByte(), oldData[12]) // speed + 10 = 60
+        assertEquals(50.toByte(), oldData[12]) // wire = km/h directly, no offset
         assertEquals(17, oldData.size) // 13 payload + 4 CRC
         val newData = (commands[1] as WheelCommand.SendBytes).data
         assertEquals(0x64.toByte(), newData[1]) // "LdAp"
         assertEquals(0x11.toByte(), newData[4])
-        assertEquals(60.toByte(), newData[12])
+        assertEquals(50.toByte(), newData[12])
     }
 
     @Test
@@ -1657,11 +1652,11 @@ class VeteranDecoderTest {
         val oldData = (commands[0] as WheelCommand.SendBytes).data
         assertEquals(0x6B.toByte(), oldData[1]) // "LkAp"
         assertEquals(0x10.toByte(), oldData[4])
-        assertEquals(80.toByte(), oldData[11]) // angle + 80 = 80
+        assertEquals(0.toByte(), oldData[11]) // wire = signed tenths, no offset
         val newData = (commands[1] as WheelCommand.SendBytes).data
         assertEquals(0x64.toByte(), newData[1]) // "LdAp"
         assertEquals(0x10.toByte(), newData[4])
-        assertEquals(80.toByte(), newData[11])
+        assertEquals(0.toByte(), newData[11])
     }
 
     @Test
@@ -2369,8 +2364,8 @@ class VeteranDecoderTest {
         assertEquals(-1, data.assertSettings().pedalsMode)      // 0x0780 sanitized to -1
         assertEquals(0, data.assertSettings().batteryTempMode)  // 0x80C8 sanitized to 0
         assertEquals(1187, data.assertSettings().autoOffTime)
-        assertEquals(2000, data.assertSettings().tiltBackSpeed)  // 200 km/h / 10
-        assertEquals(2000, data.assertSettings().alertSpeed)     // 200 km/h / 10
+        assertEquals(200, data.assertSettings().tiltBackSpeed)  // raw 2000 deci-km/h = 200 km/h (disabled sentinel)
+        assertEquals(200, data.assertSettings().alertSpeed)      // raw 2000 deci-km/h = 200 km/h (disabled sentinel)
     }
 }
 

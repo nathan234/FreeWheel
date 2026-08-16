@@ -45,20 +45,23 @@ class VeteranCommandWireMappingTest {
     // ==================== User-facing commands (decoder applies offset) ====================
 
     @Test
-    fun `SetAlarmSpeed encodes user kmh as wire kmh+10`() {
-        // SetAlarmSpeedActivity.java sends `userSpeed + 10`. Caller passes user kmh.
-        assertEquals(60, valueAt(emit(WheelCommand.SetAlarmSpeed(50, 1)), 12), "wire = user+10")
-        assertEquals(40, valueAt(emit(WheelCommand.SetAlarmSpeed(30, 1)), 12))
-        assertEquals(20, valueAt(emit(WheelCommand.SetAlarmSpeed(10, 1)), 12), "wire-min = user-min+10")
+    fun `SetAlarmSpeed encodes user kmh directly on the wire`() {
+        // SetAlarmSpeedActivity.java's `i + 10` converts slider *progress* to speed
+        // (kmSpeedToProgress = speed - 10); the wire byte IS the km/h value.
+        assertEquals(50, valueAt(emit(WheelCommand.SetAlarmSpeed(50, 1)), 12), "wire = user km/h")
+        assertEquals(30, valueAt(emit(WheelCommand.SetAlarmSpeed(30, 1)), 12))
+        assertEquals(10, valueAt(emit(WheelCommand.SetAlarmSpeed(10, 1)), 12), "wire-min = 10 km/h")
     }
 
     @Test
-    fun `SetPedalTilt encodes user degrees as wire degrees+80`() {
-        // SetAngelActivity.java sends `userAngle + 80`. Caller passes user degrees
-        // (slider -8..+8 per WheelSettingsConfig).
-        assertEquals(80, valueAt(emit(WheelCommand.SetPedalTilt(0)), 11), "wire = user+80")
-        assertEquals(88, valueAt(emit(WheelCommand.SetPedalTilt(8)), 11), "wire-max = +8 user + 80")
-        assertEquals(72, valueAt(emit(WheelCommand.SetPedalTilt(-8)), 11), "wire-min = -8 user + 80")
+    fun `SetPedalTilt encodes signed tenths of a degree with no offset`() {
+        // SetAngelActivity.java's `progressToSendValue(i) = i - 80` converts slider
+        // progress (0..160) to the wire value: signed tenths of a degree (-80..80).
+        // Caller passes tenths (WheelConnectionManager multiplies slider degrees by 10).
+        assertEquals(0, valueAt(emit(WheelCommand.SetPedalTilt(0)), 11), "0° = wire 0")
+        assertEquals(80, valueAt(emit(WheelCommand.SetPedalTilt(80)), 11), "+8.0° = wire 80")
+        assertEquals(0xB0, valueAt(emit(WheelCommand.SetPedalTilt(-80)), 11),
+            "-8.0° = wire -80 (0xB0 as signed byte)")
     }
 
     // ==================== Wire-passthrough commands (caller supplies wire) ====================

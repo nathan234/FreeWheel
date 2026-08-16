@@ -356,8 +356,10 @@ class VeteranDecoder : WheelDecoder {
         val batteryTempRaw = if (buff.size >= 38) ByteUtils.shortFromBytesBE(buff, 36) else 0
         val batteryTempMode = if (batteryTempRaw in 0..111) batteryTempRaw else 0
 
-        // Process SmartBMS data for newer wheels
-        if (mVer >= 5 && buff.size > 46) {
+        // Process SmartBMS data. The official app gates extended parsing purely on
+        // frame length (strCmdMode wheels send short frames), not on model version —
+        // Patton (mVer 4) and Sherman S (mVer 3) send these frames too.
+        if (buff.size > 46) {
             processBmsData(buff)
         }
 
@@ -398,7 +400,7 @@ class VeteranDecoder : WheelDecoder {
         val power = ((current / 100.0) * voltage).roundToInt()
 
         // Parse sub-type extended data for newer wheels
-        val subType = if (mVer >= 5 && buff.size > 46) buff[46].toInt() and 0xFF else null
+        val subType = if (buff.size > 46) buff[46].toInt() and 0xFF else null
         val subData = if (subType != null) parseSubTypeData(buff) else null
         val battery = resolveBatteryLevel(voltageBattery, subType, subData?.batteryOverride)
 
@@ -426,8 +428,10 @@ class VeteranDecoder : WheelDecoder {
         )
 
         var newSettings = vet.copy(
-            tiltBackSpeed = speedTiltback / 10,
-            alertSpeed = speedAlert / 10,
+            // Raw wire values at 24-27 are deci-km/h (official app divides by 10);
+            // speedAlert/speedTiltback are ×100 internal, settings fields are km/h.
+            tiltBackSpeed = speedTiltback / 100,
+            alertSpeed = speedAlert / 100,
             autoOffTime = autoOffSec,
             pedalsMode = pedalsMode,
             batteryTempMode = batteryTempMode,
@@ -1096,7 +1100,10 @@ class VeteranDecoder : WheelDecoder {
             }
             is WheelCommand.SetAlarmSpeed -> {
                 if (!isSupportedAt(SettingsCommandId.ALARM_SPEED_1, ver)) return emptyList()
-                val v = command.speed + 10
+                // Wire value is km/h directly. The official app's "+10" is its
+                // slider-progress-to-speed conversion, not a wire offset
+                // (SetAlarmSpeedActivity: kmSpeedToProgress = speed - 10).
+                val v = command.speed
                 listOf(
                     WheelCommand.SendBytes(buildVeteranCommand(0x11, 12, v, byte5 = 0x01)),
                     WheelCommand.SendBytes(buildVeteranCommandNew(0x11, 12, v))
@@ -1104,7 +1111,10 @@ class VeteranDecoder : WheelDecoder {
             }
             is WheelCommand.SetPedalTilt -> {
                 if (!isSupportedAt(SettingsCommandId.PEDAL_TILT, ver)) return emptyList()
-                val v = command.angle + 80
+                // Wire value is signed tenths of a degree (-80..80), no offset.
+                // The official app's "+80"/"-80" is slider-progress conversion only
+                // (SetAngelActivity: progressToSendValue(i) = i - 80).
+                val v = command.angle
                 listOf(
                     WheelCommand.SendBytes(buildVeteranCommand(0x10, 11, v, byte5 = 0x01)),
                     WheelCommand.SendBytes(buildVeteranCommandNew(0x10, 11, v))
@@ -1168,10 +1178,11 @@ class VeteranDecoder : WheelDecoder {
                     listOf(WheelCommand.SendBytes("CLEARMETER".encodeToByteArray()))
                 } else {
                     // BtManager.sendBytesDataCombine(CMD_CLEAR_METER, CMD_CLEAR_METER_NEW)
-                    // LkAp: cmd 0x0D, byte5=0, value=1 @6 (7 bytes, no padding).
+                    // LkAp: cmd 0x0B (official CMD_CLEAR_METER byte 4 = 11), byte5=0,
+                    // value=1 @6 (7 bytes, no padding).
                     // LdAp: cmd 0x0D, byte5=0, byte6=0x02, value=1 @8 (9 bytes).
                     listOf(
-                        WheelCommand.SendBytes(buildVeteranCommand(0x0D, 6, 0x01)),
+                        WheelCommand.SendBytes(buildVeteranCommand(0x0B, 6, 0x01)),
                         WheelCommand.SendBytes(buildVeteranCommandNew(0x0D, 8, 0x01, byte5 = 0x00, byte6 = 0x02))
                     )
                 }

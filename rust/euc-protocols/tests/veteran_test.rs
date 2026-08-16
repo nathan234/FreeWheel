@@ -831,8 +831,8 @@ fn nosfet_aero_capture_frame_decodes_with_correct_m_ver_and_model() {
     assert_eq!(-1, vet(&data).pedals_mode); // 0x0780 sanitized
     assert_eq!(0, vet(&data).battery_temp_mode); // 0x80C8 sanitized
     assert_eq!(1187, vet(&data).auto_off_time);
-    assert_eq!(2000, vet(&data).tilt_back_speed);
-    assert_eq!(2000, vet(&data).alert_speed);
+    assert_eq!(200, vet(&data).tilt_back_speed); // raw 2000 deci-km/h = 200 km/h (disabled sentinel)
+    assert_eq!(200, vet(&data).alert_speed); // raw 2000 deci-km/h = 200 km/h (disabled sentinel)
 }
 
 // ==================== Charging / Main-Frame Settings ====================
@@ -853,10 +853,11 @@ fn charge_mode_is_parsed_correctly() {
 fn tilt_back_speed_is_populated_from_frame() {
     let mut decoder = VeteranDecoder::new();
     let mut frame = build_veteran_frame(&VetFrame::default());
+    // Bytes 26-27 are deci-km/h (official app divides by 10): 450 = 45.0 km/h.
     frame[26] = ((450 >> 8) & 0xFF) as u8;
     frame[27] = (450 & 0xFF) as u8;
     let decoded = success(decoder.decode(&frame, &DecoderState::default(), &config()));
-    assert_eq!(450, vet(&decoded).tilt_back_speed);
+    assert_eq!(45, vet(&decoded).tilt_back_speed);
 }
 
 #[test]
@@ -872,8 +873,9 @@ fn ride_mode_wire_values_map_to_app_order() {
 
 #[test]
 fn alert_speed_and_auto_off_time_populated() {
+    // speed_alert is deci-km/h on the wire: 850 = 85.0 km/h.
     let decoded = success(decode_single_frame(VetFrame {
-        speed_alert: 85,
+        speed_alert: 850,
         auto_off_sec: 1172,
         ..Default::default()
     }));
@@ -1184,12 +1186,12 @@ fn set_alarm_speed_command_dual_format() {
     let old = send_bytes(&commands[0]);
     assert_eq!(0x6B, old[1]); // LkAp
     assert_eq!(0x11, old[4]);
-    assert_eq!(60, old[12]); // speed + 10
+    assert_eq!(50, old[12]); // wire = km/h directly, no offset
     assert_eq!(17, old.len()); // 13 payload + 4 CRC
     let new = send_bytes(&commands[1]);
     assert_eq!(0x64, new[1]); // LdAp
     assert_eq!(0x11, new[4]);
-    assert_eq!(60, new[12]);
+    assert_eq!(50, new[12]);
 }
 
 #[test]
@@ -1200,11 +1202,11 @@ fn set_pedal_tilt_command_dual_format() {
     let old = send_bytes(&commands[0]);
     assert_eq!(0x6B, old[1]);
     assert_eq!(0x10, old[4]);
-    assert_eq!(80, old[11]); // angle + 80
+    assert_eq!(0, old[11]); // wire = signed tenths, no offset
     let new = send_bytes(&commands[1]);
     assert_eq!(0x64, new[1]);
     assert_eq!(0x10, new[4]);
-    assert_eq!(80, new[11]);
+    assert_eq!(0, new[11]);
 }
 
 #[test]
@@ -1328,7 +1330,7 @@ fn reset_trip_command_dual_format_for_new_firmware() {
     assert_eq!(2, commands.len());
     let lkap = send_bytes(&commands[0]);
     assert_eq!(0x6B, lkap[1]);
-    assert_eq!(0x0D, lkap[4]);
+    assert_eq!(0x0B, lkap[4]); // official CMD_CLEAR_METER byte 4 = 11
     let ldap = send_bytes(&commands[1]);
     assert_eq!(0x64, ldap[1]);
     assert_eq!(0x0D, ldap[4]);

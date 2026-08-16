@@ -84,10 +84,10 @@ internal object LeaperkimAppCommands {
     // ==================== ResetTrip / CLEARMETER ====================
     // BtManager.java:76, 85 — sendBytesDataCombine(CMD_CLEAR_METER, CMD_CLEAR_METER_NEW)
 
-    /** ResetTrip legacy: cmd 0x0D, byte5=0, value=1 @6. (7-byte payload, no padding.) */
+    /** ResetTrip legacy: cmd 0x0B (CMD_CLEAR_METER byte 4 = 11), byte5=0, value=1 @6. (7-byte payload, no padding.) */
     val CLEAR_METER_LKAP = byteArrayOf(
         0x4C, 0x6B, 0x41, 0x70,
-        0x0D, 0x00,
+        0x0B, 0x00,
         0x01
     )
 
@@ -174,45 +174,47 @@ internal object LeaperkimAppCommands {
 
     // ==================== SetAlarmSpeed ====================
     // setting/SetAlarmSpeedActivity.java:67 — sendBytesDataCombine(LkAp, LdAp)
-    // Wire value = userSpeed + 10. Examples encode userSpeed = 50 → wire 60 (0x3C).
+    // Wire value = km/h directly; the activity's "+10" converts slider progress
+    // to speed (kmSpeedToProgress = speed - 10). userSpeed = 50 → wire 50 (0x32).
 
-    /** SetAlarmSpeed(50) legacy: cmd 0x11, byte5=1, value=60 @12. */
+    /** SetAlarmSpeed(50) legacy: cmd 0x11, byte5=1, value=50 @12. */
     val ALARM_SPEED_50_LKAP = byteArrayOf(
         0x4C, 0x6B, 0x41, 0x70,
         0x11, 0x01,
         0x80.toByte(), 0x80.toByte(), 0x80.toByte(), 0x80.toByte(),
         0x80.toByte(), 0x80.toByte(),
-        60.toByte()
+        50.toByte()
     )
 
-    /** SetAlarmSpeed(50) new: cmd 0x11, byte5=1, byte6=0, value=60 @12. */
+    /** SetAlarmSpeed(50) new: cmd 0x11, byte5=1, byte6=0, value=50 @12. */
     val ALARM_SPEED_50_LDAP = byteArrayOf(
         0x4C, 0x64, 0x41, 0x70,
         0x11, 0x01, 0x00,
         0x80.toByte(), 0x80.toByte(), 0x80.toByte(), 0x80.toByte(),
         0x80.toByte(),
-        60.toByte()
+        50.toByte()
     )
 
     // ==================== SetPedalTilt ====================
     // setting/SetAngelActivity.java:69 — sendBytesDataCombine(LkAp, LdAp)
-    // Wire value = userAngle + 80. userAngle=0 → wire 80 (0x50).
+    // Wire value = signed tenths of a degree, no offset; the activity's
+    // progressToSendValue(i) = i - 80 converts slider progress. 0° → wire 0.
 
-    /** SetPedalTilt(0) legacy: cmd 0x10, byte5=1, value=80 @11. */
+    /** SetPedalTilt(0) legacy: cmd 0x10, byte5=1, value=0 @11. */
     val PEDAL_TILT_0_LKAP = byteArrayOf(
         0x4C, 0x6B, 0x41, 0x70,
         0x10, 0x01,
         0x80.toByte(), 0x80.toByte(), 0x80.toByte(), 0x80.toByte(),
         0x80.toByte(),
-        80.toByte()
+        0.toByte()
     )
 
-    /** SetPedalTilt(0) new: cmd 0x10, byte5=1, byte6=0, value=80 @11. */
+    /** SetPedalTilt(0) new: cmd 0x10, byte5=1, byte6=0, value=0 @11. */
     val PEDAL_TILT_0_LDAP = byteArrayOf(
         0x4C, 0x64, 0x41, 0x70,
         0x10, 0x01, 0x00,
         0x80.toByte(), 0x80.toByte(), 0x80.toByte(), 0x80.toByte(),
-        80.toByte()
+        0.toByte()
     )
 
     // ==================== SetLateralCutoffAngle / FallProtection ====================

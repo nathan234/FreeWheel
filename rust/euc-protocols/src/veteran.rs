@@ -533,8 +533,10 @@ impl VeteranDecoder {
             0
         };
 
-        // Process SmartBMS data for newer wheels
-        if self.m_ver >= 5 && buff.len() > 46 {
+        // Process SmartBMS data. The official app gates extended parsing purely on
+        // frame length (strCmdMode wheels send short frames), not on model version —
+        // Patton (m_ver 4) and Sherman S (m_ver 3) send these frames too.
+        if buff.len() > 46 {
             self.process_bms_data(buff);
         }
 
@@ -578,7 +580,7 @@ impl VeteranDecoder {
         let power = round_to_i32((current as f64 / 100.0) * voltage as f64);
 
         // Parse sub-type extended data for newer wheels
-        let sub_type = if self.m_ver >= 5 && buff.len() > 46 {
+        let sub_type = if buff.len() > 46 {
             Some(buff[46] as i32)
         } else {
             None
@@ -620,8 +622,10 @@ impl VeteranDecoder {
         };
 
         let mut new_settings = VeteranSettings {
-            tilt_back_speed: speed_tiltback / 10,
-            alert_speed: speed_alert / 10,
+            // Raw wire values at 24-27 are deci-km/h (official app divides by 10);
+            // speed_alert/speed_tiltback are x100 internal, settings fields are km/h.
+            tilt_back_speed: speed_tiltback / 100,
+            alert_speed: speed_alert / 100,
             auto_off_time: auto_off_sec,
             pedals_mode,
             battery_temp_mode,
@@ -1186,7 +1190,10 @@ impl VeteranDecoder {
                 if !self.is_supported_at(SettingsCommandId::AlarmSpeed1, ver) {
                     return Vec::new();
                 }
-                let v = speed + 10;
+                // Wire value is km/h directly. The official app's "+10" is its
+                // slider-progress-to-speed conversion, not a wire offset
+                // (SetAlarmSpeedActivity: kmSpeedToProgress = speed - 10).
+                let v = *speed;
                 vec![
                     WheelCommand::SendBytes(build_veteran_command(0x11, 12, v, 0x01)),
                     WheelCommand::SendBytes(build_veteran_command_new(0x11, 12, v, 0x01, 0x00)),
@@ -1196,7 +1203,10 @@ impl VeteranDecoder {
                 if !self.is_supported_at(SettingsCommandId::PedalTilt, ver) {
                     return Vec::new();
                 }
-                let v = angle + 80;
+                // Wire value is signed tenths of a degree (-80..80), no offset.
+                // The official app's "+80"/"-80" is slider-progress conversion only
+                // (SetAngelActivity: progressToSendValue(i) = i - 80).
+                let v = *angle;
                 vec![
                     WheelCommand::SendBytes(build_veteran_command(0x10, 11, v, 0x01)),
                     WheelCommand::SendBytes(build_veteran_command_new(0x10, 11, v, 0x01, 0x00)),
@@ -1273,7 +1283,7 @@ impl VeteranDecoder {
                     vec![WheelCommand::SendBytes(ascii("CLEARMETER"))]
                 } else {
                     vec![
-                        WheelCommand::SendBytes(build_veteran_command(0x0D, 6, 0x01, 0x00)),
+                        WheelCommand::SendBytes(build_veteran_command(0x0B, 6, 0x01, 0x00)),
                         WheelCommand::SendBytes(build_veteran_command_new(0x0D, 8, 0x01, 0x00, 0x02)),
                     ]
                 }
