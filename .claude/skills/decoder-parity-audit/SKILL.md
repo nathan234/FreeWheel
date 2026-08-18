@@ -20,7 +20,7 @@ All under `/Users/nathanretta/Code/freewheel-data/euc-reference-apps/`:
 | VeteranDecoder (Nosfet) | `nosfet/jadx_out/sources/com/laoniao/...` | Rebadged Leaperkim app — same package, near-identical parsing. Diff against the Leaperkim copy to find Nosfet-specific behavior |
 | GotwayDecoder | `begode/jadx_official_1.0.52/sources/` (official v1.0.52); also `begode/jadx_out/sources/` | Find the frame parser by searching for `55` `AA` header constants or the BLE characteristic UUID `0000ffe1` |
 | KingsongDecoder | `kingsong/jadx_out/sources/` | App code likely under `cn/` — locate via frame-type bytes (0xA9 header, 0xB9/0xF5 frame types) or UUID `0000ffe1` |
-| LorinDecoder (InMotion V2) | `inmotion_out/` (Blutter Dart AOT output: `asm/`, `objs.txt`, `pp.txt`) | Dart assembly, not Java — expect low yield; search `pp.txt`/`objs.txt` for symbol names first, bail out if only raw asm |
+| LorinDecoder (InMotion V2) | `inmotion_out/` (Blutter Dart AOT output: `asm/`, `objs.txt`, `pp.txt`) | Dart AOT, not Java — names/constants/routing are readable; bean `fromBytes` byte offsets are NOT (register-passed ByteData accessor args). See escalation paths below |
 | Any (tiebreaker) | `eucworld/jadx_out_v2/sources/ug/e0.java` (Veteran), `.../ug/u.java` (Gotway) | Obfuscated field names; locate logic via byte offsets and scale constants |
 | Any (secondary) | `darknessbot/` | Cross-check only |
 
@@ -46,6 +46,30 @@ Legacy WheelLog (last resort): `/Users/nathanretta/Code/euc/Wheellog.Android/app
 6. **Check the Rust port** (`rust/euc-protocols/src/`) for any confirmed gap —
    GotwayDecoder and VeteranDecoder are mirrored there and must stay in parity
    (iOS live shadow compares them).
+
+## Blutter (Dart AOT) escalation paths
+
+Flutter apps compile Dart straight to ARM64 — no bytecode, so method bodies don't
+decompile like jadx output. What survives: class/method names, string literals,
+immediate constants, call structure. What doesn't: byte-offset→field maps in
+`fromBytes`-style parsers (offsets pass through registers into ByteData accessor
+calls; field slots correlate to names only via `toString()` load order).
+Escalate in this order:
+
+1. **Targeted per-field asm trace** — feasible when a symptom names the field:
+   find the class in `objs.txt`, locate the parse body in `asm/`, trace each
+   `bl` call's `mov`-loaded offset argument, correlate `StoreField` slots with
+   the `toString` field order. Budget one field at a time, never a sweep.
+2. **Decompiler pseudocode** — `inmotion_out/ida_script/` loads Blutter's
+   annotations into IDA/Ghidra; the decompiler's data-flow analysis renders
+   offsets inline as C-like pseudocode. Untried as of 2026-08; likely the
+   cheapest full-coverage route.
+3. **Dynamic hooks** — `inmotion_out/blutter_frida.js` + a device running the
+   official app against a real or replayed wheel; hook ByteData accessors to
+   dump offsets empirically.
+4. **Pre-Flutter APK** — InMotion's app was native Java before the Flutter
+   rewrite; an old APK decompiles cleanly with jadx and wire formats rarely
+   change across app rewrites. Won't cover newer models (e.g. P6).
 
 ## Known context — don't re-report
 
