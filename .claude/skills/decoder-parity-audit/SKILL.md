@@ -60,10 +60,39 @@ Escalate in this order:
    find the class in `objs.txt`, locate the parse body in `asm/`, trace each
    `bl` call's `mov`-loaded offset argument, correlate `StoreField` slots with
    the `toString` field order. Budget one field at a time, never a sweep.
-2. **Decompiler pseudocode** — `inmotion_out/ida_script/` loads Blutter's
-   annotations into IDA/Ghidra; the decompiler's data-flow analysis renders
-   offsets inline as C-like pseudocode. Untried as of 2026-08; likely the
-   cheapest full-coverage route.
+2. **Decompiler pseudocode (WORKS — Ghidra headless recipe below).** The
+   decompiler's data-flow analysis renders offsets inline as C-like pseudocode,
+   recovering what the raw asm hides. Confirmed 2026-08 on `libapp.so`.
+
+   **Recipe** (all under `freewheel-data/euc-reference-apps/inmotion_out/`):
+   - Binary: `inmotion_extracted/lib/arm64-v8a/libapp.so` (~19MB).
+   - Symbols: `ida_script/addNames.py` — a flat list of
+     `ida_funcs.add_func(start,end)` + `set_name(addr, "class::method_addr")`.
+     Grep it for the target class to get each function's **start and end** VA.
+     (These file VAs; Ghidra loads the `.so` at **image base 0x100000**, so the
+     Ghidra address is `imageBase.add(fileVA)`, NOT `getNewAddress(fileVA)`.)
+   - Ghidra 12.x needs **JDK 21+**; set `JAVA_HOME` to a Corretto/JBR 21 (a
+     SDKMAN `current` pointing elsewhere breaks headless). Launcher:
+     `/opt/homebrew/opt/ghidra/libexec/support/analyzeHeadless`.
+   - Ghidra auto-analysis finds **0 functions** (Dart AOT has no standard
+     prologues / no symbols) and loads `.text` **as data**. So a post-script
+     must, per target: `clearListing(range)` (else disassembly errors with
+     "requires a start which is an undefined code unit") → `DisassembleCommand`
+     over the range → `CreateFunctionCmd(name, start, bodyAddrSet, USER_DEFINED)`
+     with the body set from addNames' start/end → `DecompInterface.decompile`.
+   - Two-pass is fastest: first run `-import ... -postScript X.java` (no
+     `-deleteProject`) to analyze+save once, then iterate with
+     `-process libapp.so -noanalysis -postScript X.java`.
+   - Working scripts from the 2026-08 run: see the session scratchpad
+     (`DecompileTargets.java`) — reproduce from this recipe if gone.
+
+   **Reading Dart AOT pseudocode:** ignore the noise — `func_0x0140e634`/
+   `func_0x0140fde0` are GC write/stack barriers, `func_0x009dcd48`/`...cde8`
+   are int/double boxing, `+ 0x17` on a pointer is the Dart ByteData payload
+   header offset (so `buf[uVar7 + 0x17]` = BLE byte `uVar7`). The arithmetic is
+   what matters: `read byte; if (0x7f < b) b -= 0x100; b + 0x50` is a **signed
+   int8 + 80** field (InMotion's temperature bias). Confirmed the BMS
+   general-info temps decode this way — see `docs/official-app-audits/inmotion-lorin.md`.
 3. **Dynamic hooks** — `inmotion_out/blutter_frida.js` + a device running the
    official app against a real or replayed wheel; hook ByteData accessors to
    dump offsets empirically.
