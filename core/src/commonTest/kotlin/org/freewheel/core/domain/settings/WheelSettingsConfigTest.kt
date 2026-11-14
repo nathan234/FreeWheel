@@ -783,4 +783,38 @@ class WheelSettingsConfigTest {
         assertEquals(1, sections.size)
         assertEquals("Lighting", sections[0].title)
     }
+
+    // ==================== Per-wheel control overrides ====================
+
+    @Test
+    fun `control override replaces the default control for a resolved wheel`() {
+        val override = ControlSpec.Slider("Brake Pressure Alarm", 90, 125, "%", 100, SettingsCommandId.BRAKE_PRESSURE_ALARM)
+        val caps = CapabilitySet(
+            supportedCommands = setOf(SettingsCommandId.BRAKE_PRESSURE_ALARM, SettingsCommandId.KEY_TONE),
+            controlOverrides = mapOf(SettingsCommandId.BRAKE_PRESSURE_ALARM to override),
+            isResolved = true,
+        )
+        val controls = WheelSettingsConfig.sections(WheelType.VETERAN, caps).flatMap { it.controls }
+        assertEquals(override, controls.single { it.commandId == SettingsCommandId.BRAKE_PRESSURE_ALARM })
+        // Controls without an override keep the wheel-type default.
+        val keyTone = controls.single { it.commandId == SettingsCommandId.KEY_TONE } as ControlSpec.Slider
+        assertEquals(100, keyTone.max)
+    }
+
+    @Test
+    fun `control overrides are ignored until capabilities resolve`() {
+        val override = ControlSpec.Slider("Brake Pressure Alarm", 90, 125, "%", 100, SettingsCommandId.BRAKE_PRESSURE_ALARM)
+        val caps = CapabilitySet(controlOverrides = mapOf(SettingsCommandId.BRAKE_PRESSURE_ALARM to override))
+        val brake = WheelSettingsConfig.sections(WheelType.VETERAN, caps).flatMap { it.controls }
+            .single { it.commandId == SettingsCommandId.BRAKE_PRESSURE_ALARM } as ControlSpec.Slider
+        assertEquals(80, brake.min)
+    }
+
+    @Test
+    fun `mergeWith keeps control overrides`() {
+        val override = ControlSpec.Slider("Brake Pressure Alarm", 90, 125, "%", 100, SettingsCommandId.BRAKE_PRESSURE_ALARM)
+        val older = CapabilitySet(controlOverrides = mapOf(SettingsCommandId.BRAKE_PRESSURE_ALARM to override), isResolved = true)
+        val merged = older.mergeWith(CapabilitySet(isResolved = true))
+        assertEquals(override, merged.controlOverrides[SettingsCommandId.BRAKE_PRESSURE_ALARM])
+    }
 }

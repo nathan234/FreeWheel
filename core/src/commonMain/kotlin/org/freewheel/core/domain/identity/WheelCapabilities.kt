@@ -1,5 +1,6 @@
 package org.freewheel.core.domain.identity
 
+import org.freewheel.core.domain.settings.ControlSpec
 import org.freewheel.core.domain.settings.SettingsCommandId
 
 /**
@@ -28,7 +29,14 @@ data class CapabilitySet(
     val firmwareLevel: Int = 0,
 
     /** Whether capability resolution is complete. See class doc. */
-    val isResolved: Boolean = false
+    val isResolved: Boolean = false,
+
+    /**
+     * Per-wheel replacements for the wheel-type default controls, keyed by command.
+     * Each entry is a complete [ControlSpec] (label, range, unit) for the connected
+     * wheel; commands without an entry use the default from WheelSettingsConfig.
+     */
+    val controlOverrides: Map<SettingsCommandId, ControlSpec> = emptyMap()
 ) {
     companion object {
         /** Swift-callable factory — Kotlin default-parameter constructors aren't visible from ObjC/Swift. */
@@ -48,7 +56,8 @@ data class CapabilitySet(
         detectedModel = newer.detectedModel.ifEmpty { detectedModel },
         firmwareVersion = newer.firmwareVersion.ifEmpty { firmwareVersion },
         firmwareLevel = maxOf(firmwareLevel, newer.firmwareLevel),
-        isResolved = isResolved || newer.isResolved
+        isResolved = isResolved || newer.isResolved,
+        controlOverrides = controlOverrides + newer.controlOverrides
     )
 }
 

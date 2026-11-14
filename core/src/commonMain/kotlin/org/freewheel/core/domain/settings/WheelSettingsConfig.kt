@@ -9,7 +9,8 @@ import org.freewheel.core.domain.identity.WheelType
  * Both Android and iOS render their settings screens from this configuration.
  *
  * Each wheel type defines a superset of all possible controls. When [capabilities]
- * is resolved, sections are filtered to only show controls the wheel actually supports.
+ * is resolved, sections are filtered to only show controls the wheel actually supports,
+ * and any control the wheel overrides ([CapabilitySet.controlOverrides]) replaces the default.
  * When capabilities are not yet resolved (null or unresolved), all controls are shown.
  */
 object WheelSettingsConfig {
@@ -30,7 +31,9 @@ object WheelSettingsConfig {
         if (capabilities == null || !capabilities.isResolved) return allSections
 
         return allSections.mapNotNull { section ->
-            val filtered = section.controls.filter { capabilities.supports(it.commandId) }
+            val filtered = section.controls
+                .filter { capabilities.supports(it.commandId) }
+                .map { capabilities.controlOverrides[it.commandId] ?: it }
             if (filtered.isEmpty()) null else section.copy(controls = filtered)
         }
     }

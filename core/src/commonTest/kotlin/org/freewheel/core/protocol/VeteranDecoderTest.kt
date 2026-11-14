@@ -1,6 +1,8 @@
 package org.freewheel.core.protocol
 
 import org.freewheel.core.domain.settings.WheelSettings
+import org.freewheel.core.domain.settings.WheelSettingsConfig
+import org.freewheel.core.domain.settings.ControlSpec
 import org.freewheel.core.domain.settings.SettingsCommandId
 import org.freewheel.core.domain.identity.WheelType
 import org.freewheel.core.domain.settings.accelerationLimit
@@ -1839,6 +1841,37 @@ class VeteranDecoderTest {
         assertFalse(nosfetDecoder.decoder.getCapabilities().supports(SettingsCommandId.DYNAMIC_ASSIST))
         assertFalse(nosfetDecoder.decoder.getCapabilities().supports(SettingsCommandId.ACCELERATION_LIMIT))
         assertTrue(nosfetDecoder.decoder.getCapabilities().supports(SettingsCommandId.BRAKE_PRESSURE_ALARM))
+    }
+
+    @Test
+    fun `Nosfet settings UI uses the official Nosfet app ranges`() {
+        val caps = decoderWithNosfetVersion().decoder.getCapabilities()
+        val controls = WheelSettingsConfig.sections(WheelType.VETERAN, caps).flatMap { it.controls }
+        fun slider(id: SettingsCommandId) = controls.single { it.commandId == id } as ControlSpec.Slider
+
+        // BrakeSettingActivity: progress 0..35 -> 90..125 %
+        assertEquals(90 to 125, slider(SettingsCommandId.BRAKE_PRESSURE_ALARM).let { it.min to it.max })
+        // layout_set_safe_angle max 40 -> 35..75 degrees
+        assertEquals(35 to 75, slider(SettingsCommandId.LATERAL_CUTOFF_ANGLE).let { it.min to it.max })
+        // layout_set_alam_speed max 110 -> 10..120 km/h
+        assertEquals(10 to 120, slider(SettingsCommandId.ALARM_SPEED_1).let { it.min to it.max })
+        // MaxChargePowerSettingActivity: progress 0..70, shown as 145.0..152.0 V
+        assertEquals(0 to 70, slider(SettingsCommandId.MAX_CHARGE_VOLTAGE).let { it.min to it.max })
+    }
+
+    @Test
+    fun `Nosfet hides lock because the official app has no password feature`() {
+        val caps = decoderWithNosfetVersion().decoder.getCapabilities()
+        assertFalse(caps.supports(SettingsCommandId.LOCK))
+        val controls = WheelSettingsConfig.sections(WheelType.VETERAN, caps).flatMap { it.controls }
+        assertTrue(controls.none { it.commandId == SettingsCommandId.LOCK })
+    }
+
+    @Test
+    fun `Leaperkim wheels keep default ranges and lock`() {
+        val caps = decoderWithVer(5000).decoder.getCapabilities()
+        assertTrue(caps.controlOverrides.isEmpty())
+        assertTrue(caps.supports(SettingsCommandId.LOCK))
     }
 
     @Test
