@@ -4,6 +4,7 @@ import org.freewheel.core.domain.telemetry.BmsState
 import org.freewheel.core.domain.identity.CapabilityMap
 import org.freewheel.core.domain.events.EventLogEntry
 import org.freewheel.core.domain.identity.CapabilitySet
+import org.freewheel.core.domain.settings.NosfetSettingsProfile
 import org.freewheel.core.domain.settings.SettingsCommandId
 import org.freewheel.core.domain.telemetry.SmartBms
 import org.freewheel.core.domain.telemetry.TelemetryState
@@ -743,10 +744,8 @@ class VeteranDecoder : WheelDecoder {
         )
         return if (isNosfetModel()) {
             resolved.copy(
-                supportedCommands = resolved.supportedCommands - setOf(
-                    SettingsCommandId.DYNAMIC_ASSIST,
-                    SettingsCommandId.ACCELERATION_LIMIT,
-                ),
+                supportedCommands = resolved.supportedCommands - NosfetSettingsProfile.unsupportedCommands,
+                controlOverrides = NosfetSettingsProfile.controlOverrides,
             )
         } else {
             resolved
